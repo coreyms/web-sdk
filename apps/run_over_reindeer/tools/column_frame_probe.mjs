@@ -305,18 +305,40 @@ const { PNG } = require('playwright-core/lib/utilsBundle');
  *  place along a band where all three lines are uncovered at once (a gap across the band: a tile joint or a corner that
  *  does not meet); none is allowed, and at least 97% of each line's samples must be covered (a white lane mark under a
  *  pale strand may match by chance). */
-function frameCover(png, bare, G, dpr) {
+/** THE FRAME IN INK (2026-11-20, the probe host at 390 x 844 @1x): a phone pixel at 1x averages about four road px of
+ *  tinsel, strands and dark core together, and on the silver Reindeer frame that average is a mid gray within 24 levels
+ *  of the gray road or a pale lane mark under it (seen: frame 126,131,135 over road 128,128,130), so a covered sample read
+ *  as a gap. A sample is covered when the frame drawn as it is OR the frame drawn all in black (every one of its sprites
+ *  tinted 0x000000 for one screenshot) differs from the road under it: a pixel the frame really covers changes with the
+ *  frame's color, a real gap (nothing of the frame there) reads the same as the road in both, so a gap is still caught. */
+const setInk = (p, on) =>
+	p.evaluate((on) => {
+		const F = window.__reindeer.roadBoard().features;
+		const saved = (window.__inkSaved ??= new Map());
+		const walk = (o) => {
+			if (!o) return;
+			if (o.texture && 'tint' in o) {
+				if (on) {
+					if (!saved.has(o)) saved.set(o, o.tint);
+					o.tint = 0x000000;
+				} else if (saved.has(o)) {
+					o.tint = saved.get(o);
+					saved.delete(o);
+				}
+			}
+			for (const ch of o.children ?? []) walk(ch);
+		};
+		for (const box of F.columns.map((c) => c.box)) for (const r of [box.root, box.rightRoot, box.leftRoot, box.fxRoot]) walk(r);
+	}, on);
+function frameCover(png, bare, G, dpr, ink = null) {
 	const at = (img, x, y) => {
 		const X = Math.min(img.width - 1, Math.max(0, Math.round(x * dpr - 0.5)));
 		const Y = Math.min(img.height - 1, Math.max(0, Math.round(y * dpr - 0.5)));
 		const i = (Y * img.width + X) * 4;
 		return [img.data[i], img.data[i + 1], img.data[i + 2]];
 	};
-	const covered = (x, y) => {
-		const a = at(png, x, y);
-		const b = at(bare, x, y);
-		return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) > 24;
-	};
+	const differ = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) > 24;
+	const covered = (x, y) => differ(at(png, x, y), at(bare, x, y)) || (!!ink && differ(at(ink, x, y), at(bare, x, y)));
 	const { X0, Y0, X1, Y1, T } = G;
 	const out = {};
 	const run = (name, x0, y0, x1, y1, nx, ny) => {
@@ -439,11 +461,14 @@ try {
 				if (name !== 'entrance cloud') {
 					const G = await R(p, FRAME_GEO, reel);
 					await setInside(p, reel, false);
+					await setInk(p, true);
+					const k = await shot(p);
+					await setInk(p, false);
 					await setFrame(p, reel, false);
 					const c = await shot(p);
 					await setFrame(p, reel, true);
 					await setInside(p, reel, true);
-					const lines = frameCover(PNG.sync.read(Buffer.from(b, 'base64')), PNG.sync.read(Buffer.from(c, 'base64')), G, dpr);
+					const lines = frameCover(PNG.sync.read(Buffer.from(b, 'base64')), PNG.sync.read(Buffer.from(c, 'base64')), G, dpr, PNG.sync.read(Buffer.from(k, 'base64')));
 					const badSides = Object.entries(lines).filter(([, l]) => l.bad);
 					check(!!G && badSides.length === 0, `${tag}: ${name}: the garland covers every band and corner with no seam (${Object.entries(lines).map(([k, l]) => `${k} ${l.seams}/${l.n}`).join(', ')} seams)`, Object.fromEntries(badSides.map(([k, l]) => [k, { miss: l.miss, where: l.where }])));
 				}

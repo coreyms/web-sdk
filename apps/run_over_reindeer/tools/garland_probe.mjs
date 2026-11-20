@@ -43,6 +43,9 @@ if (OUT) mkdirSync(OUT, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const FRAME = 1000 / 60;
 const TIERS = ['reindeer', 'santa', 'grandma'];
+/** the grow runs: GROW_TIERS=reindeer and LEVELS=0 narrow them (an owning case on its own) */
+const GROW_TIERS = (process.env.GROW_TIERS || TIERS.join(',')).split(',').filter(Boolean);
+const LEVELS = (process.env.LEVELS || '0,1,2').split(',').map(Number);
 const SIZES = [
 	{ name: 'desktop', vp: { width: 1440, height: 900 }, phone: false },
 	{ name: 'phone', vp: { width: 390, height: 844 }, phone: true },
@@ -128,7 +131,35 @@ const at = (img, x, y, dpr) => {
 const differ = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) > 24;
 /** the band covered (frame alone `a` against no frame `b`) at a quarter, half and three quarters of its depth along every
  *  straight run and round each corner at half its depth; a seam = all three depths uncovered at one place */
-function cover(a, b, G, dpr) {
+/** THE FRAME IN INK (2026-11-20, the probe host at 390 x 844 @1x): a phone pixel at 1x averages about four road px of
+ *  tinsel, strands and dark core together, and on the silver Reindeer frame that average is a mid gray within 24 levels
+ *  of the gray road or a pale lane mark under it (seen: frame 126,131,135 over road 128,128,130), so a covered sample read
+ *  as a gap. A sample is covered when the frame drawn as it is OR the frame drawn all in black (every one of its sprites
+ *  tinted 0x000000 for one screenshot) differs from the road under it: a pixel the frame really covers changes with the
+ *  frame's color, a real gap (nothing of the frame there) reads the same as the road in both, so a gap is still caught. */
+const setInk = (p, on) =>
+	p.evaluate((on) => {
+		const F = window.__reindeer.roadBoard().features;
+		const saved = (window.__inkSaved ??= new Map());
+		const walk = (o) => {
+			if (!o) return;
+			if (o.texture && 'tint' in o) {
+				if (on) {
+					if (!saved.has(o)) saved.set(o, o.tint);
+					o.tint = 0x000000;
+				} else if (saved.has(o)) {
+					o.tint = saved.get(o);
+					saved.delete(o);
+				}
+			}
+			for (const ch of o.children ?? []) walk(ch);
+		};
+		for (const box of [...F.columns.map((c) => c.box), ...F.clouds.map((c) => c.box), ...F.marks.map((m) => m.box)]) for (const r of [box.root, box.rightRoot, box.leftRoot, box.fxRoot]) walk(r);
+	}, on);
+/** the samples that read uncovered in the last cover() calls (their place, the frame's pixel and the road's) */
+const misses = [];
+function cover(a, b, G, dpr, k = null) {
+	const differ2 = (A, Bk, x, y) => differ(at(A, x, y, dpr), at(Bk, x, y, dpr)) || (!!k && differ(at(k, x, y, dpr), at(Bk, x, y, dpr)));
 	const { X0, Y0, X1, Y1, T } = G;
 	const out = {};
 	const run = (name, x0, y0, x1, y1, nx, ny) => {
@@ -139,8 +170,11 @@ function cover(a, b, G, dpr) {
 		for (let i = 0; i <= n; i++) {
 			const x = x0 + ((x1 - x0) * i) / n;
 			const y = y0 + ((y1 - y0) * i) / n;
-			const hit = [0.25, 0.5, 0.75].map((f) => differ(at(a, x + nx * T * f, y + ny * T * f, dpr), at(b, x + nx * T * f, y + ny * T * f, dpr)));
-			hit.forEach((h, j) => (miss[j] += h ? 0 : 1));
+			const hit = [0.25, 0.5, 0.75].map((f) => differ2(a, b, x + nx * T * f, y + ny * T * f));
+			hit.forEach((h, j) => {
+				miss[j] += h ? 0 : 1;
+				if (!h && misses.length < 12) misses.push({ run: name, depth: [0.25, 0.5, 0.75][j], x: Math.round((x + nx * T * [0.25, 0.5, 0.75][j]) * 10) / 10, y: Math.round((y + ny * T * [0.25, 0.5, 0.75][j]) * 10) / 10, frame: at(a, x + nx * T * [0.25, 0.5, 0.75][j], y + ny * T * [0.25, 0.5, 0.75][j], dpr), bare: at(b, x + nx * T * [0.25, 0.5, 0.75][j], y + ny * T * [0.25, 0.5, 0.75][j], dpr) });
+			});
 			if (!hit.some(Boolean)) {
 				seams += 1;
 				if (where.length < 4) where.push([Math.round(x * 10) / 10, Math.round(y * 10) / 10]);
@@ -159,7 +193,7 @@ function cover(a, b, G, dpr) {
 		let miss = 0;
 		for (let k = 0; k <= n; k++) {
 			const q = a0 + ((a1 - a0) * k) / n;
-			if (!differ(at(a, cx + Math.cos(q) * T * 0.5, cy + Math.sin(q) * T * 0.5, dpr), at(b, cx + Math.cos(q) * T * 0.5, cy + Math.sin(q) * T * 0.5, dpr))) miss += 1;
+			if (!differ2(a, b, cx + Math.cos(q) * T * 0.5, cy + Math.sin(q) * T * 0.5)) miss += 1;
 		}
 		out[`corner${i}`] = { n: n + 1, seams: miss, miss: [miss], where: [], bad: miss > 0 };
 	});
@@ -253,6 +287,9 @@ try {
 			const a = await shot(p);
 			// the baubles' color at their ball's centre (the frame alone)
 			const balls = L.columns.map((c) => ({ tier: c.tier, kinds: c.bb.map((b) => ballKind(at(a, b.cx, b.cy, dpr))) }));
+			await setInk(p, true);
+			const ink = await shot(p);
+			await setInk(p, false);
 			await setFrames(p, false);
 			const b = await shot(p);
 			await setFrames(p, true);
@@ -262,7 +299,7 @@ try {
 				check(kindOf(col) === L.want.look[c.tier].tinsel, `${tag}: on screen the ${c.tier} column's band reads ${kindOf(col)} (mean ${col?.join(',')})`);
 				const bl = balls.find((x) => x.tier === c.tier);
 				check(bl.kinds.length === 4 && bl.kinds.every((k) => k === L.want.look[c.tier].bauble), `${tag}: on screen the ${c.tier} column's baubles read ${bl.kinds.join(', ')}`);
-				const cv = cover(a, b, c.css, dpr);
+				const cv = cover(a, b, c.css, dpr, ink);
 				const bad = Object.entries(cv).filter(([, l]) => l.bad);
 				check(bad.length === 0, `${tag}: the ${c.tier} column's garland standing: every band and corner covered, no seam (${Object.entries(cv).map(([k, l]) => `${k} ${l.seams}`).join(', ')})`, Object.fromEntries(bad));
 			}
@@ -295,35 +332,44 @@ try {
 				});
 				for (let i = 0; i < 200 && !(await R(p, () => window.__done)); i++) await sleep(150);
 				await sleep(1500);
-				const count = () =>
-					R(p, async () => {
-						const cv = document.querySelector('canvas');
-						const gl = cv.getContext('webgl2') || cv.getContext('webgl');
-						let n = 0;
-						const de = gl.drawElements;
-						const da = gl.drawArrays;
-						gl.drawElements = function (...a) {
-							n += 1;
-							return de.apply(this, a);
-						};
-						gl.drawArrays = function (...a) {
-							n += 1;
-							return da.apply(this, a);
-						};
-						const frames = [];
-						for (let i = 0; i < 6; i++) {
-							n = 0;
-							await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-							frames.push(n);
-						}
-						gl.drawElements = de;
-						gl.drawArrays = da;
-						return frames;
-					});
-				const on = await count();
-				await setFrames(p, false);
-				const off = await count();
-				await setFrames(p, true);
+				// (2026-11-20: the board clock held and the frames shown and hidden on alternate frames, so the scene's own
+				// changes (a light, the roaming reindeer) fall on both sides alike; one pass of six frames each way read 40 or
+				// 44 without the frames as the scene moved)
+				const { on, off } = await R(p, async () => {
+					const h = window.__reindeer;
+					const F = h.roadBoard().features;
+					h.clock(0);
+					const cv = document.querySelector('canvas');
+					const gl = cv.getContext('webgl2') || cv.getContext('webgl');
+					let n = 0;
+					const de = gl.drawElements;
+					const da = gl.drawArrays;
+					gl.drawElements = function (...a) {
+						n += 1;
+						return de.apply(this, a);
+					};
+					gl.drawArrays = function (...a) {
+						n += 1;
+						return da.apply(this, a);
+					};
+					const show = (v) => {
+						for (const c of F.columns) for (const r of [c.box.root, c.box.rightRoot, c.box.leftRoot, c.box.fxRoot]) if (r) r.renderable = v;
+					};
+					const on = [];
+					const off = [];
+					for (let i = 0; i < 12; i++) {
+						show(i % 2 === 0);
+						await new Promise((r) => requestAnimationFrame(r));
+						n = 0;
+						await new Promise((r) => requestAnimationFrame(r));
+						(i % 2 === 0 ? on : off).push(n);
+					}
+					show(true);
+					gl.drawElements = de;
+					gl.drawArrays = da;
+					h.clock(1);
+					return { on, off };
+				});
 				const med = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
 				const L2 = await R(p, FRAMES);
 				const sprites = L2.columns.reduce((n, c) => n + c.sprites, 0);
@@ -334,9 +380,9 @@ try {
 
 			// THE GROW, per character: the entrance plays as the box grows, the garland whole at every height
 			const lengths = {};
-			for (const level of dpr === DPRS[0] ? [0, 1, 2] : [0]) {
+			for (const level of dpr === DPRS[0] ? LEVELS : [0]) {
 				await R(p, (l) => window.__reindeer.turbo(l), level);
-				for (const tier of TIERS) {
+				for (const tier of GROW_TIERS) {
 					await R(p, (tier) => {
 						const h = window.__reindeer;
 						h.clock(0);
@@ -382,12 +428,15 @@ try {
 								heights.add(want);
 								await setInsides(p, false);
 								const a2 = await shot(p);
+								await setInk(p, true);
+								const ink2 = await shot(p);
+								await setInk(p, false);
 								await setFrames(p, false);
 								const b2 = await shot(p);
 								await setFrames(p, true);
 								await setInsides(p, true);
 								const G = (await R(p, FRAMES)).columns.find((x) => x.reel === 2).css;
-								const cv = cover(a2, b2, G, dpr);
+								const cv = cover(a2, b2, G, dpr, ink2);
 								const bad = Object.entries(cv).filter(([, l]) => l.bad);
 								if (bad.length) seamFails.push({ u: want, bad: Object.fromEntries(bad) });
 								if (OUT && dpr === DPRS[DPRS.length - 1]) writeFileSync(join(OUT, `grow_${S.name}_${tier}_${Math.round(want * 100)}.png`), PNG.sync.write(a2));
@@ -433,6 +482,7 @@ try {
 } finally {
 	await browser.close();
 }
+summary.misses = misses;
 if (OUT) writeFileSync(join(OUT, 'garland_probe.json'), JSON.stringify(summary, null, 1));
 console.log(JSON.stringify(summary));
 console.log(`\n${pass} passed, ${fail} failed`);
