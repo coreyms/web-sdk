@@ -1390,7 +1390,7 @@ export const SIGN_WIN = {
 	 *  side on the mock page's "10 options" switch): 'a' Ringed, 'b' Border, 'c' Dense, or 'off' (the ice look of his
 	 *  tuned settings). The same band, sweep, bolts and sparkles as the other four; only its reflectors differ. THE PICK
 	 *  IS THIS ONE LINE. */
-	ten: 'c' as 'off' | 'a' | 'b' | 'c',
+	ten: 'a' as 'off' | 'a' | 'b' | 'c',
 	/** each 10 look: its dot set (tools/sign_layers.py TEN_DOTS: 'dense' 31 smaller reflectors, 'denseBig' 28 slightly
 	 *  larger, 'field' the four signs' 10), its reflectors at rest (the lens or the ring picture, tint, alpha), the lit
 	 *  lens's tint, a halo (the glow in NORMAL blend: it shows on white; tint, alpha, width in dot radii), a shadow leading
