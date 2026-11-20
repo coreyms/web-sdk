@@ -2261,7 +2261,7 @@ async function ideasChecks(browser) {
 				if (kind === 'sfs') {
 					const allRed = r.names.length > 0 && r.names.every((n) => n === 'present_red') && r.page.length > 0 && r.page.every((n) => n === 'present_red');
 					const px = r.inks?.read ?? [];
-					check(allRed && px.length >= 2 && px.every((x) => x.teal === 0 && x.red > x.n * 0.25), `${tag}: SUPER: every present on the entry (${r.names.join(', ')}) and on its page (${r.page.join(', ')}) is the red present; the page's ${px.length} present boxes are red on the face (${px.map((x) => `${x.red} red, ${x.teal} teal of ${x.n}`).join('; ')})`, r);
+					check(allRed && px.length >= 2 && px.every((x) => x.teal === 0 && x.red > x.n * 0.12), `${tag}: SUPER: every present on the entry (${r.names.join(', ')}) and on its page (${r.page.join(', ')}) is the red present; the page's ${px.length} present boxes are red on the face, no teal LED and over 12% red (the box also holds the page's dark sky) (${px.map((x) => `${x.red} red, ${x.teal} teal of ${x.n}`).join('; ')})`, r);
 					// the same reel at the same scene time on a second run
 					const again = await R(p, () => {
 						const h = window.__reindeer;
