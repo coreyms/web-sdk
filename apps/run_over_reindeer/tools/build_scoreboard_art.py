@@ -9,13 +9,20 @@ src/game/scoreboardArtSpec.ts (generated: each picture's place on the sheet). Th
 The sheet is never drawn by Pixi (never sent to the GPU): the dot canvases read it. The dot canvases are exempt from the 3x
 rule by design (one canvas pixel per LED dot, scaled with nearest sampling).
 
-Run with the math env's Python (Pillow):
+THE RIDERS (Corey 2026-11-19): Grandma's car and Santa's sleigh carry their riders, seated as the road board seats them
+(tools/led_seated.py: the atlas's H1_L and W_L frames with the locked stills and the near door or sleigh wall over them, at
+the mock's vehicle width). Their frames carry `vehicle`: the vehicle's box in the picture (px), which the LED code places
+and sizes by, so the vehicle lands where the empty one did and the rider rises above it.
+
+Run with the math env's Python (Pillow, numpy, scipy):
     math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_scoreboard_art.py
 """
 import json
 import os
 
 from PIL import Image
+
+from led_seated import compose
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
@@ -25,11 +32,16 @@ SPEC = os.path.join(APP, "src", "game", "scoreboardArtSpec.ts")
 # row 1: the run strip; row 2 the cars and the sleigh; row 3 the column characters and the present
 ROWS = [["run_strip"], ["car", "H2", "H3", "H4", "sleigh"], ["reindeer_col", "santa_col", "grandma_col", "present"]]
 GAP = 2
+# the vehicles drawn with their rider: the atlas frame each one is (the mock's pictures face left)
+SEATED = {"car": "H1_L", "sleigh": "W_L"}
 
 
 def main():
     os.makedirs(OUT, exist_ok=True)
     ims = {n: Image.open(os.path.join(SRC, n + ".png")).convert("RGBA") for row in ROWS for n in row}
+    boxes = {}
+    for n, fr in SEATED.items():
+        ims[n], boxes[n] = compose(fr, ims[n].width)
     W = max(sum(ims[n].width for n in row) + GAP * (len(row) - 1) for row in ROWS)
     H = sum(max(ims[n].height for n in row) for row in ROWS) + GAP * (len(ROWS) - 1)
     sheet = Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -41,6 +53,8 @@ def main():
             im = ims[n]
             sheet.paste(im, (x, y))
             frames[n] = {"x": x, "y": y, "w": im.width, "h": im.height}
+            if n in boxes:
+                frames[n]["vehicle"] = boxes[n]
             x += im.width + GAP
         y += max(ims[n].height for n in row) + GAP
     path = os.path.join(OUT, "scoreboard-art.webp")

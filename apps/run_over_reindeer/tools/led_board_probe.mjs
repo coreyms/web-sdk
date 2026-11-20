@@ -63,6 +63,19 @@
 // at one density with one face each, their LEDs, the GPU budget, a one dot chase border the same number of LEDs all round,
 // the draw cost per layout; a rotation (sideways to upright at 2x and back) and the tune panel switch the density cleanly
 // (never two densities on screen, no face left over); M4 and the currency's drawRow check again on the finer grid
+// THE LED ANIMATION FIXES (section ledAnim, 2026-11-19, wip/ledanim), at the device's own pixel ratio (desktop 1440 x 900 at
+// 2x and 1x, wide 1920 x 1080 at 1x, upright 390 x 844 at 3x and 2x, sideways 844 x 390 at 3x: both grids, every layout
+// class), driven by hand:
+//   - THE PLOW'S SNOW EDGE ("so the snow line disappears with the back tire"): on every 10 ms step of the van's drive the
+//     pile's last column is the van's rear wheel's trailing edge, read from the FACE'S PIXELS (the snow's color; the tire:
+//     the van's lit LEDs below its body's lowest row at its middle, on its rear half) within one LED, never snow behind it,
+//     and the game's own record (the edge measured on the van's bake) agrees within one LED
+//   - THE RIDERS ("Grandma in the cars, santa in the sleighs"): the LED sheets' car and sleigh pictures carry their rider
+//     above the vehicle (scoreboardArtSpec.ts and ledArtSpec.ts: a `vehicle` box with headroom); in the strip's parade,
+//     peek, sleigh and the gag's bump, the Super entry's sweep, the Total Win's band (and the Mega jam when its Grandma car
+//     is in), each vehicle drawn with its rider has lit LEDs over at least 12% of the rider's part of its picture (an empty
+//     vehicle lights none; a seated rider about 22%), and on the strip the rider's head is inside the face (the picture's
+//     top at row 0 or below)
 // M4 (section m4, desktop and upright, 2026-11-19, driven by hand): the strip's scan to a message leaves the old picture alone
 //   right of its line (never the two drawn at once); the Total Win's amount is lit whenever its title is, the landing blink too
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=desktop,...] [SECTIONS=rule,rise,gag,race,round,scenes,cards,titles] node tools/led_board_probe.mjs
@@ -79,7 +92,7 @@ const { PNG } = require('playwright-core/lib/utilsBundle');
 
 const APP = process.env.APP || 'http://localhost:3014';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
-const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes,bonusStrip,explain,currency,m4,density').split(',');
+const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes,bonusStrip,explain,currency,m4,density,ledAnim').split(',');
 const SEC = (s) => SECTIONS.includes(s);
 // the intro card's sentence, exactly (game/constants.ts INTRO_LINE, which ui/RoundCard.svelte shows too)
 const INTRO = (() => {
@@ -1900,6 +1913,177 @@ async function densityChecks(browser) {
 	console.log('DENSITY', JSON.stringify(table, null, 1));
 }
 
+// ---- THE LED ANIMATION FIXES (section ledAnim, 2026-11-19): the plow's snow edge and the riders ---------------------------
+const LEDANIM_CASES = [
+	{ name: 'ledAnim desktop@2', vp: { width: 1440, height: 900 }, dpr: 2, phone: false },
+	{ name: 'ledAnim desktop@1', vp: { width: 1440, height: 900 }, dpr: 1, phone: false },
+	{ name: 'ledAnim wide@1', vp: { width: 1920, height: 1080 }, dpr: 1, phone: false },
+	{ name: 'ledAnim upright@3', vp: { width: 390, height: 844 }, dpr: 3, phone: true },
+	{ name: 'ledAnim upright@2', vp: { width: 390, height: 844 }, dpr: 2, phone: true },
+	{ name: 'ledAnim sideways@3', vp: { width: 844, height: 390 }, dpr: 3, phone: true },
+].filter((s) => !ONLY.length || ONLY.includes(s.name.split(' ')[1].split('@')[0]) || ONLY.includes('ledAnim'));
+/** the LED sheets' rider pictures, from the generated specs: each with a vehicle box and room above it for the rider */
+function riderSpecs() {
+	const out = [];
+	for (const [file, name] of [['scoreboardArtSpec.ts', 'SCOREBOARD_ART'], ['ledArtSpec.ts', 'LED_ART']]) {
+		const src = readFileSync(join(SRC, 'game', file), 'utf8');
+		const spec = JSON.parse(src.slice(src.indexOf('{'), src.lastIndexOf('}') + 1));
+		for (const pic of ['car', 'sleigh']) {
+			const f = spec.frames[pic];
+			out.push({ spec: name, pic, h: f?.h, vehicle: f?.vehicle ?? null, ok: !!f?.vehicle && f.vehicle.y + f.vehicle.h === f.h && f.vehicle.y >= 0.15 * f.vehicle.h && f.vehicle.w <= f.w });
+		}
+	}
+	return out;
+}
+/** in the page: a face's picture as pixels, and the plow's and riders' reads of it */
+const faceReads = () => {
+	window.__ledAnimRead = async (which) => {
+		const h = window.__reindeer;
+		const f = h.scoreboardFace(which, true);
+		const img = new Image();
+		img.src = f.png;
+		await img.decode();
+		const c = document.createElement('canvas');
+		c.width = f.ledW;
+		c.height = f.ledH;
+		const g = c.getContext('2d');
+		g.drawImage(img, 0, 0);
+		const d = g.getImageData(0, 0, f.ledW, f.ledH).data;
+		const W = f.ledW;
+		const H = f.ledH;
+		const px = (x, y) => { const i = (y * W + x) * 4; return [d[i], d[i + 1], d[i + 2], d[i + 3]]; };
+		const out = { W, H, k: f.k, plow: f.plow, riders: f.riders, read: null, riderLit: [] };
+		if (f.plow) {
+			const hex = f.plow.color;
+			const sc = [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+			// (the pile's color within a few steps: a face shimmer or switch can move it by one or two)
+			const isSnow = (p) => p[3] > 200 && Math.abs(p[0] - sc[0]) <= 6 && Math.abs(p[1] - sc[1]) <= 6 && Math.abs(p[2] - sc[2]) <= 6;
+			const isFlake = (p) => p[0] >= 250 && p[1] >= 250 && p[2] >= 250;
+			// the pile's end: one past its rightmost LED anywhere on the face
+			let snow = 0;
+			for (let y = 0; y < H; y++) for (let x = W - 1; x >= snow; x--) if (isSnow(px(x, y))) { snow = x + 1; break; }
+			let wheel = null;
+			if (f.plow.van) {
+				// the van's own LEDs (lit, not snow, not a flake or the spray): its body's lowest row at its middle, the rear tire
+				// below it on the rear half (the van faces left), and the tire's last column
+				const [vx, vy, vw, vh] = f.plow.van;
+				const isVan = (x, y) => x >= 0 && x < W && y >= 0 && y < H && (() => { const p = px(x, y); return p[3] > 0 && !isSnow(p) && !isFlake(p); })();
+				const mid = vx + Math.floor(vw / 2);
+				let body = -1;
+				for (let y = Math.min(H - 1, vy + vh - 1); y >= Math.max(0, vy); y--) if (isVan(mid, y)) { body = y; break; }
+				let e = null;
+				for (let y = body + 1; y < Math.min(H, vy + vh); y++) for (let x = Math.min(W - 1, vx + vw - 1); x >= mid; x--) if (isVan(x, y)) { e = Math.max(e ?? 0, x + 1); break; }
+				wheel = { body, edge: e, mid };
+			}
+			out.read = { snow, wheel };
+		}
+		// each rider: the share of its part of the picture (above its vehicle, inside the face) that is lit
+		for (const r of f.riders ?? []) {
+			const [px0, py0, pw] = r.pic;
+			const top = r.vehicle[1];
+			let lit = 0;
+			let n = 0;
+			for (let y = Math.max(0, py0); y < Math.min(H, top); y++)
+				for (let x = Math.max(0, px0); x < Math.min(W, px0 + pw); x++) {
+					n++;
+					if (px(x, y)[3] > 0) lit++;
+				}
+			out.riderLit.push({ name: r.name, pic: r.pic, vehicle: r.vehicle, share: n ? Math.round((lit / n) * 1000) / 1000 : null, inside: px0 >= 0 && px0 + pw <= W });
+		}
+		return out;
+	};
+};
+async function ledAnimChecks(browser) {
+	const specs = riderSpecs();
+	check(specs.every((x) => x.ok), `ledAnim: the LED sheets' car and sleigh carry their rider (a vehicle box at the picture's bottom with at least 15% headroom: ${specs.map((x) => `${x.spec} ${x.pic} ${x.vehicle ? `${x.vehicle.h} of ${x.h}` : 'none'}`).join(', ')})`, specs);
+	for (const S of LEDANIM_CASES) {
+		const tag = S.name + ` ${S.vp.width}x${S.vp.height}`;
+		const { ctx, p, errs } = await boot(browser, S);
+		try {
+			await R(p, faceReads);
+			// THE PLOW: pinned, to the van's start, then every 10 ms step of its drive
+			const plow = await R(p, async () => {
+				const h = window.__reindeer;
+				h.scoreboardManual(true);
+				h.scoreboardStep(100, 30);
+				h.tune.ledBoard.cartoon = 'plow';
+				h.scoreboardStep(1);
+				h.scoreboardStep(10, 379);
+				const rows = [];
+				for (let i = 0; i < 225; i++) {
+					h.scoreboardStep(10);
+					const r = await window.__ledAnimRead('strip');
+					rows.push({ i, k: r.k, W: r.W, rec: r.plow, read: r.read });
+				}
+				return rows;
+			});
+			const withVan = plow.filter((r) => r.rec?.van);
+			const onFace = withVan.filter((r) => r.read?.wheel?.edge != null && r.read.wheel.edge > 1 && r.read.wheel.edge < r.W - 1 && r.read.wheel.body >= 0);
+			const bad = onFace.filter((r) => Math.abs(r.read.snow - r.read.wheel.edge) > 1 || r.read.snow > r.read.wheel.edge + 1 || Math.abs(r.rec.wheel - r.read.wheel.edge) > 1 || r.rec.edge !== Math.max(0, Math.min(r.W, r.rec.wheel)));
+			const gaps = onFace.map((r) => r.read.snow - r.read.wheel.edge);
+			check(withVan.length >= 200 && onFace.length >= Math.round(withVan.length * 0.5) && bad.length === 0, `${tag}: THE PLOW: on all ${onFace.length} steps with the van's rear wheel on the strip (of ${withVan.length}) the snow ends at the rear tire's trailing edge read from the face within one LED (snow minus tire: ${Math.min(...gaps)} to ${Math.max(...gaps)} LEDs), never behind it, the game's record agreeing`, bad.slice(0, 4));
+			const past = withVan.filter((r) => r.rec.wheel !== null && r.rec.wheel <= 0);
+			check(past.every((r) => r.read.snow === 0), `${tag}: THE PLOW: once the van's rear wheel has left the strip no snow is left (${past.length} steps)`, past.filter((r) => r.read.snow !== 0).slice(0, 3));
+			// THE RIDERS: the strip's cartoons and the gag, the Super entry's sweep, the Total Win's band, the Mega jam
+			const riders = await R(p, async () => {
+				const h = window.__reindeer;
+				const rd = window.__ledAnimRead;
+				const out = [];
+				const pin = (key) => { h.tune.ledBoard.cartoon = key; h.scoreboardStep(1); };
+				for (const [key, times] of [['parade', [1600, 2600, 3600]], ['peek', [500, 1300, 2400]], ['sleigh', [1200, 2300, 3400]]]) {
+					pin(key);
+					let t = 0;
+					for (const at of times) {
+						h.scoreboardStep(10, Math.round((at - t) / 10));
+						t = at;
+						out.push({ where: `${key} ${at}`, face: 'strip', ...(await rd('strip')) });
+					}
+				}
+				h.tune.ledBoard.cartoon = 'auto';
+				const G = h.tune.ledBoard.gag;
+				h.scoreboardGag(false);
+				h.scoreboardStep(10, Math.round((G.firstMs + G.bumpMs * 0.3) / 10));
+				out.push({ where: 'gag bump', face: 'strip', ...(await rd('strip')) });
+				h.scoreboardStep(100, 60);
+				h.scoreboardCard('sfs', { spins: 10 });
+				let s = h.scoreboardStep(0);
+				for (let i = 0; i < 400 && s.show.sceneT < 1050; i++) s = h.scoreboardStep(10);
+				out.push({ where: 'super sweep', face: 'back', ...(await rd('back')) });
+				h.scoreboardCardEnd(); h.scoreboardLower(); h.scoreboardStep(100, 30);
+				h.scoreboardCard('total', { x: 248.5 });
+				for (let i = 0; i < 600; i++) { s = h.scoreboardStep(33); if (s.show && s.show.t > s.show.countEnd + 1400) break; }
+				out.push({ where: 'total band', face: 'back', ...(await rd('back')) });
+				h.scoreboardCardEnd(); h.scoreboardLower(); h.scoreboardStep(100, 40);
+				h.scoreboardWin(100);
+				for (let i = 0; i < 600; i++) { s = h.scoreboardStep(33); if (s.show && s.show.t > s.show.countEnd + 300) break; }
+				for (let i = 0; i < 4; i++) {
+					out.push({ where: `mega jam ${i}`, face: 'back', ...(await rd('back')) });
+					h.scoreboardStep(10, 150);
+				}
+				h.scoreboardSkip?.();
+				h.scoreboardStep(100, 60);
+				h.scoreboardManual(false);
+				return out.map((o) => ({ where: o.where, face: o.face, H: o.H, riderLit: o.riderLit }));
+			});
+			const seen = riders.flatMap((o) => o.riderLit.filter((r) => r.inside && r.share !== null).map((r) => ({ where: o.where, face: o.face, ...r })));
+			const where = (w) => seen.some((r) => r.where.startsWith(w));
+			// (the Mega jam's Grandma car is its fourth vehicle and only enters after about 5 s of the jam, often after the show:
+			// counted when it is in, not required)
+			check(['parade', 'peek', 'sleigh', 'gag', 'super', 'total'].every(where), `${tag}: THE RIDERS: a vehicle with its rider drawn in the parade, peek, sleigh, the gag, the Super entry's sweep and the Total Win (${[...new Set(seen.map((r) => r.where.split(' ')[0]))].join(', ')})`, riders.map((o) => ({ where: o.where, n: o.riderLit.length })));
+			// (an empty vehicle lights none of it; a seated rider about 0.22 of it, the rest is room beside her or him)
+			const dark = seen.filter((r) => r.share < 0.12);
+			check(seen.length > 0 && dark.length === 0, `${tag}: THE RIDERS: each rider's part of its picture is lit over at least 12% (least ${Math.min(...seen.map((r) => r.share))} over ${seen.length} riders)`, dark.slice(0, 4));
+			const clipped = seen.filter((r) => r.face === 'strip' && r.pic[1] < 0);
+			check(clipped.length === 0, `${tag}: THE RIDERS: on the strip every rider's head is inside the face (the picture's top row at 0 or below)`, clipped.slice(0, 4));
+			check(errs.length === 0, `${tag}: no page errors`, errs);
+		} catch (e) {
+			check(false, `${tag}: the ledAnim checks ran to their end`, String(e?.stack ?? e).slice(0, 600));
+		} finally {
+			await ctx.close();
+		}
+	}
+}
+
 (async () => {
 	const browser = await chromium.launch({ args: ['--mute-audio'] });
 	const memory = {};
@@ -1933,6 +2117,7 @@ async function densityChecks(browser) {
 			}
 		}
 		if (SEC('density')) await densityChecks(browser);
+		if (SEC('ledAnim')) await ledAnimChecks(browser);
 	} finally {
 		await browser.close();
 	}

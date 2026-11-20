@@ -126,15 +126,85 @@ function art(name: ArtName, src: number[] | null, dw: number, dh: number, k = 1)
 	artCache.set(key, c);
 	return c;
 }
-/** a picture `h` dots tall with its bottom at yBottom (flip: mirrored) */
-function sprite(g: Ctx, name: ArtName, x: number, yBottom: number, h: number, flip = false, src: number[] | null = null): number {
+/** THE RIDERS (Corey 2026-11-19: "can we put Grandma in the cars, santa in the sleighs in the existing animations?"):
+ *  Grandma's car and Santa's sleigh are pictures of the vehicle WITH its rider seated as the road board seats them
+ *  (tools/led_seated.py), their frame's `vehicle` the vehicle's box in the picture (px). Every program sizes and places
+ *  them by the vehicle as before; the rider rises above it. */
+type Box4 = { x: number; y: number; w: number; h: number };
+/** THE RIDERS AS DRAWN this step (the probes): per vehicle with its rider, its picture and its vehicle's box in LEDs [x, y, w, h] */
+export type RiderRec = { name: string; pic: [number, number, number, number]; vehicle: [number, number, number, number] };
+const riderRec = new WeakMap<object, RiderRec[]>();
+export const ridersOf = (canvas: object): RiderRec[] => riderRec.get(canvas) ?? [];
+const vehicleOf = (name: ArtName): Box4 | null => (frameOf(name) as { vehicle?: Box4 } | undefined)?.vehicle ?? null;
+/** a rider's vehicle `h` dots tall, made smaller where needed so the whole picture (the rider's head) fits in `room` dots */
+const fitVehicle = (name: ArtName, h: number, room: number) => {
+	const v = vehicleOf(name);
+	return v ? Math.min(h, (room * v.h) / size(name, null)[1]) : h;
+};
+/** a picture `h` dots tall with its bottom at yBottom (flip: mirrored); for a vehicle with its rider, `h` is the vehicle's
+ *  height and the vehicle's box lands where the empty vehicle did. Returns its width in dots (the vehicle's), the bake and
+ *  its corner in LEDs */
+function spriteAt(g: Ctx, name: ArtName, x: number, yBottom: number, h: number, flip = false, src: number[] | null = null) {
 	const [sw, sh] = size(name, src);
-	const w = Math.max(1, Math.round((h * sw) / sh));
 	const k = kOf(g);
+	const v = src ? null : vehicleOf(name);
+	if (v) {
+		const s = h / v.h;
+		const pw = Math.max(1, Math.round(sw * s));
+		const ph = Math.max(1, Math.round(sh * s));
+		const a = art(name, null, pw, ph, k);
+		// (mirrored in its own box: the vehicle's left edge is then the mirror of its right)
+		const vx = flip ? sw - v.x - v.w : v.x;
+		const lx = Math.round((x - vx * s) * k);
+		const ly = Math.round((yBottom - ph) * k);
+		blitP(g, a, lx, ly, flip);
+		const w = Math.max(1, Math.round(v.w * s));
+		// (the probes: where the rider's picture and its vehicle landed on this face, in LEDs)
+		// (a face's records go at the start of its step, clearTitle; a scratch face of a switch is never cleared, so its list
+		// is kept short)
+		const rec = riderRec.get(g.canvas) ?? [];
+		if (rec.length >= 8) rec.length = 0;
+		rec.push({ name, pic: [lx, ly, a.width, a.height], vehicle: [Math.round(x * k), Math.round((yBottom - h) * k), Math.round(w * k), Math.round(h * k)] });
+		riderRec.set(g.canvas, rec);
+		return { w, a, lx, ly };
+	}
+	const w = Math.max(1, Math.round((h * sw) / sh));
 	const a = art(name, src, w, Math.round(h), k);
 	// (on the LED grid: its corner on the LED nearest, so a moving picture steps one LED at a time; mirrored in its own box)
-	blitP(g, a, Math.round(x * k), Math.round((yBottom - h) * k), flip);
-	return w;
+	const lx = Math.round(x * k);
+	const ly = Math.round((yBottom - h) * k);
+	blitP(g, a, lx, ly, flip);
+	return { w, a, lx, ly };
+}
+function sprite(g: Ctx, name: ArtName, x: number, yBottom: number, h: number, flip = false, src: number[] | null = null): number {
+	return spriteAt(g, name, x, yBottom, h, flip, src).w;
+}
+/** THE REAR WHEEL'S TRAILING EDGE of a vehicle picture facing left (its rear on the right; the plow's van), measured on the
+ *  bake itself in its own LEDs: the body's lowest lit row at the picture's middle, then the rightmost lit LED below that row
+ *  on the rear half (the rear tire), plus one: the first clear column behind the tire. Once per bake. */
+const rearEdges = new WeakMap<object, number>();
+function rearWheelEdge(a: Cv): number {
+	const got = rearEdges.get(a);
+	if (got !== undefined) return got;
+	const w = a.width;
+	const h = a.height;
+	const d = a.ctx.getImageData(0, 0, w, h).data;
+	const mid = Math.floor(w / 2);
+	let body = -1;
+	for (let y = h - 1; y >= 0; y--)
+		if (d[(y * w + mid) * 4 + 3] > 0) {
+			body = y;
+			break;
+		}
+	let e = mid;
+	for (let y = body + 1; y < h; y++)
+		for (let x = w - 1; x >= mid; x--)
+			if (d[(y * w + x) * 4 + 3] > 0) {
+				e = Math.max(e, x + 1);
+				break;
+			}
+	rearEdges.set(a, e);
+	return e;
 }
 const RUN_FRAMES = 8;
 const RUN_FW = 125;
@@ -443,6 +513,8 @@ export const clearTitle = (canvas: object) => {
 	titleRec.delete(canvas);
 	entryWaitRec.delete(canvas);
 	raceCardRec.delete(canvas);
+	plowRec.delete(canvas);
+	riderRec.delete(canvas);
 };
 /** THE BACK BOARD'S TITLE: centered on its lit dots about cx, set letter by letter; `bounce` (the show's clock, or null)
  *  bobs the letters in a wave (the mock's bounceTitle; LED_BOARD.titles.bounce its strength), `march` (the scene's clock,
@@ -1059,6 +1131,12 @@ function drawRace(g: Ctx, race: Race, t: number, x0: number, W: number, yB: numb
 export type RaceCardRec = { outcome: string; pics: [number, number][]; text: [number, number] | null; words: string };
 const raceCardRec = new WeakMap<object, RaceCardRec>();
 export const raceCardOf = (canvas: object): RaceCardRec | null => raceCardRec.get(canvas) ?? null;
+/** THE PLOW AS DRAWN (the probes): the van's bake in LEDs [x, y, w, h], its rear wheel's trailing edge (LED column, from
+ *  the bake: rearWheelEdge), the pile's end (the first LED column with no pile) and the pile's color; null before the van */
+export type PlowRec = { van: [number, number, number, number] | null; wheel: number | null; edge: number; color: string };
+const PLOW_SNOW = '#e8f4ff';
+const plowRec = new WeakMap<object, PlowRec>();
+export const plowOf = (canvas: object): PlowRec | null => plowRec.get(canvas) ?? null;
 const spriteW = (name: ArtName, h: number) => {
 	const [sw, sh] = size(name, null);
 	return Math.max(1, Math.round((h * sw) / sh));
@@ -1200,20 +1278,35 @@ export const CARTOONS: Cartoon[] = [
 			const pileMax = Math.round(H * 0.45);
 			const grow = clamp(t / 3800, 0, 1);
 			const vanX = t < 3800 ? W + 10 : W - ((t - 3800) / 2200) * (W + H * 3);
-			g.fillStyle = '#e8f4ff';
-			// (the pile LED column by LED column on the finer grid)
 			const k = kOf(g);
 			const PH = Math.round(H * k);
-			for (let xp = 0, n = Math.round(W * k); xp < n; xp++) {
+			const n = Math.round(W * k);
+			// THE SNOW GOES WITH THE BACK TIRE (Corey 2026-11-19: "so the snow line disappears with the back tire instead fo
+			// behind it"): the pile ends at the rear tire's trailing edge, measured on the van's own bake in LEDs
+			// (rearWheelEdge), so it holds at every size, grid and speed. (It used to end a fixed 1.4 x H dots right of the
+			// van's left edge: a strip of snow about 0.37 x H dots long hung behind the van.) The van is baked first and
+			// drawn after the pile, its corner on the LED as sprite() places it.
+			const vh = Math.round(H * 0.85);
+			let van: { a: Cv; lx: number; ly: number } | null = null;
+			let edge = n;
+			if (t >= 3800) {
+				const [sw, sh] = size('H3', null);
+				const a = art('H3', null, Math.max(1, Math.round((vh * sw) / sh)), vh, k);
+				van = { a, lx: Math.round(vanX * k), ly: Math.round((H - 1 - vh) * k) };
+				edge = clamp(van.lx + rearWheelEdge(a), 0, n);
+			}
+			g.fillStyle = PLOW_SNOW;
+			// (the pile LED column by LED column on the finer grid)
+			for (let xp = 0; xp < edge; xp++) {
 				const x = xp / k;
-				if (x > vanX + H * 1.4) continue;
 				const ph = Math.round(pileMax * grow * (0.6 + 0.4 * Math.sin(x * 0.21) * Math.sin(x * 0.07 + 1)) * k);
 				if (ph > 0) fillP(g, xp, PH - ph, 1, ph);
 			}
-			if (t >= 3800) {
-				sprite(g, 'H3', vanX, H - 1, Math.round(H * 0.85));
+			if (van) {
+				blitP(g, van.a, van.lx, van.ly);
 				for (let i = 0; i < 6; i++) dot(g, vanX - 2 - hash(i + Math.floor(t / 80)) * 6, H - 4 - hash(i * 3 + Math.floor(t / 80)) * H * 0.6, '#ffffff');
 			}
+			plowRec.set(g.canvas, { van: van ? [van.lx, van.ly, van.a.width, van.a.height] : null, wheel: van ? van.lx + rearWheelEdge(van.a) : null, edge, color: PLOW_SNOW });
 		},
 	},
 	{
@@ -1224,9 +1317,11 @@ export const CARTOONS: Cartoon[] = [
 		draw(g, W, H, t) {
 			const h = Math.round(H * 0.9);
 			const rw = Math.round((h * RUN_FW) / RUN_FH);
-			const sw = Math.round(h * 1.37);
+			// (Santa's hat inside the strip: the sleigh a little smaller than the reindeer where the strip is short for him)
+			const slh = fitVehicle('sleigh', h, H - 1);
+			const sw = Math.round(slh * 1.37);
 			const x = -rw - sw + (t / 4600) * (W + rw * 2 + sw * 2);
-			const sx = sprite(g, 'sleigh', x, H - 1, h, true);
+			const sx = sprite(g, 'sleigh', x, H - 1, slh, true);
 			gallop(g, x + sx + 2, H - 1, h, t);
 			for (let i = 0; i < 14; i++) {
 				const px = x - i * 3 - hash(i) * 4;
@@ -1243,7 +1338,8 @@ export const CARTOONS: Cartoon[] = [
 		draw(g, W, H, t) {
 			const h = Math.round(H * 0.85);
 			const x = W - (t / 3000) * (W + h * 2);
-			if (t < 3200) sprite(g, 'car', x, H - 1, h);
+			// (Grandma's head inside the strip: the car a little smaller where the strip is short for her)
+			if (t < 3200) sprite(g, 'car', x, H - 1, fitVehicle('car', h, H - 1));
 			const pk = t < 2000 ? 0 : t < 2500 ? (t - 2000) / 500 : t < 4000 ? 1 : t < 4400 ? 1 - (t - 4000) / 400 : 0;
 			if (pk > 0) {
 				const [sw, shh] = size('reindeer_col', null);
@@ -1340,7 +1436,8 @@ export function showGag(F: Face, t: number) {
 		const meet = Math.min(1, u / 0.55);
 		const rw = Math.round((h * RUN_FW) / RUN_FH);
 		gallop(g, -rw + (mid - rw * 0.7 + rw) * meet - (u > 0.55 ? (u - 0.55) * 30 : 0), H - 1, h, t);
-		sprite(g, 'car', W - (W - mid - 2) * meet + (u > 0.55 ? (u - 0.55) * 40 : 0), H - 1 - (u > 0.55 ? Math.sin((u - 0.55) * 7) * 3 : 0), h * 0.9);
+		// (Grandma's head inside the strip at the top of the car's bounce, 3 dots up)
+		sprite(g, 'car', W - (W - mid - 2) * meet + (u > 0.55 ? (u - 0.55) * 40 : 0), H - 1 - (u > 0.55 ? Math.sin((u - 0.55) * 7) * 3 : 0), fitVehicle('car', h * 0.9, H - 4));
 		if (u > 0.5) burst(g, mid, H / 2, (u - 0.5) / 0.5, Math.round(H * 0.6));
 	} else if (t < t3) marchText(g, G.second, W, H, s, t - t2, '#ffffff');
 	else marchText(g, G.third, W, H, s, t - t3, '#ffd23a');

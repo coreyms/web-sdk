@@ -5,13 +5,19 @@ screens from, at one pixel per dot, on a 2D canvas: static/assets/landing/led-ar
 alpha) and src/game/ledArtSpec.ts (generated: each picture's place on the sheet). The run strip stays whole (its eight
 125 x 108 frames side by side, as the mock cuts them).
 
-Run with the math env's Python (Pillow):
+THE RIDERS (Corey 2026-11-19): Grandma's car and Santa's sleigh carry their riders, seated as the road board seats them
+(tools/led_seated.py, as tools/build_scoreboard_art.py). Their frames carry `vehicle`: the vehicle's box in the picture
+(px), which the press screen fits into its reel cell (game/landing/ledScreens.ts drawFit), the rider rising above it.
+
+Run with the math env's Python (Pillow, numpy, scipy):
     math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_led_art.py
 """
 import json
 import os
 
 from PIL import Image
+
+from led_seated import compose
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
@@ -20,11 +26,16 @@ OUT = os.path.join(APP, "static", "assets", "landing")
 SPEC = os.path.join(APP, "src", "game", "ledArtSpec.ts")
 NAMES = ["run_strip", "car", "sleigh", "reindeer_col", "santa_col", "grandma_col", "cloud"]
 GAP = 2
+# the vehicles drawn with their rider: the atlas frame each one is (the mock's pictures face left)
+SEATED = {"car": "H1_L", "sleigh": "W_L"}
 
 
 def main():
     os.makedirs(OUT, exist_ok=True)
     ims = {n: Image.open(os.path.join(SRC, n + ".png")).convert("RGBA") for n in NAMES}
+    boxes = {}
+    for n, fr in SEATED.items():
+        ims[n], boxes[n] = compose(fr, ims[n].width)
     # row 1: the run strip; row 2: the rest, left to right
     strip = ims["run_strip"]
     rest = [n for n in NAMES if n != "run_strip"]
@@ -41,6 +52,8 @@ def main():
         im = ims[n]
         sheet.paste(im, (x, y))
         frames[n] = {"x": x, "y": y, "w": im.width, "h": im.height}
+        if n in boxes:
+            frames[n]["vehicle"] = boxes[n]
         x += im.width + GAP
     path = os.path.join(OUT, "led-art.webp")
     sheet.save(path, "WEBP", quality=90, alpha_quality=100, method=6)

@@ -397,4 +397,6 @@ def main():
 
 
 SPLIT = {}
-main()
+# (guarded 2026-11-19: tools/led_seated.py imports the split's helpers to seat the riders in the LED boards' pictures)
+if __name__ == "__main__":
+    main()

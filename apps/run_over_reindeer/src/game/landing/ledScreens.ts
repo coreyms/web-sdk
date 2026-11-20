@@ -483,7 +483,9 @@ function drawLayout(g: Ctx, lay: Laid, x: number, y: number, w: number, align: '
 }
 
 // ---- the pictures (one small sheet, game/ledArtSpec.ts frames) ----
-export type ArtSheet = { image: CanvasImageSource; frames: Record<string, { x: number; y: number; w: number; h: number }> };
+// (vehicle: Grandma's car and Santa's sleigh carry their riders since 2026-11-19, tools/led_seated.py; the vehicle's box in
+// the picture, px, which drawFit fits, the rider rising above it)
+export type ArtSheet = { image: CanvasImageSource; frames: Record<string, { x: number; y: number; w: number; h: number; vehicle?: { x: number; y: number; w: number; h: number } }> };
 let ART: ArtSheet | null = null;
 export const setLedArt = (sheet: ArtSheet | null) => {
 	ART = sheet;
@@ -539,6 +541,23 @@ function art(name: string, src: number[] | null, dw: number, dh: number, k = 1):
 }
 function drawFit(g: Ctx, name: string, box: Rect, opts: { src?: number[] | null; dx?: number; dy?: number; top?: boolean; alpha?: number } = {}): Rect {
 	const src = opts.src || null;
+	const v = src ? null : ART?.frames[name]?.vehicle;
+	if (v) {
+		// THE RIDERS (Corey 2026-11-19): the VEHICLE fits the box as the empty one did; its rider rises above the box
+		const [pw, ph] = size(name, null);
+		const k = Math.min(box.w / v.w, box.h / v.h);
+		const vw = Math.round(v.w * k);
+		const vh = Math.round(v.h * k);
+		const dw = Math.round(pw * k);
+		const dh = Math.round(ph * k);
+		const x = Math.round(box.x + (box.w - vw) / 2 - v.x * k + (opts.dx || 0));
+		const y = Math.round(opts.top ? box.y - (dh - vh) : box.y + box.h - dh) + (opts.dy || 0);
+		const a = art(name, null, dw, dh, kOf(g));
+		if (opts.alpha !== undefined) g.globalAlpha = opts.alpha;
+		blit(g, a, x, y);
+		g.globalAlpha = 1;
+		return { x: Math.round(x + v.x * k), y: y + dh - vh, w: vw, h: vh };
+	}
 	const [sw, sh] = size(name, src);
 	const k = Math.min(box.w / sw, box.h / sh);
 	const dw = Math.round(sw * k);

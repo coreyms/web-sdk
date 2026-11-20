@@ -4,7 +4,7 @@
 // strip holds the reindeer's eight 125 x 108 run frames.
 export const SCOREBOARD_ART = {
 	"width": 1000,
-	"height": 445,
+	"height": 447,
 	"frames": {
 		"run_strip": {
 			"x": 0,
@@ -16,7 +16,13 @@ export const SCOREBOARD_ART = {
 			"x": 0,
 			"y": 110,
 			"w": 160,
-			"h": 98
+			"h": 121,
+			"vehicle": {
+				"x": 0,
+				"y": 22,
+				"w": 160,
+				"h": 99
+			}
 		},
 		"H2": {
 			"x": 162,
@@ -40,29 +46,35 @@ export const SCOREBOARD_ART = {
 			"x": 648,
 			"y": 110,
 			"w": 160,
-			"h": 117
+			"h": 134,
+			"vehicle": {
+				"x": 0,
+				"y": 18,
+				"w": 160,
+				"h": 116
+			}
 		},
 		"reindeer_col": {
 			"x": 0,
-			"y": 244,
+			"y": 246,
 			"w": 78,
 			"h": 180
 		},
 		"santa_col": {
 			"x": 80,
-			"y": 244,
+			"y": 246,
 			"w": 89,
 			"h": 180
 		},
 		"grandma_col": {
 			"x": 171,
-			"y": 244,
+			"y": 246,
 			"w": 111,
 			"h": 180
 		},
 		"present": {
 			"x": 284,
-			"y": 244,
+			"y": 246,
 			"w": 180,
 			"h": 201
 		}

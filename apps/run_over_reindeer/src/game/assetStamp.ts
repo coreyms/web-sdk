@@ -211,7 +211,7 @@ export default {
 	"fonts/ui/Outfit-Variable.woff2": "623d408f",
 	"fonts/ui/OutfitText-Variable.woff2": "e1523f3a",
 	"fonts/ui/Sora-Variable.woff2": "b2871dff",
-	"landing/led-art.webp": "49ab03ec",
+	"landing/led-art.webp": "8a131a68",
 	"present/present-full-open-0-red.webp": "fdc80593",
 	"present/present-full-open-0.webp": "85588170",
 	"present/present-full-open-1-red.webp": "c885e9dd",
@@ -335,7 +335,7 @@ export default {
 	"scene/snow-super-road.webp": "cef2393f",
 	"scene/snow-super-tunnel-left.webp": "9e27e58c",
 	"scene/snow-super-tunnel-right.webp": "96ff720d",
-	"scoreboard/scoreboard-art.webp": "0c974a48",
+	"scoreboard/scoreboard-art.webp": "df86851f",
 	"symbols/single/H1_L.webp": "0a0b23ba",
 	"symbols/single/H1_R.webp": "3a8ac4fc",
 	"symbols/single/H2_L.webp": "10f999b2",
@@ -577,7 +577,7 @@ export const fileBytes = {
 	"fonts/ui/Outfit-Variable.woff2": 13704,
 	"fonts/ui/OutfitText-Variable.woff2": 45164,
 	"fonts/ui/Sora-Variable.woff2": 14980,
-	"landing/led-art.webp": 90926,
+	"landing/led-art.webp": 97664,
 	"present/present-full-open-0-red.webp": 127510,
 	"present/present-full-open-0.webp": 128524,
 	"present/present-full-open-1-red.webp": 134696,
@@ -701,7 +701,7 @@ export const fileBytes = {
 	"scene/snow-super-road.webp": 173902,
 	"scene/snow-super-tunnel-left.webp": 62994,
 	"scene/snow-super-tunnel-right.webp": 64402,
-	"scoreboard/scoreboard-art.webp": 115272,
+	"scoreboard/scoreboard-art.webp": 121734,
 	"symbols/single/H1_L.webp": 28124,
 	"symbols/single/H1_R.webp": 34898,
 	"symbols/single/H2_L.webp": 30550,
@@ -738,4 +738,4 @@ export const landingSizes = {
 	"fonts/overpass/Overpass-bold.woff2": 34436
 } as const;
 
-export const bootSizes = {"landing":98520,"preload":7145211,"audio":901338} as const;
+export const bootSizes = {"landing":98520,"preload":7158411,"audio":901338} as const;
