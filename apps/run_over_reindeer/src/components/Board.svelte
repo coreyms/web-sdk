@@ -89,6 +89,7 @@
 	import { boardRate, stateGame } from '../game/stateGame.svelte';
 	import { loadWildMult, setWildMultMipmapper, wildMultMemory } from '../game/road/wildMult';
 	import { garlandMemory, loadGarland, setGarlandMipmapper } from '../game/road/garland';
+	import { brawlForBook, brawlRoundEnd } from '../game/road/brawlCloud';
 	import { clipMemory, setClipRebatch, setClipUploader, setClipView } from '../game/road/columnClips';
 	import { loadRunViews, runMemory, setRunMipmapper } from '../game/road/reindeerRun';
 	import { loadRoamFrames, roamMemory, setRoamMipmapper } from '../game/road/roamFrames';
@@ -1266,18 +1267,19 @@
 			frame: () => road.features.frameNo,
 			forceSnort: (mode: 'always' | 'never' | null) => (road.features.sounds.forceSnort = mode),
 			/** run a strike into a cell by hand (no book; its own sounds play, game/road/roadSounds.ts): __reindeer.strike(cell). Resolves at the impact. */
-			strike: (cell: number) => {
+			strike: (cell: number, grandma = false) => {
 				road.features.endLanding();
-				return road.features.strike({ cell, markCell: null });
+				// (BRAWL: `grandma` true runs it as a Grandma car's strike: its end at the car's rear)
+				return road.features.strike({ cell, markCell: null, grandma });
 			},
 			/** THE ROAMING REINDEER (game/road/roam.ts): what he is doing and where, his area as resolved; a strike by hand as
 			 *  the first of a spin (his, when he is on the screen) and the last (a new one walks in after it); his sheets'
 			 *  GPU weight; the zones he must keep out of (CSS px); the areas (live, editable) and their defaults; a run of
 			 *  seeded picks (nothing moves); reseed him; stand him somewhere; walk a new one in; a bonus round's sign by hand */
 			roam: () => road.features.roam.snapshot(),
-			roamStrike: (cell: number, opts: { first?: boolean; last?: boolean } = {}) => {
+			roamStrike: (cell: number, opts: { first?: boolean; last?: boolean; grandma?: boolean } = {}) => {
 				road.features.endLanding();
-				return road.features.strike({ cell, markCell: null, first: opts.first ?? true, last: opts.last ?? true });
+				return road.features.strike({ cell, markCell: null, first: opts.first ?? true, last: opts.last ?? true, grandma: opts.grandma ?? false });
 			},
 			roamMemory: () => roamMemory(),
 			roamZones: () => roamZones(),
@@ -1304,6 +1306,12 @@
 				return road.features.columnWild(reel, tier, multiplier, false, fromCell);
 			},
 			columnTrace: (reel: number) => road.features.columnTrace(reel),
+			/** BRAWL: the Grandma Wilds' brawl clouds as drawn, the shared frame sets and their memory (game/road/brawlCloud.ts) */
+			brawl: () => road.features.brawl.snapshot(),
+			/** BRAWL: as a book with (true) or without a Grandma Wild would (its frames warmed, or let go once none stands);
+			 *  brawlRoundEnd as the round's end does */
+			brawlBook: (grandma = true) => brawlForBook(grandma ? [{ type: 'grandmaWild' }] : []),
+			brawlRoundEnd: () => brawlRoundEnd(),
 			/** a Grandma crash Wild's cloud on a cell by hand (no book, no strike; the symbol pay popup probe) */
 			grandmaWild: (cell: number, multiplier: number) => {
 				road.features.endLanding();
@@ -1323,7 +1331,9 @@
 				stateGame.board = board;
 				road.setBoard(board);
 				if (opts.poseOnly) return;
-				await road.features.strike({ cell: target, markCell: null });
+				// (BRAWL: a Grandma car's strike ends at its rear and lands the brawl cloud)
+				const grandma = board[Math.floor(target / 4)][target % 4] === 'H1';
+				await road.features.strike({ cell: target, markCell: null, grandma });
 				if (!opts.follow) return;
 				if (board[Math.floor(target / 4)][target % 4] === 'W') await road.features.columnWild(Math.floor(target / 4), 'santa', 20, false, target);
 				else await road.features.grandmaWild(target, 10);

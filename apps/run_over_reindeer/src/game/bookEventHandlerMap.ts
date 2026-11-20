@@ -163,7 +163,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			}
 			devMark('grandmaStrike', `${stateGame.gameType} cell ${bookEvent.cell} strike ${stateGame.bonusGrandmaStrikes} gag ${gag}`);
 		}
-		await eventEmitter.broadcastAsync({ type: 'boardStrike', strike: { cell: bookEvent.cell, markCell, first, last }, gag });
+		// (BRAWL: a Grandma car's strike ends at the car's rear and lands the brawl cloud, game/road/brawlCloud.ts)
+		await eventEmitter.broadcastAsync({ type: 'boardStrike', strike: { cell: bookEvent.cell, markCell, first, last, grandma: struck === 'H1' }, gag });
 	},
 	grandmaWild: async (bookEvent: BookEventOfType<'grandmaWild'>) => {
 		await eventEmitter.broadcastAsync({ type: 'boardGrandmaWild', cell: bookEvent.cell, multiplier: bookEvent.multiplier });

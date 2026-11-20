@@ -44,6 +44,9 @@ export class SeatedDriver {
 	private stillTex: PIXI.Texture | null = null;
 	private stillAnchor: [number, number] = [0.5, 0.5];
 	readonly lean = new RiderSpring();
+	/** BRAWL (game/road/brawlCloud.ts): a Grandma Wild's landing leans her forward on the bump (degrees, + forward), on
+	 *  top of the spring; 0 otherwise */
+	kick = 0;
 	frame: SeatFrame | null = null;
 	private dir = 1;
 	/** what it drew last (the probes): the lean (degrees, + = forward), the bob (road px up), the driver's pivot (road px
@@ -128,7 +131,7 @@ export class SeatedDriver {
 		const bob = SEATED.bob.px * Math.max(0, Math.min(1, pulse));
 		const leanDeg = this.lean.b;
 		const share = SEATED.leanShare[f.character] ?? 1;
-		const rot = (this.dir * leanDeg * share * Math.PI) / 180;
+		const rot = (this.dir * (leanDeg * share + this.kick) * Math.PI) / 180;
 		const [ax, ay] = this.stillAnchor;
 		if (clip && still) {
 			// THE BODY: the still with its head cut away (its rows from rect[1]), at the still's own density
