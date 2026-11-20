@@ -2080,9 +2080,12 @@ async function ledAnimChecks(browser) {
 				}
 				h.scoreboardWin(100);
 				for (let i = 0; i < 600; i++) { s = h.scoreboardStep(33); if (s.show && s.show.t > s.show.countEnd + 300) break; }
+				// (read only while the show's face is lit: past exitAt the face powers down and the scene's records describe a
+				// picture whose LEDs are already out, so a rider there reads 0 lit; 2026-11-20, found on the probe host at 844x390)
 				for (let i = 0; i < 4; i++) {
+					if (!s.show || s.show.t > s.show.exitAt) break;
 					out.push({ where: `mega jam ${i}`, face: 'back', ...(await rd('back')) });
-					h.scoreboardStep(10, 150);
+					s = h.scoreboardStep(10, 150);
 				}
 				h.scoreboardSkip?.();
 				h.scoreboardStep(100, 60);
