@@ -1224,6 +1224,8 @@
 			skip: (on: boolean) => (stateGame.skipping = !!on),
 			/** a slam stop's hurry now (0 = none), and the free spin under way (1-based; 0 outside a bonus round) */
 			hurryLevel: () => stateGame.hurryLevel,
+			/** THE SPIN KEY'S RING: the board's own count of spin starts (game/boardPace.ts serial; hud_probe `rounds`) */
+			spinSerial: () => road.spinSerial,
 			/** a slam stop's hurry by hand (the roam probe's charge section: the head down only when it runs at a strike's
 			 *  start; a hurry from the middle of one only speeds it). 0 ends it. */
 			hurry: (level: 0 | 1 | 2) => (stateGame.hurryLevel = level),
