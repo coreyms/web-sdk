@@ -1,7 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/{game/road/superWheel.ts,game/superWheelPlan.ts,game/superWheelSpec.ts,ui/WheelGate.svelte,ui/controls.svelte.ts,ui/SquareSpin.svelte,game/bookEventHandlerMap.ts,game/actor.ts,game/utils.ts,game/road/roadBoard.ts,game/road/present.ts,components/Board.svelte};
 // WATCHES: ; SUPER_WHEEL, AUTO_BONUS_WAIT_MS, WHEEL_SHARES, LED_BOARD.stripOrder, ROUND.betweenSpinsMs, RESUME_TEXT, data-wheel-gate, data-wheel-wait, button.catch, .hudp
-// WATCHES: ; __reindeer.wheel, __reindeer.wheelPlan, __reindeer.wheelShow, __reindeer.wheelSet, __reindeer.wheelEnd, __reindeer.wheelAlone, __reindeer.sceneOnly, __reindeer.fixtures, __reindeer.roadSounds, __reindeer.hud, __reindeer.road, __reindeer.freeSpinNow, __reindeer.stockRules
+// WATCHES: ; __reindeer.wheel, __reindeer.wheelPegTrace, __reindeer.tune, WILD_MULT, __reindeer.wheelPlan, __reindeer.wheelShow, __reindeer.wheelSet, __reindeer.wheelEnd, __reindeer.wheelAlone, __reindeer.sceneOnly, __reindeer.fixtures, __reindeer.roadSounds, __reindeer.hud, __reindeer.road, __reindeer.freeSpinNow, __reindeer.stockRules
 // THE SUPER WHEEL PROBE (2026-11-18; game/road/superWheel.ts, game/superWheelPlan.ts, constants SUPER_WHEEL; the approved
 // mock super_wheel_2026-11-18 round 5, "Mc Under the number and P2"). Real Super books of the math (tools/
 // wheel_probe_books.json: twelve books of fixtures_2026-11-20/books_super.json (2026-11-20: eight re-pinned in place, the
@@ -32,7 +32,15 @@
 //   contact    the reindeer on the rim in each of his 16 strides, from pixels: the gap between his lowest pixel and the
 //              rim's edge
 //   words      the wheel's words: plain capitals, American English, none of the restricted words
-// Sections: ONLY=plan,rounds,auto,hold,skip,resume,concentric,contact,words (default all). ROUNDS=n. LAYOUT, LAYOUTS and
+//   pin        (2026-11-20, Corey: "the pin moves way too early") one forced Super round, its top peg recorded frame by frame
+//              from the press to the wheel's leaving (wheelPegTrace): its tip never inside a stud's circle (PIN_TOL wheel
+//              units); it never starts to turn from rest without a stud on its tip (a stud that passed the tip wholly
+//              between two frames counts as on it that frame); a turn with no stud on it only springs back
+//              after a contact (never more than it was turned at that contact's end); every tick is the first frame of a
+//              stud's contact, and at least one tick per stud passed; at the wheel's stop it is straight or on a stud.
+//              And each wedge's number is the Wild multiplier in its character's color (WILD_MULT.colors), its value the
+//              wedge's
+// Sections: ONLY=plan,rounds,auto,hold,skip,resume,concentric,contact,words,pin (default all). ROUNDS=n. LAYOUT, LAYOUTS and
 // PICK are explained where they are read. SHOTS=<dir> adds the
 // section `shots` (one round per layout at device pixel ratio 3 with its stills) and the contact section's closeups; the
 // build's sheet is made from them (tools/wheel_sheet.py).
@@ -53,6 +61,8 @@ const APP = process.env.APP || 'http://localhost:3014';
 const SHOTS = process.env.SHOTS || '';
 if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
+/** wheel units the flapper's tip may be read inside a stud's circle (a frame's rounding) */
+const PIN_TOL = 0.5;
 const want = (s) => !ONLY.length || ONLY.includes(s);
 const ROUNDS = Number(process.env.ROUNDS || 12);
 // (to split the rounds section over several holds of the browser lock on a slow machine: PICK=0,3,7 plays those books of
@@ -927,6 +937,97 @@ async function wordsSection(browser) {
 	}
 }
 
+// ---------------------------------------------------------------- the pin and the wedges' numbers
+async function pinSection(browser) {
+	const { ctx, p, errs } = await boot(browser, PLAYED);
+	try {
+		await p.evaluate(() => window.__reindeer.fixtures.next('super_typical'));
+		await p.click('.hudp button.spin');
+		const rested = await toPhase(p, 'rest', 180000);
+		check(rested, 'pin: the wheel comes out and rests', null);
+		if (!rested) return;
+		await sleep(400);
+		const rest = await W(p);
+		const colors = await p.evaluate(() => window.__reindeer.tune.wildMult.colors);
+		const nums = rest.nums ?? [];
+		const bad = rest.plan.slices.map((sl, i) => ({ sl, n: nums[i] })).filter(({ sl, n }) => {
+			const [tier, mx] = sl.split(' ');
+			return !n || n.color !== colors[tier] || n.value !== Number(mx.replace('x', '')) || n.place !== 'wheel' || n.glyphs < 2;
+		});
+		check(nums.length === 8 && bad.length === 0, `pin: each wedge's number is the Wild multiplier in its character's color (${nums.map((n, i) => `${rest.plan.slices[i]} ${n.color}`).join(', ')})`, bad);
+		await p.evaluate(() => window.__reindeer.wheelPegTrace(true));
+		await p.keyboard.press('Space');
+		const landed = await toPhase(p, 'land', 120000);
+		await sleep(900);
+		const tr = (await p.evaluate(() => window.__reindeer.wheelPegTrace(false))) ?? [];
+		const w = await W(p);
+		check(landed && tr.length > 50, `pin: the spin recorded (${tr.length} frames)`, { landed, n: tr.length });
+		const EPS = 0.05;
+		const inside = tr.filter((f) => f.gap < -PIN_TOL);
+		check(inside.length === 0, `pin: the flapper's tip is never inside a stud (deepest ${Math.min(...tr.map((f) => f.gap)).toFixed(2)} wheel units; tolerance ${PIN_TOL}: the edge is solved in floating point and drawn at about 0.66 CSS px a unit)`, inside.slice(0, 3));
+		// a frame "in contact": a stud on the tip (sampled) or met between two frames
+		const touching = (f) => f.stud !== null || (f.met && f.met.length > 0);
+		const early = [];
+		const ring = [];
+		const settleLate = [];
+		// (at rest: SETTLED frames in a row within EPS; the spring's ring back after a contact is allowed only as a decay: never
+		// past what it was turned at the release, and back within EPS inside SPRING_MS board ms of the release)
+		const SETTLED = 3;
+		const SPRING_MS = 400;
+		let still = SETTLED;
+		let release = null;
+		for (let i = 1; i < tr.length; i++) {
+			const f = tr[i];
+			const g = tr[i - 1];
+			if (Math.abs(f.phi) > EPS && still >= SETTLED && !touching(f) && f.gap > PIN_TOL) early.push(f);
+			if (touching(g) && !touching(f)) release = { amp: Math.abs(g.phi), clock: g.clock };
+			if (touching(f)) release = null;
+			if (!touching(f) && Math.abs(f.phi) > EPS) {
+				if (release && Math.abs(f.phi) > release.amp + 0.1) ring.push(f);
+				if (release && f.clock - release.clock > SPRING_MS) settleLate.push({ ...f, after: f.clock - release.clock });
+			}
+			still = Math.abs(f.phi) <= EPS ? still + 1 : 0;
+		}
+		check(early.length === 0, `pin: from rest it never starts to turn without a stud on its tip (${early.length} frames)`, early.slice(0, 3));
+		check(ring.length === 0, `pin: released, it only springs back (never past what it was turned at the release)`, ring.slice(0, 3));
+		check(settleLate.length === 0, `pin: released, it is straight again within ${SPRING_MS} board ms (no swinging on after the stud has gone)`, settleLate.slice(0, 3));
+		// no stud passes the tip without meeting it: every stud that crossed the top between two frames is in a contact
+		const met = new Set();
+		for (const f of tr) {
+			if (f.stud !== null) met.add(f.stud);
+			for (const k of f.met ?? []) met.add(k);
+		}
+		const crossed = new Set();
+		for (let i = 1; i < tr.length; i++) {
+			const lo = Math.min(-tr[i - 1].theta, -tr[i].theta) / 45;
+			const hi = Math.max(-tr[i - 1].theta, -tr[i].theta) / 45;
+			for (let k = Math.ceil(lo); k <= Math.floor(hi); k++) crossed.add(k);
+		}
+		const missed = [...crossed].filter((k) => !met.has(k));
+		check(crossed.size > 0 && missed.length === 0, `pin: every stud that passed the tip met it (${crossed.size} passed, ${met.size} met, at every speed, between frames included)`, missed.slice(0, 6));
+		const ticks = tr.filter((f) => f.tick);
+		const offTick = ticks.filter((f) => !touching(f));
+		check(ticks.length > 0 && offTick.length === 0, `pin: every tick (${ticks.length}) is on a contact`, offTick.slice(0, 3));
+		// a contact with no tick only when the last tick was under tickMinMs of real time before it (the buzz rule)
+		const minMs = await p.evaluate(() => window.__reindeer.tune.superWheel.sound.tickMinMs);
+		let lastTick = -Infinity;
+		const silent = [];
+		for (let i = 1; i < tr.length; i++) {
+			const f = tr[i];
+			const newContact = touching(f) && (f.stud !== tr[i - 1].stud || (f.met ?? []).some((k) => k !== tr[i - 1].stud));
+			if (f.tick) lastTick = f.real;
+			else if (newContact && f.real - lastTick >= minMs + 1) silent.push(f);
+		}
+		check(silent.length === 0, `pin: every new contact ticks unless a tick sounded under tickMinMs (${minMs} ms) before it`, silent.slice(0, 3));
+		const last = tr[tr.length - 1];
+		check(!!last && (Math.abs(last.phi) < 0.5 || last.stud !== null) && last.gap >= -PIN_TOL, `pin: at the stop it is straight or resting on a stud (turned ${last?.phi.toFixed(2)} degrees, stud ${last?.stud}, gap ${last?.gap.toFixed(2)})`, last);
+		note(`PIN: ${tr.length} frames, ${crossed.size} studs passed, ${met.size} met, ${ticks.length} ticks, most turn ${Math.max(...tr.map((f) => Math.abs(f.phi))).toFixed(1)} degrees; at the stop ${w.atPeg}`);
+		check(errs.length === 0, 'pin: no page errors', errs);
+	} finally {
+		await ctx.close();
+	}
+}
+
 // ---------------------------------------------------------------- the stills of the build's sheet
 /** SHOTS=<dir>: one forced Super round per layout at device pixel ratio 3, its stills saved on the way (the emergence,
  *  the rest, the reindeer on the rim, the first stop, the ring's stop, the landing), with the wheel's numbers beside them */
@@ -946,6 +1047,7 @@ try {
 	if (want('resume')) await resumeSection(browser);
 	if (want('concentric')) await concentricSection(browser);
 	if (want('contact')) await contactSection(browser);
+	if (want('pin')) await pinSection(browser);
 	if (SHOTS && (!ONLY.length || ONLY.includes('shots'))) await shotsSection(browser);
 } finally {
 	await browser.close();

@@ -37,7 +37,7 @@ import { stamp } from '../assets';
 import { STAGING_TOOLS, perfMark } from '../staging';
 import { queuePresentUpload } from './columnClips';
 
-export type MultPlace = 'cell' | 'col' | 'sum';
+export type MultPlace = 'cell' | 'col' | 'sum' | 'wheel';
 type Mode = 'hidden' | 'appear' | 'change' | 'win' | 'rest';
 
 // ---- the atlas ----------------------------------------------------------------------------------------------------------
@@ -164,7 +164,12 @@ export class WildMult {
 	readonly root = new PIXI.Container();
 	private readonly body = new PIXI.Container();
 	private readonly glow: PIXI.Sprite;
+	/** a soft dark blob behind the letters (normal blend, the glow's picture tinted black): a place's `shade` (0: none) */
+	private readonly shade: PIXI.Sprite;
 	private readonly glyphs: PIXI.Sprite[] = [];
+	/** a place's dark outline step: each letter's own picture tinted black, a little larger, behind it (`outline` the
+	 *  scale, 0: off) */
+	private readonly backs: PIXI.Sprite[] = [];
 	private readonly sheens: PIXI.Sprite[] = [];
 	private readonly stars: PIXI.Sprite[] = [];
 	private readonly puffs: PIXI.Sprite[] = [];
@@ -217,7 +222,9 @@ export class WildMult {
 			this.body.addChild(sp);
 			return sp;
 		};
+		this.shade = sprite(false, null);
 		this.glow = sprite(true, null);
+		for (let i = 0; i < MAX_GLYPHS; i++) sprite(false, this.backs);
 		for (let i = 0; i < MAX_GLYPHS; i++) {
 			sprite(false, this.glyphs);
 			sprite(true, this.sheens);
@@ -405,6 +412,16 @@ export class WildMult {
 		const k = this.s / ART.sets[this.color][SIZE];
 		const ks = this.s / ART.sets.sheen[SIZE];
 
+		// a place's dark shade behind the letters (off unless the place asks for it)
+		const shadeA = (P as { shade?: number }).shade ?? 0;
+		const shadeTex = shadeA > 0 ? tex('fx_glow') : null;
+		if (shadeTex) {
+			this.shade.texture = shadeTex;
+			this.shade.visible = true;
+			this.shade.tint = 0x000000;
+			this.shade.alpha = Math.min(1, shadeA);
+			this.shade.scale.set((this.width * 1.35) / shadeTex.orig.width, (ART.h * this.s * 1.5) / shadeTex.orig.height);
+		} else this.shade.visible = false;
 		// the glow behind: a win swells it; the gold's own glow pulses at rest from 100x
 		const G = W.glow;
 		const pulse = gold ? F.glow * (1 + F.glowPulse * Math.sin((clock / F.pulseMs) * Math.PI * 2 + this.seed)) : 0;
@@ -428,6 +445,7 @@ export class WildMult {
 		let sheenMax = 0;
 
 		// the letters
+		const outline = (P as { outline?: number }).outline ?? 0;
 		const A = W.appear;
 		const beats = W.win.beats;
 		for (let i = 0; i < MAX_GLYPHS; i++) {
@@ -437,6 +455,7 @@ export class WildMult {
 			if (!gt) {
 				g.visible = false;
 				sh.visible = false;
+				this.backs[i].visible = false;
 				continue;
 			}
 			let sx = 1;
@@ -462,12 +481,22 @@ export class WildMult {
 			g.visible = !hide;
 			if (hide) {
 				sh.visible = false;
+				this.backs[i].visible = false;
 				continue;
 			}
 			g.texture = gt;
 			g.position.set(this.xs[i], dy);
 			g.scale.set(k * sx, k * sy);
 			g.alpha = alpha;
+			const back = this.backs[i];
+			if (outline > 0) {
+				back.texture = gt;
+				back.visible = true;
+				back.tint = 0x000000;
+				back.position.set(this.xs[i], dy);
+				back.scale.set(k * sx * outline, k * sy * outline);
+				back.alpha = alpha;
+			} else back.visible = false;
 			// the sheen over it (gold only): the sweep's light where it passes, and the shimmer's flicker
 			const st = this.sheenTex[i];
 			let a = 0;
