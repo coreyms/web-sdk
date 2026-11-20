@@ -87,6 +87,7 @@
 	import { RoadBoard } from '../game/road/roadBoard';
 	import { planRun } from '../game/road/roadFeatures';
 	import { boardRate, stateGame } from '../game/stateGame.svelte';
+	import { boardPace } from '../game/boardPace';
 	import { loadWildMult, setWildMultMipmapper, wildMultMemory } from '../game/road/wildMult';
 	import { garlandMemory, loadGarland, setGarlandMipmapper } from '../game/road/garland';
 	import { brawlForBook, brawlRoundEnd } from '../game/road/brawlCloud';
@@ -120,6 +121,12 @@
 	const loaded = context.stateApp.loadedAssets as Record<string, PIXI.Texture | undefined>;
 	const tex = (frame: string) => loaded[frame];
 	const road = new RoadBoard(tex);
+	// THE SPIN KEY'S RING (ui/hud/spinRing.ts) brakes as the board comes to rest: the road says when (real ms)
+	boardPace.live = () => road.spinLive;
+	boardPace.restIn = () => {
+		const ms = road.restInMs();
+		return ms === null ? null : ms / boardRate();
+	};
 	/** the asphalt's band in road px (the road picture's own: from under its top snow rim to its bottom rim): the roaming
 	 *  reindeer's feet never go there */
 	const ROAM_ROAD = { top: 120, bottom: 905 };
@@ -818,6 +825,8 @@
 			scoreboard?.destroy();
 			wheel.destroy();
 			stateGame.wheelPhase = null;
+			boardPace.live = () => false;
+			boardPace.restIn = () => null;
 			road.destroy();
 		};
 	});

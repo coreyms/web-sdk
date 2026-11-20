@@ -2248,6 +2248,19 @@ export class RoadBoard {
 	}
 
 	// ---- readouts ----------------------------------------------------------------------------------------------------------
+	/** THE SPIN KEY'S RING (game/boardPace.ts): the board driving in is due at rest in this many board clock ms (its last
+	 *  lane's settle done; a slam stop's cut brings it forward); null before its book's board is planned and once home */
+	restInMs(): number | null {
+		const w = this.driveWaiter;
+		if (!w || !this.waiters.includes(w)) return null;
+		return Math.max(0, w.at - 20 - this.clock);
+	}
+
+	/** THE SPIN KEY'S RING: a spin is live, from the pull away until the board driving in is home */
+	get spinLive(): boolean {
+		return this.spinActive || (this.driveWaiter !== null && this.waiters.includes(this.driveWaiter));
+	}
+
 	/** every symbol is parked on its mark and nothing is in flight */
 	get atRest(): boolean {
 		return this.cars.every((c) => c.phase === 'free' || c.phase === 'rest') && this.cars.filter((c) => c.phase === 'rest').length === this.parked;

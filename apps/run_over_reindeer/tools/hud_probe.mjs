@@ -2,7 +2,7 @@
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,ui/hud/hudLayout.ts};
 // WATCHES: ; __reindeer.skipHud, data-skip, __reindeer.atRest, __reindeer.boardLayout, __reindeer.fixtures, __reindeer.gameType, __reindeer.hud, __reindeer.scene
 // WATCHES: ; data-title-sign, data-hud, data-hud-step, data-st, .hudp, .landing, .fb, .lb, .am-ui, .lbw, .value, .mp, .is-open, .mpsh, .layer
-// WATCHES: ; .modals, .panel, .sweep, .go, .spin, .f2, .f1, .gy, .comet, .halo
+// WATCHES: ; .modals, .panel, .sweep, .go, .spin, .cg, .rr, .rw, .rs, .fx, .halo, data-face, data-run
 // THE HUD PROBE (the house glass HUD from Manticore, "Win over Balance, Drop 6" plus round 6, in this game's "Frost"
 // theme; ported from tools/manticore/hud_probe.js in the main repo). The HUD is HTML over the canvas (ui/Chrome*.svelte,
 // ui/hud/*: ui/hud/hudLayout.ts places it in the mockup's own px, scaled by the chrome's fit). At each size:
@@ -31,10 +31,16 @@
 //     with a mode on)
 //     of their key's height
 //   · no win streak on the glass after a win (.sweep)
+//   · THE LANE RING (the Spin's face, concept G2, 2026-11-20; ui/hud/spinRing.ts): the ring is there at rest and no stop
+//     square; the square (.cg) shows only while the stop is available (a round playing) and is gone again at rest; the
+//     ring turns in a round (data-run 1); the autoplay and free spins faces carry the thinned ring and no square; with
+//     reduced motion nothing on the Spin turns or loops at rest or in a round (the square only fades); the Spin's hit
+//     area at least 44 x 44 at every size
 //   · the words: no character outside printable ASCII in the HUD's and the Autoplay menu's visible text; in social mode
 //     (?social=true) also no restricted word (bet, buy, cash, money, paid, credit, gamble, wager, stake), aria included
 // With SHOTS=<dir> it saves the idle and the spinning HUD at each size (phones at device pixel ratio 3, the rest at 2).
-// With FLIP=<file.json> it also records the Spin's Play to Stop motion frame by frame at 1440 x 900 (both directions).
+// With FLIP=<file.json> it also records the Spin's stop square popping in and out frame by frame at 1440 x 900 (both
+// directions).
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=a,b] [SKIPFS=1] [SHOTS=dir] \
 //     [FLIP=file] node tools/hud_probe.mjs
 // Uses the dev server that is already running (it never starts one). One headless browser, closed at the end. Take the
@@ -98,7 +104,7 @@ const inter = (a, b) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0))
 const H = () => window.__reindeer;
 
 async function boot(browser, S, extra = '') {
-	const ctx = await browser.newContext({ viewport: S.vp, deviceScaleFactor: S.phone ? 3 : 2, isMobile: S.touch && S.family !== 'desktop', hasTouch: S.touch });
+	const ctx = await browser.newContext({ viewport: S.vp, deviceScaleFactor: S.phone ? 3 : 2, isMobile: S.touch && S.family !== 'desktop', hasTouch: S.touch, reducedMotion: S.reduced ? 'reduce' : 'no-preference' });
 	// (2026-11-17: the bonus entry waits for the press: round_card_press.mjs presses it on the old card's timing)
 	await pressRoundCards(ctx);
 	const p = await ctx.newPage();
@@ -222,6 +228,29 @@ const hudWords = (p) =>
 		};
 		document.querySelectorAll('.am-ui').forEach(walk);
 		return out;
+	});
+
+/** THE LANE RING: what the Spin's face shows now */
+const ringNow = (p) =>
+	p.evaluate(() => {
+		const b = document.querySelector('.hudp button.spin');
+		if (!b) return null;
+		const cg = b.querySelector('.cg');
+		const R = b.getBoundingClientRect();
+		// (the key's own press dip and rim transitions are the bar's, not the face's)
+		const running = b.getAnimations({ subtree: true }).filter((a) => a.playState === 'running' && a.effect?.target !== b);
+		return {
+			face: b.dataset.face,
+			st: b.dataset.st,
+			run: b.dataset.run,
+			mode: [...b.classList].find((c) => c.startsWith('m-')),
+			ring: !!b.querySelector('.fx .rr svg.rs'),
+			counted: !!b.querySelector('.fx.cnt-face'),
+			square: cg ? Math.round(parseFloat(getComputedStyle(cg).opacity) * 100) / 100 : null,
+			turning: running.filter((a) => !(typeof CSSTransition !== 'undefined' && a instanceof CSSTransition && a.transitionProperty === 'opacity')).map((a) => a.animationName ?? a.transitionProperty ?? 'script'),
+			w: R.width,
+			h: R.height,
+		};
 	});
 
 async function spinOnce(p) {
@@ -367,6 +396,9 @@ async function runSize(browser, S) {
 		return b ? { text: b.textContent.trim(), aria: b.getAttribute('aria-label'), mark: !!rest && getComputedStyle(rest.parentElement).opacity === '1', on: !!b.querySelector('.em-on svg') } : null;
 	});
 	check(!!fr && fr.text === '' && fr.mark && fr.on && !!fr.aria, `${name}: the feature button at rest: the etched mark and no word (aria-label "${fr?.aria}")`, fr);
+	const ringRest = await ringNow(p);
+	check(!!ringRest && ringRest.face === 'lane-ring' && ringRest.ring && !ringRest.counted && ringRest.square === 0 && ringRest.run === '0', `${name}: the Spin at rest: the lane ring, no stop square`, ringRest);
+	check(!!sp && sp.hit.x1 - sp.hit.x0 >= 43.9 && sp.hit.y1 - sp.hit.y0 >= 43.9, `${name}: the Spin's hit area at least 44 x 44 (${sp ? `${r1(sp.hit.x1 - sp.hit.x0)} x ${r1(sp.hit.y1 - sp.hit.y0)}` : '-'})`);
 
 	// the words, real mode: no symbol character (the restricted words are checked in social mode, where the soc()
 	// switch takes them out; real mode keeps "BET" as the house's soc() pattern does)
@@ -435,10 +467,16 @@ async function runSize(browser, S) {
 		if (!spun) {
 			await sleep(260);
 			spun = await snap(p);
+			const rr = await ringNow(p);
+			check(!!rr && rr.st === 'run' && rr.square > 0.9 && rr.run === '1', `${name}: in a round the stop square shows over the turning ring`, rr);
 			if (SHOTS) await p.screenshot({ path: join(SHOTS, `${S.vp.width}x${S.vp.height}_spinning.png`) });
 		}
 		await settle(p, S);
 		await sleep(700);
+		if (i === 0) {
+			const ra = await ringNow(p);
+			check(!!ra && ra.square === 0 && ra.st === 'idle' && ra.run === '0', `${name}: the round over, the square gone and the ring at rest`, ra);
+		}
 		if ((await p.evaluate(() => window.__reindeer.hud.win())) > 0) {
 			won = await snap(p);
 			check(!(await p.evaluate(() => !!document.querySelector('.hudp .sweep'))), `${name}: no win streak on the glass after a win`);
@@ -460,6 +498,8 @@ async function runSize(browser, S) {
 		if (await p.evaluate(() => document.querySelector('.hudp button.spin')?.getAttribute('aria-label')?.startsWith('Stop autoplay') === true)) auto = await snap(p);
 	}
 	check(!!auto, `${name}: an autoplay run started from the loaded Spin`);
+	const rAuto = await ringNow(p);
+	check(!!rAuto && rAuto.counted && rAuto.ring && rAuto.square === null, `${name}: autoplay running: the thinned ring round the count, no stop square in the face`, rAuto);
 	if (auto) compare(name, 'autoplay running', idle, auto);
 	await p.click(CONTROLS.spin).catch(() => {});
 	await settle(p, S, 180000);
@@ -479,6 +519,11 @@ async function runSize(browser, S) {
 			await sleep(300);
 		}
 		check(!!fs, `${name}: free spins reached`);
+		if (fs) {
+			const rf = await ringNow(p);
+			const fill = await p.evaluate(() => !!document.querySelector('.hudp button.spin .fx svg.fill .lit'));
+			check(!!rf && rf.counted && rf.ring && rf.square === null && fill, `${name}: free spins: the thinned ring over the filled track, no stop square`, { rf, fill });
+		}
 		if (fs) compare(name, 'free spins', idle, fs);
 		// SKIP TO RESULT (2026-11-19, components/SkipButton.svelte, Manticore's place: ui/hud/hudLayout.ts hudSkipRect): up in
 		// the free spins, inside the window, on no HUD control (their hit areas), not on the board or the title sign
@@ -547,18 +592,40 @@ async function socialWords(browser) {
 	await ctx.close();
 }
 
-/** THE FLIP, frame by frame from the running game. Headless frames on a loaded machine come far apart, so the motion is
- *  read off the game's own CSS transitions instead: at the press, and when the round ends, every running animation on
- *  the Spin (the play glyph .f1, the stop square .f2, the glyph box .gy, the comet, the press ring .halo) is paused and
- *  stepped in 1/60 s frames, and the computed transform and opacity are read at each frame. The live frames seen are
- *  reported beside it. */
+/** THE LANE RING WITH REDUCED MOTION (2026-11-20): nothing on the Spin turns or loops at rest or in a round; the stop
+ *  square only fades in (the ring's driver checks the same query) */
+async function reducedMotion(browser) {
+	const S = { name: 'reduced', vp: { width: 1440, height: 900 }, phone: false, touch: false, family: 'desktop', reduced: true };
+	const { ctx, p, errs } = await boot(browser, S);
+	await settle(p, S);
+	await sleep(600);
+	const a = await ringNow(p);
+	check(!!a && a.ring && a.turning.length === 0, `reduced motion: nothing runs on the Spin at rest (${a?.turning.join(', ') || 'none'})`, a);
+	await p.click(CONTROLS.spin);
+	const seen = [];
+	for (let i = 0; i < 12; i++) {
+		await sleep(90);
+		const r = await ringNow(p);
+		if (r) seen.push(r);
+	}
+	const moving = seen.filter((r) => r.turning.length > 0 || r.run === '1');
+	check(seen.some((r) => r.st === 'run' && r.square > 0.9) && moving.length === 0, `reduced motion: in a round the square shows and nothing turns (${moving.length} of ${seen.length} reads moving)`, moving.slice(0, 3));
+	await settle(p, S);
+	check(errs.filter((x) => !/favicon/.test(x)).length === 0, 'reduced motion: no console errors', errs.slice(0, 5));
+	await ctx.close();
+}
+
+/** THE STOP SQUARE, frame by frame from the running game (the lane ring's J1 stop, 2026-11-20; it replaced the Play to
+ *  Stop flip). Headless frames on a loaded machine come far apart, so the motion is read off the game's own CSS
+ *  transitions instead: at the press, and when the round ends, every running CSS transition and animation on the
+ *  square (.cg), the face (.fx) and the press ring (.halo) is paused and stepped in 1/60 s frames, and the computed
+ *  scale and opacity are read at each frame. The ring's own turn (Web Animations on .rw / .rr) is checked as started.
+ *  The live frames seen are reported beside it. */
 async function flip(browser) {
 	const S = { name: 'flip', vp: { width: 1440, height: 900 }, phone: false, touch: false, family: 'desktop' };
 	const { ctx, p } = await boot(browser, S);
 	await settle(p, S);
 	await sleep(400);
-	// arm: the moment the Spin's data-st turns to `want`, flush style (the transitions start) and pause every animation on
-	// the Spin's glyph parts, then step them in 1/60 s frames
 	const arm = (want) =>
 		p.evaluate((want) => {
 			window.__flipCap = null;
@@ -566,18 +633,20 @@ async function flip(browser) {
 			const mo = new MutationObserver(() => {
 				if (b.getAttribute('data-st') !== want) return;
 				mo.disconnect();
-				void getComputedStyle(b.querySelector('.f2') ?? b).transform;
-				const parts = { f1: b.querySelector('.f1'), f2: b.querySelector('.f2'), gy: b.querySelector('.gy'), comet: b.querySelector('.comet'), halo: b.querySelector('.halo') };
+				void getComputedStyle(b.querySelector('.cg') ?? b).transform;
+				const parts = { cg: b.querySelector('.cg'), fx: b.querySelector('.fx'), halo: b.querySelector('.halo') };
 				const anims = [];
-				for (const el of Object.values(parts)) if (el) for (const a of el.getAnimations()) anims.push(a);
+				for (const el of Object.values(parts)) if (el) for (const a of el.getAnimations()) if (a instanceof CSSTransition || a instanceof CSSAnimation) anims.push(a);
 				const caught = anims.map((a) => a.currentTime ?? 0);
 				for (const a of anims) a.pause();
-				const m = (el, i) => {
+				const sc = (el) => {
 					if (!el) return null;
 					const t = getComputedStyle(el).transform;
 					if (!t || t === 'none') return 1;
 					const v = t.match(/matrix\(([^)]+)\)/);
-					return v ? Math.round(parseFloat(v[1].split(',')[i]) * 1000) / 1000 : t;
+					if (!v) return t;
+					const q = v[1].split(',').map(parseFloat);
+					return Math.round(Math.hypot(q[0], q[1]) * 1000) / 1000;
 				};
 				const o = (el) => (el ? Math.round(parseFloat(getComputedStyle(el).opacity) * 1000) / 1000 : null);
 				let end = 0;
@@ -590,7 +659,7 @@ async function flip(browser) {
 				for (let k = 0; k * step <= end + step; k++) {
 					const at = k * step;
 					for (const a of anims) a.currentTime = at;
-					rows.push({ frame: k, ms: Math.round(at * 10) / 10, f1: m(parts.f1, 3), f2: m(parts.f2, 3), gy: m(parts.gy, 0), gyA: o(parts.gy), comet: o(parts.comet), halo: o(parts.halo) });
+					rows.push({ frame: k, ms: Math.round(at * 10) / 10, cg: sc(parts.cg), cgA: o(parts.cg), fx: sc(parts.fx), halo: o(parts.halo) });
 				}
 				for (const a of anims) {
 					try {
@@ -599,10 +668,7 @@ async function flip(browser) {
 						a.play();
 					}
 				}
-				const nm = (a) => {
-					const c = a.effect.target.getAttribute('class') || '';
-					return c.split(' ')[0];
-				};
+				const nm = (a) => (a.effect.target.getAttribute('class') || '').split(' ')[0];
 				window.__flipCap = { st: want, caughtAtMs: caught.map((c) => Math.round(c * 10) / 10), anims: anims.map((a) => ({ el: nm(a), prop: a.transitionProperty ?? a.animationName, delay: a.effect.getComputedTiming().delay, dur: a.effect.getComputedTiming().duration, easing: a.effect.getComputedTiming().easing })), rows };
 			});
 			mo.observe(b, { attributes: true, attributeFilter: ['data-st'] });
@@ -615,7 +681,6 @@ async function flip(browser) {
 		}
 		return { st: null, anims: [], rows: [] };
 	};
-	// live frame times around the press (what this machine actually painted)
 	await p.evaluate(() => {
 		window.__ft = [];
 		const loop = (t) => {
@@ -627,6 +692,15 @@ async function flip(browser) {
 	await arm('run');
 	await p.evaluate(() => document.querySelector('.hudp button.spin').click());
 	const press = await take();
+	// the ring winds up at the press: a script animation on its wrappers within a few frames
+	let wound = false;
+	for (let i = 0; i < 20 && !wound; i++) {
+		wound = await p.evaluate(() => {
+			const b = document.querySelector('.hudp button.spin');
+			return b.dataset.run === '1' && [...b.querySelectorAll('.rw, .rr')].some((e) => e.getAnimations().some((a) => !(a instanceof CSSAnimation) && !(a instanceof CSSTransition)));
+		});
+		if (!wound) await sleep(25);
+	}
 	await arm('idle');
 	const end = await take();
 	const ft = await p.evaluate(() => window.__ft);
@@ -635,18 +709,17 @@ async function flip(browser) {
 	const out = { liveFrameMedianMs: Math.round(med * 10) / 10, press, end };
 	if (FLIP) writeFileSync(FLIP, JSON.stringify(out, null, 1));
 	const P = press.rows;
-	const f1Shut = P.find((r) => r.f1 !== null && r.f1 <= 0.001);
-	const f2Open = P.find((r) => r.f2 !== null && r.f2 > 0.001);
-	check(press.st === 'run' && !!f1Shut && !!f2Open && f2Open.ms >= f1Shut.ms, `flip: on the press Play folds shut by ${f1Shut?.ms} ms, Stop opens from ${f2Open?.ms} ms (glyph state ${press.st})`, press.anims);
-	const peak = Math.max(...P.map((r) => r.f2 ?? 0));
-	check(peak > 1 && peak < 1.12, `flip: Stop opens with a small overshoot (peak scaleY ${peak})`);
+	const shown = P.find((r) => r.cgA !== null && r.cgA >= 0.999);
+	const peak = Math.max(...P.map((r) => (typeof r.cg === 'number' ? r.cg : 0)));
+	check(press.st === 'run' && !!shown, `flip: on the press the stop square pops in (fully shown by ${shown?.ms} ms)`, press.anims);
+	check(peak > 1 && peak < 1.3, `flip: the square pops in with an overshoot (peak scale ${peak})`);
+	check(wound, 'flip: the ring winds up at the press (a script animation on its wrappers, data-run 1)');
 	const E = end.rows;
-	const eShut = E.find((r) => r.f2 !== null && r.f2 <= 0.001);
-	const eOpen = E.find((r) => r.f1 !== null && r.f1 > 0.001);
-	check(end.st === 'idle' && !!eShut && !!eOpen && eOpen.ms >= eShut.ms, `flip: at the round's end Stop folds shut by ${eShut?.ms} ms, Play opens from ${eOpen?.ms} ms`, end.anims);
+	const gone = E.find((r) => r.cgA !== null && r.cgA <= 0.001);
+	check(end.st === 'idle' && (!!gone || E.length === 0), `flip: at the round's end the square goes (gone by ${gone?.ms ?? 0} ms)`, end.anims);
 	const haloEnd = Math.max(0, ...E.map((r) => r.halo ?? 0));
-	const gyEnd = Math.max(...E.map((r) => (typeof r.gy === 'number' ? r.gy : 1)));
-	check(haloEnd === 0 && gyEnd <= 1.0001, `flip: no halo and no pop at the round's end (halo opacity peak ${haloEnd}, glyph box scale peak ${gyEnd})`);
+	const fxEnd = Math.max(...E.map((r) => (typeof r.fx === 'number' ? r.fx : 1)));
+	check(haloEnd === 0 && fxEnd <= 1.0001, `flip: no halo and no pop at a no-win round's end (halo opacity peak ${haloEnd}, face scale peak ${fxEnd})`);
 	console.log(`  INFO flip: live frames on this machine every ${out.liveFrameMedianMs} ms (median); ${P.length} press frames, ${E.length} end frames; press animations ${press.anims.map((a) => `${a.el.trim()} ${a.prop} ${a.delay}+${a.dur} ms`).join('; ')}`);
 	await ctx.close();
 }
@@ -667,6 +740,13 @@ async function flip(browser) {
 				await socialWords(browser);
 			} catch (e) {
 				check(false, 'social: ran to the end', String(e).slice(0, 300));
+			}
+		}
+		if (!ONLY.length || ONLY.includes('reduced')) {
+			try {
+				await reducedMotion(browser);
+			} catch (e) {
+				check(false, 'reduced: ran to the end', String(e).slice(0, 300));
 			}
 		}
 		if (FLIP && (!ONLY.length || ONLY.includes('flip'))) {
