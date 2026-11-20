@@ -978,6 +978,10 @@
 			wildFrames: () => road.features.frames(),
 			garlandMemory: () => garlandMemory(),
 			atRest: () => road.atRest && !stateGame.busy,
+			/** the game takes a Spin press as a new round now (the round machine idle, no round live): a manual base win's
+			 *  round stays open past atRest until its LED count lands (game/utils.ts ledCountDone), and a press then is its
+			 *  STOP (tools/rider_probe_lib.mjs stepRound waits for this) */
+			pressReady: () => context.stateXstateDerived.isIdle() && !stateGame.busy,
 			board: () => stateGame.board.map((reel) => [...reel]),
 			gameType: () => stateGame.gameType,
 			/** the layout in use and where the board's cells are, master units and CSS px */
