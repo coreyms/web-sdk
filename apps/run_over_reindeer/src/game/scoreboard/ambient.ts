@@ -144,8 +144,8 @@ const takeoff: Draw = (g, W, H, t) => {
 	snowDots(g, W, H, t, Math.round((W * H) / 150));
 	// (the sleigh WITH Santa, the riders' picture: `sh` the whole picture's height, as the mock's; sized by its vehicle)
 	const sh = Math.round(H * 0.8);
-	const v = vehicleOf('sleigh');
-	const [pw0, ph0] = artSize('sleigh', null);
+	const v = vehicleOf('sleigh_r');
+	const [pw0, ph0] = artSize('sleigh_r', null);
 	const vh = v ? (sh * v.h) / ph0 : sh;
 	const sw = v ? Math.round((vh * v.w) / v.h) : Math.round((sh * pw0) / ph0);
 	const rh = Math.round(sh * 0.85);
@@ -167,8 +167,8 @@ const takeoff: Draw = (g, W, H, t) => {
 		const p = takeoffPath(t, W, H, sh, sw, rw);
 		const yR = p.yB - (p.yB < H - 1 ? 2 : 0);
 		gallop(g, p.x + sw + 1, yR, rh, t);
-		// (the LED sheet's sleigh faces left: mirrored to face the way it flies, as the sleigh cartoon does)
-		sprite(g, 'sleigh', p.x, p.yB, vh, true);
+		// (the sleigh's RIGHT facing picture, sleigh_r: its WILD reads left to right; never the left one mirrored)
+		sprite(g, 'sleigh_r', p.x, p.yB, vh);
 		if (p.yB >= H - 1.5) for (let i = 0; i < 4; i++) dot(g, p.x - 1 - i * 2, H - 2 - hash(i + Math.floor(t / 70)) * 3, '#ffffff');
 	}
 };

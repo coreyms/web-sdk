@@ -37,7 +37,7 @@ SRC = os.path.expanduser("~/Desktop/Run Over Reindeer/bigwin_led_r3_2026-11-16/w
 OUT = os.path.join(APP, "static", "assets", "scoreboard")
 SPEC = os.path.join(APP, "src", "game", "scoreboardArtSpec.ts")
 # row 1: the run strip; row 2 the cars and the sleigh; row 3 the column characters and the present
-ROWS = [["run_strip"], ["car", "H2", "H3", "H4", "sleigh"], ["reindeer_col", "santa_col", "grandma_col", "present"], ["present_red", "sign_a", "sign_k", "sign_q", "sign_j", "sign_j_plate", "sign_j_post"], ["tree"]]
+ROWS = [["run_strip"], ["car", "H2", "H3", "H4", "sleigh"], ["reindeer_col", "santa_col", "grandma_col", "present"], ["present_red", "sign_a", "sign_k", "sign_q", "sign_j", "sign_j_plate", "sign_j_post"], ["tree", "sleigh_r", "H4_r"]]
 GAME = os.path.join(APP, "static", "assets")
 IDEAS_H = 112
 # the round 1 ideas' pictures: (source, frame or None, height)
@@ -53,7 +53,12 @@ IDEAS = {
 }
 GAP = 2
 # the vehicles drawn with their rider: the atlas frame each one is (the mock's pictures face left)
-SEATED = {"car": "H1_L", "sleigh": "W_L"}
+SEATED = {"car": "H1_L", "sleigh": "W_L", "sleigh_r": "W_R"}
+# THE WORDS READ LEFT TO RIGHT (Corey 2026-11-19: "Mirrored wild on sleigh LED, yes fix it"): a vehicle that travels right
+# on the LED boards is its own picture made from the atlas's RIGHT facing frame (the road's own art, its lettering drawn
+# readable that way: WILD on the sleigh, POLICE on the police car), never the left facing picture mirrored at draw time.
+# The vehicle box of sleigh_r is the right facing composite's own; H4_r is the atlas's H4_R at the H4 picture's width.
+FACING_R = {"H4_r": ("H4_R", "H4")}
 
 
 def resize_premul(im, w, h):
@@ -93,7 +98,22 @@ def idea(name):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    ims = {n: (idea(n) if n in IDEAS else Image.open(os.path.join(SRC, n + ".png")).convert("RGBA")) for row in ROWS for n in row}
+    def load(n):
+        if n in IDEAS:
+            return idea(n)
+        if n in FACING_R:
+            fr, like = FACING_R[n]
+            js = json.load(open(os.path.join(GAME, "symbols", "symbols.json")))["frames"][fr]["frame"]
+            im = Image.open(os.path.join(GAME, "symbols", "symbols.webp")).convert("RGBA").crop((js["x"], js["y"], js["x"] + js["w"], js["y"] + js["h"]))
+            bb = im.getbbox()
+            im = im.crop(bb) if bb else im
+            ref = Image.open(os.path.join(SRC, like + ".png"))
+            return resize_premul(im, ref.width, max(1, round(im.height * ref.width / im.width)))
+        if n in SEATED and n not in ("car", "sleigh"):
+            return Image.new("RGBA", (160, 100))  # (composed below)
+        return Image.open(os.path.join(SRC, n + ".png")).convert("RGBA")
+
+    ims = {n: load(n) for row in ROWS for n in row}
     boxes = {}
     for n, fr in SEATED.items():
         ims[n], boxes[n] = compose(fr, ims[n].width)

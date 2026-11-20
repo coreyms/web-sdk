@@ -468,7 +468,7 @@ export default {
 	"scene/snow-super-road.webp": "cef2393f",
 	"scene/snow-super-tunnel-left.webp": "9e27e58c",
 	"scene/snow-super-tunnel-right.webp": "96ff720d",
-	"scoreboard/scoreboard-art.webp": "d2d0c237",
+	"scoreboard/scoreboard-art.webp": "f1ca0207",
 	"symbols/single/H1_L.webp": "0a0b23ba",
 	"symbols/single/H1_R.webp": "3a8ac4fc",
 	"symbols/single/H2_L.webp": "10f999b2",
@@ -969,7 +969,7 @@ export const fileBytes = {
 	"scene/snow-super-road.webp": 173902,
 	"scene/snow-super-tunnel-left.webp": 62994,
 	"scene/snow-super-tunnel-right.webp": 64402,
-	"scoreboard/scoreboard-art.webp": 173546,
+	"scoreboard/scoreboard-art.webp": 193036,
 	"symbols/single/H1_L.webp": 28124,
 	"symbols/single/H1_R.webp": 34898,
 	"symbols/single/H2_L.webp": 30550,
@@ -1008,4 +1008,4 @@ export const landingSizes = {
 	"fonts/overpass/Overpass-bold.woff2": 34436
 } as const;
 
-export const bootSizes = {"landing":98520,"preload":7210223,"audio":901338} as const;
+export const bootSizes = {"landing":98520,"preload":7229713,"audio":901338} as const;

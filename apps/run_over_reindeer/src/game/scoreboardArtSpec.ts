@@ -4,7 +4,7 @@
 // strip holds the reindeer's eight 125 x 108 run frames.
 export const SCOREBOARD_ART = {
 	"width": 1000,
-	"height": 716,
+	"height": 786,
 	"frames": {
 		"run_strip": {
 			"x": 0,
@@ -125,6 +125,24 @@ export const SCOREBOARD_ART = {
 			"y": 652,
 			"w": 249,
 			"h": 64
+		},
+		"sleigh_r": {
+			"x": 251,
+			"y": 652,
+			"w": 160,
+			"h": 134,
+			"vehicle": {
+				"x": 0,
+				"y": 18,
+				"w": 160,
+				"h": 116
+			}
+		},
+		"H4_r": {
+			"x": 413,
+			"y": 652,
+			"w": 160,
+			"h": 109
 		}
 	}
 } as const;

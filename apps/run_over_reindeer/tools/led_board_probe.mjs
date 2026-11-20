@@ -2150,6 +2150,16 @@ async function ideasChecks(browser) {
 		const okImp = imports.every((m) => !/book|stateGame|wheel|road|fixtures|state-shared/i.test(m));
 		check(okImp && reads.every((r) => ['t', 'sceneAt', 'spins'].includes(r)) && /const REEL: ArtName\[\] = \['reindeer_col', 'santa_col', 'grandma_col'\]/.test(src), `ledIdeas: the Super tease reads nothing of the round (imports ${imports.join(', ')}; it reads the show's ${reads.join(', ')}; its reel a fixed order)`, { imports, reads });
 	}
+	// THE WORDS ON THE VEHICLES READ LEFT TO RIGHT (Corey 2026-11-19: "Mirrored wild on sleigh LED, yes fix it"): no LED
+	// program draws a lettered vehicle (the sleigh's WILD, the police car's POLICE, the van's OH-KAY) mirrored; a vehicle going
+	// right is its own right facing picture (sleigh_r, H4_r on the sheet, from the atlas's W_R and H4_R)
+	{
+		const files = ['scoreboardDraw.ts', 'ambient.ts', 'entryScenes.ts', 'totalLadder.ts', 'stripDraw.ts', 'explainDraw.ts'].map((f) => [f, readFileSync(join(SRC, 'game', 'scoreboard', f), 'utf8')]);
+		const bad = [];
+		for (const [f, src] of files) for (const m of src.matchAll(/\b(?:sprite|pic|picC|spriteAt)\(g, '(sleigh|car|H3|H4)'[^;\n]*,\s*true\)/g)) bad.push(`${f}: ${m[0]}`);
+		const spec = readFileSync(join(SRC, 'game', 'scoreboardArtSpec.ts'), 'utf8');
+		check(bad.length === 0 && /"sleigh_r"/.test(spec) && /"H4_r"/.test(spec), `ledIdeas: no lettered vehicle is drawn mirrored on the LED faces (the right facing sleigh_r and H4_r are on the sheet)`, bad);
+	}
 	for (const S of IDEAS_CASES) {
 		const tag = S.name + ` ${S.vp.width}x${S.vp.height}`;
 		const ctx = await browser.newContext({ viewport: S.vp, deviceScaleFactor: S.dpr, isMobile: S.phone, hasTouch: S.phone });
