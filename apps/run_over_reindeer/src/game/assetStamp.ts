@@ -496,8 +496,8 @@ export default {
 	"wheel/super-wheel.webp": "d552a91b",
 	"wild/garland-full.webp": "f47d0eca",
 	"wild/garland-phone.webp": "e9b479c8",
-	"wild/wild-mult-full.webp": "4ed5cdfa",
-	"wild/wild-mult-phone.webp": "9b4e54ea"
+	"wild/wild-mult-full.webp": "6cf23bf3",
+	"wild/wild-mult-phone.webp": "43f5850e"
 } as const;
 
 export const fileBytes = {
@@ -997,8 +997,8 @@ export const fileBytes = {
 	"wheel/super-wheel.webp": 757618,
 	"wild/garland-full.webp": 46818,
 	"wild/garland-phone.webp": 12378,
-	"wild/wild-mult-full.webp": 547410,
-	"wild/wild-mult-phone.webp": 150662
+	"wild/wild-mult-full.webp": 641774,
+	"wild/wild-mult-phone.webp": 167004
 } as const;
 
 export const landingSizes = {

@@ -5,8 +5,11 @@
 //
 // THE LOOK: chunky Sigmar letters with an ink outline and a baked drop shadow, no backing plate, in ONE COLOR PER
 // CHARACTER at every value (Corey 2026-11-19: "static colors for Reindeer Santa, Grandma"; WILD_MULT.colors): red candy
-// stripes, green candy stripes, gold tinsel. The letters grow a little with the value and a long number shrinks to the
-// frame's inside width; the number stands on the inside of the frame's bottom rail (WILD_MULT.place floor). Each letter
+// stripes, green candy stripes, gold tinsel. THE SIZE (2026-11-19, the refit to the real values): each kind's largest
+// value (WILD_MULT.maxValue, from the math) fills the frame's inside width, every smaller value of that kind stands at
+// least as tall (the letters grow a little with the value, up to their band's cap), and a long number shrinks to the
+// frame's inside width (a value over its kind's top too); the number stands on the inside of the frame's bottom rail
+// (WILD_MULT.place floor). Each letter
 // is its own sprite (the number is composed here from the atlas's glyphs). Only the GOLD number (Grandma's) has effects,
 // and they grow with the value (WILD_MULT.gold steps): a sheen sweeping its letters, sparkles, a shimmer and a soft
 // pulsing glow behind, all pre-baked sprites drawn additive.
@@ -27,6 +30,7 @@
 import * as PIXI from 'pixi.js';
 
 import { WILD_MULT } from '../constants';
+import config from '../config';
 import { WILD_MULT_ART as ART } from '../wildMultSpec';
 import { PHONE_TIER } from '../deviceTier';
 import { stamp } from '../assets';
@@ -110,6 +114,42 @@ export const multBand = (v: number) => {
 	return v >= f[2] ? 3 : v >= f[1] ? 2 : v >= f[0] ? 1 : 0;
 };
 export type MultColor = 'red' | 'green' | 'gold';
+type MultKind = keyof typeof WILD_MULT.maxValue;
+
+/** the letters' width at design size (the layout's sum: advances less the tuck between letters) */
+const inkOf = (text: string) => {
+	let x = 0;
+	for (let i = 0; i < text.length; i++) x += ((ART.adv as Record<string, number>)[text[i]] ?? 0) - ART.tuck;
+	return x + ART.tuck;
+};
+/** the largest value a number in this place and color can show (WILD_MULT.maxValue): a cell is the Grandma Wild, a
+ *  column the character whose color it wears (WILD_MULT.colors; the larger if two ever share one), a flying copy the
+ *  largest of all */
+const kindMax = (place: MultPlace, color: MultColor): number => {
+	const M = WILD_MULT.maxValue;
+	if (place === 'cell') return M.cell;
+	const all = Math.max(...Object.values(M));
+	if (place === 'sum') return all;
+	const tiers = (Object.keys(WILD_MULT.colors) as (keyof typeof WILD_MULT.colors)[]).filter((t) => WILD_MULT.colors[t] === color);
+	return tiers.length ? Math.max(...tiers.map((t) => M[t])) : all;
+};
+/** the letter height (road px) at which a kind's largest value fills its place's inside width, never over the place's
+ *  largest cap: every value of that kind up to its top stands at least this tall */
+const kindTop = (place: MultPlace, max: number) => {
+	const P = WILD_MULT.place[place];
+	return Math.min(P.caps[P.caps.length - 1], (ART.cap * P.maxW) / inkOf(`${max}x`));
+};
+/** the tops the rules page gives (config.multipliers), per kind: what WILD_MULT.maxValue should say */
+export const rulesMax = (): Record<MultKind, number> => {
+	const M = config.multipliers;
+	const C = M.column;
+	const top = (k: 'reindeer' | 'santa' | 'grandma') => Math.max(C.base[k][1], C.freeSpins[k][1], C.super[k][1], (M.bonusRare as Record<string, number>)[k] ?? 0);
+	return { cell: Math.max(M.grandmaWild.base[1], M.grandmaWild.freeSpins[1], M.grandmaWild.super[1]), reindeer: top('reindeer'), santa: top('santa'), grandma: top('grandma') };
+};
+if (import.meta.env.DEV) {
+	const r = rulesMax();
+	for (const k of Object.keys(r) as MultKind[]) if (r[k] !== WILD_MULT.maxValue[k]) console.warn(`[reindeer] WILD_MULT.maxValue.${k} is ${WILD_MULT.maxValue[k]}x, the rules page's top is ${r[k]}x (config.multipliers): the number's fit follows maxValue`);
+}
 type GoldStep = (typeof WILD_MULT.gold.steps)[number];
 const GOLD_KEYS = ['sheenMs', 'sheenAlpha', 'sparkles', 'sparkleScale', 'shimmer', 'glow', 'glowPulse', 'pulseMs'] as const;
 
@@ -139,6 +179,11 @@ export class WildMult {
 	// the layout of the text drawn now (made when the value drawn changes, kept: never per frame)
 	private text = '';
 	private band = 0;
+	/** the letter height the value is laid out for before the width's limit (its band's cap, or its kind's top) */
+	private capFor = 0;
+	/** the largest value its kind carries, and the letter height at which that value fills the frame's inside */
+	private readonly max: number;
+	private readonly top: number;
 	private s = 1;
 	private width = 0;
 	private cap = 0;
@@ -160,6 +205,8 @@ export class WildMult {
 		seed = 0,
 	) {
 		this.seed = seed;
+		this.max = kindMax(place, color);
+		this.top = kindTop(place, this.max);
 		this.root.addChild(this.body);
 		const sprite = (add: boolean, list: PIXI.Sprite[] | null) => {
 			const sp = new PIXI.Sprite();
@@ -233,7 +280,7 @@ export class WildMult {
 
 	/** what it draws now (probes) */
 	state() {
-		return { ...this.drawn, target: this.value, place: this.place, color: this.color, band: this.band, cap: this.cap, width: this.width, loaded: !!textures };
+		return { ...this.drawn, target: this.value, place: this.place, color: this.color, band: this.band, cap: this.cap, width: this.width, max: this.max, top: this.top, maxW: WILD_MULT.place[this.place].maxW, rulesMax: rulesMax(), loaded: !!textures };
 	}
 
 	/** the letters' bounds as drawn, CSS px on the stage (probes: the number fits its cell or column) */
@@ -256,7 +303,10 @@ export class WildMult {
 		this.text = text;
 		const b = multBand(v);
 		const P = WILD_MULT.place[this.place];
-		let s = P.caps[b] / ART.cap;
+		// its band's cap, or its kind's top when that is taller (the kind's largest value fills the frame's inside); a
+		// value over its kind's top keeps its band's cap (and the width's limit below shrinks it to fit)
+		this.capFor = v <= this.max ? Math.max(P.caps[b], this.top) : P.caps[b];
+		let s = this.capFor / ART.cap;
 		let x = 0;
 		const n = Math.min(MAX_GLYPHS, text.length);
 		for (let i = 0; i < n; i++) {
@@ -365,7 +415,7 @@ export class WildMult {
 			this.glow.visible = true;
 			this.glow.tint = G.tint[this.color];
 			this.glow.alpha = Math.min(1, ga);
-			this.glow.scale.set((this.width * G.width) / glowTex.orig.width, (P.caps[this.band] * G.height) / glowTex.orig.height);
+			this.glow.scale.set((this.width * G.width) / glowTex.orig.width, (this.capFor * G.height) / glowTex.orig.height);
 		} else this.glow.visible = false;
 
 		// the gold's sheen: a light sweeping the letters once every sheenMs, and its shimmer

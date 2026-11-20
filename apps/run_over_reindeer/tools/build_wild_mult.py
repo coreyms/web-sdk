@@ -66,13 +66,22 @@ SETS = {
     "gold": {"tinsel": (7, (255, 220, 90), (232, 160, 20))},
 }
 SHEEN_DENSITY = 0.5  # the sheen silhouettes against the letters' density
-# the values a number can draw (any character, 2x to 500x)
+# the values a number can draw (any character, 2x to 500x: a value over its kind's top only ever draws smaller)
 VALUES = list(range(2, 101)) + [150, 200, 250, 300, 400, 500]
 # THE PLACES (keep in step with constants WILD_MULT.place): letter height per value band (road px; bands from 10x, 50x,
 # 100x) and the widest the number may be (road px); the column is the larger of the two places
 PLACE = {
     "cell": {"caps": [56, 58, 60, 62], "maxW": 196},
     "col": {"caps": [70, 76, 82, 88], "maxW": 184},
+}
+# THE KINDS (keep in step with constants WILD_MULT.maxValue, the math's tops, 2026-11-19): each kind's place and largest
+# value. The game lifts a kind's letters so its largest value fills the place's width (game/road/wildMult.ts kindTop):
+# the Reindeer's 8x makes every Reindeer number 75 road px tall, the largest draw of all.
+KINDS = {
+    "cell": ("cell", 100),
+    "reindeer": ("col", 8),
+    "santa": ("col", 30),
+    "grandma": ("col", 75),
 }
 BAND_FROM = [10, 50, 100]
 BREATHE = 1.02  # the idle's largest swell (constants WILD_MULT.idle.breathe)
@@ -253,11 +262,23 @@ def layout_scale(M, text, cap, max_w):
     return s
 
 
+def ink(M, text):
+    return sum(M["adv"][c] for c in text) - TUCK * (len(text) - 1)
+
+
+def kind_top(M, place, top_value):
+    """the letter height at which a kind's largest value fills its place's width (game/road/wildMult.ts kindTop)"""
+    return min(place["caps"][-1], M["cap"] * place["maxW"] / ink(M, f"{top_value}x"))
+
+
 def largest_draw(M):
     best = 0.0
-    for place in PLACE.values():
+    for place_name, top_value in KINDS.values():
+        place = PLACE[place_name]
+        top = kind_top(M, place, top_value)
         for v in VALUES:
-            best = max(best, layout_scale(M, f"{v}x", place["caps"][band(v)], place["maxW"]))
+            cap = max(place["caps"][band(v)], top) if v <= top_value else place["caps"][band(v)]
+            best = max(best, layout_scale(M, f"{v}x", cap, place["maxW"]))
     return best * BREATHE
 
 

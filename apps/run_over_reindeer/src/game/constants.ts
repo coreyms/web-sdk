@@ -1851,11 +1851,26 @@ export const WILD_MULT = {
 	cellColor: 'gold' as 'red' | 'green' | 'gold',
 	/** the value bands the letters grow by (from 10x, 50x, 100x): sizes only, never colors */
 	bandFrom: [10, 50, 100],
+	/** THE LARGEST VALUE EACH KIND OF WILD CAN CARRY (2026-11-19, Corey: "Do we actually have a 500x wild?"; no). From the
+	 *  math (math-sdk/games/run_over_reindeer: ror_rules.py GRANDMA_MULT / GRANDMA_MULT_SUPER, variant_f.py C_final5 and
+	 *  SUPER_TRIM_2026_11_15 over variant_e.py BASE, as variant_f.apply_working() installs them; a Grandma column is its
+	 *  roll plus the Grandma Wilds it takes in, capped at 50x in a bonus round) and counted in every Wild event of the
+	 *  production books (math build 2026-11-18, modes base, bonus, super; the Antes share the base books): the single cell
+	 *  Grandma Wild 2x to 100x, the Reindeer column 2x to 8x, Santa's 6x to 30x, Grandma's 12x to 75x. A column shows its
+	 *  event's multiplier (a joining Grandma Wild counts up to it, never past it). config.multipliers (Game Info) gives the
+	 *  same tops; wildMult.ts says so in DEV when they part. THE FIT (wildMult.ts layout): a kind's largest value fills
+	 *  the frame's inside (place maxW), and every smaller value of that kind stands at least as tall as it (growing up to
+	 *  its band's cap, place caps); a value over its kind's top is never expected and simply shrinks to fit. `sum` (a
+	 *  copy flying to a line's multiplier) takes the largest of all. */
+	maxValue: { cell: 100, reindeer: 8, santa: 30, grandma: 75 } as Record<'cell' | 'reindeer' | 'santa' | 'grandma', number>,
 	/** THE PLACES, inside the Wild's frame (2026-11-19: the number covered the frame's bottom rail from 25x; it now fits
 	 *  the frame's inside and never overlaps the rail). `caps` the letter height per value band (road px), `maxW` the
 	 *  widest the number's letters may be (a long number shrinks to it: their outline, baked shadow and the idle's 2%
 	 *  swell then stay inside the frame's inside width: 196 road px in a column, 208 in a cell, with the garland's band,
-	 *  WILD_FRAME.band, since 2026-11-19; 12 road px of slack, 18 before, so a 500x keeps its 10 CSS px digits on a phone),
+	 *  WILD_FRAME.band, since 2026-11-19; 12 road px of slack, 18 before), with a kind's largest value (maxValue) filling
+	 *  it: the Reindeer's 8x lifts every Reindeer number to its own height (75 road px; 2026-11-19, the refit to the real
+	 *  values). Every other kind's largest value (Santa's 30x, Grandma's 75x, the cell's 100x) already filled it. The
+	 *  cell's caps stay: a taller cell number meets the WILD word above it (tried at 60 to 66, 2026-11-19).
 	 *  `floor` the inside of the frame's bottom rail
 	 *  (road px above the column's foot or the cell's bottom edge: RED_BOX.inset - RED_BOX.edge + WILD_FRAME.band), `gap` the letters' outline above it (their baked shadow, down and right, then barely reaches the rail). The atlas is baked for these (tools/build_wild_mult.py PLACE
 	 *  keeps the same numbers; DEV says so once when a number draws over its bake). `sum`: the copies that fly to a line's

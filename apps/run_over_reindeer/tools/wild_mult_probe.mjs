@@ -7,14 +7,17 @@
 // tools/build_wild_mult.py). At 1440x900 and 390x844 (the phone tier), device scale 1 and 3:
 //   - THE ATLAS: loaded from its stamped address(es), the device tier's sheets, its GPU weight said
 //   - THE FIRST BOARD: the posed columns' numbers stand at their multipliers at rest before the press
-//   - THE RIGHT VALUE, COLOR AND FIT: a Grandma Wild cell and the three column Wilds at 2x, 3x, 5x, 8x, 10x, 25x, 33x,
-//     50x, 75x, 99x, 100x, 250x and 500x: each draws its own value in its character's color set (WILD_MULT.colors,
-//     cellColor), every letter visible, inside its frame's inside (clear of the side bands and the bottom rail: the
-//     letters' soft shadow tail may reach SLACK road px past it), the digits at least MIN_CSS CSS px tall on a phone (the
-//     smallest per character printed), back to rest
-//   - GRANDMA'S GOLD: at rest its effects grow with the value (WILD_MULT.gold steps, blended between them): a sheen and
-//     nothing else at 2x, two sparkles and no glow at 25x, three and a glow at 100x, five at 500x, and never less at a
-//     higher value; the red and green numbers have none
+//   - THE RIGHT VALUE, COLOR AND FIT: a Grandma Wild cell and the three column Wilds at the values each kind really
+//     carries (2026-11-19, the refit: WILD_MULT.maxValue, the math's tops, the same as the rules page's): its smallest,
+//     a typical one, others, its LARGEST (from the game's table), and one value over every kind's top (500x, never
+//     expected: the safety path): each draws its own value in its character's color set (WILD_MULT.colors, cellColor),
+//     every letter visible, inside its frame's inside (clear of the side bands and the bottom rail: the letters' soft
+//     shadow tail may reach SLACK road px past it), the digits at least MIN_CSS CSS px tall on a phone; a kind's largest
+//     value fills the inside width (maxW), every value up to it stands at least as tall as that one unless it is wider
+//     (then it fills the width), a value over the top shrinks to fit; the letter heights per kind printed, back to rest
+//   - GRANDMA'S GOLD (the cell's, which carries 2x to 100x): at rest its effects grow with the value (WILD_MULT.gold
+//     steps, blended between them): a sheen and nothing else at 2x, two sparkles and no glow at 25x, three and a glow
+//     at 100x, five at 500x (the over-the-top case), and never less at a higher value; the red and green numbers have none
 //   - APPEAR: a struck column's number drops in (mode appear) and is at rest after WILD_MULT.appear.totalMs
 //   - A GRANDMA WILD JOINING: the column shows its own value first, counts up to the sum, and one stamp marks the slam
 //   - A LINE WIN through a cell and a column: both play their win; two on one line send copies to the line's multiplier
@@ -34,9 +37,18 @@ const SIZES = [
 	{ name: 'desktop', vp: { width: 1440, height: 900 }, phone: false },
 	{ name: 'phone', vp: { width: 390, height: 844 }, phone: true },
 ].filter((s) => !process.env.ONLY || process.env.ONLY.split(',').includes(s.name));
-const VALUES = [2, 3, 5, 8, 10, 25, 33, 50, 75, 99, 100, 250, 500];
-/** the smallest digit height a phone may draw (CSS px; today's was 13.1 in the cell): a 500x shrunk to a column's inside
- *  is about 10.5 */
+/** THE CASES, one row per board: each kind at a value it really carries (the production books of 2026-11-18). The
+ *  largest row is read from the game's WILD_MULT.maxValue; the last row is over every kind's top (the safety path) */
+const CASES = [
+	{ name: 'smallest', reindeer: 2, santa: 6, grandma: 12, cell: 2 },
+	{ name: 'typical', reindeer: 3, santa: 10, grandma: 50, cell: 5 },
+	{ name: 'widest', reindeer: 6, santa: 20, grandma: 40, cell: 25 },
+	{ name: 'others', reindeer: 4, santa: 8, grandma: 15, cell: 75 },
+	{ name: 'largest', largest: true },
+	{ name: 'over the top', over: true, reindeer: 500, santa: 500, grandma: 500, cell: 500 },
+];
+/** the smallest digit height a phone may draw (CSS px; today's was 13.1 in the cell): the over-the-top 500x shrunk to a
+ *  column's inside is about 10.1, the largest real value (the cell's 100x) about 11 */
 const MIN_CSS = 10;
 /** road px the letters' soft shadow tail may reach past the frame's inside */
 const SLACK = 3;
@@ -129,16 +141,19 @@ async function run(browser, S, dpr) {
 
 	// THE RIGHT VALUE, COLOR AND FIT, at every value
 	const colors = await p.evaluate(() => ({ ...window.__reindeer.tune.wildMult.colors, cell: window.__reindeer.tune.wildMult.cellColor }));
+	const maxValue = await p.evaluate(() => ({ ...window.__reindeer.tune.wildMult.maxValue }));
 	const smallest = {};
+	const heights = {};
 	const goldSeen = [];
-	for (const v of VALUES) {
-		await p.evaluate((v) => {
+	for (const row0 of CASES) {
+		const row = row0.largest ? { ...row0, ...maxValue } : row0;
+		await p.evaluate((row) => {
 			const F = window.__reindeer.roadBoard().features;
 			F.clearAll();
 			window.__colsDone = false;
-			Promise.all([F.columnWild(0, 'reindeer', v, true, null), F.columnWild(2, 'santa', v, true, null), F.columnWild(4, 'grandma', v, true, null)]).then(() => (window.__colsDone = true));
-			F.grandmaWild(1 * 4 + 1, v);
-		}, v);
+			Promise.all([F.columnWild(0, 'reindeer', row.reindeer, true, null), F.columnWild(2, 'santa', row.santa, true, null), F.columnWild(4, 'grandma', row.grandma, true, null)]).then(() => (window.__colsDone = true));
+			F.grandmaWild(1 * 4 + 1, row.cell);
+		}, row);
 		await waitFor(p, () => window.__colsDone, null, 30000);
 		const rested = await waitFor(p, () => {
 			const m = window.__reindeer.wildMult();
@@ -163,24 +178,31 @@ async function run(browser, S, dpr) {
 		const b = await boxes(p);
 		BAND = b.band;
 		const all = [...m.columns.map((c) => ({ ...c, key: c.tier, box: b.cols[c.reel], band: BAND.col, where: `${c.tier} column` })), ...m.cells.map((c) => ({ ...c, key: 'cell', box: b.cells[c.cell], band: BAND.cell, where: 'cell' }))];
-		check(rested, `${tag} ${v}x: every number is back at rest after its appear`, all.map((c) => c.mode));
+		check(rested, `${tag} ${row.name}: every number is back at rest after its appear`, all.map((c) => c.mode));
 		for (const c of all) {
+			const v = row[c.key];
 			const text = `${v}x`;
 			check(c.value === v && c.text === text && c.color === colors[c.key] && c.glyphs.length === text.length, `${tag} ${v}x ${c.where}: draws ${c.text} in ${c.color}, ${c.glyphs.length} letters`, { value: c.value, text: c.text, color: c.color, want: colors[c.key], glyphs: c.glyphs.length });
 			const k = c.box ? c.box.w / 248 : 1;
 			const inner = c.box ? { x: c.box.x + c.band * k, y: c.box.y, w: c.box.w - 2 * c.band * k, h: c.box.h - c.band * k } : null;
 			check(!!inner && inside(c.glyphs, inner, SLACK * k), `${tag} ${v}x ${c.where}: every letter inside the frame's inside, clear of its bands and its bottom rail`, { inner, glyphs: c.glyphs });
+			const css = c.cap * k;
+			(heights[c.where] ??= []).push(`${v}x ${css.toFixed(1)}`);
 			if (S.phone) {
-				const css = c.cap * k;
 				smallest[c.where] = Math.min(smallest[c.where] ?? Infinity, css);
 				check(css >= MIN_CSS, `${tag} ${v}x ${c.where}: its digits are ${css.toFixed(1)} CSS px tall (at least ${MIN_CSS})`);
 			}
+			// THE FIT BY KIND: the game's table, the rules page's tops, the largest filling the inside, the rest at least as tall
+			if (row0 === CASES[0]) check(c.max === maxValue[c.key] && c.rulesMax?.[c.key] === maxValue[c.key], `${tag} ${c.where}: its kind's top is ${c.max}x (WILD_MULT.maxValue ${maxValue[c.key]}x, the rules page's ${c.rulesMax?.[c.key]}x)`, { max: c.max, rulesMax: c.rulesMax });
+			if (row.over) check(c.width <= c.maxW + 0.01, `${tag} ${v}x ${c.where}: over its kind's top (${c.max}x) it shrinks to fit (${c.width.toFixed(1)} of ${c.maxW} road px)`, { width: c.width, maxW: c.maxW });
+			else if (row0.largest) check(Math.abs(c.width - c.maxW) < 0.5 && Math.abs(c.cap - c.top) < 0.05, `${tag} ${v}x ${c.where}: its kind's largest value fills the inside width (${c.width.toFixed(1)} of ${c.maxW} road px, letters ${c.cap.toFixed(1)} road px)`, { width: c.width, cap: c.cap, top: c.top, maxW: c.maxW });
+			else check(v <= c.max && (c.cap >= c.top - 0.05 || Math.abs(c.width - c.maxW) < 0.5) && c.width <= c.maxW + 0.01, `${tag} ${v}x ${c.where}: stands at least as tall as its kind's ${c.max}x (${c.cap.toFixed(1)} against ${c.top.toFixed(1)} road px) or fills the width`, { cap: c.cap, top: c.top, width: c.width, maxW: c.maxW });
 			const e = fx[c.key];
 			if (c.color !== 'gold') check(e.sheen === 0 && e.sparkles === 0 && e.glow === 0, `${tag} ${v}x ${c.where}: the ${c.color} number has no value effects at rest`, e);
-			else if (c.key === 'grandma') goldSeen.push({ v, ...e });
+			else if (c.key === 'cell') goldSeen.push({ v, ...e });
 		}
 	}
-	// the gold's effects by value (the column's): the fixed points, then never less at a higher value
+	// the gold's effects by value (the cell's, the kind that carries 2x to 100x): the fixed points, then never less at a higher value
 	const at = (v) => goldSeen.find((g) => g.v === v);
 	const g2 = at(2), g25 = at(25), g100 = at(100), g500 = at(500);
 	check(!!g2 && g2.sheen > 0 && g2.sparkles === 0 && g2.glow === 0, `${tag}: gold 2x: a sheen only`, g2);
@@ -190,6 +212,7 @@ async function run(browser, S, dpr) {
 	const order = [...goldSeen].sort((a, b) => a.v - b.v);
 	check(order.every((g, i) => i === 0 || (g.sparkles >= order[i - 1].sparkles && g.glow >= order[i - 1].glow - 0.02)), `${tag}: the gold's sparkles and glow never fall as the value grows (${order.map((g) => `${g.v}x ${g.sparkles}/${g.glow.toFixed(2)}`).join(', ')})`, order);
 	if (S.phone) console.log(`  INFO ${tag}: smallest digit height on the phone, CSS px: ${Object.entries(smallest).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(', ')}`);
+	for (const [k, list] of Object.entries(heights)) console.log(`  INFO ${tag}: ${k} letter heights, CSS px: ${list.join(', ')}`);
 
 	// APPEAR, and turbo 2's: the move is WILD_MULT.appear.totalMs of board time; the board clock runs at the turbo
 	// level's rate (a headless page draws few frames, so real time is not measured)

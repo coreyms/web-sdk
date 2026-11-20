@@ -2,7 +2,7 @@
 // WATCHES: apps/run_over_reindeer/src/{game/road/garland.ts,game/road/roadFeatures.ts,game/garlandSpec.ts,components/Board.svelte};
 // WATCHES: ; __reindeer.atRest, __reindeer.board, __reindeer.clock, __reindeer.hud, __reindeer.roadBoard, __reindeer.setBoard,
 // WATCHES: ; __reindeer.step, __reindeer.tune, __reindeer.turbo, __reindeer.wildFrames, __reindeer.garlandMemory, __reindeer.wildMult,
-// WATCHES: ; WILD_FRAME, WILD_MULT.place, COLUMN.growMs, COLUMN.impactMs, COLUMN.loadWaitMs, .landing
+// WATCHES: ; WILD_FRAME, WILD_MULT.place, WILD_MULT.maxValue, COLUMN.growMs, COLUMN.impactMs, COLUMN.loadWaitMs, .landing
 // THE WILD FRAMES' GARLAND PROBE (Corey 2026-11-19: "I'd go for Garland (F), but I'd go Red for Santa", "just swap the
 // garland on santa and grandma"; game/road/garland.ts, constants WILD_FRAME, tools/build_garland.py) and THE ENTRANCE
 // WHILE THE BOX GROWS (Corey 2026-11-19: "Is it possible to have the video alreday playing within the border boundaries
@@ -13,7 +13,8 @@
 //     baubles, Santa red with gold, Grandma green with gold), the single Grandma Wild cell's and a marked car's in theirs
 //     (WILD_FRAME.cell, mark); read from the frames as laid AND from the screen (the band's mean color, the baubles')
 //   - THE BAND: a column's and a cell's thickness (WILD_FRAME.band), in CSS px on this screen
-//   - THE NUMBER CLEAR OF THE BAUBLES: at 500x (the widest number) no letter of a column's number overlaps a bauble
+//   - THE NUMBER CLEAR OF THE BAUBLES: at each character's largest real value (WILD_MULT.maxValue, 2026-11-19: 8x, 30x,
+//     75x; it fills the frame's inside width) no letter of a column's number overlaps a bauble
 //   - THE GROW: each character's column from a struck cell, stepped one 60 Hz frame at a time: at several heights of
 //     the grow the garland covers every band and corner with no seam (the frame alone against no frame); the
 //     entrance's frame index advances DURING the grow, is the frame for the time since the grow began on every step
@@ -219,11 +220,12 @@ try {
 			check(mem.loaded && mem.size === (S.phone ? 'phone' : 'full'), `${tag}: the frame atlas is in, the ${mem.size} sheet (${mem.sheet?.w} x ${mem.sheet?.h}, ${mem.kb} KB, ${mem.mb} MB on the GPU, ${mem.mbWithMips} with its mips)`, mem);
 			sum.memory = mem;
 
-			// THE LOOK PER CHARACTER, THE BAND, THE NUMBER CLEAR OF THE BAUBLES (500x)
+			// THE LOOK PER CHARACTER, THE BAND, THE NUMBER CLEAR OF THE BAUBLES (each character's largest real value)
 			await R(p, () => {
 				const F = window.__reindeer.roadBoard().features;
+				const top = window.__reindeer.tune.wildMult.maxValue;
 				window.__done = false;
-				Promise.all([[0, 'reindeer'], [2, 'santa'], [4, 'grandma']].map(([r, t]) => F.columnWild(r, t, 500, true, null))).then(() => (window.__done = true));
+				Promise.all([[0, 'reindeer'], [2, 'santa'], [4, 'grandma']].map(([r, t]) => F.columnWild(r, t, top[t], true, null))).then(() => (window.__done = true));
 			});
 			for (let i = 0; i < 200 && !(await R(p, () => window.__done)); i++) await sleep(150);
 			await R(p, () => {
@@ -264,7 +266,7 @@ try {
 				const bad = Object.entries(cv).filter(([, l]) => l.bad);
 				check(bad.length === 0, `${tag}: the ${c.tier} column's garland standing: every band and corner covered, no seam (${Object.entries(cv).map(([k, l]) => `${k} ${l.seams}`).join(', ')})`, Object.fromEntries(bad));
 			}
-			// the 500x number clear of the baubles
+			// each character's largest number clear of the baubles
 			const m = await R(p, () => window.__reindeer.wildMult());
 			for (const c of L.columns) {
 				const n = m.columns.find((x) => x.reel === c.reel);
@@ -279,7 +281,7 @@ try {
 						return Math.hypot(dx, dy) < r;
 					}),
 				);
-				check(!!n && n.glyphs.length === 4 && hit.length === 0, `${tag}: the ${c.tier} column's 500x stays clear of its baubles (${hit.length} letters over one)`, { glyphs: n?.glyphs, bb: c.bb });
+				check(!!n && n.value === n.max && n.glyphs.length === `${n.max}x`.length && hit.length === 0, `${tag}: the ${c.tier} column's largest real value, ${n?.text}, stays clear of its baubles (${hit.length} letters over one)`, { glyphs: n?.glyphs, bb: c.bb });
 			}
 			if (OUT) await p.screenshot({ path: join(OUT, `look_${S.name}_${dpr}x.png`) });
 			await clearAll(p);
