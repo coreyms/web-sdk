@@ -1337,7 +1337,7 @@ export class RoadFeatures {
 			let nth = 0;
 			for (const cell of cells) {
 				const c = this.clouds.find((x) => x.cell === cell && x.leaving === null);
-				if (c?.brawl) this.brawl.win(c.brawl, this.clock + (startsMs[k] ?? 0) + nth++ * GRANDMA_BRAWL.win.staggerMs);
+				if (c?.brawl) this.brawl.win(c.brawl, this.clock + (startsMs[k] ?? 0) + nth++ * GRANDMA_BRAWL.win.staggerMs, this.clock + (startsMs[k] ?? 0));
 			}
 			for (const c of this.clouds) {
 				if (c.leaving !== null || !cells.includes(c.cell)) continue;

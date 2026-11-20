@@ -508,7 +508,9 @@ export default {
 	"wild/garland-full.webp": "f47d0eca",
 	"wild/garland-phone.webp": "e9b479c8",
 	"wild/wild-mult-full.webp": "6cf23bf3",
-	"wild/wild-mult-phone.webp": "43f5850e"
+	"wild/wild-mult-phone.webp": "43f5850e",
+	"wild/wild-word-full.webp": "f1167b08",
+	"wild/wild-word-phone.webp": "d6e78b91"
 } as const;
 
 export const fileBytes = {
@@ -1020,7 +1022,9 @@ export const fileBytes = {
 	"wild/garland-full.webp": 46818,
 	"wild/garland-phone.webp": 12378,
 	"wild/wild-mult-full.webp": 641774,
-	"wild/wild-mult-phone.webp": 167004
+	"wild/wild-mult-phone.webp": 167004,
+	"wild/wild-word-full.webp": 35796,
+	"wild/wild-word-phone.webp": 12356
 } as const;
 
 export const landingSizes = {
