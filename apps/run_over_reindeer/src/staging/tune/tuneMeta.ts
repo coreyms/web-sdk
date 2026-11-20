@@ -72,7 +72,7 @@ export type Action = { label: string; run: () => string | void };
 const sb = () => scoreboardDev.board;
 const round2 = (v: number) => Math.round(v * 100) / 100;
 const demoWin = (x: number) => (sb() ? void sb()!.win({ x, amount: round2(x * scoreboardDev.bet()), bet: scoreboardDev.bet(), fmt: scoreboardDev.fmt, rate: 1, auto: false }) : 'no scoreboard on this page');
-const demoCard = (kind: 'fs' | 'sfs' | 'total') => (sb() ? void sb()!.card({ kind, spins: 10, amount: kind === 'total' ? round2(248.5 * scoreboardDev.bet()) : 0, fmt: scoreboardDev.fmt, rate: 1 }) : 'no scoreboard on this page');
+const demoCard = (kind: 'fs' | 'sfs' | 'total') => (sb() ? void sb()!.card({ kind, spins: 10, amount: kind === 'total' ? round2(248.5 * scoreboardDev.bet()) : 0, fmt: scoreboardDev.fmt, rate: 1, x: kind === 'total' ? 248.5 : 0 }) : 'no scoreboard on this page');
 export const GROUP_ACTIONS: Record<string, Action[]> = {
 	// THE SCENE SWAP (game/scene/sceneSwap.ts): the scene cross-fades to the preset asked (its pieces load first if they are
 	// not in); the next change of the round's mode (a bonus starting or ending) asks for its own scene again. The grass
@@ -216,7 +216,16 @@ export const META: Record<string, Meta> = {
 	'logoSign.lamps.glowSize': { label: 'glow size (lens radii)', min: 1, max: 6, step: 0.1 },
 	'logoSign.lamps.darkFloor': { label: 'dark lamp keeps', min: 0, max: 1, step: 0.01 },
 	'ledBoard.on': { when: 'reload' },
-	'ledBoard.cartoon': { label: 'idle cartoon (auto: all six in turn)', options: ['auto', 'trot', 'parade', 'plow', 'sleigh', 'peek', 'race'] },
+	'ledBoard.cartoon': { label: 'idle cartoon (auto: all in turn, the order in LED ideas)', options: ['auto', 'trot', 'tree', 'parade', 'chew', 'plow', 'takeoff', 'sleigh', 'signroll', 'peek', 'stack', 'race'] },
+	'ledBoard.ideas': { label: 'LED ideas (round 1 picks)', when: 'live' },
+	'ledBoard.ideas.fsEntry': { label: 'Free Spins entry', options: ['presents', 'today'] },
+	'ledBoard.ideas.sfsEntry': { label: 'Super entry', options: ['tease', 'today'] },
+	'ledBoard.ideas.fsPresents': { label: 'Free Spins entry: presents', min: 3, max: 5, step: 1 },
+	'ledBoard.ideas.total': { label: 'Total Win', options: ['ladder', 'today'] },
+	'ledBoard.ideas.totalBySize': { label: 'Total Win count by size (off: 3 s for all)' },
+	'ledBoard.ideas.totalBySize.ms.*': ms(8000),
+	'ledBoard.ideas.capPageHold': { label: "the cap's page after the landing (off: at once)" },
+	'ledBoard.ideas.capPageHold.ms': ms(4000),
 	'ledBoard.fps': { label: 'dot refresh', min: 10, max: 60, step: 1, unit: 'per s' },
 	'ledBoard.strip': { when: 'resize' },
 	'ledBoard.strip.desktop': { label: 'Strip: desktop and tablet' },

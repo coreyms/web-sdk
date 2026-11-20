@@ -33,11 +33,17 @@ import { C, mk, shimmer, type Cv } from '../landing/ledScreens';
 import { renderResolutionFor } from '../deviceTier';
 import { clearP, copyFace, copyP, densityFor, fillP, ledN } from './ledGrid';
 import { type ScoreboardGeo, type Rect } from './layout';
-import { CARTOONS, backScene, clearTitle, dissolveFace, entryWaitOf, plowOf, raceCardOf, ridersOf, titlesOf, gagWordsAt, setBoardClass, titleOf, makeFaceCanvases, maxRaceAtOf, maxRaceOf, powerOffFace, scanReveal, showCartoon, showCounter, showGag, showRibbon, showSmall, showWin, stripFlourish, type CartoonState, type Face } from './scoreboardDraw';
+import { backScene, clearTitle, countBorder, dissolveFace, entryWaitOf, plowOf, raceCardOf, ridersOf, titlesOf, gagWordsAt, setBoardClass, titleOf, makeFaceCanvases, maxRaceAtOf, maxRaceOf, powerOffFace, scanReveal, showCounter, showGag, showRibbon, showSmall, showWin, stripFlourish, type CartoonState, type Face } from './scoreboardDraw';
 import { amountNow, backOffset, brightOf, dimAlpha, endShow, isCard, landCard, newCardShow, newPressShow, newShow, phaseOf, seatedAt, shakeAt, skipShow, tierNow, type Show } from './show';
 import { newRace, type RaceOutcome } from './race';
 import { pickStrip, type StripItem, type StripTruth } from './stripArbiter';
-import { pressScreenAt, scatterWordsOf, showGagShort, showPressLine, showPressScreens, showScatterCount, showWheelLine, type ScatterFace, type WheelLine } from './stripDraw';
+import { pressScreenAt, scatterWordsOf, showGagShort, showPressLine, showScatterCount, showWheelLine, type ScatterFace, type WheelLine } from './stripDraw';
+// (2026-11-19) the round 1 LED ideas Corey picked (constants LED_BOARD.ideas): the entries, the Total Win's ladder, the strip's
+// new cartoons in the rotation, the press screen's light string
+import { cartoons, pressScreensLit, showCartoonNow } from './ambient';
+import { presentsEntry, teaseEntry } from './entryScenes';
+import { ladderTotal } from './totalLadder';
+import { clearIdeas, ideasOf } from './ideasKit';
 import type { LedText } from '../landing/ledScreens';
 import { clearExplain, explainOf, showExplain } from './explainDraw';
 
@@ -76,10 +82,26 @@ export type ScoreboardEnv = { free: boolean; left: number; idle?: boolean; scatt
 /** `countMs`: a small win's count (the line win's strip total, LINE_WIN.slam stripCountMs at the turbo level's pace) */
 export type WinRequest = { x: number; amount: number; bet: number; fmt: (v: number) => string; rate: number; auto: boolean; small?: boolean; countMs?: number };
 /** a bonus round card on the back board: the entries (`spins` awarded) and the Total Win (`amount`, the currency's units) */
-export type CardRequest = { kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; fmt: (v: number) => string; rate: number; title?: string | null; line?: string | null };
+/** (2026-11-19, LED_BOARD.ideas) `x`: the round's win in play multiples, `capped`: the round hit the cap (the Total Win's
+ *  ladder and size class), `auto`: Autoplay Bonuses will continue it by itself (the cap page's hold is then off) */
+export type CardRequest = { kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; fmt: (v: number) => string; rate: number; title?: string | null; line?: string | null; x?: number; capped?: boolean; auto?: boolean };
 
 /** THE TUNE PANEL'S AND THE DEV HOOK'S WAY IN (staging builds too: the panel cannot reach the DEV-only window hook) */
 export const scoreboardDev: { board: Scoreboard | null; bet: () => number; fmt: (v: number) => string } = { board: null, bet: () => 1, fmt: (v) => v.toFixed(2) };
+
+/** THE BACK BOARD'S PROGRAM with the round 1 picks (constants LED_BOARD.ideas): the Free Spins entry's presents, the Super
+ *  entry's red present tease, the Total Win's taillight ladder; each switch set to 'today' draws today's scene */
+function ideasBackScene(F: Face, s: Show) {
+	const I = LED_BOARD.ideas;
+	if (s.kind === 'fs' && I.fsEntry === 'presents') return presentsEntry(F, s);
+	if (s.kind === 'sfs' && I.sfsEntry === 'tease') return teaseEntry(F, s);
+	if (s.kind === 'total' && I.total === 'ladder') {
+		ladderTotal(F, s);
+		countBorder(F, s);
+		return;
+	}
+	backScene(F, s);
+}
 
 export class Scoreboard {
 	readonly root = new PIXI.Container();
@@ -171,8 +193,9 @@ export class Scoreboard {
 	 *  beats ('start', 'gone') */
 	onTier: ((tier: number, show: Show) => void) | null = null;
 	onBeat: ((beat: string, show: Show) => void) | null = null;
-	/** the back board's face program: the staged scene of the show (part B, scoreboardDraw.ts backScene) */
-	backProgram: (F: Face, s: Show) => void = backScene;
+	/** the back board's face program: the staged scene of the show (part B, scoreboardDraw.ts backScene; 2026-11-19 the round
+	 *  1 picks in its place where LED_BOARD.ideas says so) */
+	backProgram: (F: Face, s: Show) => void = ideasBackScene;
 	/** the catcher's press (Board wires it to the skip) */
 	onPress: (() => void) | null = null;
 
@@ -775,7 +798,7 @@ export class Scoreboard {
 	/** play the race now (null: its own draw; a result: that result) */
 	race(force: RaceOutcome | null = null) {
 		this.cartoonState.raceNext = newRace(force);
-		this.cartoon = CARTOONS.findIndex((c) => c.key === 'race');
+		this.cartoon = cartoons().findIndex((c) => c.key === 'race');
 		this.cartoonAt = this.clock;
 		this.cartoonState.race = null;
 	}
@@ -969,7 +992,7 @@ export class Scoreboard {
 		// (the resting state is under everything that may play: the Grandma line, the one item ranked under it, still shows)
 		const spinsLeft = this.free && (bonusRest ? gt === null : after < 0 || (C.on && after % C.cycleMs >= C.cycleMs - C.counterMs));
 		const idle = this.env.idle ?? !this.free;
-		const raceUp = CARTOONS[this.cartoon % CARTOONS.length].key === 'race';
+		const raceUp = cartoons()[this.cartoon % cartoons().length].key === 'race';
 		return {
 			entry: up && (isCard(s) || s!.kind === 'press'),
 			wheel: this.wheelMsg !== null,
@@ -987,6 +1010,7 @@ export class Scoreboard {
 		const G = this.strip!;
 		const F = G.F;
 		clearTitle(F.out.ctx.canvas);
+		clearIdeas(F.out.ctx.canvas);
 		const s = this.show;
 		let key: string;
 		const gt = this.gagT();
@@ -1030,29 +1054,30 @@ export class Scoreboard {
 			key = `gag${this.gagAt}`;
 		} else {
 			const want = LED_BOARD.cartoon;
-			const pinned = want === 'auto' ? -1 : CARTOONS.findIndex((c) => c.key === want);
+			const pinned = want === 'auto' ? -1 : cartoons().findIndex((c) => c.key === want);
 			if (pinned >= 0 && pinned !== this.cartoon) {
 				this.cartoon = pinned;
 				this.cartoonAt = this.clock;
 			}
-			let idx = this.cartoon % CARTOONS.length;
-			if (this.clock - this.cartoonAt > CARTOONS[idx].ms()) {
-				this.cartoon = pinned >= 0 ? pinned : (idx + 1) % CARTOONS.length;
+			const list = cartoons();
+			let idx = this.cartoon % list.length;
+			if (this.clock - this.cartoonAt > list[idx].ms()) {
+				this.cartoon = pinned >= 0 ? pinned : (idx + 1) % list.length;
 				this.cartoonAt = this.clock;
 			}
 			// THE RACE ONLY AT TRUE IDLE: away from it the cartoons go on to the next one (a race under way is cut)
-			idx = this.cartoon % CARTOONS.length;
+			idx = this.cartoon % list.length;
 			let draw = this.cartoon;
-			if (item === 'cartoon' && CARTOONS[idx].key === 'race') {
+			if (item === 'cartoon' && list[idx].key === 'race') {
 				if (pinned >= 0) draw = 0; // (the tune panel pinned the race: the first cartoon stands in for it away from idle)
 				else {
 					this.mark('race', 'skipped: not at true idle');
-					this.cartoon = draw = (idx + 1) % CARTOONS.length;
+					this.cartoon = draw = (idx + 1) % list.length;
 					this.cartoonAt = this.clock;
 					this.cartoonState.race = null;
 				}
 			}
-			showCartoon(F, draw, this.clock - this.cartoonAt, this.cartoonState, this.cartoonAt);
+			showCartoonNow(F, draw, this.clock - this.cartoonAt, this.cartoonState, this.cartoonAt);
 			key = `cartoon${this.cartoon}@${pinned >= 0 ? this.cartoonAt : ''}`;
 		}
 		// THE STRIP'S OWN SWITCH: a scan line to a message, a dissolve back to the cartoons
@@ -1098,13 +1123,14 @@ export class Scoreboard {
 		const s = this.backShow();
 		F.out.ctx.clearRect(0, 0, F.dotsW, F.dotsH);
 		clearTitle(F.out.ctx.canvas);
+		clearIdeas(F.out.ctx.canvas);
 		if (!s) return this.publish(G, 1);
 		// the press screen's explainer screens (2026-11-17), else the show's staged scene
 		clearExplain(F.out.ctx.canvas);
 		const X = LED_BOARD.explain;
 		const sup = s.kind === 'sfs';
 		const explains = X.on && s.pressLineAt !== null && s.t >= s.pressLineAt && s.t < s.exitAt && (s.kind === 'fs' || sup || (s.kind === 'total' && !!s.line));
-		if (s.kind === 'press' && this.pressText) showPressScreens(F, Math.max(0, s.t - s.contentAt) / 1000, this.pressText);
+		if (s.kind === 'press' && this.pressText) pressScreensLit(F, Math.max(0, s.t - s.contentAt) / 1000, this.pressText);
 		else if (explains) {
 			// THE EXPLANATION ON THE BIG BOARD (2026-11-18, LED_BOARD.explain): from the READY beat (a wrap-up: its landing)
 			const head = s.kind === 'total' ? { kind: 'total' as const, title: s.title ?? 'TOTAL WIN', amount: s.finalStr, color: '#ffffff' } : { kind: 'entry' as const, count: String(s.spins), title: sup ? 'SUPER FREE SPINS' : 'FREE SPINS', color: sup ? '#ffd23a' : '#ffffff' };
@@ -1162,7 +1188,7 @@ export class Scoreboard {
 			h = Math.imul(h ^ d[i], 16777619);
 		}
 		// the title as drawn this step (the back board), the entry's wait as drawn (the strip)
-		return { lit, dots: F.ledW * F.ledH, hash: (h >>> 0).toString(16), W: F.dotsW, H: F.dotsH, k: F.k, ledW: F.ledW, ledH: F.ledH, png: png ? F.out.toDataURL('image/png') : null, explain: explainOf(F.out.ctx.canvas), title: titleOf(F.out.ctx.canvas), titles: titlesOf(F.out.ctx.canvas), entryWait: entryWaitOf(F.out.ctx.canvas), raceCard: raceCardOf(F.out.ctx.canvas), plow: plowOf(F.out.ctx.canvas), riders: ridersOf(F.out.ctx.canvas) };
+		return { lit, dots: F.ledW * F.ledH, hash: (h >>> 0).toString(16), W: F.dotsW, H: F.dotsH, k: F.k, ledW: F.ledW, ledH: F.ledH, png: png ? F.out.toDataURL('image/png') : null, explain: explainOf(F.out.ctx.canvas), title: titleOf(F.out.ctx.canvas), titles: titlesOf(F.out.ctx.canvas), entryWait: entryWaitOf(F.out.ctx.canvas), raceCard: raceCardOf(F.out.ctx.canvas), plow: plowOf(F.out.ctx.canvas), riders: ridersOf(F.out.ctx.canvas), ideas: ideasOf(F.out.ctx.canvas) };
 	}
 	snapshot() {
 		const g = this.geo;
@@ -1196,7 +1222,7 @@ export class Scoreboard {
 				: null,
 			dim: { alpha: r(this.dim.alpha), rect: g?.dim ?? null },
 			hudTop: g ? r(g.hudTop) : null,
-			show: s ? { id: s.id, kind: s.kind, final: s.final, finalTier: s.finalTier, arrive: s.arrive, t: Math.round(s.t), phase: phaseOf(s), tier: tierNow(s), amount: s.fmt(amountNow(s)), finalStr: s.finalStr, countStart: Math.round(s.countStart), countEnd: Math.round(s.countEnd), exitAt: Math.round(s.exitAt), end: Math.round(s.end), skipped: s.skipped, seatedAt: seatedAt(), events: s.events.map((e) => ({ ...e, at: Math.round(e.at) })), fired: [...s.fired], sceneT: Math.round(s.t - s.sceneAt), pressLineAt: s.pressLineAt === null ? null : Math.round(s.pressLineAt), spins: s.spins, maxRace: maxRaceOf(s)?.outcome ?? null, maxRaceAt: maxRaceAtOf(s) } : null,
+			show: s ? { id: s.id, kind: s.kind, final: s.final, finalTier: s.finalTier, arrive: s.arrive, t: Math.round(s.t), phase: phaseOf(s), tier: tierNow(s), amount: s.fmt(amountNow(s)), finalStr: s.finalStr, countStart: Math.round(s.countStart), countEnd: Math.round(s.countEnd), exitAt: Math.round(s.exitAt), end: Math.round(s.end), skipped: s.skipped, seatedAt: seatedAt(), events: s.events.map((e) => ({ ...e, at: Math.round(e.at) })), fired: [...s.fired], sceneT: Math.round(s.t - s.sceneAt), pressLineAt: s.pressLineAt === null ? null : Math.round(s.pressLineAt), spins: s.spins, x: s.x, capped: s.capped, maxRace: maxRaceOf(s)?.outcome ?? null, maxRaceAt: maxRaceAtOf(s) } : null,
 			pendingSmall: !!this.pendingSmall,
 			shake: r(this.shakeY),
 			card: this.cardUp(),
@@ -1211,7 +1237,7 @@ export class Scoreboard {
 			press: this.pressText ? { up: this.pressUp(), ready: this.pressReady, screen: s && s.kind === 'press' ? pressScreenAt(Math.max(0, s.t - s.contentAt) / 1000) : null, waiting: !!this.pressWait } : null,
 			stripPick: { item: this.stripNow, truth: this.truthNow ? { ...this.truthNow } : null },
 			scatter: this.scat ? { id: this.scat.id, count: this.scat.count, need: this.scat.need, live: this.scat.live, hit: this.scat.hit, fireworks: this.scat.fwAt !== null && this.clock < this.scat.endAt, words: scatterWordsOf(this.scat), sinceTick: Math.round(this.clock - this.scat.tickAt) } : null,
-			cartoon: { index: this.cartoon, key: CARTOONS[this.cartoon % CARTOONS.length].key, t: Math.round(this.clock - this.cartoonAt), race: this.cartoonState.race ? { outcome: this.cartoonState.race.outcome, id: this.cartoonState.race.id } : null },
+			cartoon: { index: this.cartoon, key: cartoons()[this.cartoon % cartoons().length].key, t: Math.round(this.clock - this.cartoonAt), race: this.cartoonState.race ? { outcome: this.cartoonState.race.outcome, id: this.cartoonState.race.id } : null },
 			free: this.free,
 			left: this.left,
 			cost: { ...this.cost },

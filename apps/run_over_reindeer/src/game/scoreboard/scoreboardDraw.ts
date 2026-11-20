@@ -75,6 +75,8 @@ export const setScoreboardArt = (image: CanvasImageSource | null) => {
 	SHEET = image;
 	artCache.clear();
 };
+/** the sheet is in (a bake made before it is blank and not kept) */
+export const scoreboardArtReady = () => SHEET !== null;
 type ArtName = keyof typeof SCOREBOARD_ART.frames;
 const frameOf = (name: ArtName) => SCOREBOARD_ART.frames[name];
 const size = (name: ArtName, src: number[] | null): [number, number] => {
@@ -1120,9 +1122,10 @@ function drawRace(g: Ctx, race: Race, t: number, x0: number, W: number, yB: numb
 		}
 	}
 	const { r, c } = raceProgress(race, t);
-	// the nose of each racer runs from the start line to the finish line (the police car faces left in the art: mirrored)
+	// the nose of each racer runs from the start line to the finish line (the police car's RIGHT facing picture, H4_r: its
+	// POLICE reads left to right; Corey 2026-11-19 "Mirrored wild on sleigh LED, yes fix it": never the left one mirrored)
 	const len = finishX - startX;
-	sprite(g, 'H4', startX - cw + c * len, yB, h, true);
+	sprite(g, 'H4_r', startX - cw + c * len, yB, h);
 	gallop(g, startX - rw + r * len, yB, h, t);
 	return finishX;
 }
@@ -1175,7 +1178,7 @@ function raceCard(g: Ctx, race: Race, W: number, H: number, ct: number) {
 		sprite(g, 'reindeer_col', x, H - 2, ph);
 		const tx = x + rw + GAP;
 		drawText(g, 'TIE', tx, Math.round((H - 7 * s) / 2), s, '#ffd23a');
-		sprite(g, 'H4', tx + tw + GAP, H - 2, ph * 0.8, true);
+		sprite(g, 'H4_r', tx + tw + GAP, H - 2, ph * 0.8);
 		const k = inkOf('TIE', s);
 		raceCardRec.set(g.canvas, { outcome: 'tie', pics: [[x, x + rw], [tx + tw + GAP, tx + tw + GAP + cw]], text: [tx + k.l, tx + k.r], words: 'TIE' });
 		return;
@@ -1228,7 +1231,7 @@ function raceCard(g: Ctx, race: Race, W: number, H: number, ct: number) {
 
 // ---- THE SIX IDLE CARTOONS (the mock's, each a pure function of its own time; the race keeps its run in `race`) ---------------
 export type CartoonState = { race: Race | null; raceFor: number; raceNext: Race | null };
-export type Cartoon = { key: 'trot' | 'parade' | 'plow' | 'sleigh' | 'peek' | 'race'; name: string; ms: () => number; draw: (g: Ctx, W: number, H: number, t: number, st: CartoonState, at: number) => void };
+export type Cartoon = { key: 'trot' | 'parade' | 'plow' | 'sleigh' | 'peek' | 'race' | 'tree' | 'chew' | 'takeoff' | 'signroll' | 'stack'; name: string; ms: () => number; draw: (g: Ctx, W: number, H: number, t: number, st: CartoonState, at: number) => void };
 export const CARTOONS: Cartoon[] = [
 	{
 		key: 'trot',
@@ -1311,17 +1314,18 @@ export const CARTOONS: Cartoon[] = [
 	},
 	{
 		key: 'sleigh',
-		// r3b: the sleigh art faces left, so it is mirrored to face the way it travels, the reindeer in front pulling it
+		// r3b: the sleigh faces the way it travels (2026-11-19: its own right facing picture, sleigh_r, so WILD reads left to right), the reindeer in front pulling it
 		name: "Santa's sleigh slides by, pulled by the reindeer, sparkles behind",
 		ms: () => 4600,
 		draw(g, W, H, t) {
 			const h = Math.round(H * 0.9);
 			const rw = Math.round((h * RUN_FW) / RUN_FH);
 			// (Santa's hat inside the strip: the sleigh a little smaller than the reindeer where the strip is short for him)
-			const slh = fitVehicle('sleigh', h, H - 1);
+			const slh = fitVehicle('sleigh_r', h, H - 1);
 			const sw = Math.round(slh * 1.37);
 			const x = -rw - sw + (t / 4600) * (W + rw * 2 + sw * 2);
-			const sx = sprite(g, 'sleigh', x, H - 1, slh, true);
+			// (the sleigh's RIGHT facing picture, sleigh_r: its WILD reads left to right, never the left one mirrored)
+			const sx = sprite(g, 'sleigh_r', x, H - 1, slh);
 			gallop(g, x + sx + 2, H - 1, h, t);
 			for (let i = 0; i < 14; i++) {
 				const px = x - i * 3 - hash(i) * 4;
@@ -1707,7 +1711,7 @@ export function showEntryScene(F: Face, s: Show) {
 			dot(g, x - i * 4, yb - h * 0.3 + Math.sin(i + s.t / 90) * 2, i % 2 ? '#ffd23a' : '#ffffff');
 		}
 		g.globalAlpha = 1;
-		const sx = sprite(g, 'sleigh', x, yb, h, true);
+		const sx = sprite(g, 'sleigh_r', x, yb, h);
 		gallop(g, x + sx + 1, yb, h * 0.95, s.t);
 	}
 	if (t >= 1500) marchAt(g, 'SUPER', W / 2, lay.topY, lay.sts, t - 1500, '#ffd23a', H * 0.3);
@@ -1949,7 +1953,9 @@ export function showRibbon(F: Face, s: Show) {
 		const tl = s.title ?? 'TOTAL WIN';
 		const lay = winLayout(W, H, s.finalStr, [tl]);
 		const str = s.fmt(amountNow(s));
-		chaseBorder(g, W, H, s.t, ['#36ff74', '#ff3a2e'], 1, 3);
+		// (2026-11-19, LED_BOARD.ideas.total 'ladder': the strip's border is the ladder's taillights; its amount is the same
+		// paced count as the board's, amountNow)
+		chaseBorder(g, W, H, s.t, LED_BOARD.ideas.total === 'ladder' ? ['#ff2a1e', '#5a1008'] : ['#36ff74', '#ff3a2e'], 1, 3);
 		drawLayTitle(g, lay, tl, '#ffffff', W);
 		drawRow(g, str, numX(lay, W, str, 0), lay.numY, lay.cap, 'gold', 0);
 		return;
@@ -1979,3 +1985,7 @@ export function backScene(F: Face, s: Show) {
 export { chaseBorder, drawRow, fireworks, fitCap, rowInfo, sprite, sparkles, burst, marchText };
 // (2026-11-18, the entry explanation's layout C: game/scoreboard/explainDraw.ts)
 export { boardTitle, drawFit, lineInk, BULBS };
+// (2026-11-19, the round 1 LED ideas Corey picked: game/scoreboard/entryScenes.ts, totalLadder.ts, ambient.ts draw with the
+// same helpers as the scenes here)
+export { gallop, centeredRow, perimeter, perimeterDots, cornerFireworks, slamRow, marchAt, flash, entryNumberLayout, titleScale, fitScale, snowDots, RUN_FW, RUN_FH, size as artSize, art, sceneT, TOTAL_BLINK_DIM, titleGapKnob, fitVehicle, vehicleOf, noteRec };
+export type { ArtName };

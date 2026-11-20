@@ -2,6 +2,8 @@
 // WATCHES: apps/run_over_reindeer/src/ui/RoundCard.svelte; ROUND.wrapAutoHoldMs
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,fixtures/showcaseBooks.ts,game/bookEventHandlerMap.ts,game/constants.ts,game/road/roadBoard.ts,game/road/roadSounds.ts};
 // WATCHES: apps/run_over_reindeer/src/{game/scoreboard/race.ts,game/scoreboard/scoreboardDraw.ts,game/scoreboard/ledGrid.ts,game/sound.ts,ui/RoundCard.svelte,ui/hud/hudLayout.ts};
+// WATCHES: apps/run_over_reindeer/src/{game/scoreboard/ambient.ts,game/scoreboard/entryScenes.ts,game/scoreboard/totalLadder.ts,game/scoreboard/ideasKit.ts,game/scoreboard/explainDraw.ts,game/scoreboard/show.ts,game/scoreboardArtSpec.ts,game/config.ts};
+// WATCHES: ; LED_BOARD.ideas
 // WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.bookAmount, __reindeer.fixtures, __reindeer.gagsAsked, __reindeer.hud
 // WATCHES: ; LED_BOARD.density, __reindeer.raceSeed, __reindeer.raceTally, __reindeer.raceTrace, __reindeer.roadBoard, __reindeer.roadSounds, __reindeer.scene
 // WATCHES: ; __reindeer.scoreboard, __reindeer.scoreboardCard, __reindeer.scoreboardCardEnd, __reindeer.scoreboardCardPress
@@ -76,6 +78,9 @@
 //     is in), each vehicle drawn with its rider has lit LEDs over at least 12% of the rider's part of its picture (an empty
 //     vehicle lights none; a seated rider about 22%), and on the strip the rider's head is inside the face (the picture's
 //     top at row 0 or below)
+// THE ROUND 1 LED IDEAS (section ledIdeas, 2026-11-19, wip/ledideas; LED_BOARD.ideas): see ideasChecks below (the Super
+// entry's presents all red, the tease reading nothing of the round, the stack's contact, the ladder's marks, the count by size
+// and the cap's hold, the rotation, the press screen's light string, the cost)
 // M4 (section m4, desktop and upright, 2026-11-19, driven by hand): the strip's scan to a message leaves the old picture alone
 //   right of its line (never the two drawn at once); the Total Win's amount is lit whenever its title is, the landing blink too
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=desktop,...] [SECTIONS=rule,rise,gag,race,round,scenes,cards,titles] node tools/led_board_probe.mjs
@@ -92,7 +97,7 @@ const { PNG } = require('playwright-core/lib/utilsBundle');
 
 const APP = process.env.APP || 'http://localhost:3014';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
-const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes,bonusStrip,explain,currency,m4,density,ledAnim').split(',');
+const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes,bonusStrip,explain,currency,m4,density,ledAnim,ledIdeas').split(',');
 const SEC = (s) => SECTIONS.includes(s);
 // the intro card's sentence, exactly (game/constants.ts INTRO_LINE, which ui/RoundCard.svelte shows too)
 const INTRO = (() => {
@@ -470,13 +475,22 @@ async function scenes(p, S) {
 
 	// ---- THE TOTAL WIN: the count, the landing, the press line, a press lands the count ----
 	{
+		// (2026-11-19, Corey: "yes on the total count wins": the count's length by the round's size, LED_BOARD.ideas.totalBySize,
+		// worked out here from the tiers' bars: 248.5x is past the Epic bar, "huge"; off: scenes.totalCountMs)
+		const CNT = await R(p, () => {
+			const L = window.__reindeer.tune.ledBoard;
+			const x = 248.5;
+			const tier = L.tiers.reduce((k, t, i) => (x >= t.bar ? i : k), -1);
+			const size = tier < 0 ? 'small' : tier < 3 ? 'big' : 'huge';
+			return { size, ms: L.ideas.totalBySize.on ? L.ideas.totalBySize.ms[size] : L.scenes.totalCountMs, after: L.scenes.totalPressAfterMs };
+		});
 		await R(p, () => window.__reindeer.scoreboardCard('total', { x: 248.5 }));
-		const rows = await run(0, C + 3000 + 400);
-		const mid = rows.find((r) => r.t === C + 1500);
-		const land = rows.find((r) => r.t >= C + 3000);
+		const rows = await run(0, C + CNT.ms + 400);
+		const mid = rows.find((r) => r.t === C + CNT.ms / 2);
+		const land = rows.find((r) => r.t >= C + CNT.ms);
 		const waitsAt = rows.find((r) => r.phase === 'waits')?.t;
 		const fin = await R(p, () => window.__reindeer.scoreboard().show.finalStr);
-		check(mid?.phase === 'count' && mid.amount !== fin && land?.amount === fin && Math.abs(waitsAt - (C + 3300)) <= 10, `${tag}: the Total Win counts (${mid?.amount} half way), lands on ${land?.amount} (the amount asked, ${fin}) and waits from ${waitsAt} ms (rule ${C + 3300})`, rows.filter((r, i) => i % 50 === 0));
+		check(mid?.phase === 'count' && mid.amount !== fin && land?.amount === fin && Math.abs(waitsAt - (C + CNT.ms + CNT.after)) <= 10, `${tag}: the Total Win (${CNT.size}) counts (${mid?.amount} half way), lands on ${land?.amount} (the amount asked, ${fin}) at ${C + CNT.ms} and waits from ${waitsAt} ms (rule ${C + CNT.ms + CNT.after})`, rows.filter((r, i) => i % 50 === 0));
 		const lit = await face('back');
 		check(lit && lit.lit > lit.dots * 0.03, `${tag}: its back board face is lit (${lit?.lit} of ${lit?.dots} dots)`, lit);
 		await finish();
@@ -804,7 +818,8 @@ async function titles(p, S) {
 		['void window.__reindeer.scoreboardWin(7777)', 11000],
 		["window.__reindeer.scoreboardCard('fs')", 4000],
 		["window.__reindeer.scoreboardCard('sfs')", 4500],
-		["window.__reindeer.scoreboardCard('total', { x: 248.5 })", 4500],
+		// (2026-11-19: 248.5x counts 4 s by its size, LED_BOARD.ideas.totalBySize: run on to its wait)
+		["window.__reindeer.scoreboardCard('total', { x: 248.5 })", 6500],
 	];
 	const judge = (rows) => {
 		const by = new Map();
@@ -812,7 +827,8 @@ async function titles(p, S) {
 			// at rest: TOTAL WIN after its drop, SUPER after its march, every amount in a hold or a wait (HERE WE GO, which
 			// marches in and fades, is not a title at rest)
 			if (r.kind === 'title' && r.str === 'TOTAL WIN' && r.sceneT < 350) continue;
-			if (r.kind === 'title' && r.str === 'SUPER' && r.sceneT < 2100) continue;
+			// (2026-11-19: the Super entry's tease marches SUPER in from 1900 ms, landed by 2500)
+			if (r.kind === 'title' && r.str === 'SUPER' && r.sceneT < 2500) continue;
 			if (r.kind === 'title' && r.str === 'HERE WE GO') continue;
 			if (r.kind === 'amount' && r.phase !== 'hold' && r.phase !== 'waits') continue;
 			const key = `${r.kind}:${r.kind === 'amount' ? 'amount' : r.str}`;
@@ -2025,12 +2041,15 @@ async function ledAnimChecks(browser) {
 			const past = withVan.filter((r) => r.rec.wheel !== null && r.rec.wheel <= 0);
 			check(past.every((r) => r.read.snow === 0), `${tag}: THE PLOW: once the van's rear wheel has left the strip no snow is left (${past.length} steps)`, past.filter((r) => r.read.snow !== 0).slice(0, 3));
 			// THE RIDERS: the strip's cartoons and the gag, the Super entry's sweep, the Total Win's band, the Mega jam
-			const riders = await R(p, async () => {
+			let riders = await R(p, async () => {
 				const h = window.__reindeer;
 				const rd = window.__ledAnimRead;
 				const out = [];
 				const pin = (key) => { h.tune.ledBoard.cartoon = key; h.scoreboardStep(1); };
-				for (const [key, times] of [['parade', [1600, 2600, 3600]], ['peek', [500, 1300, 2400]], ['sleigh', [1200, 2300, 3400]]]) {
+				// (2026-11-19, LED_BOARD.ideas: the new takeoff cartoon carries Santa in his sleigh too; the Super entry's sweep and
+				// the Total Win's band are today's scenes, read only when those switches say 'today')
+				const I = h.tune.ledBoard.ideas;
+				for (const [key, times] of [['parade', [1600, 2600, 3600]], ['peek', [500, 1300, 2400]], ['sleigh', [1200, 2300, 3400]], ['takeoff', [500, 1100, 1700]]]) {
 					pin(key);
 					let t = 0;
 					for (const at of times) {
@@ -2045,15 +2064,20 @@ async function ledAnimChecks(browser) {
 				h.scoreboardStep(10, Math.round((G.firstMs + G.bumpMs * 0.3) / 10));
 				out.push({ where: 'gag bump', face: 'strip', ...(await rd('strip')) });
 				h.scoreboardStep(100, 60);
-				h.scoreboardCard('sfs', { spins: 10 });
 				let s = h.scoreboardStep(0);
-				for (let i = 0; i < 400 && s.show.sceneT < 1050; i++) s = h.scoreboardStep(10);
-				out.push({ where: 'super sweep', face: 'back', ...(await rd('back')) });
-				h.scoreboardCardEnd(); h.scoreboardLower(); h.scoreboardStep(100, 30);
-				h.scoreboardCard('total', { x: 248.5 });
-				for (let i = 0; i < 600; i++) { s = h.scoreboardStep(33); if (s.show && s.show.t > s.show.countEnd + 1400) break; }
-				out.push({ where: 'total band', face: 'back', ...(await rd('back')) });
-				h.scoreboardCardEnd(); h.scoreboardLower(); h.scoreboardStep(100, 40);
+				if (I.sfsEntry === 'today') {
+					h.scoreboardCard('sfs', { spins: 10 });
+					s = h.scoreboardStep(0);
+					for (let i = 0; i < 400 && s.show.sceneT < 1050; i++) s = h.scoreboardStep(10);
+					out.push({ where: 'super sweep', face: 'back', ...(await rd('back')) });
+					h.scoreboardCardEnd(); h.scoreboardLower(); h.scoreboardStep(100, 30);
+				}
+				if (I.total === 'today') {
+					h.scoreboardCard('total', { x: 248.5 });
+					for (let i = 0; i < 600; i++) { s = h.scoreboardStep(33); if (s.show && s.show.t > s.show.countEnd + 1400) break; }
+					out.push({ where: 'total band', face: 'back', ...(await rd('back')) });
+					h.scoreboardCardEnd(); h.scoreboardLower(); h.scoreboardStep(100, 40);
+				}
 				h.scoreboardWin(100);
 				for (let i = 0; i < 600; i++) { s = h.scoreboardStep(33); if (s.show && s.show.t > s.show.countEnd + 300) break; }
 				for (let i = 0; i < 4; i++) {
@@ -2063,13 +2087,16 @@ async function ledAnimChecks(browser) {
 				h.scoreboardSkip?.();
 				h.scoreboardStep(100, 60);
 				h.scoreboardManual(false);
-				return out.map((o) => ({ where: o.where, face: o.face, H: o.H, riderLit: o.riderLit }));
+				return { I: { sfsEntry: I.sfsEntry, total: I.total }, rows: out.map((o) => ({ where: o.where, face: o.face, H: o.H, riderLit: o.riderLit })) };
 			});
+			const ideasNow = riders.I;
+			riders = riders.rows;
 			const seen = riders.flatMap((o) => o.riderLit.filter((r) => r.inside && r.share !== null).map((r) => ({ where: o.where, face: o.face, ...r })));
 			const where = (w) => seen.some((r) => r.where.startsWith(w));
 			// (the Mega jam's Grandma car is its fourth vehicle and only enters after about 5 s of the jam, often after the show:
 			// counted when it is in, not required)
-			check(['parade', 'peek', 'sleigh', 'gag', 'super', 'total'].every(where), `${tag}: THE RIDERS: a vehicle with its rider drawn in the parade, peek, sleigh, the gag, the Super entry's sweep and the Total Win (${[...new Set(seen.map((r) => r.where.split(' ')[0]))].join(', ')})`, riders.map((o) => ({ where: o.where, n: o.riderLit.length })));
+			const wantR = ['parade', 'peek', 'sleigh', 'takeoff', 'gag', ...(ideasNow.sfsEntry === 'today' ? ['super'] : []), ...(ideasNow.total === 'today' ? ['total'] : [])];
+			check(wantR.every(where), `${tag}: THE RIDERS: a vehicle with its rider drawn in ${wantR.join(', ')} (${[...new Set(seen.map((r) => r.where.split(' ')[0]))].join(', ')})`, riders.map((o) => ({ where: o.where, n: o.riderLit.length })));
 			// (an empty vehicle lights none of it; a seated rider about 0.22 of it, the rest is room beside her or him)
 			const dark = seen.filter((r) => r.share < 0.12);
 			check(seen.length > 0 && dark.length === 0, `${tag}: THE RIDERS: each rider's part of its picture is lit over at least 12% (least ${Math.min(...seen.map((r) => r.share))} over ${seen.length} riders)`, dark.slice(0, 4));
@@ -2078,6 +2105,332 @@ async function ledAnimChecks(browser) {
 			check(errs.length === 0, `${tag}: no page errors`, errs);
 		} catch (e) {
 			check(false, `${tag}: the ledAnim checks ran to their end`, String(e?.stack ?? e).slice(0, 600));
+		} finally {
+			await ctx.close();
+		}
+	}
+}
+
+// ---- THE ROUND 1 LED IDEAS (section ledIdeas, 2026-11-19, wip/ledideas; constants LED_BOARD.ideas) -------------------------
+// Corey's picks of led_anim_ideas_r1_2026-11-19 built in the game, at the device's own pixel ratio on both grids (1.5 and the
+// 1x fallback) and every layout class, driven by hand:
+//   - THE SUPER ENTRY'S PRESENTS ARE RED ("on super free spins the presents next tot he 10 Super free spins should also be
+//     red"): every present the Super entry's scene and its explanation page draw is the red present, on every 25 ms step
+//     from the rise to well into the wait (the game's records), and inside each of the page's present boxes the face's own
+//     LEDs are red, no teal present LED; the Free Spins entry's page keeps the teal one
+//   - THE TEASE NEVER SHOWS THE WHEEL'S RESULT: the tease's code reads nothing of the round (only the show's clock and its
+//     spin count; no book, state or wheel import), and its reel shows the same characters at the same scene time on every run
+//   - THE STACK IS KNOCKED DOWN BY CONTACT ("if it did with the knock down, it would look good"): on every 10 ms step no
+//     present moves before the reindeer's lit box meets the stack's left edge (within one LED); the first step any present
+//     moves his front is at the stack; the moving presents go his way (right); none is left on the strip by the clear
+//   - THE LADDER'S MARKS ARE THE GAME'S TIERS: the rungs are LED_BOARD.tiers' bars with the top one config.maxWin (7,777),
+//     labeled as the game writes a multiple; which rungs are lit at the landing for 1x, 125x, 6,250x and the cap
+//   - THE COUNT BY SIZE AND THE CAP'S HOLD (Corey: "yes on the total count wins and 1.5 second hold on max win"): each
+//     size's count length (LED_BOARD.ideas.totalBySize, a turbo rate dividing it), the house pacer's first rung at its
+//     segment's end, the cap's page capPageHold after the landing (none when Autoplay Bonuses continues it, none on an
+//     uncapped round); a press during the count still lands it at once
+//   - THE ROTATION: the strip's cartoons in LED_BOARD.ideas.cartoons' order, each new one drawing lit LEDs
+//   - THE PRESS SCREEN'S LIGHT STRING (desktop@2, the press screen at boot): bulbs drawn over the screens, the tug at a change,
+//     the screens still advance
+//   - the cost: the ladder's and the entries' draw step (median, p90) and the GPU bytes the same as today's scenes
+const IDEAS_CASES = [
+	{ name: 'ledIdeas desktop@2', vp: { width: 1440, height: 900 }, dpr: 2, phone: false, press: true },
+	{ name: 'ledIdeas desktop@1', vp: { width: 1440, height: 900 }, dpr: 1, phone: false },
+	{ name: 'ledIdeas upright@3', vp: { width: 390, height: 844 }, dpr: 3, phone: true },
+	{ name: 'ledIdeas upright@2', vp: { width: 390, height: 844 }, dpr: 2, phone: true },
+	{ name: 'ledIdeas sideways@3', vp: { width: 844, height: 390 }, dpr: 3, phone: true },
+].filter((s) => !ONLY.length || ONLY.includes(s.name.split(' ')[1].split('@')[0]) || ONLY.includes('ledIdeas'));
+async function ideasChecks(browser) {
+	// THE TEASE READS NOTHING OF THE ROUND (read from its source)
+	{
+		const src = readFileSync(join(SRC, 'game', 'scoreboard', 'entryScenes.ts'), 'utf8');
+		const imports = [...src.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
+		const body = src.slice(src.indexOf('export function teaseEntry'));
+		const reads = [...new Set([...body.matchAll(/\bs\.(\w+)/g)].map((m) => m[1]))];
+		const okImp = imports.every((m) => !/book|stateGame|wheel|road|fixtures|state-shared/i.test(m));
+		check(okImp && reads.every((r) => ['t', 'sceneAt', 'spins'].includes(r)) && /const REEL: ArtName\[\] = \['reindeer_col', 'santa_col', 'grandma_col'\]/.test(src), `ledIdeas: the Super tease reads nothing of the round (imports ${imports.join(', ')}; it reads the show's ${reads.join(', ')}; its reel a fixed order)`, { imports, reads });
+	}
+	// THE WORDS ON THE VEHICLES READ LEFT TO RIGHT (Corey 2026-11-19: "Mirrored wild on sleigh LED, yes fix it"): no LED
+	// program draws a lettered vehicle (the sleigh's WILD, the police car's POLICE, the van's OH-KAY) mirrored; a vehicle going
+	// right is its own right facing picture (sleigh_r, H4_r on the sheet, from the atlas's W_R and H4_R)
+	{
+		const files = ['scoreboardDraw.ts', 'ambient.ts', 'entryScenes.ts', 'totalLadder.ts', 'stripDraw.ts', 'explainDraw.ts'].map((f) => [f, readFileSync(join(SRC, 'game', 'scoreboard', f), 'utf8')]);
+		const bad = [];
+		for (const [f, src] of files) for (const m of src.matchAll(/\b(?:sprite|pic|picC|spriteAt)\(g, '(sleigh|car|H3|H4)'[^;\n]*,\s*true\)/g)) bad.push(`${f}: ${m[0]}`);
+		const spec = readFileSync(join(SRC, 'game', 'scoreboardArtSpec.ts'), 'utf8');
+		check(bad.length === 0 && /"sleigh_r"/.test(spec) && /"H4_r"/.test(spec), `ledIdeas: no lettered vehicle is drawn mirrored on the LED faces (the right facing sleigh_r and H4_r are on the sheet)`, bad);
+	}
+	for (const S of IDEAS_CASES) {
+		const tag = S.name + ` ${S.vp.width}x${S.vp.height}`;
+		const ctx = await browser.newContext({ viewport: S.vp, deviceScaleFactor: S.dpr, isMobile: S.phone, hasTouch: S.phone });
+		const p = await ctx.newPage();
+		const errs = [];
+		p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
+		try {
+			await p.goto(`${APP}/?lang=en&sessionID=ledideas${Date.now()}${S.phone ? '&tier=phone' : ''}`, { waitUntil: 'domcontentloaded' });
+			// THE PRESS SCREEN'S LIGHT STRING (before the first press)
+			if (S.press) {
+				let s = null;
+				for (let i = 0; i < 300; i++) {
+					s = await R(p, () => window.__reindeer?.scoreboard?.() ?? null).catch(() => null);
+					if (s?.press?.ready && s.show?.phase === 'hold' && s.show.t >= s.show.seatedAt) break;
+					await sleep(400);
+				}
+				const pl = await R(p, () => {
+					const h = window.__reindeer;
+					h.scoreboardManual(true);
+					const out = [];
+					for (let i = 0; i < 120; i++) {
+						const x = h.scoreboardStep(100);
+						const f = h.scoreboardFace('back');
+						out.push({ screen: x.press?.screen, lights: f?.ideas?.pressLights ?? null });
+					}
+					h.scoreboardManual(false);
+					return out;
+				});
+				const want = await R(p, () => window.__reindeer.tune.ledBoard.ideas.pressLights);
+				check(!want || (pl.every((r) => r.lights && r.lights.bulbs > 10) && pl.some((r) => r.lights.tug !== null) && new Set(pl.map((r) => r.screen)).size === 3), `${tag}: PRESS LIGHTS: the light string over the press screen on all ${pl.length} steps (${pl[0]?.lights?.bulbs} bulbs), the tug at a change (${pl.filter((r) => r.lights?.tug !== null).length} steps), the three screens still advance`, pl.filter((r, i) => i % 15 === 0));
+			}
+			for (let i = 0; i < 200; i++) {
+				const ok = await R(p, () => !!(window.__reindeer?.atRest?.() && window.__reindeer.hud && !document.querySelector('.landing') && window.__reindeer.scoreboard?.())).catch(() => false);
+				if (ok) break;
+				if (i % 2 === 1) await p.mouse.click(S.vp.width / 2, S.vp.height * 0.45).catch(() => {});
+				await sleep(600);
+			}
+			await sleep(600);
+			await R(p, faceReads);
+			// in the page: a face's present boxes read for red and teal LEDs
+			await R(p, () => {
+				window.__presentInks = async (which, boxes) => {
+					const f = window.__reindeer.scoreboardFace(which, true);
+					const img = new Image();
+					img.src = f.png;
+					await img.decode();
+					const c = document.createElement('canvas');
+					c.width = f.ledW;
+					c.height = f.ledH;
+					const g = c.getContext('2d');
+					g.drawImage(img, 0, 0);
+					const d = g.getImageData(0, 0, f.ledW, f.ledH).data;
+					return boxes.map((b) => {
+						let red = 0;
+						let teal = 0;
+						let n = 0;
+						for (let y = Math.max(0, Math.floor(b.y * f.k)); y < Math.min(f.ledH, Math.ceil((b.y + b.h) * f.k)); y++)
+							for (let x = Math.max(0, Math.floor(b.x * f.k)); x < Math.min(f.ledW, Math.ceil((b.x + b.w) * f.k)); x++) {
+								const i = (y * f.ledW + x) * 4;
+								if (d[i + 3] < 120) continue;
+								n++;
+								const [r, gg, bb] = [d[i], d[i + 1], d[i + 2]];
+								if (r > 150 && gg < 110 && bb < 110) red++;
+								if (gg > 140 && bb > 140 && r < 110) teal++;
+							}
+						return { red, teal, n };
+					});
+				};
+			});
+			// THE ENTRIES' PRESENTS
+			for (const kind of ['sfs', 'fs']) {
+				const r = await R(p, async (kind) => {
+					const h = window.__reindeer;
+					h.scoreboardManual(true);
+					h.scoreboardStep(100, 20);
+					h.scoreboardCard(kind, { spins: 10 });
+					const names = new Set();
+					const page = new Set();
+					let inks = null;
+					let reel1300 = null;
+					let steps = 0;
+					for (let i = 0; i < 260; i++) {
+						const s = h.scoreboardStep(25);
+						const f = h.scoreboardFace('back');
+						steps++;
+						for (const n of f?.ideas?.entry?.presents ?? []) names.add(n);
+						for (const q of f?.explain?.presents ?? []) page.add(q.name);
+						if (s.show && s.show.sceneT >= 1300 && reel1300 === null && f?.ideas?.entry) reel1300 = f.ideas.entry.reel ?? [];
+						if (!inks && f?.explain?.page === 'explain' && f.explain.presents.length) inks = { boxes: f.explain.presents, read: await window.__presentInks('back', f.explain.presents) };
+					}
+					h.scoreboardCardEnd();
+					h.scoreboardLower();
+					h.scoreboardStep(100, 30);
+					return { names: [...names], page: [...page], inks, reel1300, steps };
+				}, kind);
+				if (kind === 'sfs') {
+					const allRed = r.names.length > 0 && r.names.every((n) => n === 'present_red') && r.page.length > 0 && r.page.every((n) => n === 'present_red');
+					const px = r.inks?.read ?? [];
+					check(allRed && px.length >= 2 && px.every((x) => x.teal === 0 && x.red > x.n * 0.25), `${tag}: SUPER: every present on the entry (${r.names.join(', ')}) and on its page (${r.page.join(', ')}) is the red present; the page's ${px.length} present boxes are red on the face (${px.map((x) => `${x.red} red, ${x.teal} teal of ${x.n}`).join('; ')})`, r);
+					// the same reel at the same scene time on a second run
+					const again = await R(p, () => {
+						const h = window.__reindeer;
+						h.scoreboardCard('sfs', { spins: 10 });
+						let reel = null;
+						for (let i = 0; i < 200 && reel === null; i++) {
+							const s = h.scoreboardStep(25);
+							const f = h.scoreboardFace('back');
+							if (s.show && s.show.sceneT >= 1300 && f?.ideas?.entry) reel = f.ideas.entry.reel ?? [];
+						}
+						h.scoreboardCardEnd();
+						h.scoreboardLower();
+						h.scoreboardStep(100, 30);
+						return reel;
+					});
+					check(JSON.stringify(again) === JSON.stringify(r.reel1300) && (r.reel1300?.length ?? 0) > 0, `${tag}: SUPER: the tease's reel shows the same characters at the same scene time on two runs (${r.reel1300?.join(', ')}): a fixed loop, not the round's`, { a: r.reel1300, b: again });
+				} else {
+					const px = r.inks?.read ?? [];
+					check(r.names.length > 0 && r.names.every((n) => n === 'present') && r.page.every((n) => n === 'present') && px.every((x) => x.teal > 0), `${tag}: FREE SPINS: the entry's presents (${r.names.join(', ')}) and its page's (${r.page.join(', ')}) are the teal present`, r);
+				}
+			}
+			// THE STACK: contact before any present moves
+			const st = await R(p, () => {
+				const h = window.__reindeer;
+				h.tune.ledBoard.cartoon = 'trot';
+				h.scoreboardStep(1);
+				h.tune.ledBoard.cartoon = 'stack';
+				h.scoreboardStep(1);
+				const rows = [];
+				let t = 0;
+				for (let i = 0; i < 560; i++) {
+					h.scoreboardStep(10);
+					t += 10;
+					const f = h.scoreboardFace('strip');
+					const c = h.scoreboard().cartoon;
+					if (c.key !== 'stack') break;
+					rows.push({ t: c.t, st: f?.ideas?.stack ?? null });
+				}
+				h.tune.ledBoard.cartoon = 'auto';
+				h.scoreboardStep(1);
+				return rows;
+			});
+			{
+				const rec = st.filter((r) => r.st);
+				const first = rec.find((r) => r.st.moved);
+				const before = rec.filter((r) => !r.st.moved && r.st.deer);
+				const overlapEarly = before.filter((r) => r.st.deer[0] + r.st.deer[2] > r.st.stack[0] + 1);
+				const meet = first?.st.deer ? first.st.deer[0] + first.st.deer[2] - first.st.stack[0] : null;
+				check(!!first && overlapEarly.length === 0 && meet !== null && meet >= -1 && before.length > 20, `${tag}: STACK: no present moves while the reindeer runs in (${before.length} steps, his front never past the stack's edge); the first step one moves (${first?.t} ms) his lit front is at the stack (${meet} LEDs past its left edge)`, { first, overlapEarly: overlapEarly.slice(0, 3) });
+				// the presents go his way, and are gone by the clear
+				const after = rec.filter((r) => r.st.moved);
+				const lefts = after.map((r) => Math.min(...r.st.presents.map((b) => b[0]), Infinity));
+				let back = 0;
+				for (let i = 1; i < lefts.length; i++) if (Number.isFinite(lefts[i]) && Number.isFinite(lefts[i - 1]) && lefts[i] < lefts[i - 1] - 1) back++;
+				const late = rec.filter((r) => r.t >= 4300 && r.st.presents.length > 0);
+				check(after.length > 10 && back === 0 && late.length === 0, `${tag}: STACK: the knocked presents move his way (no step back to the left over ${after.length} steps) and none is left on the strip from 4.3 s`, { back, late: late.slice(0, 3) });
+			}
+			// THE LADDER, THE COUNT BY SIZE, THE CAP'S HOLD
+			const L = await R(p, async () => {
+				const h = window.__reindeer;
+				const cfg = (await import('/src/game/config.ts')).default;
+				const B = h.tune.ledBoard;
+				const out = { tiers: B.tiers.map((t) => t.bar), maxWin: cfg.maxWin, I: JSON.parse(JSON.stringify(B.ideas)), pace: { ...B.pace }, after: B.scenes.totalPressAfterMs, flat: B.scenes.totalCountMs, rows: [] };
+				const CAP = `${(7777).toLocaleString('en-US')}x the play amount, the most a round can award.`;
+				for (const [key, o] of [
+					['small', { x: 1, play: 1 }],
+					['big', { x: 125, play: 2 }],
+					['huge', { x: 6250, play: 2 }],
+					['max', { x: 7777, play: 1000, title: 'MAX WIN', line: CAP, capped: true }],
+					['max turbo', { x: 7777, play: 1000, title: 'MAX WIN', line: CAP, capped: true, rate: 2 }],
+					['max autoplay', { x: 7777, play: 1000, title: 'MAX WIN', line: CAP, capped: true, auto: true }],
+					['top-up line', { x: 20, play: 1, line: 'Includes $1.00 added to bring this round up to its 20x minimum.' }],
+				]) {
+					h.scoreboardCard('total', o);
+					let s = h.scoreboardStep(0);
+					const sh = s.show;
+					const seg = Math.min((sh.countEnd - sh.countStart) * B.pace.barShare, B.pace.barMaxMs);
+					let atFirst = null;
+					let land = null;
+					for (let i = 0; i < 900; i++) {
+						s = h.scoreboardStep(10);
+						if (!s.show) break;
+						if (atFirst === null && s.show.t >= sh.countStart + seg) atFirst = s.show.amount;
+						if (s.show.t >= s.show.countEnd + 300 && !land) land = h.scoreboardFace('back')?.ideas?.ladder ?? null;
+						if (s.show.t > s.show.countEnd + 2000) break;
+					}
+					out.rows.push({ key, o, countMs: sh.countEnd - sh.countStart, pressAfter: sh.pressLineAt - sh.countEnd, atFirst, finalStr: sh.finalStr, land });
+					h.scoreboardCardEnd();
+					h.scoreboardLower();
+					h.scoreboardStep(100, 30);
+				}
+				// a press during a long count lands it at once
+				h.scoreboardCard('total', { x: 7777, play: 1000, title: 'MAX WIN', capped: true });
+				h.scoreboardStep(10, 150);
+				const l1 = h.scoreboardCardPress();
+				const after = h.scoreboardStep(10).show;
+				out.press = { l1, amount: after.amount, finalStr: after.finalStr, phase: after.phase };
+				h.scoreboardCardEnd();
+				h.scoreboardLower();
+				h.scoreboardStep(100, 30);
+				return out;
+			});
+			{
+				const want = [...L.tiers.slice(0, -1), L.maxWin];
+				const mx = L.rows.find((r) => r.key === 'max');
+				const rungs = mx?.land?.rungs ?? [];
+				check(L.maxWin === 7777 && L.tiers.at(-1) === L.maxWin && rungs.map((r) => r.bar).join() === want.join() && rungs.every((r) => r.label === `${r.bar.toLocaleString('en-US')}X`), `${tag}: LADDER: the rungs are the game's tiers ${rungs.map((r) => r.label).join(', ')} (LED_BOARD.tiers ${L.tiers.join(', ')}, the top config.maxWin ${L.maxWin})`, rungs);
+				const litOf = (k) => (L.rows.find((r) => r.key === k)?.land?.rungs ?? []).map((r) => (r.lit ? 1 : 0)).join('');
+				check(litOf('small') === '00000' && litOf('big') === '11100' && litOf('huge') === '11110' && litOf('max') === '11111', `${tag}: LADDER: lit at the landing: 1x ${litOf('small')}, 125x ${litOf('big')}, 6,250x ${litOf('huge')}, the cap ${litOf('max')}`, L.rows.map((r) => ({ k: r.key, size: r.land?.size })));
+				const ms = L.I.totalBySize.on ? L.I.totalBySize.ms : { small: L.flat, big: L.flat, huge: L.flat, max: L.flat };
+				const len = (k) => L.rows.find((r) => r.key === k)?.countMs;
+				const okLen = Math.abs(len('small') - ms.small) <= 1 && Math.abs(len('big') - ms.big) <= 1 && Math.abs(len('huge') - ms.huge) <= 1 && Math.abs(len('max') - ms.max) <= 1 && Math.abs(len('max turbo') - ms.max / 2) <= 1 && Math.abs(len('top-up line') - ms.big) <= 1;
+				check(okLen, `${tag}: COUNT BY SIZE (${L.I.totalBySize.on ? 'on' : 'off'}): small ${len('small')}, big ${len('big')}, huge ${len('huge')}, max ${len('max')} ms, max at a turbo rate of 2 ${len('max turbo')} ms`, L.rows.map((r) => ({ k: r.key, ms: r.countMs })));
+				const pa = (k) => L.rows.find((r) => r.key === k)?.pressAfter;
+				const hold = L.I.capPageHold.on ? L.I.capPageHold.ms : 0;
+				check(pa('max') === hold && pa('max autoplay') === 0 && pa('top-up line') === 0 && pa('big') === L.after, `${tag}: THE CAP'S HOLD (${L.I.capPageHold.on ? 'on' : 'off'}): the cap's page ${pa('max')} ms after the landing (${hold}), with Autoplay Bonuses continuing it ${pa('max autoplay')}, a top-up's line ${pa('top-up line')}, a plain Total Win's press line ${pa('big')}`, L.rows.map((r) => ({ k: r.key, after: r.pressAfter })));
+				const big = L.rows.find((r) => r.key === 'big');
+				const first = big ? `$${(15 * 2).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : null;
+				check(L.I.total !== 'ladder' || big?.atFirst === first, `${tag}: THE PACER: 125x at $2 reads ${big?.atFirst} as its first rung's segment ends (want ${first}: 15x)`, big);
+				check(L.press.l1 && L.press.amount === L.press.finalStr && L.press.phase !== 'count', `${tag}: a press 1.5 s into the cap's 5 s count lands it at once (${L.press.amount})`, L.press);
+			}
+			// THE ROTATION
+			const rot = await R(p, () => {
+				const h = window.__reindeer;
+				const want = [...h.tune.ledBoard.ideas.cartoons];
+				const out = [];
+				for (const key of ['tree', 'chew', 'takeoff', 'signroll', 'stack']) {
+					h.tune.ledBoard.cartoon = key;
+					h.scoreboardStep(1);
+					h.scoreboardStep(10, 200);
+					const f = h.scoreboardFace('strip');
+					out.push({ key, now: h.scoreboard().cartoon.key, lit: f.lit, dots: f.dots });
+				}
+				h.tune.ledBoard.cartoon = 'auto';
+				h.scoreboardStep(1);
+				h.scoreboardManual(false);
+				return { want, out };
+			});
+			check(rot.want.join() === 'trot,tree,parade,chew,plow,takeoff,sleigh,signroll,peek,stack,race' && rot.out.every((x) => x.now === x.key && x.lit > x.dots * 0.01), `${tag}: ROTATION: ${rot.want.join(' > ')}; each new cartoon draws (${rot.out.map((x) => `${x.key} ${x.lit}`).join(', ')} lit LEDs)`, rot);
+			// THE COST: draw step and GPU bytes, the picks against today's scenes
+			const cost = await R(p, () => {
+				const h = window.__reindeer;
+				h.scoreboardManual(true);
+				const I = h.tune.ledBoard.ideas;
+				const run = (start, n) => {
+					start();
+					const v = [];
+					for (let i = 0; i < n; i++) v.push(h.scoreboardStep(33).cost.drawMs);
+					const gpu = h.scoreboard().gpuBytes;
+					h.scoreboardCardEnd();
+					h.scoreboardLower();
+					h.scoreboardStep(100, 30);
+					v.sort((a, b) => a - b);
+					return { med: v[n >> 1], p90: v[Math.floor(n * 0.9)], max: v[n - 1], gpu };
+				};
+				const max = () => h.scoreboardCard('total', { x: 7777, play: 1000, title: 'MAX WIN', capped: true });
+				const o = { ladder: run(max, 200), tease: run(() => h.scoreboardCard('sfs'), 110), presents: run(() => h.scoreboardCard('fs'), 110) };
+				const keep = { ...I };
+				I.total = 'today';
+				I.sfsEntry = 'today';
+				I.fsEntry = 'today';
+				o.todayTotal = run(max, 200);
+				o.todaySfs = run(() => h.scoreboardCard('sfs'), 110);
+				Object.assign(I, keep);
+				h.scoreboardManual(false);
+				return o;
+			});
+			console.log(`  ${tag} cost (drawMs median / p90 / max): ladder ${cost.ladder.med} / ${cost.ladder.p90} / ${cost.ladder.max} (today's Total Win ${cost.todayTotal.med} / ${cost.todayTotal.p90}), tease ${cost.tease.med} / ${cost.tease.p90} (today's ${cost.todaySfs.med} / ${cost.todaySfs.p90}), presents ${cost.presents.med} / ${cost.presents.p90}; GPU ${cost.ladder.gpu} B (today's ${cost.todayTotal.gpu})`);
+			check(cost.ladder.gpu === cost.todayTotal.gpu && cost.ladder.gpu < 1.2 * 1048576 && cost.ladder.med <= Math.max(2, cost.todayTotal.med * 2) && cost.tease.med <= Math.max(2, cost.todaySfs.med * 2), `${tag}: COST: the picks draw on the same faces (GPU ${(cost.ladder.gpu / 1048576).toFixed(3)} MB, today's ${(cost.todayTotal.gpu / 1048576).toFixed(3)}), the ladder's step ${cost.ladder.med} ms median (today's ${cost.todayTotal.med}), the tease's ${cost.tease.med} (today's ${cost.todaySfs.med})`, cost);
+			check(errs.length === 0, `${tag}: no page errors`, errs);
+		} catch (e) {
+			check(false, `${tag}: the ledIdeas checks ran to their end`, String(e?.stack ?? e).slice(0, 600));
 		} finally {
 			await ctx.close();
 		}
@@ -2118,6 +2471,7 @@ async function ledAnimChecks(browser) {
 		}
 		if (SEC('density')) await densityChecks(browser);
 		if (SEC('ledAnim')) await ledAnimChecks(browser);
+		if (SEC('ledIdeas')) await ideasChecks(browser);
 	} finally {
 		await browser.close();
 	}

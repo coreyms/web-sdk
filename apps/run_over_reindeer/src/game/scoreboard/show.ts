@@ -14,6 +14,7 @@
 //   THE SKIP (the house rule, Manticore's Win.svelte): a press while it counts lands the amount and the final tier at once
 //   (one beat); a press during the hold ends the hold. No prompt, no press gate.
 import { LED_BOARD } from '../constants';
+import config from '../config';
 
 export type Seg = { to: number; ms: number };
 /** win: a Big win and up; small: under the Big bar; fs, sfs: the Free Spins and the Super entries; total: the bonus round's
@@ -60,6 +61,10 @@ export type Show = {
 	 *  the HTML card's lines, 2026-11-17), null: TOTAL WIN, none */
 	title: string | null;
 	line: string | null;
+	/** (2026-11-19, LED_BOARD.ideas) the round's win in play multiples (0: not known) and whether the round hit the cap: the
+	 *  Total Win's ladder and its size class read them (a win's tier reads `final`) */
+	x: number;
+	capped: boolean;
 };
 /** the three bonus round cards on the back board */
 export const isCard = (s: Show | null): boolean => !!s && (s.kind === 'fs' || s.kind === 'sfs' || s.kind === 'total');
@@ -132,6 +137,8 @@ export const newShow = (o: { x: number; amount: number; bet: number; fmt: (v: nu
 		spins: 0,
 		title: null,
 		line: null,
+		x: o.x,
+		capped: false,
 	};
 	if (small) {
 		// (2026-11-17: a line win's strip total counts over its own time, LINE_WIN.slam stripCountMs at the turbo level's pace)
@@ -165,12 +172,26 @@ export const newShow = (o: { x: number; amount: number; bet: number; fmt: (v: nu
 	return s;
 };
 
+/** THE TOTAL WIN'S SIZE CLASS (2026-11-19, LED_BOARD.ideas): small under the Big bar, big under the Epic bar, huge from it,
+ *  max on a capped round (the bars are LED_BOARD.tiers', never thresholds of its own) */
+export type WinSize = 'small' | 'big' | 'huge' | 'max';
+export const winSizeOf = (x: number, capped: boolean): WinSize => {
+	if (capped) return 'max';
+	const t = tierOf(x);
+	return t < 0 ? 'small' : t < 3 ? 'big' : 'huge';
+};
+/** THE LADDER'S RUNGS (tw-ladder) in play multiples: LED_BOARD.tiers' bars, the top one the math's cap (config.maxWin) */
+export const ladderBars = (): number[] => LED_BOARD.tiers.map((x, i, a) => (i === a.length - 1 ? config.maxWin : x.bar));
+
 /** A BONUS ROUND CARD on the back board (part B): the Free Spins entry, the Super entry (`spins` awarded) or the Total Win
- *  (`amount`, counted linearly over LED_BOARD.scenes.totalCountMs divided by the turbo level's rate). It rises as a Mega
- *  win does and waits: the card's own press ends it (endShow), never a timer of its own. */
-export const newCardShow = (o: { kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; fmt: (v: number) => string; rate: number; title?: string | null; line?: string | null }): Show => {
+ *  (`amount`, counted over LED_BOARD.scenes.totalCountMs divided by the turbo level's rate). It rises as a Mega win does
+ *  and waits: the card's own press ends it (endShow), never a timer of its own. (2026-11-19, LED_BOARD.ideas) `x` the
+ *  round's win in play multiples, `capped` the cap: with the ladder the count runs on the house pacer (each rung crossed
+ *  gets its moment; the count's length is the same), the length by size and the cap page's hold are switches left off. */
+export const newCardShow = (o: { kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; fmt: (v: number) => string; rate: number; title?: string | null; line?: string | null; x?: number; capped?: boolean; auto?: boolean }): Show => {
 	const L = LED_BOARD;
 	const S = L.scenes;
+	const I = L.ideas;
 	const contentAt = L.rise.backAtMs + L.rise.riseMs;
 	const s: Show = {
 		id: ++SHOW_ID,
@@ -200,11 +221,30 @@ export const newCardShow = (o: { kind: 'fs' | 'sfs' | 'total'; spins: number; am
 		spins: o.spins,
 		title: o.title ?? null,
 		line: o.line ?? null,
+		x: o.x ?? 0,
+		capped: !!o.capped,
 	};
 	if (o.kind === 'total') {
-		s.countEnd = contentAt + S.totalCountMs / Math.max(0.2, o.rate);
-		// (a wrap-up with its own line, a top-up or the cap: the line and the press line come as the amount lands)
-		s.pressLineAt = s.countEnd + (s.line ? 0 : S.totalPressAfterMs);
+		// (the count's length: today's flat totalCountMs, or by the round's size when that switch is on; a turbo level divides it)
+		const base = I.totalBySize.on && s.x > 0 ? I.totalBySize.ms[winSizeOf(s.x, s.capped)] : S.totalCountMs;
+		const total = base / Math.max(0.2, o.rate);
+		s.countEnd = contentAt + total;
+		// THE LADDER'S COUNT: the house pacer over the rungs (LED_BOARD.pace: each bar crossed min(barShare, barMaxMs), the rest
+		// to the final stretch, at least finalMinShare): the board's amount and the strip's are this one count
+		if (I.total === 'ladder' && s.x > 0 && o.amount > 0) {
+			const play = o.amount / s.x;
+			// (a rung at the amount itself, the cap's, is not crossed: float noise never makes it one)
+			s.bars = ladderBars()
+				.map((b) => b * play)
+				.filter((b) => b < o.amount * (1 - 1e-9));
+			s.segs = segmentsFor(o.amount, total, s.bars);
+		}
+		// (a wrap-up with its own line, a top-up or the cap: the line and the press line come as the amount lands; a capped
+		// round's page after capPageHold when that switch is on)
+		// (not when Autoplay Bonuses continues the wrap-up by itself, ROUND.wrapAutoHoldMs after the landing: the cap's line
+		// then wipes in at the landing as before, so it is still seen)
+		const capHold = s.capped && I.capPageHold.on && !o.auto ? I.capPageHold.ms : 0;
+		s.pressLineAt = s.countEnd + (s.line ? capHold : S.totalPressAfterMs);
 	} else s.pressLineAt = contentAt + (o.kind === 'sfs' ? S.sfsPressMs : S.fsPressMs);
 	return s;
 };
@@ -253,6 +293,8 @@ export const shakeAt = (s: Show | null, sc: number): number => {
 export const amountNow = (s: Show): number => {
 	if (s.t >= s.countEnd) return s.amount;
 	if (s.kind === 'fs' || s.kind === 'sfs') return 0;
+	// (the ladder's Total Win runs on its pacer: its segments end on the count's end)
+	if (s.kind === 'total' && s.segs.length) return Math.min(s.amount, amountAtCount(s.segs, s.t - s.countStart));
 	if (s.kind === 'small' || s.kind === 'total') return s.amount * clamp((s.t - s.countStart) / Math.max(1, s.countEnd - s.countStart), 0, 1);
 	return amountAtCount(s.segs, s.t - s.countStart);
 };

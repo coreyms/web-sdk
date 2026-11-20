@@ -4,7 +4,7 @@
 // strip holds the reindeer's eight 125 x 108 run frames.
 export const SCOREBOARD_ART = {
 	"width": 1000,
-	"height": 447,
+	"height": 786,
 	"frames": {
 		"run_strip": {
 			"x": 0,
@@ -77,6 +77,72 @@ export const SCOREBOARD_ART = {
 			"y": 246,
 			"w": 180,
 			"h": 201
+		},
+		"present_red": {
+			"x": 0,
+			"y": 449,
+			"w": 180,
+			"h": 201
+		},
+		"sign_a": {
+			"x": 182,
+			"y": 449,
+			"w": 99,
+			"h": 112
+		},
+		"sign_k": {
+			"x": 283,
+			"y": 449,
+			"w": 107,
+			"h": 112
+		},
+		"sign_q": {
+			"x": 392,
+			"y": 449,
+			"w": 103,
+			"h": 112
+		},
+		"sign_j": {
+			"x": 497,
+			"y": 449,
+			"w": 96,
+			"h": 112
+		},
+		"sign_j_plate": {
+			"x": 595,
+			"y": 449,
+			"w": 96,
+			"h": 112
+		},
+		"sign_j_post": {
+			"x": 693,
+			"y": 449,
+			"w": 25,
+			"h": 66
+		},
+		"tree": {
+			"x": 0,
+			"y": 652,
+			"w": 249,
+			"h": 64
+		},
+		"sleigh_r": {
+			"x": 251,
+			"y": 652,
+			"w": 160,
+			"h": 134,
+			"vehicle": {
+				"x": 0,
+				"y": 18,
+				"w": 160,
+				"h": 116
+			}
+		},
+		"H4_r": {
+			"x": 413,
+			"y": 652,
+			"w": 160,
+			"h": 109
 		}
 	}
 } as const;

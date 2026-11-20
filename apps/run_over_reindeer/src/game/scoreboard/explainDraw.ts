@@ -53,10 +53,20 @@ export function fitSentence(str: string, W: number, H: number, maxLines: number)
 }
 
 /** what the board's explanation shows now (the probe): the page, the text box in dots, the lines, the scale */
-export type ExplainInfo = { layout: 'A' | 'B' | 'C1' | 'C2'; page: 'scene' | 'explain' | 'wipe'; box: { x: number; y: number; w: number; h: number } | null; head: { x: number; y: number; w: number; h: number } | null; lines: string[]; z: number; W: number; H: number };
+export type ExplainInfo = { layout: 'A' | 'B' | 'C1' | 'C2'; page: 'scene' | 'explain' | 'wipe'; box: { x: number; y: number; w: number; h: number } | null; head: { x: number; y: number; w: number; h: number } | null; lines: string[]; z: number; W: number; H: number; presents: { name: string; x: number; y: number; w: number; h: number }[] };
 const explainRec = new WeakMap<object, ExplainInfo>();
 export const explainOf = (canvas: object): ExplainInfo | null => explainRec.get(canvas) ?? null;
 export const clearExplain = (canvas: object) => explainRec.delete(canvas);
+
+/** THE PRESENTS BESIDE THE COUNT (Corey 2026-11-19: "on super free spins the presents next tot he 10 Super free spins should
+ *  also be red"): the Super entry's are the red present (the Super scatter), the Free Spins entry's the teal one */
+const presentFor = (head: ExplainHead) => (head.kind === 'entry' && head.title.startsWith('SUPER') ? 'present_red' : 'present');
+/** the presents drawn on the page this step, each its picture and box in dots (the probe) */
+let presDrawn: { name: string; x: number; y: number; w: number; h: number }[] = [];
+function presFit(g: Ctx, name: 'present' | 'present_red', box: { x: number; y: number; w: number; h: number }) {
+	drawFit(g, name, box);
+	presDrawn.push({ name, x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.w), h: Math.round(box.h) });
+}
 
 /** the head of a page: a count with a title (an entry: "10" and FREE SPINS, the presents beside them) or a title over an
  *  amount (a wrap-up), fitted in the band y0..y0+bandH; returns its drawn box */
@@ -84,8 +94,10 @@ function drawHead(g: Ctx, W: number, y0: number, bandH: number, head: ExplainHea
 		drawRow(g, head.count, x0, Math.round(yc - cap / 2), cap, head.color === '#ffd23a' ? 'gold' : '#ffffff', 0);
 		drawText(g, head.title, x0 + rowInfo(head.count, cap).w + 6, Math.round(yc - (7 * ts) / 2), ts, head.color);
 		if (showPres) {
-			sprite(g, 'present', x0 - presW(cap) - 6, Math.round(yc + pres / 2), pres);
-			sprite(g, 'present', x0 + total + 6, Math.round(yc + pres / 2), pres);
+			const pn = presentFor(head);
+			sprite(g, pn, x0 - presW(cap) - 6, Math.round(yc + pres / 2), pres);
+			sprite(g, pn, x0 + total + 6, Math.round(yc + pres / 2), pres);
+			for (const x of [x0 - presW(cap) - 6, x0 + total + 6]) presDrawn.push({ name: pn, x: Math.round(x), y: Math.round(yc - pres / 2), w: presW(cap), h: pres });
 		}
 		const l = showPres ? x0 - presW(cap) - 6 : x0;
 		return { x: l, y: Math.round(yc - Math.max(cap, showPres ? pres : 0) / 2), w: showPres ? total + 2 * (presW(cap) + 6) : total, h: Math.max(cap, showPres ? pres : 0) };
@@ -223,6 +235,7 @@ export function drawLayoutC(g: Ctx, W: number, H: number, t: number, head: Expla
 	const split: [string, string][] = words0.flatMap(([w, c]) => w.split(' ').map((x) => [x, c] as [string, string]));
 	const arrangements: [string, string][][] = wide && !total && variant !== 'C2' && split.length > words0.length ? [words0, split] : [words0];
 	const c2 = variant === 'C2' && wide && !total;
+	const pn = presentFor(head);
 	const minCap = X.minCap;
 	// (the search runs once per board size and text: the plan is kept, each frame only draws it)
 	const key = `${W}x${H}|${variant}|${num}|${words0.map((w) => w[0]).join('/')}|${sentence}|${X.maxLinesC}|${X.minCap}|${X.readShare}|${X.margin}`;
@@ -287,7 +300,7 @@ export function drawLayoutC(g: Ctx, W: number, H: number, t: number, head: Expla
 				const colW = Math.max(nw, presW);
 				const lx = ix;
 				const ly = y0 + Math.round((blockH - lockH) / 2);
-				if (pres) drawFit(g, 'present', { x: lx + (colW - presW) / 2, y: ly, w: presW, h: pres });
+				if (pres) presFit(g, pn, { x: lx + (colW - presW) / 2, y: ly, w: presW, h: pres });
 				drawRow(g, num, Math.round(lx + (colW - nw) / 2), ly + pres + gap, cap, numStyle, 0);
 				const rx = ix + colW + m * 2;
 				const rw = iw - colW - m * 2;
@@ -308,7 +321,7 @@ export function drawLayoutC(g: Ctx, W: number, H: number, t: number, head: Expla
 				const rowH = lockH;
 				const yc = y0 + rowH / 2;
 				let x = lx;
-				drawFit(g, 'present', { x, y: Math.round(yc - pres / 2), w: presW, h: pres });
+				presFit(g, pn, { x, y: Math.round(yc - pres / 2), w: presW, h: pres });
 				x += presW + gap;
 				drawRow(g, num, x, Math.round(yc - cap / 2), cap, numStyle, 0);
 				x += nw + gap;
@@ -316,16 +329,16 @@ export function drawLayoutC(g: Ctx, W: number, H: number, t: number, head: Expla
 				const ty = Math.round(yc - tb.h / 2);
 				words.forEach(([w, c], i) => boardTitle(g, w, tcx, ty + i * (7 * ts + Math.max(2, ts)), ts, c, { word: true }));
 				x += tb.w + gap;
-				drawFit(g, 'present', { x, y: Math.round(yc - pres / 2), w: presW, h: pres });
+				presFit(g, pn, { x, y: Math.round(yc - pres / 2), w: presW, h: pres });
 			} else {
 				const r1 = Math.max(cap, pres);
 				const rowW = presW + gap + nw + gap + presW;
 				let x = Math.round(cx - rowW / 2);
-				drawFit(g, 'present', { x, y: y0 + (r1 - pres) / 2, w: presW, h: pres });
+				presFit(g, pn, { x, y: y0 + (r1 - pres) / 2, w: presW, h: pres });
 				x += presW + gap;
 				drawRow(g, num, x, y0 + Math.round((r1 - cap) / 2), cap, numStyle, 0);
 				x += nw + gap;
-				drawFit(g, 'present', { x, y: y0 + (r1 - pres) / 2, w: presW, h: pres });
+				presFit(g, pn, { x, y: y0 + (r1 - pres) / 2, w: presW, h: pres });
 				words.forEach(([w, c], i) => boardTitle(g, w, cx, y0 + r1 + gap + i * (7 * ts + Math.max(2, ts)), ts, c, { word: true }));
 			}
 			const ty = y0 + lockH + m;
@@ -374,6 +387,7 @@ export function showExplain(F: Face, t: number, scene: (F: Face) => void, head: 
 	// the explanation's page
 	const g = P.page.ctx;
 	g.clearRect(0, 0, W, H);
+	presDrawn = [];
 	const C = X.layout === 'C1' || X.layout === 'C2';
 	if (!C) {
 		g.fillStyle = 'rgba(30,90,220,0.12)';
@@ -445,5 +459,5 @@ export function showExplain(F: Face, t: number, scene: (F: Face) => void, head: 
 		o.globalAlpha = 1;
 	} else copyFace(o, to);
 	const shown = onPage && !(from && u < 1);
-	explainRec.set(o.canvas, { layout: X.layout, page: from && u < 1 ? 'wipe' : onPage ? 'explain' : 'scene', box: shown ? sb.box : null, head: shown ? hb : null, lines: sb.fit.lines, z: sb.fit.z, W, H });
+	explainRec.set(o.canvas, { layout: X.layout, page: from && u < 1 ? 'wipe' : onPage ? 'explain' : 'scene', box: shown ? sb.box : null, head: shown ? hb : null, lines: sb.fit.lines, z: sb.fit.z, W, H, presents: presDrawn.slice() });
 }
