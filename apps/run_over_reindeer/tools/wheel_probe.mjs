@@ -4,7 +4,8 @@
 // WATCHES: ; __reindeer.wheel, __reindeer.wheelPlan, __reindeer.wheelShow, __reindeer.wheelSet, __reindeer.wheelEnd, __reindeer.wheelAlone, __reindeer.sceneOnly, __reindeer.fixtures, __reindeer.roadSounds, __reindeer.hud, __reindeer.road, __reindeer.freeSpinNow, __reindeer.stockRules
 // THE SUPER WHEEL PROBE (2026-11-18; game/road/superWheel.ts, game/superWheelPlan.ts, constants SUPER_WHEEL; the approved
 // mock super_wheel_2026-11-18 round 5, "Mc Under the number and P2"). Real Super books of the math (tools/
-// wheel_probe_books.json: twelve books of fixtures_2026-11-18/books_super.json, every opening value and every reel; and
+// wheel_probe_books.json: twelve books of fixtures_2026-11-20/books_super.json (2026-11-20: eight re-pinned in place, the
+// same opening column, from 2026-11-18's topped-up rounds; see the file's source line), every opening value and every reel; and
 // the app's own natural Super fixture), played through the game's own path. Presentation only: it checks that the wheel
 // SHOWS the book, never that it decides anything.
 //   plan       every book: the plan's opening is the book's own columnWild (start: true); eight wedges, no Grandma, at

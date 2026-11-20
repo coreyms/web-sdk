@@ -5,11 +5,12 @@
 // The rules are What-if 4 variant E (Corey 2026-11-09) with variant F + C on top (Corey 2026-11-10: no crossing, higher
 // bonus round column starts), contract version 2026-11-15a: the math build of 2026-11-15 (math-sdk/games/run_over_reindeer/
 // results/build_2026-11-15/BUILD_REPORT.md, final section): the P1 paytable (five pays lifted onto Stake's 0.1x grid),
-// no strike on a Grandma car with a sleigh standing above it in its reel, the bought Super's 20x minimum. Its books are
-// built and pass every Stake check; they are not uploaded. The three Ante mode keys are ante_2, ante_4 and ante_10 (the
-// math's own).
+// no strike on a Grandma car with a sleigh standing above it in its reel. Math 2026.11.20 (contract 2026-11-20a,
+// results/build_2026-11-20, REDRAW_2026-11-20.md): no round is ever topped up and the game states no minimum anywhere
+// (Corey 2026-11-20). Its books are built and pass every Stake check; they are not uploaded. The three Ante mode keys are
+// ante_2, ante_4 and ante_10 (the math's own).
 export default {
-	mathVersion: '2026.11.18',
+	mathVersion: '2026.11.20',
 	providerName: 'polymath_games',
 	gameName: 'Run Over Reindeer',
 	gameID: 'run_over_reindeer',
@@ -67,9 +68,6 @@ export default {
 	// reads them (game/road/roadBoard.ts scatterCount); nothing here decides an outcome.
 	scatterTriggers: { basegame: [3, 4], freegame: [3] },
 	anticipationAt: { basegame: 2, freegame: 2 },
-	// floors on a bonus round's own total, in base bet multiples. The BOOKS meet them (a natural round under its floor
-	// carries a floorTopUp event; a bought Super is drawn to its minimum); the frontend only states them.
-	floors: { naturalFreeSpins: 10, naturalSuper: 50, boughtSuper: 20 },
 	// what the Wild multipliers can be, for the rules page only (EVENT_SCHEMA.md; the books carry the real values)
 	multipliers: {
 		grandmaWild: { base: [2, 10], freeSpins: [3, 100], super: [5, 100] },

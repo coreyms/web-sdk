@@ -43,14 +43,14 @@
 // ROUND 3 (2026-11-16, judge3 below): the column box's growth (sfx_column_grow on the frame the grow begins), Santa's and
 // Grandma's entrances (on their entrance frame, like the reindeer's), each column character's win clip (one sound per
 // tier per frame, on the clip's first frame), a sticky column settling in (free spins and Super: one per sticky column,
-// on its idle's first frame), the bonus round cards (in on the frame the card mounts, out on the frame it goes, the
-// top-up with the wrap-up card that says so), the line show ONCE PER LINE on the frame each line starts to light (the
+// on its idle's first frame), the bonus round cards (in on the frame the card mounts, out on the frame it goes; since
+// math 2026.11.20 sfx_topup never plays: no round is topped up), the line show ONCE PER LINE on the frame each line starts to light (the
 // Christmas lights stagger), the present pop on the open's FIRST frame, and the road's ambience (amb_road: on under the
 // base game, faded out on the frame a feature's music takes over, back with the base music, never two at once). New
 // cases: santa1, santa2, santaslam, grandma0, grandma1, grandmaslam (the entrances, the grow and the win clips at every
-// speed and a slam stop), three0, three2, threeslam (a twelve line win at normal, turbo 2 and a slam stop), floortop (a
-// natural Free Spins round topped up to its minimum, turbo 1), supertop (a bought Super topped up to its 20x minimum,
-// turbo 2).
+// speed and a slam stop), three0, three2, threeslam (a twelve line win at normal, turbo 2 and a slam stop), smallfs (a
+// small natural Free Spins round, turbo 1), supersmall (a small bought Super, turbo 2). (They replace floortop and
+// supertop, the top-up rounds of fixtures_2026-11-18, which math 2026.11.20 no longer makes.)
 // PASS 5 (2026-11-16): a one-shot's span ends at its own length in the sprite at the latest (Howler's 'end' is a timer that a
 // busy page fires late; the audio itself stops at the sprite's end); at turbo 2 the reels' stops are one moment and get ONE
 // sound (constants REINDEER_SOUND.reelStopTurbo2): a stop within its gapMs of the last one played is silent, and one still
@@ -155,8 +155,8 @@ const CASES = [
 	{ id: 'three0', book: 'base_three_columns', turbo: 0, snort: 'never' },
 	{ id: 'three2', book: 'base_three_columns', turbo: 2, snort: 'never' },
 	{ id: 'threeslam', book: 'base_three_columns', turbo: 0, snort: 'never', slam: true },
-	{ id: 'floortop', book: 'floor_top_up', turbo: 1, snort: 'never', maxMs: 300000 },
-	{ id: 'supertop', book: 'super_floor_top_up', turbo: 2, snort: 'never', maxMs: 300000 },
+	{ id: 'smallfs', book: 'natural_small_free_spins', turbo: 1, snort: 'never', maxMs: 300000 },
+	{ id: 'supersmall', book: 'super_small', turbo: 2, snort: 'never', maxMs: 300000 },
 	// PASS 8 (2026-11-16): the house scatter landings on posed boards (presentation only), judged by judgeScatter alone
 	{ id: 'scat0', posed: SCAT_BOOK(SCAT.five), turbo: 0, snort: 'never', scatter: true },
 	{ id: 'scat1', posed: SCAT_BOOK(SCAT.sup), turbo: 1, snort: 'never', scatter: true },
@@ -828,7 +828,7 @@ function judge3(tag, C, R) {
 	};
 	const named = (what) => M.filter((e) => e.what === what);
 	const spinStarts = named('trafficStart').map((e) => e.t);
-	const rowsUntil = (C.id === 'trigger' || C.id === 'floortop' || C.id === 'supertop') && spinStarts.length > 2 ? spinStarts[2] : Infinity;
+	const rowsUntil = (C.id === 'trigger' || C.id === 'smallfs' || C.id === 'supersmall') && spinStarts.length > 2 ? spinStarts[2] : Infinity;
 	const row = (sound, play, ev, label) => (ev && ev.t >= rowsUntil) || rows.push({ sound, start: play ? at(play) : 'MISSING', stop: '', event: ev ? `${label} (frame ${ev.frame})` : label, offset: play && ev ? r1(play.t - ev.t) : '', frames: play && ev ? play.frame - ev.frame : '' });
 	const book = R.book ?? [];
 
@@ -906,14 +906,9 @@ function judge3(tag, C, R) {
 		row(name, pl, e, `card ${e.detail.replace(/^sfx_\w+ /, '')} ${name === 'sfx_card_out' ? 'goes' : 'comes up'}`);
 	});
 	const nCards = book.filter((e) => e.type === 'freeSpinTrigger' || e.type === 'freeSpinEnd').length;
-	const tops = book.filter((e) => e.type === 'floorTopUp').length;
 	check(cards.filter((e) => e.detail.startsWith('sfx_card_in')).length === nCards && cards.filter((e) => e.detail.startsWith('sfx_card_out')).length === nCards, `${tag}: a card in and a card out for each of the book's ${nCards} card(s)`);
-	check(cards.filter((e) => e.detail.startsWith('sfx_topup')).length === tops, `${tag}: a top-up beat for each of the book's ${tops} top-up(s), with its wrap-up card`);
-	if (tops) {
-		const tIn = cards.find((e) => e.detail.startsWith('sfx_topup'));
-		const cIn = cards.find((e) => e.detail.startsWith('sfx_card_in outro'));
-		check(!!tIn && !!cIn && tIn.frame === cIn.frame, `${tag}: the top-up on the wrap-up card's frame (${tIn?.frame} vs ${cIn?.frame})`);
-	}
+	// (math 2026.11.20: no book holds a top-up, and the top-up beat never plays)
+	check(!book.some((e) => e.type === 'floorTopUp') && cards.every((e) => !e.detail.startsWith('sfx_topup')) && plays.every((e) => e.name !== 'sfx_topup'), `${tag}: no top-up in the book and no top-up beat`);
 	check(plays.filter((e) => CARDS.includes(e.name)).length === cards.length, `${tag}: no card sound without its card`);
 
 	// THE ROAD'S AMBIENCE

@@ -20,7 +20,7 @@ export const LANDING_BOARD: Board = [
 /** the bonus round's two cards. Amounts are book amounts (cents of the bet). */
 export type RoundCard =
 	| { kind: 'intro'; bonus: 'bonus' | 'super'; spins: number; board?: boolean; presents?: number }
-	| { kind: 'outro'; bonus: 'bonus' | 'super'; amount: number; topUp: null | { floor: number; amount: number }; capped: boolean; board?: boolean };
+	| { kind: 'outro'; bonus: 'bonus' | 'super'; amount: number; capped: boolean; board?: boolean };
 // (board: the card plays on the LED back board, game/scoreboard/; the HTML card keeps its press and draws nothing;
 // presents: the scatters the round triggered with, the book's freeSpinTrigger cells, for the LED entry)
 
@@ -46,8 +46,6 @@ export const stateGame = $state({
 	bonusMode: null as null | 'bonus' | 'super',
 	/** the bonus round's card that is up now (ui/RoundCard.svelte draws it), null when none is */
 	roundCard: null as null | RoundCard,
-	/** a natural round's floor top-up, kept from its event until the wrap-up card has shown it */
-	topUp: null as null | { floor: number; featureWin: number; amount: number },
 	/** the round reached the 7,777x cap (the wrap-up card says so) */
 	capped: false,
 	scatterCounter: 0,

@@ -1,7 +1,8 @@
 // THE ONE PLACE A ROUND IS PLAYED: one handler per book event type, called in book order (utils-book).
 // The frontend never computes an outcome. A handler shows what its event says and nothing else: which cell was
-// struck, which tier stepped out, which multiplier, what a line paid, what a top-up added.
-// Contract: math-sdk/games/run_over_reindeer/EVENT_SCHEMA.md, version 2026-11-15a (2026-11-10a plus winInfo capped, the clear path rule and the bought Super's floor).
+// struck, which tier stepped out, which multiplier, what a line paid.
+// Contract: math-sdk/games/run_over_reindeer/EVENT_SCHEMA.md, version 2026-11-20a (2026-11-10a plus winInfo capped and the clear path rule; since
+// 2026-11-20a no floorTopUp: math 2026.11.20 redraws a round under its minimum, and the game never mentions a minimum).
 import { strikePlace } from './strikeOrder';
 import { stateBet, stateBetDerived } from 'state-shared';
 import { bookEventAmountToBetAmountMultiplier, bookEventAmountToCurrencyString } from 'utils-shared/amount';
@@ -45,7 +46,7 @@ const showCard = async (card: RoundCard) => {
 	eventEmitter.broadcast({ type: 'uiHide' });
 	// THE CARD ON THE LED BACK BOARD (constants LED_BOARD.cards, part B): the Free Spins entry, the Super entry and the Total
 	// Win play as the board's staged scenes, with the press line on the strip; the HTML card keeps the press, its timers and
-	// its sounds and draws nothing. Since 2026-11-17 a wrap-up that says a top-up or the cap plays on the board too, its line
+	// its sounds and draws nothing. Since 2026-11-17 a wrap-up that says the cap plays on the board too, its line
 	// scrolled on the strip (Corey: "the Wrap up total was shown on the plain old card, not the billboard": his round was
 	// one of these, the only wrap-ups that kept the HTML card)
 	const board = LED_BOARD.on && LED_BOARD.cards === 'board';
@@ -53,7 +54,7 @@ const showCard = async (card: RoundCard) => {
 		eventEmitter.broadcast(
 			card.kind === 'intro'
 				? { type: 'boardScoreboardCard', kind: card.bonus === 'super' ? 'sfs' : 'fs', spins: card.spins, amount: 0, presents: card.presents }
-				: { type: 'boardScoreboardCard', kind: 'total', spins: 0, amount: card.amount, topUp: card.topUp ?? null, capped: !!card.capped },
+				: { type: 'boardScoreboardCard', kind: 'total', spins: 0, amount: card.amount, capped: !!card.capped },
 		);
 	stateGame.roundCard = board ? { ...card, board: true } : card;
 	await new Promise<void>((resolve) => (cardDone = resolve));
@@ -88,7 +89,6 @@ const enterBonus = (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
 	stateGame.gameType = 'freegame';
 	stateGame.totalFs = bookEvent.totalFs;
 	stateGame.spinsPlayed = 0;
-	stateGame.topUp = null;
 	stateGame.capped = false;
 	stateGame.featureTeased = false;
 	stateGame.bonusGrandmaStrikes = 0;
@@ -268,10 +268,6 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.totalFs = bookEvent.totalFs;
 		await eventEmitter.broadcastAsync({ type: 'boardMessage', text: `+${bookEvent.added} FREE SPINS`, ms: ROUND.retriggerMs });
 	},
-	floorTopUp: async (bookEvent: BookEventOfType<'floorTopUp'>) => {
-		// said plainly on the wrap-up card as part of the final win; the HUD's WIN takes it with the setTotalWin after
-		stateGame.topUp = { floor: bookEvent.floor, featureWin: bookEvent.featureWin, amount: bookEvent.amount };
-	},
 	wincap: async () => {
 		stateGame.capped = true;
 	},
@@ -291,14 +287,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			kind: 'outro',
 			bonus: stateGame.bonusMode ?? 'bonus',
 			amount: fin && fin.type === 'finalWin' ? fin.amount : bookEvent.amount,
-			topUp: stateGame.topUp ? { floor: stateGame.topUp.floor, amount: stateGame.topUp.amount } : null,
 			capped,
 		});
 		stateGame.gameType = 'basegame';
 		stateGame.bonusMode = null;
 		stateGame.totalFs = 0;
 		stateGame.spinsPlayed = 0;
-		stateGame.topUp = null;
 		stateGame.featureTeased = false;
 		stateGame.bonusGrandmaStrikes = 0;
 		stateGame.fsStarted = false;

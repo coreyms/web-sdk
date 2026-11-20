@@ -30,11 +30,12 @@ export const FIXTURE_ROUNDS: FixtureRound[] = SHOWCASE_ROUNDS.map((r) => ({
  *  antes have no books yet) walks through plain spins, each kind of strike and the natural rounds; a bought round
  *  walks through that buy's books. */
 export const FIXTURE_ORDER: Record<'base' | 'bonus' | 'super', string[]> = {
-	base: ['no_win_1', 'plain_line_win', 'base_grandma_strike', 'no_win_2', 'base_one_column', 'tier_santa', 'plain_line_win', 'tier_grandma', 'base_two_columns', 'no_win_1', 'base_three_columns', 'natural_free_spins', 'no_win_2', 'floor_top_up', 'natural_super', 'floor_top_up_super'],
-	// (fixtures_2026-11-15b's two new rounds at the end: a Grandma strike with a sleigh standing in its reel, and a bought
-	// Super topped up to its 20x minimum)
+	base: ['no_win_1', 'plain_line_win', 'base_grandma_strike', 'no_win_2', 'base_one_column', 'tier_santa', 'plain_line_win', 'tier_grandma', 'base_two_columns', 'no_win_1', 'base_three_columns', 'natural_free_spins', 'no_win_2', 'natural_small_free_spins', 'natural_super', 'natural_small_super'],
+	// (fixtures_2026-11-15b's new round at the end: a Grandma strike with a sleigh standing in its reel; since
+	// fixtures_2026-11-20 the top-up rounds are gone (math 2026.11.20 tops nothing up): natural_small_free_spins,
+	// natural_small_super and super_small, small rounds of each kind, take their places)
 	bonus: ['grandma_3x', 'retrigger', 'grandma_red_box', 'three_columns_free_spins', 'column_30x', 'column_50x', 'grandma_100x', 'wild_line_then_scatter', 'grandma_strike_sleigh_on_reel'],
-	super: ['super_typical', 'multi_reel_strikes', 'wild_line_three_columns_scatter', 'max_win', 'super_floor_top_up'],
+	super: ['super_typical', 'multi_reel_strikes', 'wild_line_three_columns_scatter', 'max_win', 'super_small'],
 };
 
 const RESUME_KEY = 'reindeer.fixture.resume';

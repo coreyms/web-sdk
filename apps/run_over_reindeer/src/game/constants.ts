@@ -653,7 +653,7 @@ export const ROUND = {
 	/** the intro waits for the player's press when no autoplay is running (2026-11-17); false: it continues after
 	 *  introAutoMs as before (the probes that play a bonus round through without pressing set it) */
 	introWaitsForPress: true,
-	/** a wrap-up that carries a line (a top-up, the cap) waits for the press too with no autoplay (its line scrolls on the
+	/** a wrap-up that carries a line (the cap) waits for the press too with no autoplay (its line scrolls on the
 	 *  LED strip), as long as introWaitsForPress is on */
 	lineOutroWaitsForPress: true,
 	/** a wrap-up with Autoplay Bonuses running continues this long after its amount has landed (real ms; Manticore
@@ -1198,8 +1198,8 @@ export const REINDEER_SOUND = {
 	//   sticky     sfx_sticky_set, a STICKY column (free spins and Super) has finished its entrance and stands: the frame
 	//              its idle begins. A base game column (it leaves at the next press) plays none.
 	//   cards      sfx_card_in on the frame a bonus round card comes up (its pop starts), sfx_card_out on the frame it
-	//              goes (it has no exit animation); sfx_topup with the wrap-up card when it says the round was topped up
-	//              to its minimum (ui/RoundCard.svelte)
+	//              goes (it has no exit animation). (sfx_topup, the top-up beat, stays in the sprite unplayed since math
+	//              2026.11.20: no round is topped up)
 	//   lines      sfx_line_show ONCE PER LINE, on the frame that line starts to light (the lines light one after another,
 	//              constants LINE_WIN lights); the symbol's own sound stays one per win, with the first line
 	//   ambience   amb_road, a 10.000 s loop in the sprite (the house pattern for an effects loop: the traffic, the cloud,
@@ -1273,7 +1273,7 @@ export const REINDEER_SOUND = {
 	/** a column character's win clip, by tier */
 	columnWin: { reindeer: 'sfx_column_win_reindeer', santa: 'sfx_column_win_santa', grandma: 'sfx_column_win_grandma' } as Record<'reindeer' | 'santa' | 'grandma', string>,
 	/** the bonus round cards (ui/RoundCard.svelte) */
-	cards: { in: 'sfx_card_in', out: 'sfx_card_out', topUp: 'sfx_topup' },
+	cards: { in: 'sfx_card_in', out: 'sfx_card_out' },
 	/** the road's ambience under the base game: faded in over inMs when it starts, out over outMs when a feature starts */
 	ambience: { name: 'amb_road', inMs: 1200, outMs: 600 },
 	snort: {
@@ -1843,7 +1843,7 @@ export const LED_BOARD = {
 	// ---- PART B (2026-11-17): the staged back board scenes, the tier sounds, the shakes ----
 	/** THE BONUS ROUND'S CARDS: 'board' plays the Free Spins entry, the Super entry and the Total Win on the back board (the
 	 *  mock's scenes, the press line on the strip; the HTML card keeps its press, its timers and its sounds but draws nothing);
-	 *  'card' keeps the HTML card as before. A wrap-up with a top-up or a cap always keeps the HTML card (its lines say so). */
+	 *  'card' keeps the HTML card as before. A wrap-up with a cap always keeps the HTML card (its line says so). */
 	cards: 'board' as 'board' | 'card',
 	/** THE STAGED SCENES (the mock's r3b scenes; their beats are its drawing code): the share of the back board's face kept
 	 *  under the number for the win scenes' bottom band (Mega's jam, Epic's honk meter, Max's race); the title's bouncing block
@@ -1857,7 +1857,7 @@ export const LED_BOARD = {
 	entryLine: { on: true, charsPerSec: 9, pressMs: 1600 },
 	/** THE EXPLANATION ON THE BIG BOARD (Corey 2026-11-18: "This explanation should really be on the bigger LED board, not
 	 *  cramped on the smaller one"; game/scoreboard/explainDraw.ts). From an entry's READY beat (a Free Spins or Super entry)
-	 *  and from a wrap-up's landing when it carries a line (a top-up, the cap), the sentence is on the BACK BOARD, whole and
+	 *  and from a wrap-up's landing when it carries a line (the cap), the sentence is on the BACK BOARD, whole and
 	 *  still, wrapped into centered lines of the board's 5 x 7 face at the largest size that fits (at most maxLines); the strip
 	 *  carries PRESS ANYWHERE TO CONTINUE alone (entryLine above is then unused). layout 'A': one page, the count and the
 	 *  title (or the wrap-up's title and amount) in the upper headShare of the board, the sentence under it, a wipe into it

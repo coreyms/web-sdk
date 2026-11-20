@@ -2,10 +2,10 @@ import type { BetType } from 'rgs-requests';
 
 import type { SymbolName, GameType, CellIndex } from './types';
 
-// One-to-one with math-sdk/games/run_over_reindeer/EVENT_SCHEMA.md, "Contract version 2026-11-15a" (variant F + C; 2026-11-15a added winInfo capped).
+// One-to-one with math-sdk/games/run_over_reindeer/EVENT_SCHEMA.md, "Contract version 2026-11-20a" (variant F + C; 2026-11-15a added winInfo capped, 2026-11-20a removed floorTopUp).
 // Keep them in step: the schema is the contract, this file is only its TypeScript shadow.
 //
-// The contract's rule: every strike, target cell, multiplier, column tier and top-up is decided in the book. The
+// The contract's rule: every strike, target cell, multiplier and column tier is decided in the book. The
 // frontend never rolls, never picks a cell or a character, and never adds a multiplier itself. It plays the events in
 // the written order and never sorts them. HOW the reindeer gets to its target (the run in the snow above the board
 // and the turn down into the target's reel) is presentation, decided by the game alone (constants STRIKE).
@@ -21,7 +21,8 @@ import type { SymbolName, GameType, CellIndex } from './types';
 // setTotalWin if it pays; freeSpinTrigger (base) or freeSpinRetrigger (free). There is no crossing (Corey 2026-11-10:
 // "I don't think the column wilds should ever multiply from their original set value"): a held column keeps the
 // multiplier its columnWild gave it for the whole round.
-// After the last free spin: floorTopUp (natural rounds under their floor), freeSpinEnd, wincap (if reached), finalWin.
+// After the last free spin: freeSpinEnd, wincap (if reached), finalWin. (Contract 2026-11-20a, math 2026.11.20: no
+// floorTopUp; a round under its minimum is redrawn by the math, so no book holds one.)
 
 export type ColumnTier = 'reindeer' | 'santa' | 'grandma';
 /** a sticky column held at the start of a free spin */
@@ -97,9 +98,7 @@ type BookEventColumnWild = {
 };
 type BookEventFreeSpinTrigger = { index: number; type: 'freeSpinTrigger'; bonusType: 'freespins' | 'super'; cells: CellIndex[]; totalFs: number };
 type BookEventFreeSpinRetrigger = { index: number; type: 'freeSpinRetrigger'; cells: CellIndex[]; added: number; totalFs: number };
-/** natural rounds only, when the free spins' own total is under the floor: `amount` is what is added */
-type BookEventFloorTopUp = { index: number; type: 'floorTopUp'; floor: number; featureWin: number; amount: number };
-/** `amount`: the bonus round's own total, including any top-up (the trigger spin is not in it) */
+/** `amount`: the bonus round's own total, the sum of its free spins' wins (the trigger spin is not in it) */
 type BookEventFreeSpinEnd = { index: number; type: 'freeSpinEnd'; amount: number };
 type BookEventWincap = { index: number; type: 'wincap'; amount: number };
 
@@ -121,7 +120,6 @@ export type BookEvent =
 	| BookEventColumnWild
 	| BookEventFreeSpinTrigger
 	| BookEventFreeSpinRetrigger
-	| BookEventFloorTopUp
 	| BookEventFreeSpinEnd
 	| BookEventWincap
 	| BookEventSetTotalWin

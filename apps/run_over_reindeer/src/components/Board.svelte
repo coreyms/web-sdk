@@ -43,7 +43,7 @@
 		| { type: 'boardScoreboardWin'; amount: number; small?: boolean }
 		/** PART B: a bonus round card on the back board (the Free Spins or Super entry with the spins it awards, the Total Win
 		 *  with the book's amount); it waits until boardScoreboardCardEnd (the HTML card keeps the round and the press) */
-		| { type: 'boardScoreboardCard'; kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; topUp?: { floor: number; amount: number } | null; capped?: boolean; presents?: number }
+		| { type: 'boardScoreboardCard'; kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; capped?: boolean; presents?: number }
 		| { type: 'boardScoreboardCardEnd' }
 		/** THE SUPER WHEEL (game/road/superWheel.ts): the round's opening shown by the wheel, which stops on the plan's own
 		 *  values (the book's); resolves when the wheel has left (or at once when it cannot play) */
@@ -108,8 +108,8 @@
 	import { SCENE_ART } from '../game/sceneArtSpec';
 	import { isPaying, symbolPopupBoard, symbolPopupHook } from '../game/symbolPopup';
 	import { boardIdle } from '../game/boardIdle';
-	import { bookEventAmountToBetAmountMultiplier, bookEventAmountToCurrencyString, bookEventAmountToNormalisedAmount, numberToCurrencyString } from 'utils-shared/amount';
-	import { ledAmountText, ledSentenceAmount } from '../game/scoreboard/ledCurrency';
+	import { bookEventAmountToBetAmountMultiplier, bookEventAmountToNormalisedAmount, numberToCurrencyString } from 'utils-shared/amount';
+	import { ledAmountText } from '../game/scoreboard/ledCurrency';
 
 	const context = getContext();
 	const parent = getContextParent();
@@ -927,16 +927,14 @@
 			const auto = stateBet.autoSpinsCounter > 0;
 			await scoreboard.win({ x: bookEventAmountToBetAmountMultiplier(amount), amount: value, bet: bookEventAmountToNormalisedAmount(100), fmt: ledAmount(value), rate: motionFor(stateGame.turboLevel).rate, auto, small });
 		},
-		boardScoreboardCard: ({ kind, spins, amount, topUp, capped, presents }) => {
+		boardScoreboardCard: ({ kind, spins, amount, capped, presents }) => {
 			if (!scoreboard) return;
 			const value = bookEventAmountToNormalisedAmount(amount);
 			const fmt = ledAmount(value);
 			// a wrap-up's own lines, word for word as the HTML card said them (ui/RoundCard.svelte), for the strip: the cap (the
-			// card's social wording on every build: the board shows no betting words) and the top-up, its amount from the book
-			// as the card wrote it (bookEventAmountToCurrencyString)
+			// card's social wording on every build: the board shows no betting words). (Math 2026.11.20: no top-up line, ever.)
 			const lines: string[] = [];
 			if (capped) lines.push(`${config.maxWin.toLocaleString('en-US')}x the play amount, the most a round can award.`);
-			if (topUp) lines.push(`Includes ${ledSentenceAmount(bookEventAmountToCurrencyString(topUp.amount), stateBet.currency)} added to bring this round up to its ${topUp.floor / 100}x minimum.`);
 			// (2026-11-19: the round's multiple and the cap for the Total Win's ladder, LED_BOARD.ideas)
 			scoreboard.card({ kind, spins, amount: value, fmt, rate: motionFor(stateGame.turboLevel).rate, title: capped ? 'MAX WIN' : null, line: lines.length ? lines.join('  ') : null, x: kind === 'total' ? bookEventAmountToBetAmountMultiplier(amount) : 0, capped: !!capped, auto: stateGame.autoPlayBonuses && stateBet.autoSpinsCounter > 0, presents: presents ?? 0 });
 		},

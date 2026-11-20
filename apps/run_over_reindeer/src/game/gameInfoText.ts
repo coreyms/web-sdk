@@ -1,7 +1,8 @@
 // GAME INFO'S COPY (ui/GameInfoModal.svelte). Written from the settled rules (docs/run-over-reindeer-spec.md "Math
 // direction settled" and "What-if 4, variant E accepted"), read again on 2026-11-16 against the math build of 2026-11-15
-// (contract 2026-11-15a, the P1 paytable: results/build_2026-11-15/BUILD_REPORT.md). Every rate, floor and multiplier
-// range here comes from game/config.ts; the paytable page takes the pays from there too. The text quotes no odds of its own; modes.intro explains what the feature menu's "~1 in N" figures mean.
+// (contract 2026-11-15a, the P1 paytable: results/build_2026-11-15/BUILD_REPORT.md). Every rate and multiplier
+// range here comes from game/config.ts (since math 2026.11.20 no minimum or top-up is stated: Corey 2026-11-20, the
+// rounds reach their wins naturally and the player is never told of a minimum); the paytable page takes the pays from there too. The text quotes no odds of its own; modes.intro explains what the feature menu's "~1 in N" figures mean.
 //
 // Social mode: no gambling vocabulary on stake.us (soc(standard, social)). `**text**` marks bold runs.
 import config from './config';
@@ -234,7 +235,6 @@ export const gameInfoText = (j: RulesFlags = {}) => ({
 					'Every round has at least one column Wild.',
 					`Column Wilds from ${C.freeSpins.reindeer[0]}x up to ${R.grandma}x.`,
 					`3 Presents add ${config.retriggerSpins} spins.`,
-					soc(`A round triggered by Presents pays at least ${config.floors.naturalFreeSpins}x the bet: if its spins total less, the difference is added at the end.`, `A round triggered by Presents wins at least ${config.floors.naturalFreeSpins}x the play amount: if its spins total less, the difference is added at the end.`),
 				],
 			},
 			super: {
@@ -243,7 +243,6 @@ export const gameInfoText = (j: RulesFlags = {}) => ({
 				mech: [
 					'Starts with one column Wild already in place.',
 					`More strikes on Grandma's Car, with multipliers from ${G.super[0]}x.`,
-					soc(`A round triggered by Presents pays at least ${config.floors.naturalSuper}x the bet, with the difference added at the end if needed. A bought round pays at least ${config.floors.boughtSuper}x the bet.`, `A round triggered by Presents wins at least ${config.floors.naturalSuper}x the play amount, with the difference added at the end if needed. A round started from the menu wins at least ${config.floors.boughtSuper}x the play amount.`),
 				],
 			},
 		} as Record<string, { enter: string; spins: string; mech: string[] }>,
