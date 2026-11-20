@@ -304,10 +304,18 @@ export const CLOUD_CELL = {
 // centre). The tune panel lists this block (staging only; the TUNE entry is made in game/road/brawlCloud.ts).
 export const GRANDMA_BRAWL = {
 	on: true,
-	/** THE WORD WILD, its own sprite over the clip (a stand-in: the new design is mocked separately). `frame` the atlas
-	 *  picture (a new design is a new frame name and these numbers), its height and its centre down the cell (0 top,
-	 *  1 bottom), as CLOUD_CELL's today */
-	word: { frame: 'word_wild', height: 44, y: 0.3 },
+	/** THE WORD WILD, its own sprites over the clip and under the number (game/road/wildWord.ts). `look` 'candy': treatment
+	 *  B "Candy Cane" of the WILD word mock (Corey 2026-11-20; Desktop/Run Over Reindeer/wild_word_r1_2026-11-19): the
+	 *  multiplier's candy letters (tools/build_wild_word.py), `size` of a 56 road px capital, centred at (x, y) road px
+	 *  from the cell's centre in the mock's 248 x 176.5 box (scaled to the cell's own), turned `rot` degrees; the letters
+	 *  drop in at the cover from 1.8x over dropMs, letterMs apart; they hop on the number's win beats; a light sweeps
+	 *  across every everyMs. 'today': the word of before (`today`: the symbols atlas frame, its height, its centre down
+	 *  the cell, popping at the cover), which is also what a Wild shows until the candy atlas is in. */
+	word: {
+		look: 'candy' as 'candy' | 'today',
+		today: { frame: 'word_wild', height: 44, y: 0.3 },
+		candy: { size: 0.46, x: -54, y: -49, rot: -8, dropMs: 240, letterMs: 60, hop: { beats: [0, 700], px: 12, staggerMs: 70, ms: 300 }, sheen: { alpha: 0.4, everyMs: 3400 } },
+	},
 	/** the phase of each Wild put up without a landing (a resume, a dev hook), as shares of the loop, by its place
 	 *  among the Wilds standing; every other one mirrored. A landed Wild's phase is its landing's cut, its mirror its
 	 *  car's facing (the clip shows a hit from behind: a car facing left is the clip mirrored) */

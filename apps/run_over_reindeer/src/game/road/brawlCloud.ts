@@ -16,8 +16,9 @@
 // WILD word. Nothing is allocated per frame. Every other Wild put up without a landing is mirrored (the word and the
 // number never: they are not in the clip).
 //
-// THE WORD WILD is its own sprite over the clip (a stand-in: the new design is mocked separately). Its picture is an
-// atlas frame named by GRANDMA_BRAWL.word.frame and placed by its numbers: a new design is a new frame and those numbers.
+// THE WORD WILD is its own sprites over the clip: since 2026-11-20 treatment B "Candy Cane" of the WILD word mock
+// (game/road/wildWord.ts, GRANDMA_BRAWL.word.candy); GRANDMA_BRAWL.word.look 'today' (or its atlas not in yet) shows the
+// word of before (the symbols atlas frame GRANDMA_BRAWL.word.today, popping at the cover).
 //
 // LOADING (the column clips' way, game/road/columnClips.ts's upload queue): a book with a Grandma Wild starts the still,
 // the landing and the loop when it arrives (brawlForBook: game/utils.ts), so they are on the GPU before the first strike
@@ -34,6 +35,7 @@ import { stamp } from '../assets';
 import { PHONE_TIER } from '../deviceTier';
 import { STAGING_TOOLS, perfMark } from '../staging';
 import { queuePresentUpload, rebatchBeforeUnload } from './columnClips';
+import { WildWord, loadWildWord, wildWordMemory } from './wildWord';
 
 // the tune panel lists the block (staging and the dev server only; the panel is compiled out of production)
 (TUNE as Record<string, unknown>).grandmaBrawl = GRANDMA_BRAWL;
@@ -170,6 +172,7 @@ export const brawlForBook = (events: readonly { type: string }[]) => {
 	if (!B.on) return;
 	wanted = events.some((e) => e.type === 'grandmaWild');
 	if (wanted) {
+		if (B.word.look === 'candy') void loadWildWord();
 		void loadBrawl('still');
 		void loadBrawl('star');
 		void loadBrawl('land');
@@ -268,6 +271,9 @@ export class BrawlCell {
 	winK0 = 0;
 	winFrom = 0;
 	beats = 0;
+	/** THE CANDY WORD (game/road/wildWord.ts), and the board clock its number's win began (its letters hop with it) */
+	readonly ww: WildWord;
+	numberWinAt: number | null = null;
 	/** the word's fade (0 normal, 1 its win state), linear on the win clock, drawn eased; the win clock it was last
 	 *  stepped at; the word's own scale at rest */
 	textK = 0;
@@ -307,6 +313,7 @@ export class BrawlCell {
 		}
 		this.under.visible = this.over.visible = this.star.visible = false;
 		this.star.anchor.set(0.5);
+		this.ww = new WildWord(cell);
 		this.lean.t = clock;
 	}
 
@@ -396,6 +403,7 @@ export class BrawlCell {
 	}
 
 	destroy() {
+		this.ww.destroy();
 		this.under.texture = PIXI.Texture.EMPTY;
 		this.over.texture = PIXI.Texture.EMPTY;
 		this.star.texture = PIXI.Texture.EMPTY;
@@ -481,14 +489,19 @@ export class Brawl {
 		root.addChildAt(c.under, root.getChildIndex(fallback) + 1);
 		root.addChildAt(c.over, root.getChildIndex(c.under) + 1);
 		root.addChildAt(c.star, root.getChildIndex(word));
-		// the word: its own picture and place (GRANDMA_BRAWL.word)
-		const art = this.tex(B.word.frame);
+		// the candy word over the star, under the number (it takes today's word's place in the order)
+		root.addChildAt(c.ww.root, root.getChildIndex(word));
+		if (B.word.look === 'candy') void loadWildWord();
+		// today's word: its own picture and place (GRANDMA_BRAWL.word.today), shown when the look is 'today' or the candy
+		// atlas is not in
+		const T = B.word.today;
+		const art = this.tex(T.frame);
 		if (art) word.texture = art;
 		word.anchor.set(0.5);
 		const t = word.texture;
-		word.height = B.word.height;
-		word.width = t && t.height > 0 ? (t.width / t.height) * B.word.height : word.width;
-		word.y = (B.word.y - 0.5) * cellH;
+		word.height = T.height;
+		word.width = t && t.height > 0 ? (t.width / t.height) * T.height : word.width;
+		word.y = (T.y - 0.5) * cellH;
 		c.wordBase = { x: word.scale.x, y: word.scale.y };
 		c.wLast = this.winClock;
 		// a landing's WILD waits for the cover (his "wild": "cover") FROM ITS FIRST FRAME: the Wild is made in the
@@ -618,10 +631,24 @@ export class Brawl {
 		c.fallback.visible = showFallback;
 		if (showFallback) c.shown.under = 'fallback';
 		const e = c.textK * c.textK * (3 - 2 * c.textK);
-		wordA *= 1 - (1 - B.win.wordAlpha) * e;
+		const fade = 1 - (1 - B.win.wordAlpha) * e;
+		wordA *= fade;
+		// THE CANDY WORD: its letters drop in from the cover (a landed Wild; standing at once otherwise), hop with the
+		// number's win, the light sweeps; the win's fade on the whole word
+		let candy = false;
+		if (B.word.look === 'candy') {
+			const C = B.word.candy;
+			const tc = clock - (c.t0 + c.coverMs);
+			const landEnd = C.dropMs + 3 * C.letterMs;
+			const tl = c.landed && tc < landEnd ? tc : null;
+			const hopEnd = Math.max(...C.hop.beats) + C.hop.ms + 3 * C.hop.staggerMs;
+			const tw = c.numberWinAt !== null && clock >= c.numberWinAt && clock - c.numberWinAt < hopEnd ? clock - c.numberWinAt : null;
+			candy = c.ww.draw(c.box, clock, tl, tw, fade);
+		} else c.ww.root.visible = false;
+		word.visible = !candy;
 		word.alpha = wordA;
 		word.scale.set(c.wordBase.x * wordK, c.wordBase.y * wordK);
-		c.shown.wordAlpha = Math.round(wordA * 1000) / 1000;
+		c.shown.wordAlpha = Math.round((candy ? (c.ww.root.visible ? fade : 0) : wordA) * 1000) / 1000;
 		c.shown.wordScale = wordK;
 		this.releaseLanding();
 	}
@@ -644,8 +671,10 @@ export class Brawl {
 
 	/** A WIN THROUGH THIS WILD, from board clock `at`: the beat plays once (a later line through it only moves its
 	 *  number); one landing still under way starts it when the landing hands over */
-	win(c: BrawlCell, at: number) {
+	win(c: BrawlCell, at: number, numberAt: number = at) {
 		if (!B.on || c.mode === 'win' || c.winDue !== null) return;
+		// (its word's letters hop on its number's beats: the first of its lines, as the number's own win)
+		c.numberWinAt = numberAt;
 		c.winDue = at;
 		void loadBrawl('win');
 	}
@@ -703,9 +732,17 @@ export class Brawl {
 				mirror: c.mirror,
 				facing: c.facing,
 				...c.shown,
-				// the word as it stands on the stage (not a cached value)
-				wordAlpha: Math.round(c.word.alpha * 1000) / 1000,
-				wordVisible: c.word.visible && c.word.alpha > 0,
+				// the word as it stands on the stage (not a cached value): the candy word's whole alpha while it shows, else
+				// today's word's
+				wordLook: c.ww.root.visible ? 'candy' : c.word.visible && c.word.alpha > 0 ? 'today' : 'none',
+				wordAlpha: c.ww.root.visible ? Math.round(c.ww.root.alpha * 1000) / 1000 : c.word.visible ? Math.round(c.word.alpha * 1000) / 1000 : 0,
+				wordVisible: c.ww.root.visible || (c.word.visible && c.word.alpha > 0),
+				// never mirrored: the determinant of its world transform
+				wordMirrored: (() => {
+					const m = (c.ww.root.visible ? c.ww.root : c.word).worldTransform;
+					return m.a * m.d - m.b * m.c < 0;
+				})(),
+				candyWord: c.ww.last,
 				underSource: c.under.visible ? c.under.texture.source.uid : -1,
 				overSource: c.over.visible ? c.over.texture.source.uid : -1,
 				underVisible: c.under.visible,
@@ -721,6 +758,7 @@ export class Brawl {
 			wanted,
 			landing: { coverMs: timeAtFrame(L.coverFrame), cutMs: timeAtFrame(L.cutFrame), loopEntry: loopEntry() },
 			memory: brawlMemory(),
+			word: wildWordMemory(),
 		};
 	}
 }

@@ -2,6 +2,7 @@
 // WATCHES: apps/run_over_reindeer/src/game/road/{brawlCloud.ts,roadFeatures.ts,roadBoard.ts,seated.ts}, src/game/brawlClipSpec.ts;
 // WATCHES: ; __reindeer.brawl, __reindeer.brawlBook, __reindeer.brawlRoundEnd, __reindeer.crosshairStrike, __reindeer.grandmaWild,
 // WATCHES: ; __reindeer.roamStrike, __reindeer.column, __reindeer.roadBoard, __reindeer.clock, __reindeer.step, GRANDMA_BRAWL
+// WATCHES: apps/run_over_reindeer/src/game/{road/wildWord.ts,wildWordSpec.ts}; GRANDMA_BRAWL.word
 // THE BRAWL PROBE (the Grandma Wild's animated cloud, Corey 2026-11-19; constants GRANDMA_BRAWL, game/road/brawlCloud.ts).
 // From the running game with its board clock frozen and stepped one 60 Hz frame at a time (__reindeer.clock(0), step):
 //   strike     a Grandma car's strike ends at the car's rear (the clip's frame 1 has his feet there), for a car facing
@@ -16,6 +17,9 @@
 //   win        a line win through a Wild plays its beat once (a second line through it does not restart it), WILD fades
 //              to 30% while the head is up, and the beat ends back in the loop on its frame 1
 //   covered    a column growing over a Wild's reel: the Wild's cloud goes, nothing of it left
+//   word       (2026-11-20, treatment B "Candy Cane", game/road/wildWord.ts) the candy WILD is the word drawn, its letters
+//              drop in after the cover (one of them above its rest size), it is never mirrored (a mirrored cell too),
+//              its box stays inside the cell, and its letters hop in the win
 //   clear      a new spin (clearAll, as Skip to Result's boardHeld): every cloud goes, and with no book wanting a Grandma
 //              Wild every frame set is let go
 // Prints PASS / FAIL lines and a summary; with OUT=<dir> writes the per-frame tables (JSON).
@@ -71,8 +75,8 @@ async function boot(browser, S) {
 	// the frames a book with a Grandma Wild warms
 	await p.evaluate(() => window.__reindeer.brawlBook(true));
 	for (let i = 0; i < 80; i++) {
-		const s = await p.evaluate(() => window.__reindeer.brawl().sets);
-		if (s.loop && s.land && s.still && s.star) break;
+		const s = await p.evaluate(() => ({ ...window.__reindeer.brawl().sets, word: window.__reindeer.brawl().word.loaded }));
+		if (s.loop && s.land && s.still && s.star && s.word) break;
 		await sleep(250);
 	}
 	await sleep(500);
@@ -160,6 +164,16 @@ function judgeLanding(tag, cell, L, spec, rate = 1) {
 	check(gaps.length === 0, `${tag}: from the clip's entry every frame draws a clip (no gap)`, gaps.slice(0, 3).map((r) => r.f));
 	const before = withB.filter((r) => r.b.mode === 'land' && r.b.over === '' );
 	check(before.every((r) => r.b.wordAlpha === 0), `${tag}: WILD hidden before the car is covered`);
+	// THE CANDY WORD (treatment B)
+	const after = withB.filter((r) => r.b.wordVisible);
+	check(after.length > 0 && after.every((r) => r.b.wordLook === 'candy'), `${tag}: the word drawn is the candy WILD (${[...new Set(after.map((r) => r.b.wordLook))].join(',')})`);
+	check(withB.every((r) => !r.b.wordMirrored), `${tag}: the word is never mirrored (the cell ${first.b.mirror ? 'is' : 'is not'} mirrored)`);
+	const dropping = after.filter((r) => r.b.candyWord?.letters?.some((q) => q.sx > 1.05));
+	check(rate > 2 || dropping.length >= 2, `${tag}: its letters drop in after the cover (${dropping.length} frames with a letter above its rest size)`);
+	const wb = after[after.length - 1]?.b;
+	const bx = wb?.box;
+	const cw = wb?.candyWord?.box;
+	check(!!bx && !!cw && cw.x >= bx.x - 0.01 && cw.y >= bx.y - 0.01 && cw.x + cw.w <= bx.x + bx.w + 0.01 && cw.y + cw.h <= bx.y + bx.h + 0.01, `${tag}: the word's box inside the cell's (${JSON.stringify(cw)} in ${JSON.stringify(bx)})`);
 	const cut = withB.find((r) => r.b.under === 'loop');
 	const entry = spec.landing.loopEntry;
 	const i0 = Math.floor((entry - 1) / 2);
@@ -230,7 +244,8 @@ function judgeLanding(tag, cell, L, spec, rate = 1) {
 					const loops = s.memory.sets.filter((x) => x.set === 'loop');
 					const sources = new Set(cells.map((c) => c?.underSource));
 					check(loops.length === 1 && sources.size <= 2, `four: one shared set of loop frames (${loops.length} loop set, ${sources.size} sheet(s) drawn from)`);
-					check(cells.every((c) => c && c.sprites <= 7), `four: sprites per Wild (root children) ${cells.map((c) => c?.sprites).join(' ')}`);
+					// (8 since 2026-11-20: the candy word's own container, beside today's word kept as its stand-in)
+					check(cells.every((c) => c && c.sprites <= 8), `four: sprites per Wild (root children) ${cells.map((c) => c?.sprites).join(' ')}`);
 					tables.four = s;
 				}
 				if (want('win')) {
@@ -275,6 +290,8 @@ function judgeLanding(tag, cell, L, spec, rate = 1) {
 					const end = rows.findIndex((r, i) => i > 0 && rows[i - 1].mode === 'win' && r.mode === 'loop');
 					check(end > 0 && rows[end].underFrame === 0 && rows[end].underVisible, `win: back to the loop on its frame 1 (frame ${rows[end]?.underFrame})`);
 					check(win.length && win[0].overAlpha < 1 && win[0].underVisible, `win: it fades in over the loop (first alpha ${win[0]?.overAlpha})`);
+					const hop = Math.min(...rows.map((r) => Math.min(...(r.candyWord?.letters ?? []).map((q) => q.y), 0)));
+					check(hop < -6 && rows.every((r) => !r.wordMirrored), `win: the candy letters hop on the number's beats (highest ${hop} road px), never mirrored`);
 					tables.win = rows;
 					for (let i = 0; i < 40 && !(await p.evaluate(() => window.__wDone)); i++) await sleep(100);
 					await p.evaluate(() => window.__reindeer.roadBoard().clearWin());
