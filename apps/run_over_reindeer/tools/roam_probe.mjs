@@ -9,6 +9,8 @@
 // WATCHES: apps/run_over_reindeer/src/{game/road/superWheel.ts,game/bookEventHandlerMap.ts}; SUPER_WHEEL.roamBackMs, roamer, roam.away
 // WATCHES: ; data-skip, roam zone skip, roam.back, held, EXIT_STAND_MS, EXIT_PREFER_MS, __reindeer.wheel, __reindeer.fixtures, tools/wheel_probe_books.json
 // WATCHES: ; __reindeer.roamAway, __reindeer.roamBack, __reindeer.roadSounds
+// WATCHES: apps/run_over_reindeer/src/game/road/{chargeWindup.ts,roadFeatures.ts,roadSounds.ts}; ROAM.charge, REINDEER_SOUND.snort
+// WATCHES: ; __reindeer.crosshairStrike, __reindeer.hurry, roam().windup, roam().box, snapshot().charge, lockSnort, lockSnortQuiet
 // THE ROAM PROBE (the roaming reindeer, 2026-11-17; game/road/roam.ts, constants STRIKE.roam and ROAM, game/roamPaths.ts).
 // Since round 3 (Corey: "an allowed to walk area where it randomly chooses where to go") he roams an AREA. Per size
 // (1440x900 desktop, 844x390 phone held sideways, 390x844 upright phone; 1920x1080 desktop for the area checks only):
@@ -46,6 +48,12 @@
 //      (roamAway): his run takes the time it planned (a slow headless frame late at most), and the worst case there (from the screen's middle, worked out
 //      from its width) is within that 1250 too; away he stays away 7 s; roamBack: he walks in. SHOTS=<dir> saves a strip of stills from the emergence to
 //      the first free spin (the board's clock held for each).
+//   THE CHARGE WIND-UP (2026-11-20, Corey's "Slow Drag 1" and "B Snort at lock"; section `charge`, desktop 1440x900 and
+//      upright 390x844; chargeSize below has the list): every case on and off frame for frame (the strike does not move),
+//      the clip from the strike's first frame to the set off on its plan's frames, the hit on its hop, the head down only
+//      at Turbo 2 and in a slam stop's hurry, the snort once within 140 ms before the lock, the puff on the lock's frame,
+//      the snow only on drag frames before the set off, nothing left after he sets off or the board's cut, his picture
+//      inside his keep-out reach. ONLY=timing TIMING=<file> [SPOTS=<file>] writes the strike timing rows of any build.
 //   a hidden tab: nothing moves; no page errors anywhere
 //
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3015 [ONLY=desktop|sideways|upright]
@@ -62,6 +70,8 @@ const { chromium } = require('playwright');
 const APP = process.env.APP || 'http://localhost:3015';
 const OUT = process.env.OUT || '';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
+const TIMING = process.env.TIMING || '';
+const SPOTS = process.env.SPOTS || '';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const SIZES = [
@@ -1228,6 +1238,323 @@ async function wheelWide(browser) {
 	check(errs.length === 0, `${name}: no page errors`, errs.slice(0, 5));
 	await ctx.close();
 }
+// ---- THE CHARGE WIND-UP (2026-11-20, Corey's "Slow Drag 1" and "B Snort at lock"; game/road/chargeWindup.ts, constants
+// ROAM.charge, REINDEER_SOUND.snort.lockPeakMs; the rig's R3_GAME_SPEC.md section 9). `ONLY=charge` (or charge:desktop,
+// charge:upright). Each case is a posed board (crosshairStrike poseOnly) and his strike from a seeded spot, stepped one
+// frame at a time; each is run with the wind-up ON and OFF (ROAM.charge.on) and the two are compared frame for frame.
+// Checks: nothing of the strike moves (the crosshair's legs, the lock, his set off, the impact frame, and every frame of the
+// runner: phase, view, stride, feet); the clip starts on the strike's first frame and shows the frame its plan (worked
+// out again here from the crosshair's legs, the spec's rule) has due on every frame until the set off, none at or after
+// it; the hit (frame 9) lands on the chosen hop's frame (within one frame) or at 266.7 ms in the fallback, and always
+// before the set off; the slow drag at Regular and Turbo 1, the head down only at Turbo 2 and in a slam stop's hurry
+// running at the start (a hurry from the middle of it, a turbo change, change nothing); the snort starts on the first
+// frame within 140 real ms of the lock (the strike's first frame for one target), once, never with charge off, never on
+// a strike from off the screen; the breath puff only on the lock's frame, from the frame shown then (standing or running);
+// the kicked snow only on drag frames 10 to 15 and the kick (17) that start before the set off; nothing of the clip or
+// the effects is left when they are done or after the board is put up as it is (SKIP TO RESULT's and a resume's cut,
+// clearAll); his drawn picture on every wind-up frame lies inside the reach his keep-outs are tested with, and 300 seeded
+// spots with that reach meet no keep-out (the probe's own inside test). TIMING=<file> (with ONLY=timing) writes the
+// strike timing rows only (any build: the before and after proof), SPOTS=<file> reads that file's spots.
+const CHARGE_SIZES = ['desktop', 'upright'];
+const FRC = 1000 / 30;
+const THC = 8 * FRC;
+const CHARGE_CASES = [
+	{ id: 'regular', turbo: 0, cells: [1, 6, 11, 17], target: 11 },
+	{ id: 'regular5', turbo: 0, cells: [2, 5, 8, 13, 19], target: 8 },
+	{ id: 'regular30hz', turbo: 0, cells: [1, 6, 11, 17], target: 6, hz: 30 },
+	{ id: 'turbo1', turbo: 1, cells: [1, 6, 11, 17], target: 11 },
+	{ id: 'turbo2', turbo: 2, cells: [1, 6, 11, 17], target: 11, quick: true },
+	{ id: 'single', turbo: 0, cells: [9], target: 9 },
+	{ id: 'slam', turbo: 0, cells: [1, 6, 11, 17], target: 11, hurry: true, quick: true },
+	{ id: 'slamMid', turbo: 0, cells: [1, 6, 11, 17], target: 17, hurryAt: 8 },
+	{ id: 'turboMid', turbo: 0, cells: [1, 6, 11, 17], target: 1, turboAt: { i: 6, level: 2 } },
+	{ id: 'skip', turbo: 0, cells: [2, 5, 8, 13, 19], target: 13, hurryAt: 10, clearAfterImpact: true },
+	{ id: 'clearMid', turbo: 0, cells: [1, 6, 11, 17], target: 11, clearOnSnow: true },
+	{ id: 'offscreen', turbo: 0, cells: [1, 6, 11, 17], target: 11, offscreen: true },
+];
+
+const CHARGE_STRIKE = async (p, o) =>
+	p.evaluate(async (o) => {
+		const h = window.__reindeer;
+		const R = h.roadBoard();
+		const F = R.features;
+		const setHurry = async (lv) => {
+			if (h.hurry) h.hurry(lv);
+			else (await import('/src/game/stateGame.svelte.ts')).stateGame.hurryLevel = lv;
+		};
+		h.clock(0);
+		h.turbo(o.turbo);
+		await setHurry(0);
+		const tune = h.tune.roam && h.tune.roam.charge;
+		if (tune && o.on !== null) tune.on = o.on;
+		await h.crosshairStrike({ cells: o.cells, target: o.target, poseOnly: true });
+		if (o.offscreen) F.roam.leave();
+		else h.roamStandAt(o.spot.x, o.spot.y);
+		h.step(0.001, 1);
+		if (o.hurry) await setHurry(1);
+		F.sounds['snortAt'] = -Infinity;
+		h.roadSounds(true);
+		const step = 1000 / (o.hz || 60);
+		let done = false;
+		const pr = h.roamStrike(o.target, { first: true, last: false }).then(() => (done = true));
+		for (let i = 0; i < 100 && !F['runner']; i++) await new Promise((r) => setTimeout(r, 10));
+		const r0 = F['runner'];
+		const tS = F['clock'];
+		const xh = F['xh'];
+		const plan = xh ? { lockAt: xh.plan.lockAt - tS, turnAt: xh.plan.turnAt - tS, legs: xh.plan.legs.map((l) => ({ kind: l.kind, t0: l.t0 - tS, t1: Number.isFinite(l.t1) ? l.t1 - tS : null, cell: l.kind === 'dwell' ? l.cell : l.to })) } : null;
+		const s0 = F.snapshot();
+		const at0 = { state: s0.roam.state, clip: s0.roam.clip, frame: s0.roam.frame, visible: s0.roam.visible, windup: s0.roam.windup ? { ...s0.roam.windup, at: s0.roam.windup.at.map((t) => t - tS), hop: s0.roam.windup.hop === null ? null : s0.roam.windup.hop - tS, hitAt: s0.roam.windup.hitAt === null ? null : s0.roam.windup.hitAt - tS, setOff: s0.roam.windup.setOff - tS } : null, x: s0.roam.x, y: s0.roam.y, facing: s0.roam.facing, scale: s0.roam.scale };
+		const rows = [];
+		let impactAt = null;
+		let after = 0;
+		let cleared = null;
+		for (let i = 0; i < 3000; i++) {
+			if (o.hurryAt === i) await setHurry(1);
+			if (o.turboAt && o.turboAt.i === i) h.turbo(o.turboAt.level);
+			if (o.clearOnSnow && cleared === null && rows.length && rows[rows.length - 1].fx && rows[rows.length - 1].fx.snow > 0) {
+				F.clearAll();
+				cleared = i;
+			}
+			if (o.clearAfterImpact && cleared === null && impactAt !== null) {
+				F.clearAll();
+				cleared = i;
+			}
+			h.step(step, 1);
+			await Promise.resolve();
+			const s = F.snapshot();
+			const r = s.runner;
+			const ro = s.roam;
+			const rr = F['runner'];
+			// his INK as drawn, road px: the sprite's trimmed picture (getBounds gives the clip's whole box)
+			const sp = F.roam.sprite;
+			const tx = sp.texture;
+			const ink = sp.visible && tx.trim ? (() => {
+				const ax = sp.anchor.x * tx.orig.width;
+				const ay = sp.anchor.y * tx.orig.height;
+				const xa = sp.x + (tx.trim.x - ax) * sp.scale.x;
+				const xb = sp.x + (tx.trim.x + tx.trim.width - ax) * sp.scale.x;
+				return [Math.min(xa, xb), sp.y + (tx.trim.y - ay) * sp.scale.y, Math.max(xa, xb), sp.y + (tx.trim.y + tx.trim.height - ay) * sp.scale.y];
+			})() : null;
+			rows.push({ i, c: Math.round((F['clock'] - tS) * 1000) / 1000, rate: F.rate, roam: { state: ro.state, clip: ro.clip, frame: ro.frame, visible: ro.visible, x: ro.x, y: ro.y, drawn: ro.drawn ? ro.drawn.sprite : null, ink, windup: !!ro.windup }, run: r ? { phase: r.phase, view: r.view, stride: r.stride, x: r.x, y: r.y, vis: !!(rr && rr.sprite.visible), alpha: r.alpha, scale: r.scale, mirrored: r.mirrored } : null, fx: s.charge ? s.charge.up : null, xh: F['xh'] ? F['xh'].state : null });
+			if (r && r.phase === 'impact' && impactAt === null) impactAt = Math.round((F['clock'] - tS) * 1000) / 1000;
+			if (impactAt !== null && (after += step * F.rate) > (o.afterMs ?? 760)) break;
+		}
+		for (let i = 0; i < 40 && !done; i++) {
+			h.step(50, 1);
+			await new Promise((r) => setTimeout(r, 5));
+		}
+		const sounds = h.roadSounds().map((e) => ({ what: e.what, kind: e.kind, detail: e.detail, frame: e.frame, clock: Math.round((e.clock - tS) * 10) / 10 }));
+		const end = F.snapshot();
+		await setHurry(0);
+		h.turbo(0);
+		if (tune) tune.on = true;
+		const ch = end.charge ? { snow: end.charge.snow.map((q) => ({ ...q, t: Math.round((q.t - tS) * 1000) / 1000 })), puff: end.charge.puff ? { ...end.charge.puff, t: Math.round((end.charge.puff.t - tS) * 1000) / 1000 } : null, up: end.charge.up } : null;
+		return { tS, t0: r0 ? r0.t0 - tS : null, roamStrike: r0 ? r0.roam : null, plan, impactAt, rows, at0, sounds, cleared, endWindup: end.roam.windup, ch, step, view: h.roamView(), reach: end.roam.reach, box: end.roam.box };
+	}, o);
+
+/** the spec's plan, worked out here from the crosshair's legs (R3_GAME_SPEC.md 3 and 4): frame i's start, ms from the strike's start */
+const specPlan = (legs, quick) => {
+	if (quick) return { clip: 'chargeDown', k: 1, hop: null, at: [0, 1, 2, 3].map((i) => i * FRC) };
+	const hops = (legs || []).filter((l) => l.kind === 'glide').map((l) => l.t1).sort((a, b) => a - b);
+	const h = hops.find((d) => d >= 0.85 * THC - 1e-6 && d <= 1.45 * THC + 1e-6) ?? null;
+	const k = h === null ? 1 : h / THC;
+	const at = Array.from({ length: 21 }, (_, j) => (j + 1 <= 9 ? j * FRC * k : THC * k + (j + 1 - 9) * FRC));
+	return { clip: 'charge', k, hop: h, at };
+};
+const frameDue = (at, c) => {
+	let f = 1;
+	for (let i = 1; i < at.length; i++) if (c >= at[i] - 1e-3) f = i + 1;
+	return f;
+};
+/** the frames due on each row, the hit (frame 9 of the slow drag) never skipped: drawn on the first frame its time has
+ *  come (a slam stop's hurry steps the board clock 50 ms a frame) */
+const framesDue = (rows, want) => {
+	let hit = false;
+	return rows.map((r) => {
+		let f = frameDue(want.at, r.c);
+		if (want.clip === 'charge' && !hit && f >= 9) {
+			f = 9;
+			hit = true;
+		}
+		return f;
+	});
+};
+/** a snort asked (not the fade of one still sounding, which a strike's alert does) */
+const snortPlay = (e) => e.kind === 'sound' && e.what === 'sfx_reindeer_idle_snort' && !/^stop/.test(e.detail || '');
+/** (rounded to a millionth of a ms: the times are read relative to the strike's start, and the board clock's size at the
+ *  start leaves differences of 1e-12 ms in the subtraction) */
+const r6 = (v) => (typeof v === 'number' ? Math.round(v * 1e6) / 1e6 : v);
+const timingOf = (x) => JSON.parse(JSON.stringify(timingRaw(x), (k, v) => r6(v)));
+const timingRaw = (x) => ({ lockAt: x.plan?.lockAt ?? null, turnAt: x.plan?.turnAt ?? null, legs: x.plan?.legs ?? null, t0: x.t0, impactAt: x.impactAt, runner: x.rows.map((r) => (r.run ? `${r.run.phase}|${r.run.view}|${r.run.stride}|${r.run.x}|${r.run.y}|${r.run.vis ? 1 : 0}|${r.run.mirrored ? 1 : 0}` : '-')) });
+
+async function chargeSize(browser, S, spotsFrom) {
+	const name = `charge ${S.name} ${S.vp.width}x${S.vp.height}`;
+	const out = { name, cases: {} };
+	(report.charge ??= {})[S.name] = out;
+	const { ctx, p, errs, ready } = await boot(browser, S);
+	check(ready, `${name}: the game and the roaming reindeer's frames are ready`);
+	if (!ready) return void (await ctx.close());
+	const H = (fn, arg) => p.evaluate(fn, arg);
+	try {
+		// the charge sheets come after the roam's: wait for them (the TIMING mode runs on any build)
+		const timing = ONLY.includes('timing');
+		if (!timing) {
+			let mem = null;
+			for (let i = 0; i < 60; i++) {
+				mem = await H(() => window.__reindeer.roamMemory());
+				if (mem.charge?.loaded) break;
+				await sleep(250);
+			}
+			out.memory = mem;
+			check(!!mem?.charge?.loaded, `${name}: the charge sheets are in after the roam's (${mem?.charge?.sheets?.join(', ')} = ${mem?.charge?.mb} MB${mem?.charge?.mipmapped ? `, ${mem.charge.mbWithMips} MB with mips` : ''})`, mem);
+		}
+		// (he walks in first: the picks start from where he is)
+		for (let i = 0; i < 60; i++) {
+			const st = await H(() => window.__reindeer.roam().state);
+			if (st !== 'enter' && st !== 'none') break;
+			await sleep(500);
+		}
+		const zones = await H(() => window.__reindeer.roamZones());
+		const geo = await H(() => ({ view: window.__reindeer.roamView(), roam: window.__reindeer.roam(), vp: { width: innerWidth, height: innerHeight } }));
+		const picks = await H(() => window.__reindeer.roamPicks(300, 0, 7171));
+		let spots = picks.filter((q) => q.pass >= 0);
+		if (spotsFrom && spotsFrom[S.name]) spots = spotsFrom[S.name];
+		out.spots = spots.slice(0, CHARGE_CASES.length).map((q) => ({ x: q.x, y: q.y }));
+		if (!timing) {
+			// his reach: the four roam clips by their boxes (the rig's manifests), the two charge clips by their solid ink
+			// (read from the art by tools/build_roam.py ink_reach: 1076 frame px up, the bulbs' glow to 1148)
+			const K = 0.18465;
+			const B = geo.roam.box;
+			const old = ['walk', 'start', 'stop', 'sniff'].map((c) => B[c]);
+			const up = Math.max(...old.map((b) => b.anchorY * b.height), 1076 * K);
+			check(!!B.charge && !!B.chargeDown && Math.abs(geo.roam.reach.up - up) < 1e-6 && Math.abs(geo.roam.reach.glowUp - (1148 * K - up)) < 1e-6, `${name}: his reach counts the charge clips' solid ink (up ${r1(geo.roam.reach.up)} road px = ${r1(geo.roam.reach.up / K)} frame px; their bulbs' glow up to ${r1(geo.roam.reach.glowUp)} road px past it; side ${r1(geo.roam.reach.side)})`, { reach: geo.roam.reach, box: B });
+			const bad = [];
+			for (const q of picks) if (q.pass >= 0) {
+				const hz = hitsAt(geo, zones, q.x, q.y);
+				if (hz.length) bad.push(`(${r1(q.x)}, ${r1(q.y)}) covers ${hz.join(', ')}`);
+			}
+			check(bad.length === 0 && spots.length >= 100, `${name}: ${picks.filter((q) => q.pass >= 0).length} seeded spots with that reach: his body and shadow meet no keep-out zone, tunnel mouth (polygon inside test) or the screen's edge`, bad.slice(0, 6));
+		}
+		const timingRows = {};
+		let si = 0;
+		for (const C of CHARGE_CASES) {
+			const spot = spots[si++ % spots.length];
+			const base = { ...C, spot, hz: C.hz || 60 };
+			if (timing) {
+				const T = await CHARGE_STRIKE(p, { ...base, on: null });
+				timingRows[C.id] = timingOf(T);
+				continue;
+			}
+			const A = await CHARGE_STRIKE(p, { ...base, on: true });
+			const B = await CHARGE_STRIKE(p, { ...base, on: false });
+			const tag = `${name} ${C.id}`;
+			const ta = timingOf(A);
+			const tb = timingOf(B);
+			timingRows[C.id] = ta;
+			const sameRun = ta.runner.length === tb.runner.length && ta.runner.every((v, i) => v === tb.runner[i]);
+			check(JSON.stringify(ta.legs) === JSON.stringify(tb.legs) && ta.lockAt === tb.lockAt && ta.turnAt === tb.turnAt && ta.t0 === tb.t0 && ta.impactAt === tb.impactAt && sameRun, `${tag}: nothing of the strike moves with the wind-up (hops ${(ta.legs || []).filter((l) => l.kind === 'glide').length}, lock ${r1(ta.lockAt)}, set off ${r1(ta.t0)}, turn ${r1(ta.turnAt)}, impact ${r1(ta.impactAt)} ms; ${ta.runner.length} runner frames identical)`, { a: { ...ta, runner: ta.runner.length }, b: { ...tb, runner: tb.runner.length }, firstDiff: ta.runner.findIndex((v, i) => v !== tb.runner[i]) });
+			const cs = { tS: A.tS, t0: A.t0, lockAt: A.plan?.lockAt ?? null, impactAt: A.impactAt, windup: A.at0.windup ? { clip: A.at0.windup.clip, k: A.at0.windup.k, hop: A.at0.windup.hop, hitAt: A.at0.windup.hitAt } : null };
+			out.cases[C.id] = cs;
+			const lockSnorts = A.sounds.filter((e) => e.kind === 'moment' && (e.what === 'lockSnort' || e.what === 'lockSnortQuiet'));
+			if (C.offscreen) {
+				check(A.roamStrike === false && !A.at0.windup && A.rows.every((r) => !r.roam.windup && !(r.fx && r.fx.shown)) && !(A.ch && (A.ch.snow.length || A.ch.puff)) && lockSnorts.length === 0 && !A.sounds.some(snortPlay), `${tag}: a strike from off the screen has no wind-up, no effect sprite and no snort (as today)`, { roam: A.roamStrike, windupRows: A.rows.filter((r) => r.roam.windup).length, fxRows: A.rows.filter((r) => r.fx && r.fx.shown).length, ch: A.ch, lockSnorts, snorts: A.sounds.filter((e) => /snort/i.test(e.what)) });
+				continue;
+			}
+			check(A.roamStrike === true, `${tag}: the strike is his`);
+			const W = A.at0.windup;
+			const quick = !!C.quick;
+			const want = specPlan(A.plan?.legs, quick);
+			check(!!W && W.clip === want.clip && Math.abs(W.k - want.k) < 1e-3 && W.at.every((t, i) => Math.abs(t - want.at[i]) < 0.01), `${tag}: the plan is the spec's from the crosshair's legs (${W?.clip}, k ${W?.k}${want.hop !== null ? `, the hit on the hop at ${r1(want.hop)} ms` : ', no hop in reach: its own pace'})`, { game: W, spec: want });
+			check(A.at0.clip === want.clip && A.at0.frame === 1 && A.at0.visible && A.at0.state === 'alert', `${tag}: at the strike's start he shows ${want.clip} frame 1 (the stand)`, A.at0);
+			const before = A.rows.filter((r) => r.c < A.t0 - 1e-6);
+			const from = A.rows.filter((r) => r.c >= A.t0 - 1e-6);
+			const dues = framesDue(before, want);
+			const wrong = before.filter((r, i) => !(r.roam.state === 'alert' && r.roam.visible && r.roam.clip === want.clip && r.roam.frame === dues[i]));
+			check(before.length > 0 && wrong.length === 0, `${tag}: from the strike's first frame to the set off (${before.length} frames) every frame shows the ${want.clip} frame its plan has due (the hit never skipped)`, wrong.slice(0, 3).map((r) => ({ c: r.c, roam: r.roam, due: dues[before.indexOf(r)] })));
+			check(from.length > 0 && from.every((r) => !r.roam.visible && r.roam.state === 'none' && !r.roam.windup), `${tag}: no wind-up frame at or after the set off (${r1(A.t0)} ms); the run cuts in there`, from.filter((r) => r.roam.visible).slice(0, 2));
+			const cut = from[0];
+			// (in a slam stop's hurry the board clock can step past his short side run to the turn: S, as before the wind-up)
+			check(!!cut && !!cut.run && cut.run.vis && (cut.run.view === 'R' || (cut.rate > 2 && cut.run.view === 'S')), `${tag}: on the set off's frame the runner shows (view ${cut?.run?.view}, stride ${cut?.run?.stride}); he set off on ${want.clip} frame ${before.length ? before[before.length - 1].roam.frame : '-'}`);
+			const stepB = (r) => A.step * r.rate;
+			if (!quick) {
+				const hitAt = want.at[8];
+				const r9 = A.rows.find((r) => r.roam.visible && r.roam.clip === 'charge' && r.roam.frame >= 9);
+				check(hitAt < A.t0 && !!r9 && r9.roam.frame === 9 && r9.c >= hitAt - 1e-3 && r9.c - hitAt < stepB(r9) + 1e-3, `${tag}: the hit (frame 9) shows within one frame of ${want.hop !== null ? 'its hop' : 'its own time'} (${r1(hitAt)} ms; on the frame at ${r9 ? r1(r9.c) : '-'} ms), before the set off at ${r1(A.t0)}`, { hitAt, r9, t0: A.t0 });
+				if (want.hop !== null) {
+					const hop = A.sounds.find((e) => e.kind === 'moment' && e.what === 'hop' && Math.abs(e.clock - want.hop) < stepB(r9 ?? { rate: 1 }) + 0.2);
+					check(!!hop && !!r9 && Math.abs(hop.clock - r9.c) < 0.2, `${tag}: the hit is on the hop sound's own frame (hop at ${hop ? r1(hop.clock) : '-'}, hit at ${r9 ? r1(r9.c) : '-'} ms)`);
+				}
+			}
+			// the snort at the lock
+			if (A.plan && !C.clearOnSnow) {
+				const lockMark = A.sounds.find((e) => e.kind === 'moment' && e.what === 'lock');
+				const snort = lockSnorts[0];
+				const row = snort ? A.rows.find((r) => Math.abs(r.c - snort.clock) < 0.2) : null;
+				const left = row ? (A.plan.lockAt - row.c) / row.rate : null;
+				const prev = row ? A.rows[A.rows.indexOf(row) - 1] : null;
+				const leftPrev = prev ? (A.plan.lockAt - prev.c) / prev.rate : Infinity;
+				// (the strike's first frame can be a ticker frame of the frozen clock before the first step: at 0 ms)
+				const firstOk = A.plan.lockAt <= 1e-6 ? !!snort && (row === A.rows[0] || Math.abs(snort.clock) < 0.2) : left !== null && left <= 140 + 1e-3 && leftPrev > 140 - 1e-3;
+				const played = A.sounds.filter(snortPlay);
+				check(lockSnorts.length === 1 && snort.what === 'lockSnort' && firstOk && played.length === 1 && /^lock:/.test(played[0].detail || '') && Math.abs(played[0].clock - snort.clock) < 0.2, `${tag}: the snort once, on the first frame within 140 real ms of the lock (${left === null ? '-' : r1(left)} ms before it${A.plan.lockAt <= 1e-6 ? ': the lock is the start, its first frame' : ''})`, { lockSnorts, played, lockAt: A.plan.lockAt, row, leftPrev });
+				check(!B.sounds.some((e) => snortPlay(e) || e.what === 'lockSnort'), `${tag}: with the wind-up off, no snort (as today)`, B.sounds.filter((e) => /snort/i.test(e.what)));
+				const P = A.ch?.puff;
+				const lockRow = lockMark ? A.rows.find((r) => Math.abs(r.c - lockMark.clock) < 0.2) : null;
+				check(!!P && !!lockMark && Math.abs(P.t - A.plan.lockAt) < 0.01 && P.running === (A.plan.lockAt >= A.t0 - 1e-6) && ((!!lockRow && lockRow.fx.puff > 0) || (Math.abs(lockMark.clock) < 0.2 && A.rows[0].fx.puff > 0)), `${tag}: the breath puff from the lock's moment (${r1(A.plan.lockAt)} ms; shown from its frame at ${lockMark ? r1(lockMark.clock) : '-'}), from the ${P?.running ? `running stride ${P.stride}'s` : `${P?.clip} frame ${P?.frame}'s`} nose`, { P, lockMark, t0: A.t0, lockRow });
+				const early = A.rows.filter((r) => r.fx && r.fx.puff > 0 && lockMark && r.c < lockMark.clock - 0.2);
+				check(early.length === 0, `${tag}: no puff before the lock`, early.slice(0, 2));
+			}
+			// the kicked snow
+			const snow = A.ch?.snow ?? [];
+			if (quick) check(snow.length === 0 && A.rows.every((r) => !r.fx || r.fx.snow === 0), `${tag}: no kicked snow with the head down only`, snow);
+			else {
+				const due = [10, 11, 12, 13, 14, 15, 17].filter((f) => want.at[f - 1] < A.t0 - 1e-6);
+				const okSnow = snow.length === due.length && snow.every((q, i) => q.frame === due[i] && Math.abs(q.t - want.at[q.frame - 1]) < 0.01 && q.t < A.t0 && q.n === (q.frame === 17 ? 8 : 2));
+				check(C.clearOnSnow ? snow.every((q) => q.t < A.t0) : okSnow, `${tag}: kicked snow only on the drag frames and the kick that start before the set off (${snow.map((q) => `${q.frame}:${q.n}`).join(' ') || 'none'}; due ${due.join(' ') || 'none'})`, { snow, due, t0: A.t0 });
+				const firstSnow = snow.length ? snow[0].t : Infinity;
+				check(A.rows.every((r) => !r.fx || r.fx.snow === 0 || r.c >= firstSnow - 1e-3), `${tag}: no speck before its frame`);
+			}
+			// nothing left
+			const last = A.rows[A.rows.length - 1];
+			check(!A.endWindup && last.fx && last.fx.shown === 0 && !last.fx.visible && last.fx.pending === 0, `${tag}: nothing of the wind-up is left at the end (${r1(last.c)} ms: ${JSON.stringify(last.fx)})`);
+			if (A.cleared !== null) {
+				const afterClear = A.rows.filter((r) => r.i >= A.cleared);
+				check(afterClear.length > 0 && afterClear.every((r) => r.fx && r.fx.shown === 0 && r.fx.snow === 0 && r.fx.pending === 0 && r.fx.puff === 0), `${tag}: the board put up as it is (clearAll, the cut of SKIP TO RESULT and a resume) leaves no effect sprite from that frame on`, afterClear.filter((r) => r.fx && r.fx.shown).slice(0, 2));
+			}
+			if (C.hurryAt !== undefined || C.turboAt) check(W.clip === 'charge' && A.rows.filter((r) => r.roam.visible).every((r) => r.roam.clip === 'charge'), `${tag}: a ${C.turboAt ? 'turbo change' : 'slam stop'} during the wind-up keeps the slow drag (it only speeds the board clock)`);
+			// his drawn ink inside his reach (his keep-outs' box) on every wind-up frame, road px: the solid ink is the reach,
+			// the bulbs' soft glow may lie up to reach.glowUp over its top (both read from the art by tools/build_roam.py)
+			const sc = A.at0.scale;
+			const outInk = before.filter((r) => {
+				const q = r.roam.ink;
+				const top = r.roam.y - (A.reach.up + (A.reach.glowUp || 0)) * sc;
+				// (the hooves' ink reaches 4 frame px under the anchor, as every clip's does: a road px allowed there)
+				return !q || q[1] < top - 0.5 || q[0] < r.roam.x - A.reach.side * sc - 0.5 || q[2] > r.roam.x + A.reach.side * sc + 0.5 || q[3] > r.roam.y + 1;
+			});
+			const over = Math.max(0, ...before.filter((r) => r.roam.ink).map((r) => (r.roam.y - A.reach.up * sc - r.roam.ink[1]) * A.view.k));
+			check(outInk.length === 0, `${tag}: on every wind-up frame his ink lies inside the reach his keep-outs are tested with (the bulbs' glow over its top by ${r1(over)} CSS px at most, ${r1((A.reach.glowUp || 0) * sc * A.view.k)} allowed)`, outInk.slice(0, 2).map((r) => ({ c: r.c, ink: r.roam.ink, x: r.roam.x, y: r.roam.y, reach: A.reach, sc })));
+			const kick = want.at[16];
+			console.log(`  INFO ${tag}: ${want.clip}, k ${r1(want.k * 1000) / 1000}${want.hop !== null ? `, hit on the hop at ${r1(want.hop)}` : quick ? '' : ', hit at its own 266.7'} ms; lock ${A.plan ? r1(A.plan.lockAt) : '-'}, set off ${r1(A.t0)}, impact ${r1(A.impactAt)} ms (board); cut on frame ${before.length ? before[before.length - 1].roam.frame : '-'}${!quick ? `; kick ${kick < A.t0 ? 'shown' : 'cut'}` : ''}; snort ${lockSnorts.map((e) => e.what).join(',') || 'none'}`);
+		}
+		out.timing = timingRows;
+		if (TIMING) {
+			const all = (() => {
+				try {
+					return JSON.parse(readFileSync(TIMING, 'utf8'));
+				} catch {
+					return {};
+				}
+			})();
+			all[S.name] = { rows: timingRows, spots: out.spots };
+			writeFileSync(TIMING, JSON.stringify(all, null, 1));
+		}
+	} catch (e) {
+		check(false, `${name}: ran without throwing`, String(e && e.stack ? e.stack : e).slice(0, 800));
+	}
+	check(errs.length === 0, `${name}: no page errors`, errs.slice(0, 5));
+	await ctx.close();
+}
+
 const ROAM_BACK_WAIT = 7000;
 
 const main = async () => {
@@ -1243,6 +1570,12 @@ const main = async () => {
 			await wheelSize(browser, S);
 		}
 		if (!ONLY.length || ONLY.includes('wheel') || ONLY.includes('wheel:wide')) await wheelWide(browser);
+		// THE CHARGE WIND-UP (ONLY=charge, charge:<size>; ONLY=timing with TIMING=<file>: the timing rows only, any build)
+		const spotsFrom = SPOTS ? Object.fromEntries(Object.entries(JSON.parse(readFileSync(SPOTS, 'utf8'))).map(([k, v]) => [k, v.spots])) : null;
+		for (const S of SIZES.filter((s) => CHARGE_SIZES.includes(s.name))) {
+			const want = !ONLY.length || ONLY.includes('charge') || ONLY.includes(`charge:${S.name}`) || ONLY.includes('timing') || ONLY.includes(`timing:${S.name}`);
+			if (want) await chargeSize(browser, S, spotsFrom);
+		}
 	} finally {
 		await browser.close();
 	}

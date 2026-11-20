@@ -156,6 +156,9 @@
 	// the target crosshair (constants CROSSHAIR): nothing of it shows under SKIP TO RESULT. Its beats (hop, drop, lock,
 	// morph) are voiced by the road's own sounds since round 2 (2026-11-15): RoadSounds.crosshair.
 	road.features.crosshairOff = () => stateGame.skipping;
+	// THE ROAMING REINDEER'S CHARGE WIND-UP (constants ROAM.charge): at Turbo 2, or when a slam stop's hurry is already
+	// running at his strike's start, the head goes down only
+	road.features.windupQuick = () => stateGame.turboLevel === 2 || stateGame.hurryLevel > 0;
 	road.features.onCrosshair = (beat, cell) => road.features.sounds.crosshair(beat, cell);
 	parent.addToParent(road.root);
 
@@ -1219,6 +1222,9 @@
 			skip: (on: boolean) => (stateGame.skipping = !!on),
 			/** a slam stop's hurry now (0 = none), and the free spin under way (1-based; 0 outside a bonus round) */
 			hurryLevel: () => stateGame.hurryLevel,
+			/** a slam stop's hurry by hand (the roam probe's charge section: the head down only when it runs at a strike's
+			 *  start; a hurry from the middle of one only speeds it). 0 ends it. */
+			hurry: (level: 0 | 1 | 2) => (stateGame.hurryLevel = level),
 			/** a book amount in the play's currency units, as the HTML cards showed it (the LED probe's Total Win check) */
 			bookAmount: (a: number) => bookEventAmountToNormalisedAmount(a),
 			freeSpinNow: () => (stateGame.gameType === 'freegame' ? stateGame.spinsPlayed + 1 : 0),
