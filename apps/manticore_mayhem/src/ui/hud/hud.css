@@ -985,41 +985,6 @@
 	stroke-linecap: butt;
 	opacity: 0.85;
 }
-/* THE COMET (round 6, motion C "Flip"): while a round plays, three arcs at 1, .45 and .18 a short way apart run the
-   ring (a fading tail). Its own svg, so the turn is one transform on one box; it fades in and out (opacity) and keeps
-   turning while it fades (HudSpin keeps .turn a moment past the round) */
-.hudp .spin .comet {
-	position: absolute;
-	left: 2px;
-	top: 2px;
-	width: calc(100% - 4px);
-	height: calc(100% - 4px);
-	transform: rotate(-90deg);
-	overflow: visible;
-	pointer-events: none;
-	opacity: 0;
-	transition: opacity 0.2s;
-}
-.hudp .spin .comet.on {
-	opacity: 1;
-}
-.hudp .spin .comet.turn {
-	animation: hud-rot 1s linear infinite;
-}
-.hudp .spin .comet .arc {
-	stroke-dasharray: 30 289.03;
-}
-.hudp .spin .comet .a2 {
-	opacity: 0.45;
-}
-.hudp .spin .comet .a3 {
-	opacity: 0.18;
-}
-/* the free-spins ring moves smoothly by a short slider arc that turns (a transform) out from under the arc's end, or
-   back under it (HudSpin) */
-.hudp .spin .ring.slide.go {
-	transition: transform 0.45s cubic-bezier(0.3, 0.8, 0.3, 1);
-}
 /* the press: one soft ring opens out of the rim (at the press only; nothing flashes or pops when the round ends) */
 .hudp .spin .halo {
 	position: absolute;
@@ -1053,60 +1018,6 @@
 	height: calc(var(--d) * 0.17);
 	margin-left: calc(var(--d) * 0.02);
 	margin-bottom: calc(var(--d) * 0.03);
-}
-/* PLAY AND STOP (motion C "Flip", flat 2D): the play triangle folds shut to a line (scaleY 1 to 0, 150 ms ease-in),
-   then the stop square opens out of the line (scaleY 0 to 1, 210 ms with a small overshoot); the reverse when the
-   round ends. Stop pressed: the glyph dims and shrinks until the round ends. */
-.hudp .spin .gy {
-	position: relative;
-	display: block;
-	width: calc(var(--d) * 0.42);
-	height: calc(var(--d) * 0.42);
-	transition: opacity 0.12s, transform 0.12s;
-}
-.hudp .spin .gy .f1,
-.hudp .spin .gy .f2 {
-	position: absolute;
-	left: 0;
-	top: 0;
-	width: 100%;
-	height: 100%;
-	display: grid;
-	place-items: center;
-}
-.hudp .spin .gy .pl {
-	width: 86%;
-	height: 86%;
-	margin-left: calc(var(--d) * 0.04);
-}
-.hudp .spin .gy .sq {
-	display: block;
-	width: 56%;
-	height: 56%;
-	border-radius: 11%;
-	background: rgb(var(--hud-ink-rgb));
-}
-.hudp .spin .f1 {
-	transform: scaleY(1);
-	transition: transform 0.21s cubic-bezier(0.25, 1.45, 0.5, 1) 0.15s;
-}
-.hudp .spin .f2 {
-	transform: scaleY(0);
-	transition: transform 0.15s cubic-bezier(0.55, 0, 0.9, 0.5);
-}
-.hudp .spin[data-st='run'] .f1,
-.hudp .spin[data-st='halt'] .f1 {
-	transform: scaleY(0);
-	transition: transform 0.15s cubic-bezier(0.55, 0, 0.9, 0.5);
-}
-.hudp .spin[data-st='run'] .f2,
-.hudp .spin[data-st='halt'] .f2 {
-	transform: scaleY(1);
-	transition: transform 0.21s cubic-bezier(0.25, 1.45, 0.5, 1) 0.15s;
-}
-.hudp .spin[data-st='halt'] .gy {
-	opacity: 0.5;
-	transform: scale(0.84);
 }
 .hudp .spin .sqs {
 	width: calc(var(--d) * 0.1);
@@ -1178,9 +1089,6 @@
 		border-color: rgb(var(--hud-accent-hi-rgb));
 		box-shadow: 0 10px 22px rgba(var(--hud-shadow-rgb), 0.55), 0 0 0 5px rgba(var(--hud-accent-rgb), 0.14), 0 0 28px rgba(var(--hud-accent-rgb), 0.42), inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.6), inset 0 0 22px rgba(var(--hud-accent-rgb), 0.28);
 	}
-	.hudp .spin:hover:not(:disabled) .gy {
-		transform: scale(1.07);
-	}
 }
 .hudp .spin:active:not(:disabled) {
 	transform: scale(0.95);
@@ -1196,8 +1104,7 @@
 .hudp .spin:disabled {
 	cursor: default;
 }
-.hudp .spin:disabled:not([data-st='halt']) .pl,
-.hudp .spin:disabled:not([data-st='halt']) .sq {
+.hudp .spin:disabled:not([data-st='halt']) .pl {
 	opacity: 0.3;
 }
 .hudp .spin.m-feature:disabled,
@@ -1209,6 +1116,270 @@
 	border-radius: 50%;
 	pointer-events: none;
 }
+/* THE FACE: concept G2 "Lane Ring" (ui/hud/spinRing.ts draws it, HudSpin turns it; Corey's pick from the spin symbols
+   round 2 mock, 2026-11-20, whose CSS this is). A stack of layers over the key's whole inside: the free-spins fill, the
+   ring (one SVG under three transform-only wrappers: .rh the hover quarter turn and the breath, .rw the idle hop and the
+   wind-up, .rr the loop and the brake), the stop square, the win sparks. Transform and opacity only. */
+.hudp .spin .fxs,
+.hudp .spin .fx,
+.hudp .spin .fx > svg,
+.hudp .spin .rb,
+.hudp .spin .rh,
+.hudp .spin .rw,
+.hudp .spin .rr,
+.hudp .spin .rr svg {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+.hudp .spin .fx svg {
+	width: 100%;
+	height: 100%;
+	display: block;
+	overflow: visible;
+}
+.hudp .spin .rr {
+	will-change: transform;
+}
+.hudp .spin .in {
+	z-index: 2;
+}
+/* the motion trails, while a round plays at Turbo (one) and Super Turbo (two) */
+.hudp .spin .t1,
+.hudp .spin .t2 {
+	display: none;
+}
+.hudp .spin[data-run='1']:is([data-tb='1'], [data-tb='2']) .t1,
+.hudp .spin[data-run='1'][data-tb='2'] .t2 {
+	display: inline;
+}
+/* at rest: a slow breath (3.5 % in scale, 3.4 s) and a hop forward every 2.8 s (nine hops of 40 degrees make one turn,
+   so the loop never jumps). The hop only pauses outside rest, so the ring keeps its angle through a round */
+.hudp .spin .rh {
+	transition: rotate 0.55s cubic-bezier(0.3, 1.6, 0.45, 1);
+}
+.hudp .spin:is([data-st='idle'], [data-st='loaded'], [data-st='armed']):not(:disabled) .rh {
+	animation: hud-ring-breathe 3.4s ease-in-out infinite;
+}
+.hudp .spin .rw {
+	animation: hud-ring-hop 25.2s linear infinite;
+	animation-play-state: paused;
+}
+.hudp .spin:is([data-st='idle'], [data-st='loaded'], [data-st='armed']):not(:disabled) .rw {
+	animation-play-state: running;
+}
+/* hover: a quarter turn with an overshoot (the rotate property, so it adds to the other turns) */
+@media (hover: hover) and (pointer: fine) {
+	.hudp .spin:hover:not(:disabled) .rh {
+		rotate: 90deg;
+		animation-play-state: paused;
+	}
+}
+/* the stop (the mock's J1): the square pops in at the center while the stop is available; a stop press dims it */
+.hudp .spin .cg {
+	opacity: 0;
+	transform: scale(0.2) rotate(-90deg);
+	transition:
+		transform 0.14s ease-in,
+		opacity 0.1s;
+}
+.hudp .spin:is([data-st='run'], [data-st='halt']) .cg {
+	opacity: 1;
+	transform: none;
+	transition:
+		transform 0.38s cubic-bezier(0.3, 1.6, 0.45, 1) 0.05s,
+		opacity 0.1s 0.05s;
+}
+.hudp .spin[data-st='halt'] .cg {
+	opacity: 0.5;
+	transform: scale(0.84);
+}
+/* disabled (and the stop not allowed): the face at 32 %, its breath and hop stopped */
+.hudp .spin:disabled:not([data-st='halt']):not(.m-feature):not(.m-auto) .fx {
+	opacity: 0.32;
+}
+/* free spins: the ring's own track fills in the accent under the thinned ring (a change moves by a slider arc that
+   turns out from under the fill's end, a transform), and the ring goes a little see-through over it */
+.hudp .spin .fill .trk9 {
+	fill: none;
+	stroke: rgba(255, 255, 255, 0.1);
+	stroke-width: 9;
+}
+.hudp .spin .fill .lit {
+	fill: none;
+	stroke: rgb(var(--hud-accent-rgb));
+	stroke-opacity: 0.95;
+	stroke-width: 9;
+}
+.hudp .spin .fill.slide.go {
+	transition: transform 0.45s cubic-bezier(0.3, 0.8, 0.3, 1);
+}
+.hudp .spin.m-feature .rb {
+	opacity: 0.72;
+}
+/* the press: the face pops back from 88 % with an overshoot (the key's own dip is :active); a change of face pops too */
+.hudp .spin.go-in .fx {
+	animation: hud-ring-pop 0.46s cubic-bezier(0.3, 1.6, 0.45, 1);
+}
+.hudp .spin.pop .fx,
+.hudp .spin.pop .in {
+	animation: hud-ring-pop 0.4s cubic-bezier(0.3, 1.6, 0.45, 1);
+}
+/* the win: a spark ring, a 9 % pop of the ring and the halo as a paying board lands */
+.hudp .spin .spk {
+	opacity: 0;
+}
+.hudp .spin.win .spk {
+	animation: hud-ring-spk 0.72s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.hudp .spin.win .rb {
+	animation: hud-ring-win 0.5s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.hudp .spin.win .halo {
+	animation: hud-tap 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) 1;
+}
+@keyframes hud-ring-breathe {
+	50% {
+		scale: 1.035;
+	}
+}
+@keyframes hud-ring-hop {
+	0%,
+	8.667% {
+		transform: rotate(0deg);
+		animation-timing-function: cubic-bezier(0.4, 0, 0.3, 1);
+	}
+	10% {
+		transform: rotate(47deg);
+		animation-timing-function: ease-in-out;
+	}
+	11.111%,
+	19.778% {
+		transform: rotate(40deg);
+		animation-timing-function: cubic-bezier(0.4, 0, 0.3, 1);
+	}
+	21.111% {
+		transform: rotate(87deg);
+		animation-timing-function: ease-in-out;
+	}
+	22.222%,
+	30.889% {
+		transform: rotate(80deg);
+		animation-timing-function: cubic-bezier(0.4, 0, 0.3, 1);
+	}
+	32.222% {
+		transform: rotate(127deg);
+		animation-timing-function: ease-in-out;
+	}
+	33.333%,
+	42% {
+		transform: rotate(120deg);
+		animation-timing-function: cubic-bezier(0.4, 0, 0.3, 1);
+	}
+	43.333% {
+		transform: rotate(167deg);
+		animation-timing-function: ease-in-out;
+	}
+	44.444%,
+	53.111% {
+		transform: rotate(160deg);
+		animation-timing-function: cubic-bezier(0.4, 0, 0.3, 1);
+	}
+	54.444% {
+		transform: rotate(207deg);
+		animation-timing-function: ease-in-out;
+	}
+	55.556%,
+	64.222% {
+		transform: rotate(200deg);
+		animation-timing-function: cubic-bezier(0.4, 0, 0.3, 1);
+	}
+	65.556% {
+		transform: rotate(247deg);
+		animation-timing-function: ease-in-out;
+	}
+	66.667%,
+	75.333% {
+		transform: rotate(240deg);
+		animation-timing-function: cubic-bezier(0.4, 0, 0.3, 1);
+	}
+	76.667% {
+		transform: rotate(287deg);
+		animation-timing-function: ease-in-out;
+	}
+	77.778%,
+	86.444% {
+		transform: rotate(280deg);
+		animation-timing-function: cubic-bezier(0.4, 0, 0.3, 1);
+	}
+	87.778% {
+		transform: rotate(327deg);
+		animation-timing-function: ease-in-out;
+	}
+	88.889%,
+	97.556% {
+		transform: rotate(320deg);
+		animation-timing-function: cubic-bezier(0.4, 0, 0.3, 1);
+	}
+	98.889% {
+		transform: rotate(367deg);
+		animation-timing-function: ease-in-out;
+	}
+	100% {
+		transform: rotate(360deg);
+	}
+}
+@keyframes hud-ring-pop {
+	from {
+		transform: scale(0.88);
+	}
+	to {
+		transform: scale(1);
+	}
+}
+@keyframes hud-ring-spk {
+	0% {
+		opacity: 0;
+		transform: scale(0.78);
+	}
+	25% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+		transform: scale(1.14);
+	}
+}
+@keyframes hud-ring-win {
+	0% {
+		transform: scale(1);
+	}
+	35% {
+		transform: scale(1.09);
+	}
+	100% {
+		transform: scale(1);
+	}
+}
+/* reduced motion: nothing loops or turns (every animation is off: the rule at the end of this file; the ring's driver
+   checks the same query); the stop square cross-fades in 150 ms */
+@media (prefers-reduced-motion: reduce) {
+	.hudp .spin .rh {
+		rotate: none !important;
+		scale: none !important;
+		transition: none !important;
+	}
+	.hudp .spin .cg,
+	.hudp .spin[data-st='halt'] .cg {
+		transform: none !important;
+		transition: opacity 0.15s !important;
+	}
+	.hudp .spin .t1,
+	.hudp .spin .t2 {
+		display: none !important;
+	}
+}
+
 
 /* the bar's box (portrait): no paint, for the probes */
 .hudp .barbox {

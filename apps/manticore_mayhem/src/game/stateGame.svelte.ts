@@ -1,3 +1,4 @@
+import { boardPace } from './boardPace';
 import { stateBet, stateBetDerived, stateConfig } from 'state-shared';
 import { waitForTimeout } from 'utils-shared/wait';
 import { createGetWinLevelDataByWinLevelAlias } from 'utils-shared/winLevel';
@@ -280,6 +281,13 @@ const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 export const timeScale = () => TURBO_SCALE[stateGame.hurryLevel > stateGame.turboLevel ? stateGame.hurryLevel : stateGame.turboLevel] ?? 1;
 const ts = () => Math.max(0.2, timeScale());
 
+// THE SPIN KEY'S RING (game/boardPace.ts, ui/hud/spinRing.ts): a press is waiting on its reveal, and the reveal's drop in
+// flight (its whole length and how far it has run, style ms). Presentation only: nothing waits on these.
+let pressPending = false;
+let revealPace: { total: number; at: number } | null = null;
+boardPace.live = () => pressPending || revealPace !== null;
+boardPace.restIn = () => (revealPace ? Math.max(0, revealPace.total - revealPace.at) / ts() : null);
+
 /** a pause in STYLE time: authored at normal speed, divided by the turbo scale like every
  *  other duration here, so a handler never has to reach for timeScale itself */
 export const waitStyle = (ms: number) => (stateGame.skipping ? Promise.resolve() : waitForTimeout(Math.max(1, ms / ts())));
@@ -404,6 +412,8 @@ const runDrops = async (
 	onFrame?: (now: number) => void,
 	auras: AuraJob[] = [],
 	onLand?: (cell: Cell) => void,
+	/** the reveal's own drop: the Spin key's ring brakes as it lands (revealPace) */
+	pace = false,
 ) => {
 	const told = dropHook.next;
 	dropHook.next = null;
@@ -418,7 +428,10 @@ const runDrops = async (
 	if (told && !stateGame.skipping) told(total);
 	const map = liveById();
 	const landed = new Set<number>(); // job cell ids whose contact has been stamped
+	const paced = pace ? { total, at: 0 } : null;
+	if (paced) revealPace = paced;
 	await raf(total, (_t, now) => {
+		if (paced) paced.at = now;
 		if (!alive(id)) return;
 		for (const j of jobs) {
 			const cell = map.get(j.cellId);
@@ -450,6 +463,10 @@ const runDrops = async (
 		// after the jobs: a frame hook (the teases) may scale a landed cell on top of its landing pose
 		onFrame?.(now);
 	});
+	if (paced && revealPace === paced) {
+		revealPace = null;
+		pressPending = false;
+	}
 	const after = liveById();
 	lastAura.clear();
 	for (const j of jobs) {
@@ -608,6 +625,8 @@ const EXIT_DISTANCE = GRID + BOARD_EXIT.extraCells;
 /** the previous board starts to fall off. A no-op while one is already falling, under SKIP TO RESULT, or
  *  with nothing on the board. */
 export const startBoardExit = (from: 'press' | 'reveal' = 'press') => {
+	// THE SPIN KEY'S RING: a press's spin is live from here until its reveal has landed (whether or not the exit runs)
+	if (from === 'press') pressPending = true;
 	if (!boardExit.enabled || BOARD_EXIT.fallMs <= 0 || stateGame.skipping || typeof requestAnimationFrame !== 'function') return;
 	if (exitRun && !exitRun.done && !exitRun.handed) return;
 	const jobs: ExitJob[] = [];
@@ -668,6 +687,7 @@ export const boardExitPressing = () => exitRun !== null && !exitRun.handed;
 
 /** a spin that never got its book (a failed play): the board comes back as it was */
 export const cancelBoardExit = () => {
+	pressPending = false;
 	const live = exitRun && !exitRun.handed;
 	exitToken += 1;
 	exitRun = null;
@@ -911,11 +931,12 @@ export const revealBoard = async (
 				}
 			};
 		}
-		await runDrops(plan2, id, onFrame, [], landScatter);
+		await runDrops(plan2, id, onFrame, [], landScatter, true);
 	} else if (landScatter) {
 		// no drop: the scatters "land" in landing order (by column, bottom row first)
 		for (const c of [...cells].sort((a, b) => a.reel - b.reel || b.row - a.row)) landScatter(c);
 	}
+	pressPending = false;
 	settleBoard();
 	return id;
 };
