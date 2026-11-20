@@ -195,7 +195,7 @@ export class SuperWheel {
 	/** the disc's turn when the peg last stepped (a stud that passed the tip wholly between two frames still meets it) */
 	private pegTheta = -WHEEL_STEP / 2;
 	/** DEV and the probe: the flapper frame by frame (wheelPegTrace) */
-	private pegTrace: { real: number; theta: number; phi: number; stud: number | null; gap: number; tick: boolean }[] | null = null;
+	private pegTrace: { real: number; clock: number; theta: number; phi: number; stud: number | null; met: number[]; gap: number; tick: boolean }[] | null = null;
 	/** the wedges' numbers: the Wild multipliers (game/road/wildMult.ts) in each wedge's character's color */
 	private nums: WildMult[] = [];
 	private mouth: { x: number; y: number; cell: number } | null = null;
@@ -720,6 +720,8 @@ export class SuperWheel {
 		// reach in under a frame): it met the tip all the same, so the flapper is where that stud left it at its deepest
 		// (centred under the tip: turned to the edge of its circle the way it was going) and it ticks
 		const moved = this.theta - this.pegTheta;
+		const met = import.meta.env.DEV && this.pegTrace ? ([] as number[]) : null;
+		if (met && on !== null) met.push(on);
 		if (on === null && moved !== 0) {
 			const lo = Math.min(-this.pegTheta, -this.theta) / WHEEL_STEP;
 			const hi = Math.max(-this.pegTheta, -this.theta) / WHEEL_STEP;
@@ -737,6 +739,7 @@ export class SuperWheel {
 					F.v = 0;
 				}
 				on = k;
+				met?.push(k);
 			}
 		}
 		this.pegTheta = this.theta;
@@ -746,7 +749,7 @@ export class SuperWheel {
 			ticked = this.tick(SUPER_WHEEL.sound.tick, `stud ${this.ticks}`);
 		}
 		this.onStud = on;
-		if (import.meta.env.DEV && this.pegTrace && this.pegTrace.length < 20000) this.pegTrace.push({ real: performance.now(), theta: this.theta, phi: F.phi, stud: on, gap, tick: ticked });
+		if (import.meta.env.DEV && this.pegTrace && this.pegTrace.length < 20000) this.pegTrace.push({ real: performance.now(), clock: this.clock, theta: this.theta, phi: F.phi, stud: on, met: met ?? [], gap, tick: ticked });
 		// (its art's tip hangs a little off its bolt's upright line: turned back onto it)
 		const rest = (Math.atan2(ART.pegFit.flap.tipOffsetUnits, ART.pegFit.flap.tipBelowBoltUnits) * 180) / Math.PI;
 		this.flap.rotation = (F.phi + rest) * DEG;

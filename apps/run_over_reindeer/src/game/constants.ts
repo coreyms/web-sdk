@@ -753,8 +753,9 @@ export const SUPER_WHEEL = {
 	/** THE TOP PEG (2026-11-20, Corey: "the pin moves way too early"): its flapper is a damped spring (stiffness, damping;
 	 *  degrees) turned only by the studs it touches: its tip, a circle of tipRadius wheel units, is kept out of each stud's
 	 *  circle (game/road/superWheel.ts stepPeg; the tip reaches into the studs' ring by tools/build_super_wheel.py
-	 *  TIP_BITE). It never pushes the wheel. */
-	peg: { stiffness: 520, damping: 15, tipRadius: 3 },
+	 *  TIP_BITE). It never pushes the wheel. Damping 36 against stiffness 520 is about 0.8 of critical: released, it
+	 *  comes back with one small overshoot in about 0.2 s (15, round 5's, rang on visibly after a slow stud had gone). */
+	peg: { stiffness: 520, damping: 36, tipRadius: 3 },
 	/** THE LED STRIP'S WORDS (game/scoreboard/scoreboard.ts wheelLine): plain capitals, no symbol characters */
 	text: { emerge: 'SUPER WHEEL', press: 'PRESS SPIN', auto: 'GET READY', go: 'GO REINDEER', column: 'COLUMN', names: { reindeer: 'REINDEER', santa: 'SANTA', grandma: 'GRANDMA' } },
 	/** ITS SOUNDS: existing sounds only (none was made for the wheel; the moments still wanting their own are listed in
@@ -1989,8 +1990,9 @@ export const WILD_MULT = {
 		 *  units (its rim's outer radius 460), about the wedge's number place (superWheelSpec multR); maxW keeps a two digit
 		 *  number about inside its wedge there (still: no idle, no effects; game/road/superWheel.ts). `shade` (0: off, the
 		 *  approved look) puts a soft dark blob of that strength behind the letters: the build's legibility option for the
-		 *  numbers over the busts (NOTES, not shipped on) */
-		wheel: { caps: [64, 64, 64, 64], maxW: 160, floor: 0, gap: 0, shade: 0 },
+		 *  numbers over the busts; `outline` (0: off) a dark outline step, each letter's own picture tinted black at that
+		 *  scale behind it (the build's notes) */
+		wheel: { caps: [64, 64, 64, 64], maxW: 160, floor: 0, gap: 0, shade: 0, outline: 0 },
 	},
 	/** the glow behind the number (the atlas's soft blob, additive) in a win: its tint per color set, its size against
 	 *  the number's width and letter height, its strength at the win's peak */

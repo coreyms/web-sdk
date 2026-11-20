@@ -167,6 +167,9 @@ export class WildMult {
 	/** a soft dark blob behind the letters (normal blend, the glow's picture tinted black): a place's `shade` (0: none) */
 	private readonly shade: PIXI.Sprite;
 	private readonly glyphs: PIXI.Sprite[] = [];
+	/** a place's dark outline step: each letter's own picture tinted black, a little larger, behind it (`outline` the
+	 *  scale, 0: off) */
+	private readonly backs: PIXI.Sprite[] = [];
 	private readonly sheens: PIXI.Sprite[] = [];
 	private readonly stars: PIXI.Sprite[] = [];
 	private readonly puffs: PIXI.Sprite[] = [];
@@ -221,6 +224,7 @@ export class WildMult {
 		};
 		this.shade = sprite(false, null);
 		this.glow = sprite(true, null);
+		for (let i = 0; i < MAX_GLYPHS; i++) sprite(false, this.backs);
 		for (let i = 0; i < MAX_GLYPHS; i++) {
 			sprite(false, this.glyphs);
 			sprite(true, this.sheens);
@@ -441,6 +445,7 @@ export class WildMult {
 		let sheenMax = 0;
 
 		// the letters
+		const outline = (P as { outline?: number }).outline ?? 0;
 		const A = W.appear;
 		const beats = W.win.beats;
 		for (let i = 0; i < MAX_GLYPHS; i++) {
@@ -450,6 +455,7 @@ export class WildMult {
 			if (!gt) {
 				g.visible = false;
 				sh.visible = false;
+				this.backs[i].visible = false;
 				continue;
 			}
 			let sx = 1;
@@ -475,12 +481,22 @@ export class WildMult {
 			g.visible = !hide;
 			if (hide) {
 				sh.visible = false;
+				this.backs[i].visible = false;
 				continue;
 			}
 			g.texture = gt;
 			g.position.set(this.xs[i], dy);
 			g.scale.set(k * sx, k * sy);
 			g.alpha = alpha;
+			const back = this.backs[i];
+			if (outline > 0) {
+				back.texture = gt;
+				back.visible = true;
+				back.tint = 0x000000;
+				back.position.set(this.xs[i], dy);
+				back.scale.set(k * sx * outline, k * sy * outline);
+				back.alpha = alpha;
+			} else back.visible = false;
 			// the sheen over it (gold only): the sweep's light where it passes, and the shimmer's flicker
 			const st = this.sheenTex[i];
 			let a = 0;

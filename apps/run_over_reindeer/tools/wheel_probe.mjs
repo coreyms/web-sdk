@@ -963,31 +963,64 @@ async function pinSection(browser) {
 		check(landed && tr.length > 50, `pin: the spin recorded (${tr.length} frames)`, { landed, n: tr.length });
 		const EPS = 0.05;
 		const inside = tr.filter((f) => f.gap < -PIN_TOL);
-		check(inside.length === 0, `pin: the flapper's tip is never inside a stud (deepest ${Math.min(...tr.map((f) => f.gap)).toFixed(2)} wheel units; tolerance ${PIN_TOL})`, inside.slice(0, 3));
+		check(inside.length === 0, `pin: the flapper's tip is never inside a stud (deepest ${Math.min(...tr.map((f) => f.gap)).toFixed(2)} wheel units; tolerance ${PIN_TOL}: the edge is solved in floating point and drawn at about 0.66 CSS px a unit)`, inside.slice(0, 3));
+		// a frame "in contact": a stud on the tip (sampled) or met between two frames
+		const touching = (f) => f.stud !== null || (f.met && f.met.length > 0);
 		const early = [];
-		const loose = [];
-		let lastRelease = null;
-		// (at rest: SETTLED frames in a row within EPS; a spring ringing after a contact crosses zero without settling)
+		const ring = [];
+		const settleLate = [];
+		// (at rest: SETTLED frames in a row within EPS; the spring's ring back after a contact is allowed only as a decay: never
+		// past what it was turned at the release, and back within EPS inside SPRING_MS board ms of the release)
 		const SETTLED = 3;
+		const SPRING_MS = 400;
 		let still = SETTLED;
+		let release = null;
 		for (let i = 1; i < tr.length; i++) {
 			const f = tr[i];
 			const g = tr[i - 1];
-			if (Math.abs(f.phi) > EPS && still >= SETTLED && f.stud === null && f.gap > PIN_TOL) early.push(f);
+			if (Math.abs(f.phi) > EPS && still >= SETTLED && !touching(f) && f.gap > PIN_TOL) early.push(f);
+			if (touching(g) && !touching(f)) release = { amp: Math.abs(g.phi), clock: g.clock };
+			if (touching(f)) release = null;
+			if (!touching(f) && Math.abs(f.phi) > EPS) {
+				if (release && Math.abs(f.phi) > release.amp + 0.1) ring.push(f);
+				if (release && f.clock - release.clock > SPRING_MS) settleLate.push({ ...f, after: f.clock - release.clock });
+			}
 			still = Math.abs(f.phi) <= EPS ? still + 1 : 0;
-			if (g.stud !== null && f.stud === null) lastRelease = Math.abs(g.phi);
-			if (f.stud === null && Math.abs(f.phi) > EPS && (lastRelease === null || Math.abs(f.phi) > lastRelease + 0.5)) loose.push(f);
 		}
-		check(early.length === 0, `pin: it never starts to turn without a stud on its tip (${early.length} frames)`, early.slice(0, 3));
-		check(loose.length === 0, `pin: turned with no stud on it, it only springs back from a contact (never past what it was turned at the release)`, loose.slice(0, 3));
+		check(early.length === 0, `pin: from rest it never starts to turn without a stud on its tip (${early.length} frames)`, early.slice(0, 3));
+		check(ring.length === 0, `pin: released, it only springs back (never past what it was turned at the release)`, ring.slice(0, 3));
+		check(settleLate.length === 0, `pin: released, it is straight again within ${SPRING_MS} board ms (no swinging on after the stud has gone)`, settleLate.slice(0, 3));
+		// no stud passes the tip without meeting it: every stud that crossed the top between two frames is in a contact
+		const met = new Set();
+		for (const f of tr) {
+			if (f.stud !== null) met.add(f.stud);
+			for (const k of f.met ?? []) met.add(k);
+		}
+		const crossed = new Set();
+		for (let i = 1; i < tr.length; i++) {
+			const lo = Math.min(-tr[i - 1].theta, -tr[i].theta) / 45;
+			const hi = Math.max(-tr[i - 1].theta, -tr[i].theta) / 45;
+			for (let k = Math.ceil(lo); k <= Math.floor(hi); k++) crossed.add(k);
+		}
+		const missed = [...crossed].filter((k) => !met.has(k));
+		check(crossed.size > 0 && missed.length === 0, `pin: every stud that passed the tip met it (${crossed.size} passed, ${met.size} met, at every speed, between frames included)`, missed.slice(0, 6));
 		const ticks = tr.filter((f) => f.tick);
-		const offTick = ticks.filter((f) => f.stud === null || tr[tr.indexOf(f) - 1]?.stud === f.stud);
-		check(ticks.length > 0 && offTick.length === 0, `pin: every tick (${ticks.length}) is the first frame of a stud's contact`, offTick.slice(0, 3));
-		const studs = new Set(tr.filter((f) => f.stud !== null).map((f) => f.stud));
-		check(ticks.length <= studs.size, `pin: at most one tick per stud (${ticks.length} ticks, ${studs.size} studs touched; ticks under tickMinMs of each other are dropped)`);
+		const offTick = ticks.filter((f) => !touching(f));
+		check(ticks.length > 0 && offTick.length === 0, `pin: every tick (${ticks.length}) is on a contact`, offTick.slice(0, 3));
+		// a contact with no tick only when the last tick was under tickMinMs of real time before it (the buzz rule)
+		const minMs = await p.evaluate(() => window.__reindeer.tune.superWheel.sound.tickMinMs);
+		let lastTick = -Infinity;
+		const silent = [];
+		for (let i = 1; i < tr.length; i++) {
+			const f = tr[i];
+			const newContact = touching(f) && (f.stud !== tr[i - 1].stud || (f.met ?? []).some((k) => k !== tr[i - 1].stud));
+			if (f.tick) lastTick = f.real;
+			else if (newContact && f.real - lastTick >= minMs + 1) silent.push(f);
+		}
+		check(silent.length === 0, `pin: every new contact ticks unless a tick sounded under tickMinMs (${minMs} ms) before it`, silent.slice(0, 3));
 		const last = tr[tr.length - 1];
 		check(!!last && (Math.abs(last.phi) < 0.5 || last.stud !== null) && last.gap >= -PIN_TOL, `pin: at the stop it is straight or resting on a stud (turned ${last?.phi.toFixed(2)} degrees, stud ${last?.stud}, gap ${last?.gap.toFixed(2)})`, last);
-		note(`PIN: ${tr.length} frames, ${studs.size} studs touched, ${ticks.length} ticks, most turn ${Math.max(...tr.map((f) => Math.abs(f.phi))).toFixed(1)} degrees; at the stop ${w.atPeg}`);
+		note(`PIN: ${tr.length} frames, ${crossed.size} studs passed, ${met.size} met, ${ticks.length} ticks, most turn ${Math.max(...tr.map((f) => Math.abs(f.phi))).toFixed(1)} degrees; at the stop ${w.atPeg}`);
 		check(errs.length === 0, 'pin: no page errors', errs);
 	} finally {
 		await ctx.close();
