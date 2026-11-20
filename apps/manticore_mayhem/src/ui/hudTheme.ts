@@ -33,6 +33,18 @@ export const HUD_THEME: Record<string, string> = {
 	'accent-cream-rgb': '255, 243, 210',
 	/** the dark end of the accent (slider fill start, the Spin's lower rim) */
 	'accent-deep-rgb': '184, 138, 56',
+	/** (the win's sunburst, 2026-11-20, the mock win_readout_r1's Manticore gold; the same tokens as Run Over Reindeer's)
+	 *  the rays' light, their pale core, the lit number's ink, the hottest face; and the upright readout's (the same: one
+	 *  scene here) with its WIN word */
+	'burst-rgb': '232, 182, 74',
+	'burst-hi-rgb': '246, 213, 138',
+	'burst-ink-rgb': '255, 243, 210',
+	'burst-face-rgb': '255, 250, 232',
+	'pt-burst-rgb': '232, 182, 74',
+	'pt-burst-hi-rgb': '246, 213, 138',
+	'pt-burst-ink-rgb': '255, 243, 210',
+	'pt-burst-shadow': '0 0 7px rgba(232, 182, 74, 0.62), 0 1px 2px rgba(0, 0, 0, 0.7)',
+	'pt-win-label-rgb': '246, 213, 138',
 
 	// ---- painted glass ----
 	/** dock fill, top / middle / bottom of its vertical gradient, and their alphas */
