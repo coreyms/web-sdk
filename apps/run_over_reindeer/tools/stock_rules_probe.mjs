@@ -4,6 +4,7 @@
 // WATCHES: ; __reindeer.stockRules, __reindeer.fixtures, __reindeer.hud, __reindeer.atRest, AUTOPLAY_RESUME_PAUSE_MS, bonusEntered, bonusLeft, autoSpinPause
 // WATCHES: ; baseTurboLevel, turboLevel, autoStopOnFreeGames, autoPlayBonuses, data-l, data-round-card, .hudp, .fold-row, .go, button.catch
 // WATCHES: apps/run_over_reindeer/src/{ui/SpinHotkey.svelte,ui/Chrome.svelte}; isSpaceHold
+// WATCHES: apps/run_over_reindeer/src/game/scoreboard/show.ts; LED_BOARD.ideas, motionFor
 // WATCHES: apps/run_over_reindeer/src/ui/RoundCard.svelte; ROUND.introWaitsForPress, ROUND.lineOutroWaitsForPress, ROUND.autoplayMs, ROUND.introAutoMs, ROUND.outroAutoMs, ROUND.wrapAutoHoldMs, __reindeer.scoreboard
 // THE STOCK RULES PROBE (game/bonusStockRules.ts, 2026-11-18): turbo and autoplay around a bonus round, the owner's
 // standing rule for all his games. Every pause and level is read from the game (__reindeer.stockRules: the module's own
@@ -535,6 +536,7 @@ async function sectionAutoCards(browser) {
 		let outroAt = null;
 		let landedAt = null;
 		let outroGoneAfter = null;
+		let totalShow = null;
 		const t1 = Date.now();
 		// (the wrap-up's own wait, unpressed: with the option off it waits for the press (Manticore's rule, 2026-11-18),
 		// so the loop gives up ROUND.outroAutoMs + 1.5 s after it came up, the old self-continue's time and more)
@@ -552,6 +554,8 @@ async function sectionAutoCards(browser) {
 				raised = true;
 			}
 			if (c === 'outro' && outroAt === null) outroAt = Date.now();
+			// (2026-11-19, LED_BOARD.ideas.totalBySize: the Total Win's count by the round's size; read off the board's show)
+			if (c === 'outro' && totalShow === null) totalShow = await p.evaluate(() => { const s = window.__reindeer.scoreboard?.()?.show; return s && s.kind === 'total' ? { countMs: s.countEnd - s.countStart, x: s.x, capped: s.capped, pressAfter: s.pressLineAt - s.countEnd } : null; });
 			// its amount landed: the LED board's Total Win count is done (or the HTML card is up)
 			if (c === 'outro' && landedAt === null) {
 				const ph = await p.evaluate(() => window.__reindeer.scoreboard?.()?.show?.phase ?? 'show');
@@ -565,6 +569,20 @@ async function sectionAutoCards(browser) {
 			await sleep(50);
 		}
 		const stillUp = (await card()) === 'outro';
+		// THE COUNT BY SIZE in a real wrap-up (Corey 2026-11-19: "yes on the total count wins"): the board's count is its size's
+		// length at one of the turbo levels' rates, and the cap's hold is not used when Autoplay Bonuses continues the card
+		if (totalShow) {
+			const K = await p.evaluate(async () => {
+				const m = await import('/src/game/constants.ts');
+				const L = m.LED_BOARD;
+				return { I: L.ideas, flat: L.scenes.totalCountMs, tiers: L.tiers.map((t) => t.bar), rates: [0, 1, 2].map((l) => m.motionFor(l).rate) };
+			});
+			const tier = K.tiers.reduce((k, b, i) => (totalShow.x >= b ? i : k), -1);
+			const size = totalShow.capped ? 'max' : tier < 0 ? 'small' : tier < 3 ? 'big' : 'huge';
+			const base = K.I.totalBySize.on ? K.I.totalBySize.ms[size] : K.flat;
+			const okLen = K.rates.some((r) => Math.abs(totalShow.countMs - base / Math.max(0.2, r)) <= 2);
+			check(okLen && (!C.on || !totalShow.capped || totalShow.pressAfter === 0), `${tag}: the Total Win's count ${Math.round(totalShow.countMs)} ms for its size (${size}, ${totalShow.x}x: ${base} ms at regular speed, a turbo rate dividing it)`, { totalShow, base, rates: K.rates });
+		}
 		if (C.on) {
 			const held = outroGoneAfter !== null && landedAt !== null ? outroGoneAfter - (landedAt - outroAt) : null;
 			console.log(`  INFO ${tag}: the wrap-up went by itself ${outroGoneAfter} ms after it came up, ${held} ms after its amount landed`);

@@ -927,7 +927,8 @@
 			const lines: string[] = [];
 			if (capped) lines.push(`${config.maxWin.toLocaleString('en-US')}x the play amount, the most a round can award.`);
 			if (topUp) lines.push(`Includes ${ledSentenceAmount(bookEventAmountToCurrencyString(topUp.amount), stateBet.currency)} added to bring this round up to its ${topUp.floor / 100}x minimum.`);
-			scoreboard.card({ kind, spins, amount: value, fmt, rate: motionFor(stateGame.turboLevel).rate, title: capped ? 'MAX WIN' : null, line: lines.length ? lines.join('  ') : null });
+			// (2026-11-19: the round's multiple and the cap for the Total Win's ladder, LED_BOARD.ideas)
+			scoreboard.card({ kind, spins, amount: value, fmt, rate: motionFor(stateGame.turboLevel).rate, title: capped ? 'MAX WIN' : null, line: lines.length ? lines.join('  ') : null, x: kind === 'total' ? bookEventAmountToBetAmountMultiplier(amount) : 0, capped: !!capped, auto: stateGame.autoPlayBonuses && stateBet.autoSpinsCounter > 0 });
 		},
 		boardScoreboardCardEnd: () => scoreboard?.endCard(),
 		// a Spin press while a big win counts or holds (the slam stop's event): lands the count, or ends the hold
@@ -1171,10 +1172,13 @@
 			},
 			scoreboardRaise: (x?: number) => scoreboard?.raise(x),
 			/** PART B: a bonus round card's scene by hand (kind fs, sfs or total; no HTML card: press or end it by hand) */
-			scoreboardCard: (kind: 'fs' | 'sfs' | 'total', opts: { spins?: number; x?: number; rate?: number; line?: string; title?: string } = {}) => {
+			// (2026-11-19) `play`: the play amount the multiple is of (the bet by default), `capped` (default: a MAX WIN title),
+			// `auto`: as Autoplay Bonuses raises it
+			scoreboardCard: (kind: 'fs' | 'sfs' | 'total', opts: { spins?: number; x?: number; rate?: number; line?: string; title?: string; play?: number; capped?: boolean; auto?: boolean } = {}) => {
 				if (!scoreboard) return;
-				const value = Math.round((opts.x ?? 248.5) * bookEventAmountToNormalisedAmount(100) * 100) / 100;
-				scoreboard.card({ kind, spins: opts.spins ?? 10, amount: value, fmt: ledAmount(value), rate: opts.rate ?? 1, line: opts.line ?? null, title: opts.title ?? null });
+				const x = opts.x ?? 248.5;
+				const value = Math.round(x * (opts.play ?? bookEventAmountToNormalisedAmount(100)) * 100) / 100;
+				scoreboard.card({ kind, spins: opts.spins ?? 10, amount: value, fmt: ledAmount(value), rate: opts.rate ?? 1, line: opts.line ?? null, title: opts.title ?? null, x, capped: opts.capped ?? opts.title === 'MAX WIN', auto: !!opts.auto });
 			},
 			scoreboardCardPress: () => scoreboard?.cardPress() ?? false,
 			scoreboardFace: (which: 'strip' | 'back', png = false) => scoreboard?.faceStats(which, png) ?? null,

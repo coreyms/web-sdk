@@ -75,6 +75,8 @@ export const setScoreboardArt = (image: CanvasImageSource | null) => {
 	SHEET = image;
 	artCache.clear();
 };
+/** the sheet is in (a bake made before it is blank and not kept) */
+export const scoreboardArtReady = () => SHEET !== null;
 type ArtName = keyof typeof SCOREBOARD_ART.frames;
 const frameOf = (name: ArtName) => SCOREBOARD_ART.frames[name];
 const size = (name: ArtName, src: number[] | null): [number, number] => {
@@ -1228,7 +1230,7 @@ function raceCard(g: Ctx, race: Race, W: number, H: number, ct: number) {
 
 // ---- THE SIX IDLE CARTOONS (the mock's, each a pure function of its own time; the race keeps its run in `race`) ---------------
 export type CartoonState = { race: Race | null; raceFor: number; raceNext: Race | null };
-export type Cartoon = { key: 'trot' | 'parade' | 'plow' | 'sleigh' | 'peek' | 'race'; name: string; ms: () => number; draw: (g: Ctx, W: number, H: number, t: number, st: CartoonState, at: number) => void };
+export type Cartoon = { key: 'trot' | 'parade' | 'plow' | 'sleigh' | 'peek' | 'race' | 'tree' | 'chew' | 'takeoff' | 'signroll' | 'stack'; name: string; ms: () => number; draw: (g: Ctx, W: number, H: number, t: number, st: CartoonState, at: number) => void };
 export const CARTOONS: Cartoon[] = [
 	{
 		key: 'trot',
@@ -1949,7 +1951,9 @@ export function showRibbon(F: Face, s: Show) {
 		const tl = s.title ?? 'TOTAL WIN';
 		const lay = winLayout(W, H, s.finalStr, [tl]);
 		const str = s.fmt(amountNow(s));
-		chaseBorder(g, W, H, s.t, ['#36ff74', '#ff3a2e'], 1, 3);
+		// (2026-11-19, LED_BOARD.ideas.total 'ladder': the strip's border is the ladder's taillights; its amount is the same
+		// paced count as the board's, amountNow)
+		chaseBorder(g, W, H, s.t, LED_BOARD.ideas.total === 'ladder' ? ['#ff2a1e', '#5a1008'] : ['#36ff74', '#ff3a2e'], 1, 3);
 		drawLayTitle(g, lay, tl, '#ffffff', W);
 		drawRow(g, str, numX(lay, W, str, 0), lay.numY, lay.cap, 'gold', 0);
 		return;
@@ -1979,3 +1983,7 @@ export function backScene(F: Face, s: Show) {
 export { chaseBorder, drawRow, fireworks, fitCap, rowInfo, sprite, sparkles, burst, marchText };
 // (2026-11-18, the entry explanation's layout C: game/scoreboard/explainDraw.ts)
 export { boardTitle, drawFit, lineInk, BULBS };
+// (2026-11-19, the round 1 LED ideas Corey picked: game/scoreboard/entryScenes.ts, totalLadder.ts, ambient.ts draw with the
+// same helpers as the scenes here)
+export { gallop, centeredRow, perimeter, perimeterDots, cornerFireworks, slamRow, marchAt, flash, entryNumberLayout, titleScale, fitScale, snowDots, RUN_FW, RUN_FH, size as artSize, art, sceneT, TOTAL_BLINK_DIM, titleGapKnob, fitVehicle, vehicleOf, noteRec };
+export type { ArtName };

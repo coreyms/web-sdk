@@ -1,0 +1,147 @@
+// THE TOTAL WIN'S TAILLIGHT LADDER, round 1 pick (Corey 2026-11-19, led_anim_ideas_r1_2026-11-19 "tw-ladder"; constants
+// LED_BOARD.ideas.total). The mock's drawing code (its total.ts ladderScene), ported: a back board program in place of
+// scoreboardDraw.ts showTotalScene, a pure function of the show's clock. The count is the show's own (show.ts amountNow: with
+// the ladder it runs on the house pacer, so every rung crossed gets its moment; the count's LENGTH is today's, or by size
+// when LED_BOARD.ideas.totalBySize is switched on); a press while it counts lands it (landCard); the press line and Autoplay
+// Bonuses' hold after the landing are the game's. The words are today's: TOTAL WIN (MAX WIN on a capped round) and the
+// amount as the HUD writes it; the rungs carry their bars (15X to 7,777X).
+//   The border is a row of taillights whose chase speeds up with the multiple shown. In the band the five rungs (the
+//   game's own ladder: LED_BOARD.tiers' bars, the top one the math's cap, config.maxWin) light in their tier's color as the
+//   count passes each one, the board flashing at each; the reindeer runs the fuse under them. A small win only creeps up
+//   the fuse; a Max win lights every rung, the top rung blinks and the taillights flash red as it lands.
+import { drawText, textW } from '../landing/ledScreens';
+import { LED_BOARD } from '../constants';
+import { amountAtCount, ladderBars, winSizeOf, type Show } from './show';
+import { boardTitle, burst, centeredRow, cornerFireworks, drawRow, fitCap, fitScale, gallop, perimeter, perimeterDots, rowInfo, sceneT, showTotalScene, titleGapKnob, titleScale, TOTAL_BLINK_DIM, type Face } from './scoreboardDraw';
+import { dotAt, ledN } from './ledGrid';
+import { box, clamp, ease, lerp, noteIdea, type Ctx } from './ideasKit';
+
+const dot = dotAt;
+/** the rungs' colors, in the tiers' order (Big green, Super blue, Mega red, Epic purple, Max gold) */
+const RUNG_COLS = ['#36ff74', '#4aa8ff', '#ff3a2e', '#d36bff', '#ffd23a'];
+
+type Lay = { band: number; Hm: number; title: string; tts: number; cap: number; G: number; y0: number; numY: number };
+/** today's Total Win layout (showTotalScene's): the title over the amount above the bottom band */
+function totalLay(W: number, H: number, s: Show): Lay {
+	const band = Math.round(H * LED_BOARD.scenes.band);
+	const Hm = H - band;
+	const title = s.title ?? 'TOTAL WIN';
+	const tts = titleScale(title, fitScale(title, W - 16, Hm * 0.2, [5, 4, 3, 2, 1]), W, Hm * 0.4);
+	const cap = fitCap(s.finalStr, W - 16, Math.min(Hm * 0.55, Hm - 7 * tts - 12));
+	const G = Math.max(-3, titleGapKnob());
+	const y0 = Math.round((Hm - (7 * tts + 6 + G + cap)) / 2) + 2;
+	return { band, Hm, title, tts, cap, G, y0, numY: y0 + 7 * tts + 6 + G };
+}
+/** the amount (the count, the landing blink that dims), as today's */
+function amountRow(g: Ctx, W: number, s: Show, L: Lay, v: number) {
+	const str = s.fmt(v);
+	const w = rowInfo(str, L.cap).w;
+	const since = s.t - s.countEnd;
+	const landed = since >= 0;
+	const blinkDim = landed && since < 900 && Math.floor(since / 150) % 2 === 1;
+	const ax = centeredRow(g, str, W / 2, L.numY, L.cap, (W - w) / 2);
+	if (blinkDim) g.globalAlpha = TOTAL_BLINK_DIM;
+	drawRow(g, str, ax, L.numY, L.cap, 'gold', landed ? clamp(1 - since / 400, 0, 1) : 0);
+	g.globalAlpha = 1;
+}
+/** the count's value at show ms `at` (the show's own pacer) */
+const valueAt = (s: Show, at: number) => (at >= s.countEnd ? s.amount : s.segs.length ? Math.min(s.amount, amountAtCount(s.segs, at - s.countStart)) : s.amount * clamp((at - s.countStart) / Math.max(1, s.countEnd - s.countStart), 0, 1));
+/** the show ms the count reaches value `v` */
+function reachOf(s: Show, v: number) {
+	if (!s.segs.length) return s.countStart + (s.countEnd - s.countStart) * clamp(v / Math.max(1e-9, s.amount), 0, 1);
+	let acc = s.countStart;
+	let from = 0;
+	for (const sg of s.segs) {
+		if (v <= sg.to) return acc + (sg.ms * (v - from)) / Math.max(1e-9, sg.to - from);
+		acc += sg.ms;
+		from = sg.to;
+	}
+	return s.countEnd;
+}
+/** a rung's label: its bar in play multiples, as the game writes a multiple (7,777X) */
+export const rungLabel = (bar: number) => `${bar.toLocaleString('en-US')}X`;
+
+export function ladderTotal(F: Face, s: Show) {
+	// (a Total Win without its multiple, none in the game: today's scene)
+	if (!(s.x > 0)) return showTotalScene(F, s);
+	const g = F.out.ctx;
+	const W = F.dotsW;
+	const H = F.dotsH;
+	const t = sceneT(s);
+	g.clearRect(0, 0, W, H);
+	const L = totalLay(W, H, s);
+	const since = s.t - s.countEnd;
+	const landed = since >= 0;
+	const X = s.x;
+	const size = winSizeOf(X, s.capped);
+	const bars = ladderBars();
+	const xOf = (v: number) => (v / Math.max(1e-9, s.amount)) * X;
+	const vNow = valueAt(s, s.t);
+	// the taillight chase: its speed from the multiple shown (a step every 140 ms at 1x down to 28 ms at the cap), integrated
+	const per = (m: number) => lerp(140, 28, clamp(Math.log(1 + m) / Math.log(1 + bars[bars.length - 1]), 0, 1));
+	let phase = 0;
+	const tEnd = Math.min(s.t, s.countEnd);
+	for (let q = s.countStart; q < tEnd; q += 30) phase += 30 / per(xOf(valueAt(s, q)));
+	if (s.t > s.countEnd) phase += (s.t - s.countEnd) / per(X);
+	if (s.t < s.countStart) phase = s.t / 140;
+	const q = F.k;
+	const pts = perimeter(F.ledW, F.ledH, 0, 1);
+	const on = t < 400 ? Math.round((Math.max(0, t) / 400) * pts.length) : pts.length;
+	const segP = ledN(q, 3);
+	const st = Math.floor(phase * q);
+	const allRed = landed && size === 'max' && since < 1200 && Math.floor(since / 150) % 2 === 0;
+	perimeterDots(g, pts, on, (i) => (allRed ? '#ff3a2e' : Math.floor((i + st) / segP) % 2 ? '#ff2a1e' : '#5a1008'), 0, 0, { rows: ledN(q, 1), W: F.ledW, H: F.ledH });
+	// the title drops in (as today's), the amount counts
+	const dropT = clamp(t / 300, 0, 1);
+	boardTitle(g, L.title, W / 2, Math.round(L.y0 - (1 - ease(dropT)) * H * 0.3), L.tts, '#ffffff', { word: true });
+	amountRow(g, W, s, L, vNow);
+	// the band: the fuse, the rungs, their labels
+	const top = H - L.band;
+	const xL = 8;
+	const xR = W - 8;
+	const n = bars.length;
+	const rx = bars.map((_, i) => lerp(xL, xR, (i + 0.65) / (n + 0.15)));
+	const posOf = (m: number) => {
+		if (m <= bars[0]) return lerp(xL, rx[0], m / bars[0]);
+		for (let i = 1; i < n; i++) if (m <= bars[i]) return lerp(rx[i - 1], rx[i], Math.log(m / bars[i - 1]) / Math.log(bars[i] / bars[i - 1]));
+		return rx[n - 1];
+	};
+	const mNow = xOf(vNow);
+	const fx = posOf(mNow);
+	const fy = top + Math.round(L.band * 0.18);
+	box(g, xL, fy, xR - xL, 1, '#3a2a14');
+	box(g, xL, fy, Math.max(0, fx - xL), 1, '#ffd23a');
+	const lampW = Math.max(3, Math.round(L.band * 0.2));
+	const lampH = Math.max(2, Math.round(L.band * 0.13));
+	const ly = fy + 3;
+	const play = s.amount / X;
+	const rec: { bar: number; label: string; lit: boolean; x: number }[] = [];
+	bars.forEach((b, i) => {
+		// (the time each rung was reached: on the pacer the bar a segment ends on; the cap's rung as the count lands)
+		const at = X >= b * (1 - 1e-9) ? Math.min(reachOf(s, b * play), s.countEnd) : Infinity;
+		const lit = s.t >= at;
+		const blink = i === n - 1 && lit && Math.floor(s.t / 160) % 2 === 0;
+		const col = lit ? (blink ? '#ffffff' : RUNG_COLS[i % RUNG_COLS.length]) : '#3a1612';
+		box(g, rx[i] - lampW - 1, ly, lampW, lampH, col);
+		box(g, rx[i] + 1, ly, lampW, lampH, col);
+		const lab = rungLabel(b);
+		drawText(g, lab, Math.round(rx[i] - textW(lab, 1) / 2), ly + lampH + 2, 1, lit ? RUNG_COLS[i % RUNG_COLS.length] : '#5a6170');
+		if (lit && s.t - at < 450) burst(g, rx[i], ly + 1, (s.t - at) / 450, Math.round(L.band * 0.5));
+		// the board flashes as a rung lights
+		if (lit && s.t - at < 120) {
+			g.globalAlpha = 0.22 * (1 - (s.t - at) / 120);
+			g.fillStyle = RUNG_COLS[i % RUNG_COLS.length];
+			g.fillRect(0, 0, W, H);
+			g.globalAlpha = 1;
+		}
+		rec.push({ bar: b, label: lab, lit, x: Math.round(rx[i]) });
+	});
+	// the reindeer runs the fuse (hops at a rung)
+	const rh = Math.max(7, Math.round(L.band * 0.5));
+	const near = bars.findIndex((b) => Math.abs(posOf(mNow) - posOf(b)) < 3 && X >= b);
+	gallop(g, fx - rh * 0.9, fy - 1 - (near >= 0 ? 2 : 0), rh, s.t);
+	// the spark at the fuse's tip
+	if (!landed) dot(g, fx + 1, fy - (Math.floor(s.t / 60) % 2), '#ffffff');
+	if (landed && size !== 'small') cornerFireworks(g, W, H, since, size === 'max' ? ['#ffd23a', '#ff3a2e', '#ffffff'] : ['#ffd23a', '#ffffff'], L.Hm);
+	noteIdea(g.canvas, 'ladder', { size, x: Math.round(X * 100) / 100, rungs: rec, fuse: Math.round(fx), multiple: Math.round(mNow * 100) / 100 });
+}

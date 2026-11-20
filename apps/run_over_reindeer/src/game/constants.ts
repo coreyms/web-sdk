@@ -1719,8 +1719,9 @@ export const LED_BOARD = {
 	/** the tier change's left to right sweep and the number's flash, ms */
 	sweepMs: 400,
 	pulseMs: 350,
-	/** THE IDLE CARTOONS on the strip: 'auto' plays the six in turn; a name plays that one over and over (the tune panel) */
-	cartoon: 'auto' as 'auto' | 'trot' | 'parade' | 'plow' | 'sleigh' | 'peek' | 'race',
+	/** THE IDLE CARTOONS on the strip: 'auto' plays them in turn (ideas.cartoons below); a name plays that one over and over
+	 *  (the tune panel) */
+	cartoon: 'auto' as 'auto' | 'trot' | 'parade' | 'plow' | 'sleigh' | 'peek' | 'race' | 'tree' | 'chew' | 'takeoff' | 'signroll' | 'stack',
 	/** THE GRANDMA GAG (Corey's line, exactly): when the reindeer strikes a Grandma, for gagMs on the strip, cut short by a
 	 *  new spin or a win message on the strip. Its beats: the first part pulses, the bump, then the rest marches in. */
 	gag: { on: true, ms: 5000, first: 'Oooh..', second: 'Grandma Got', third: 'Run Over!?', firstMs: 900, bumpMs: 900, secondMs: 1600, short: { text: 'GRANDMA GOT RUN OVER!', ms: 1500 } },
@@ -1829,6 +1830,37 @@ export const LED_BOARD = {
 	 *  faint skirt baked round each hole of the grille on the finer grid (his pick: the light of today's dot size at the
 	 *  finer pitch). Live: a change rebuilds both faces on the next frame. */
 	density: { on: true, k: 1.5, minDevicePx: 2, smallWeight: 700, bodyWeight: 700, softDot: true },
+	/** THE LED ANIMATIONS COREY PICKED (2026-11-19, led_anim_ideas_r1_2026-11-19: fs-presents, sfs-tease, tw-ladder,
+	 *  amb-tree, amb-chew, amb-takeoff, amb-signroll, amb-stack, press-lights; the mock's drawing code, ported:
+	 *  game/scoreboard/entryScenes.ts, totalLadder.ts, ambient.ts). Each switch brings back today's picture.
+	 *    fsEntry    'presents': the Free Spins entry's presents fly up, jiggle and pop, the count rises out of the middle
+	 *               one (fsPresents of them); 'today': HERE WE GO and the stampede
+	 *    sfsEntry   'tease': the Super entry's red present opens on a window spinning the three column characters (a fixed,
+	 *               cosmetic order: never the wheel's result) and slams shut, the lockup above it; 'today': the sleigh sweep.
+	 *               Every present on the Super entry and its explanation page is the red present (Corey: "on super free
+	 *               spins the presents next tot he 10 Super free spins should also be red")
+	 *    total      'ladder': the Total Win's taillight ladder (the five rungs are LED_BOARD.tiers' bars, the top one
+	 *               config.maxWin), counted with the house pacer (each rung crossed min(pace.barShare, pace.barMaxMs) of
+	 *               the count; the count's LENGTH is unchanged); 'today': the linear count over the band
+	 *    cartoons   the strip's idle rotation, in order (the race only at true idle, as before)
+	 *    pressLights the reindeer's light string along the top of the press screen, a tug at each change of screen
+	 *  DECIDED 2026-11-19 (Corey: "yes on the total count wins and 1.5 second hold on max win"; off brings back today's):
+	 *    totalBySize  the Total Win's count length by the round's size (small under the Big bar, big under the Epic bar,
+	 *                 huge from it, max the cap; ms at regular speed, a turbo level divides it, a press lands it at once):
+	 *                 off = scenes.totalCountMs (3 s) for every round
+	 *    capPageHold  a capped round's line page waits ms after the landing (the MAX WIN landing is seen): off = it wipes in
+	 *                 as the amount lands. Autoplay Bonuses' wrap-up still continues ROUND.wrapAutoHoldMs after the landing
+	 *  (Autoplay Bonuses still cuts an entry at ROUND.autoplayMs, 1.4 s: unchanged) */
+	ideas: {
+		fsEntry: 'presents' as 'presents' | 'today',
+		sfsEntry: 'tease' as 'tease' | 'today',
+		fsPresents: 3,
+		total: 'ladder' as 'ladder' | 'today',
+		cartoons: ['trot', 'tree', 'parade', 'chew', 'plow', 'takeoff', 'sleigh', 'signroll', 'peek', 'stack', 'race'] as ('trot' | 'parade' | 'plow' | 'sleigh' | 'peek' | 'race' | 'tree' | 'chew' | 'takeoff' | 'signroll' | 'stack')[],
+		pressLights: true,
+		totalBySize: { on: true, ms: { small: 1500, big: 3000, huge: 4000, max: 5000 } },
+		capPageHold: { on: true, ms: 1500 },
+	},
 };
 
 /** everything tunable, as one object (window.__reindeer.tune) */
