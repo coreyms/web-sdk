@@ -884,6 +884,9 @@ export class Scoreboard {
 		const t0 = performance.now();
 		this.drawStrip();
 		if (this.backRoot.visible) this.drawBack();
+		// (a hidden back board draws nothing: its last step's idea records go with it, so a read while it is down never
+		// reports the scene before; the probe host, 2026-11-20: the Super tease's red presents read on a Free Spins rise)
+		else if (this.back) clearIdeas(this.back.F.out.ctx.canvas);
 		this.cost.drawMs = Math.round((performance.now() - t0) * 100) / 100;
 		this.cost.steps += 1;
 	}
