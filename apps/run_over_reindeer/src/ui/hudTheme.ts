@@ -53,6 +53,12 @@ export const HUD_THEME: Record<string, string> = {
 	'win-cream-rgb': '255, 246, 222',
 	/** NEW (Manticore 0.7, written in its hud.css): the dark under-glow of that number. A scene's glass sets it (HUD_GLASS) */
 	'win-shadow-a': '0.7',
+	/** NEW (the win's sunburst, 2026-11-20, the mock win_readout_r1's gold): the rays' light, their pale core, the lit
+	 *  number's ink, the hottest face (ui/hud/HudReadout.svelte, hud.css .wburst) */
+	'burst-rgb': '255, 204, 96',
+	'burst-hi-rgb': '255, 232, 166',
+	'burst-ink-rgb': '255, 246, 222',
+	'burst-face-rgb': '255, 252, 236',
 
 	// ---- the upright phone's plain-text readouts (WIN, BALANCE, the amount: hud.css .stat.pt), NEW (Manticore: its ink,
 	// its label-warm and its shadow, as the rules had them). These defaults are the 'light' set of HUD_READOUT_INK below:
@@ -69,6 +75,12 @@ export const HUD_THEME: Record<string, string> = {
 	'pt-ante-ink-rgb': '255, 214, 214',
 	'pt-ante-label-rgb': '255, 106, 106',
 	'pt-ante-shadow': '0 0 8px rgba(232, 51, 61, 0.6), 0 1px 2px rgba(2, 8, 18, 0.95), 0 0 2px rgba(2, 8, 18, 0.9)',
+	/** NEW (the win's sunburst, 2026-11-20): the upright readout's rays, their core, the lit number's ink and glow (the
+	 *  snow ink set warms the gold to amber and keeps its own dark ink, as the mock draws it on snow) */
+	'pt-burst-rgb': '255, 204, 96',
+	'pt-burst-hi-rgb': '255, 232, 166',
+	'pt-burst-ink-rgb': '255, 246, 222',
+	'pt-burst-shadow': '0 0 7px rgba(255, 204, 96, 0.62), 0 1px 2px rgba(2, 8, 18, var(--hud-win-shadow-a, 0.7))',
 
 	// ---- painted glass: pale cold blue-white at low strength, so the dark bed shows through like ice over it ----
 	/** dock fill, top / middle / bottom of its vertical gradient, and their alphas */
@@ -207,6 +219,10 @@ export const HUD_READOUT_INK = {
 		'pt-ante-ink-rgb': HUD_THEME['pt-ante-ink-rgb'],
 		'pt-ante-label-rgb': HUD_THEME['pt-ante-label-rgb'],
 		'pt-ante-shadow': HUD_THEME['pt-ante-shadow'],
+		'pt-burst-rgb': HUD_THEME['pt-burst-rgb'],
+		'pt-burst-hi-rgb': HUD_THEME['pt-burst-hi-rgb'],
+		'pt-burst-ink-rgb': HUD_THEME['pt-burst-ink-rgb'],
+		'pt-burst-shadow': HUD_THEME['pt-burst-shadow'],
 	},
 	/** the night scenes (the scene swap, 2026-11-17): the light set, with a lit WIN's number held a step darker round its
 	 *  strokes (its gold glow a little softer, a 1 px dark rim added), so it reads 4.5:1 on the blue snow (4.49:1 with the
@@ -221,6 +237,10 @@ export const HUD_READOUT_INK = {
 		'pt-ante-ink-rgb': HUD_THEME['pt-ante-ink-rgb'],
 		'pt-ante-label-rgb': HUD_THEME['pt-ante-label-rgb'],
 		'pt-ante-shadow': HUD_THEME['pt-ante-shadow'],
+		'pt-burst-rgb': HUD_THEME['pt-burst-rgb'],
+		'pt-burst-hi-rgb': HUD_THEME['pt-burst-hi-rgb'],
+		'pt-burst-ink-rgb': HUD_THEME['pt-burst-ink-rgb'],
+		'pt-burst-shadow': HUD_THEME['pt-burst-shadow'],
 	},
 	dark: {
 		'pt-ink-rgb': '24, 26, 33',
@@ -232,6 +252,10 @@ export const HUD_READOUT_INK = {
 		'pt-ante-ink-rgb': '156, 20, 32',
 		'pt-ante-label-rgb': '156, 20, 32',
 		'pt-ante-shadow': '0 1px 0 rgba(255, 255, 255, 0.6)',
+		'pt-burst-rgb': '241, 163, 49',
+		'pt-burst-hi-rgb': '248, 196, 103',
+		'pt-burst-ink-rgb': '24, 26, 33',
+		'pt-burst-shadow': '0 0 6px rgba(241, 163, 49, 0.9), 0 0 13px rgba(241, 163, 49, 0.5), 0 1px 0 rgba(255, 255, 255, 0.6)',
 	},
 } as const satisfies Record<string, Record<string, string>>;
 

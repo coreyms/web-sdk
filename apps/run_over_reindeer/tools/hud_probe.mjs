@@ -311,6 +311,20 @@ const ringNow = (p) =>
 		};
 	});
 
+
+/** THE WIN'S SUNBURST (2026-11-20, ui/hud/HudReadout.svelte): is it lit, does the WIN box keep its amount inside it, is the
+ *  pill gone, and which CSS animations run on it (the readout and the rays) */
+const burstNow = (p) =>
+	p.evaluate(() => {
+		const w = document.querySelector('.hudp [data-hud="win"]');
+		const b = document.querySelector('.hudp .wburst');
+		if (!w || !b) return null;
+		const W = w.getBoundingClientRect();
+		const V = w.querySelector('.value').getBoundingClientRect();
+		const anims = [...b.getAnimations({ subtree: true }), ...w.getAnimations({ subtree: true })].filter((a) => a.animationName && a.playState === 'running').map((a) => a.animationName);
+		return { on: b.classList.contains('on'), phase: [...b.classList].find((c) => /^wb-(off|cnt|land|hold|out)$/.test(c)) ?? null, opacity: Number(getComputedStyle(b).opacity), pill: getComputedStyle(w).backgroundImage, inside: V.left >= W.left - 0.5 && V.right <= W.right + 0.5, anims };
+	});
+
 async function spinOnce(p) {
 	await p.evaluate(() => window.__reindeer.hud.emit({ type: 'bet' }));
 	for (let i = 0; i < 60 && (await p.evaluate(() => window.__reindeer.hud.idle())); i++) await sleep(50);
@@ -322,6 +336,8 @@ async function runSize(browser, S) {
 	await settle(p, S);
 	await sleep(600);
 	const idle = await snap(p);
+	const b0 = await burstNow(p);
+	check(!!b0 && !b0.on && b0.anims.length === 0, `${name}: at rest the WIN sunburst is off and nothing of it runs`, b0);
 	const sc = await scene(p);
 	const u = idle.u ?? 1;
 	if (SHOTS) await p.screenshot({ path: join(SHOTS, `${S.vp.width}x${S.vp.height}_idle.png`) });
@@ -558,6 +574,16 @@ async function runSize(browser, S) {
 		if ((await p.evaluate(() => window.__reindeer.hud.win())) > 0) {
 			won = await snap(p);
 			check(!(await p.evaluate(() => !!document.querySelector('.hudp .sweep'))), `${name}: no win streak on the glass after a win`);
+			// THE WIN'S SUNBURST: lit while the win shows, the pill gone, the amount inside its box; the long amount at the
+			// fixed type size is checked above (the long values); reduced motion: lit and still (no CSS animation runs)
+			await sleep(900);
+			const bw = await burstNow(p);
+			check(!!bw && bw.on && bw.opacity > 0.9 && bw.pill === 'none' && bw.inside, `${name}: a win shows: the sunburst lit (${bw?.phase}), no pill, the amount inside its box`, bw);
+			await p.emulateMedia({ reducedMotion: 'reduce' });
+			await sleep(500);
+			const br = await burstNow(p);
+			check(!!br && br.on && br.anims.length === 0, `${name}: reduced motion: the sunburst lit and still (no animation runs)`, br);
+			await p.emulateMedia({ reducedMotion: null });
 			if (SHOTS && (S.name === 'portrait' || S.name === 'desk1610')) await p.screenshot({ path: join(SHOTS, `${S.vp.width}x${S.vp.height}_win.png`) });
 		}
 	}

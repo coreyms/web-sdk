@@ -328,6 +328,179 @@
 	margin-right: -0.1em;
 }
 
+/* THE WIN'S SUNBURST (2026-11-20, Corey's pick "10 sunburst for both games" from the mock win_readout_r1, its default
+   strength 1, spread 1, pulse 0.6 Hz and gold): ui/hud/HudReadout.svelte draws it behind the WIN readout (hud="win").
+   It replaces the pill: the WIN box itself is not painted any more, the light is the rays and the lit number.
+     light up  the rays open out (scale 0.4 to 1) and fade in, and start their slow turn (14 s a turn)
+     count     the rays brighten from half to full over the HUD's own 550 ms count (the count is untouched)
+     landing   a soft flare (0.7 s) and the number's pop (7.5 % at most, inside its box)
+     hold      the core pulses slowly (0.6 Hz), the turn slows (16.7 s a turn)
+     fade      as the next spin clears WIN, the rays fold back in and fade (0.38 s)
+   Reduced motion: lit and still (no turn, pulse, flare or pop), the on and off only fade. Transform and opacity only. */
+.hudp .stat.win.sb.is-lit,
+.hudp .stat.win.sb.is-big {
+	background: none;
+	box-shadow: none;
+}
+.hudp .wburst {
+	--wb-c: var(--hud-burst-rgb);
+	--wb-hi: var(--hud-burst-hi-rgb);
+	position: absolute;
+	pointer-events: none;
+	opacity: 0;
+	visibility: hidden;
+	transform: scale(0.4);
+	transition: opacity 0.35s ease, transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s linear 0.5s;
+}
+.hudp .wburst.wb-portrait {
+	--wb-c: var(--hud-pt-burst-rgb);
+	--wb-hi: var(--hud-pt-burst-hi-rgb);
+}
+.hudp .wburst.on {
+	opacity: 1;
+	visibility: visible;
+	transform: none;
+	transition: opacity 0.35s ease, transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.hudp .wburst.wb-out {
+	visibility: visible;
+	transition: opacity 0.38s ease-in, transform 0.38s ease-in;
+}
+.hudp .wburst .wbi,
+.hudp .wburst svg {
+	position: absolute;
+	left: 0;
+	top: 0;
+}
+.hudp .wburst .wbi {
+	width: 100%;
+	height: 100%;
+	transform-origin: 50% 50%;
+}
+.hudp .wburst svg {
+	overflow: visible;
+}
+.hudp .wburst .ry {
+	animation: wb-turn 14s linear infinite;
+	animation-play-state: paused;
+}
+.hudp .wburst.on .ry,
+.hudp .wburst.wb-out .ry {
+	animation-play-state: running;
+}
+.hudp .wburst.wb-hold .ry {
+	animation-duration: 16.67s;
+}
+.hudp .wburst .pp {
+	opacity: 0.5;
+}
+.hudp .wburst.wb-cnt .pp {
+	animation: wb-count 0.55s cubic-bezier(0.33, 1, 0.68, 1) forwards;
+}
+.hudp .wburst.wb-land .pp,
+.hudp .wburst.wb-hold .pp,
+.hudp .wburst.wb-out .pp {
+	opacity: 1;
+}
+.hudp .wburst .fl {
+	opacity: 0;
+}
+.hudp .wburst.wb-land .fl {
+	animation: wb-flash 0.7s ease-out 1;
+}
+.hudp .wburst.wb-hold .pl {
+	animation: wb-pulse 1.667s ease-in-out infinite alternate;
+}
+/* the lit number: the light's pale ink and a warm glow (the upright phone's snow ink keeps its own dark ink, a gold glow) */
+.hudp .stat.win.sb .lbw,
+.hudp .stat.win.sb .value {
+	transition: color 0.25s, text-shadow 0.25s;
+}
+.hudp .stat.win.sb.is-lit .lbw {
+	color: rgb(var(--hud-burst-hi-rgb));
+}
+.hudp .stat.win.sb.is-lit .value {
+	color: rgb(var(--hud-burst-ink-rgb));
+	text-shadow: 0 0 7px rgba(var(--hud-burst-rgb), 0.62), 0 1px 2px rgba(var(--hud-shadow-rgb), var(--hud-win-shadow-a, 0.7));
+}
+.hudp .stat.pt.win.sb.is-lit .lbw {
+	color: rgb(var(--hud-pt-win-label-rgb));
+}
+.hudp .stat.pt.win.sb.is-lit .value {
+	color: rgb(var(--hud-pt-burst-ink-rgb));
+	text-shadow: var(--hud-pt-burst-shadow);
+}
+.hudp .stat.win.sb.wb-land .value {
+	animation: wb-pop 0.46s cubic-bezier(0.2, 0.9, 0.3, 1.2) 1;
+}
+.hudp .stat.pt.win.sb .value {
+	transform-origin: 0 50%;
+}
+@keyframes wb-turn {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}
+@keyframes wb-count {
+	from {
+		opacity: 0.5;
+	}
+	to {
+		opacity: 1;
+	}
+}
+@keyframes wb-flash {
+	0% {
+		opacity: 0;
+	}
+	14% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+@keyframes wb-pulse {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0.58;
+	}
+}
+@keyframes wb-pop {
+	0% {
+		transform: scale(1);
+	}
+	28% {
+		transform: scale(var(--wb-pop, 1.075));
+	}
+	100% {
+		transform: scale(1);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.hudp .wburst,
+	.hudp .wburst.on,
+	.hudp .wburst.wb-out {
+		transform: none;
+		transition: opacity 0.3s, visibility 0s linear 0.3s;
+	}
+	.hudp .wburst.on {
+		transition: opacity 0.3s;
+	}
+	.hudp .wburst *,
+	.hudp .stat.win.sb .value {
+		animation: none !important;
+	}
+	.hudp .wburst .pp {
+		opacity: 1;
+	}
+}
+
 /* ---- glass buttons (bet bar fix, 2026-11-19; Corey: "narrow lines at the top and bottom of some of the buttons, that
      don't fade or narrow out"). The old rim was a per-side border (white top, faint sides, gold bottom): on a circle or a
      pill the color changes at each corner's 45 degree join, so a bright arc stopped dead there. Now:
