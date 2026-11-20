@@ -261,15 +261,17 @@ export class RoadSounds {
 	}
 
 	/** THE SNORT AT THE LOCK (REINDEER_SOUND.snort.lockPeakMs; the roaming reindeer's own strike, once): the idle snort's
-	 *  clip, played on this frame, which roadFeatures picks so its loudest point lands on the crosshair's lock. It keeps
-	 *  the snorts' minGapMs from any other snort (an idle one, or his last strike's): within it, nothing plays. It is
-	 *  never the idle roll (its quiet rules are unchanged), and the next idle snort waits minGapMs after it. */
+	 *  clip, played on this frame, which roadFeatures picks so its loudest point lands on the crosshair's lock. EXEMPT
+	 *  from minGapMs (Corey 2026-11-20, "yes" to exempting it): it sounds on every strike of his. One copy of the key at
+	 *  a time: a snort still sounding now (an idle one the strike's alert has not yet faded to its stop, or his last
+	 *  strike's) is stopped on this frame first, so the lock's snort wins. It is never the idle roll; the idle snort keeps
+	 *  its own rule, minGapMs after any snort, this one included. */
 	lockSnort(detail: string) {
 		const now = performance.now();
-		const S = REINDEER_SOUND.snort;
-		if (now - this.snortAt < S.minGapMs) {
-			this.mark('lockSnortQuiet', `${detail}; ${Math.round(now - this.snortAt)} ms after the last snort (minGapMs ${S.minGapMs})`);
-			return;
+		if (this.snortOn > now || this.pending.has(N.snort)) {
+			if (this.pending.has(N.snort)) this.finishStop(N.snort);
+			else this.env.stop(N.snort);
+			this.note('sound', N.snort, 'stop (the lock\'s snort takes over)');
 		}
 		this.snortAt = now;
 		this.snortOn = now + 600;

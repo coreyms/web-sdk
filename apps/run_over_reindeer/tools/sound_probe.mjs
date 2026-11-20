@@ -8,7 +8,7 @@
 // WATCHES: ; sfx_column_grandma_in, sfx_column_grow, sfx_column_reindeer_in, sfx_column_santa_in, sfx_column_win_grandma
 // WATCHES: ; sfx_column_win_reindeer, sfx_column_win_santa, sfx_crash, sfx_crash_cloud, sfx_grandma_wild, sfx_intro_jingle_short
 // WATCHES: ; sfx_lane_stop_*, sfx_line_show, sfx_multiplier_land_high, sfx_multiplier_land_mid, sfx_multiplier_land_small, sfx_present_pop
-// WATCHES: ; lockSnort, lockSnortQuiet, REINDEER_SOUND.snort.lockPeakMs, ROAM.charge
+// WATCHES: ; lockSnort, REINDEER_SOUND.snort.lockPeakMs, ROAM.charge
 // WATCHES: ; sfx_redbox, sfx_reindeer_alert, sfx_reindeer_dart, sfx_reindeer_idle_snort, sfx_reindeer_run
 // WATCHES: ; sfx_reindeer_turn, sfx_scatter_land_*, sfx_scatter_land_1, sfx_scatter_success, sfx_scatter_tease, sfx_sticky_set
 // WATCHES: ; sfx_stoplight_change, sfx_target_drop, sfx_target_hop, sfx_target_lock, sfx_topup, sfx_traffic_roll, sfx_ui_minor
@@ -31,8 +31,8 @@
 // the cloud loop on while a crash cloud shows, off when it clears or the round ends; the Grandma Wild sound on her
 // pop's end; the reindeer column's entrance on its footfall frame; the idle snort only at an idle loop restart, never
 // from a strike's first frame to its crash's end; since 2026-11-20 the roaming reindeer's snort at the lock (`lockSnort`,
-// constants ROAM.charge) at most once a strike, within 140 ms and a frame before its lock; every snort at least minGapMs
-// apart; no sound twice at once unless intended; no page errors. With OUT=<dir> it writes case_<case>_<size>.md tables and sound_probe.json.
+// constants ROAM.charge) at most once a strike, within 140 ms and a frame before its lock (exempt from minGapMs); every
+// idle snort at least minGapMs after any snort; no sound twice at once unless intended; no page errors. With OUT=<dir> it writes case_<case>_<size>.md tables and sound_probe.json.
 // ROUND 2 (2026-11-15, judge2 below): the spin (the traffic loop from the press, its fade from the first reel's stop and
 // its stop by the last; each reel's own stop sound on that reel's stop frame; a stoplight change once per frame), the
 // target crosshair (each hop on its frame at its rate, checked against the Howl's own rate call; a drop once per frame
@@ -493,8 +493,8 @@ function judge(tag, C, R) {
 	const snorts = ours.filter((e) => e.name === 'sfx_reindeer_idle_snort');
 	const wrapFrames = new Set(wraps.map((w) => w.frame));
 	// (2026-11-20) THE SNORT AT THE LOCK (constants ROAM.charge, REINDEER_SOUND.snort.lockPeakMs): the roaming reindeer's own
-	// strike plays the same clip, marked `lockSnort` on its frame (or `lockSnortQuiet`, kept quiet by the gap). Every other
-	// snort is the idle roll's, with its rules as before.
+	// strike plays the same clip, marked `lockSnort` on its frame, on every strike of his: exempt from minGapMs (Corey
+	// 2026-11-20). Every other snort is the idle roll's, with its rules as before, minGapMs after ANY snort.
 	const lockMarks = M.filter((e) => e.what === 'lockSnort');
 	const lockFrames = new Set(lockMarks.map((e) => e.frame));
 	const lockSnorts = snorts.filter((s) => lockFrames.has(s.frame));
@@ -522,7 +522,8 @@ function judge(tag, C, R) {
 		check(!!lock && (mine[0].frame === lock.frame || (lead >= -1 && lead <= 140 + 50)), `${tag}: strike ${i + 1}: the lock's snort starts ${lead === null ? '-' : r1(lead)} ms before the lock (140 and a frame at most)`, { snort: mine[0], lock });
 		row('sfx_reindeer_idle_snort', mine[0], endOf(mine[0])?.t ?? null, 'the lock, 140 ms before (his strike)', lock ?? null);
 	});
-	for (let i = 1; i < snorts.length; i++) check(snorts[i].t - snorts[i - 1].t >= MIN_GAP - 5, `${tag}: snorts ${i} and ${i + 1} at least ${MIN_GAP} ms apart, idle or at a lock (${r1(snorts[i].t - snorts[i - 1].t)})`);
+	// (an idle snort minGapMs after any snort before it, a lock's included; a lock's snort has no gap rule)
+	for (let i = 1; i < snorts.length; i++) if (!lockFrames.has(snorts[i].frame)) check(snorts[i].t - snorts[i - 1].t >= MIN_GAP - 5, `${tag}: idle snort at ${r1(snorts[i].t - t0)} ms at least ${MIN_GAP} ms after the snort before it (${r1(snorts[i].t - snorts[i - 1].t)})`);
 	idleSnorts.forEach((s) => row('sfx_reindeer_idle_snort', s, endOf(s)?.t ?? null, 'idle loop restart', wraps.find((w) => w.frame === s.frame)));
 	if (C.idle) check(idleSnorts.length >= 1, `${tag}: the idle period had a snort (forced roll; ${IDLE_MS} ms, the gap after the lock's snort included)`);
 	if (C.slam) {

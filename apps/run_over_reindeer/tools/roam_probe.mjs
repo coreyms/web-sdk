@@ -10,7 +10,7 @@
 // WATCHES: ; data-skip, roam zone skip, roam.back, held, EXIT_STAND_MS, EXIT_PREFER_MS, __reindeer.wheel, __reindeer.fixtures, tools/wheel_probe_books.json
 // WATCHES: ; __reindeer.roamAway, __reindeer.roamBack, __reindeer.roadSounds
 // WATCHES: apps/run_over_reindeer/src/game/road/{chargeWindup.ts,roadFeatures.ts,roadSounds.ts}; ROAM.charge, REINDEER_SOUND.snort
-// WATCHES: ; __reindeer.crosshairStrike, __reindeer.hurry, roam().windup, roam().box, snapshot().charge, lockSnort, lockSnortQuiet
+// WATCHES: ; __reindeer.crosshairStrike, __reindeer.hurry, roam().windup, roam().box, snapshot().charge, lockSnort, snortAt
 // THE ROAM PROBE (the roaming reindeer, 2026-11-17; game/road/roam.ts, constants STRIKE.roam and ROAM, game/roamPaths.ts).
 // Since round 3 (Corey: "an allowed to walk area where it randomly chooses where to go") he roams an AREA. Per size
 // (1440x900 desktop, 844x390 phone held sideways, 390x844 upright phone; 1920x1080 desktop for the area checks only):
@@ -1292,7 +1292,10 @@ const CHARGE_STRIKE = async (p, o) =>
 		else h.roamStandAt(o.spot.x, o.spot.y);
 		h.step(0.001, 1);
 		if (o.hurry) await setHurry(1);
-		F.sounds['snortAt'] = -Infinity;
+		// (a snort 1 s ago: the lock's snort is exempt from minGapMs and must still sound; the idle snort's gap then counts
+		// from the lock's)
+		const realStart = performance.now();
+		F.sounds['snortAt'] = realStart - 1000;
 		h.roadSounds(true);
 		const step = 1000 / (o.hz || 60);
 		let done = false;
@@ -1349,7 +1352,7 @@ const CHARGE_STRIKE = async (p, o) =>
 		h.turbo(0);
 		if (tune) tune.on = true;
 		const ch = end.charge ? { snow: end.charge.snow.map((q) => ({ ...q, t: Math.round((q.t - tS) * 1000) / 1000 })), puff: end.charge.puff ? { ...end.charge.puff, t: Math.round((end.charge.puff.t - tS) * 1000) / 1000 } : null, up: end.charge.up } : null;
-		return { tS, t0: r0 ? r0.t0 - tS : null, roamStrike: r0 ? r0.roam : null, plan, impactAt, rows, at0, sounds, cleared, endWindup: end.roam.windup, ch, step, view: h.roamView(), reach: end.roam.reach, box: end.roam.box };
+		return { snortAtMoved: F.sounds['snortAt'] > realStart, tS, t0: r0 ? r0.t0 - tS : null, roamStrike: r0 ? r0.roam : null, plan, impactAt, rows, at0, sounds, cleared, endWindup: end.roam.windup, ch, step, view: h.roamView(), reach: end.roam.reach, box: end.roam.box };
 	}, o);
 
 /** the spec's plan, worked out here from the crosshair's legs (R3_GAME_SPEC.md 3 and 4): frame i's start, ms from the strike's start */
@@ -1497,6 +1500,7 @@ async function chargeSize(browser, S, spotsFrom) {
 				const firstOk = A.plan.lockAt <= 1e-6 ? !!snort && (row === A.rows[0] || Math.abs(snort.clock) < 0.2) : left !== null && left <= 140 + 1e-3 && leftPrev > 140 - 1e-3;
 				const played = A.sounds.filter(snortPlay);
 				check(lockSnorts.length === 1 && snort.what === 'lockSnort' && firstOk && played.length === 1 && /^lock:/.test(played[0].detail || '') && Math.abs(played[0].clock - snort.clock) < 0.2, `${tag}: the snort once, on the first frame within 140 real ms of the lock (${left === null ? '-' : r1(left)} ms before it${A.plan.lockAt <= 1e-6 ? ': the lock is the start, its first frame' : ''})`, { lockSnorts, played, lockAt: A.plan.lockAt, row, leftPrev });
+				check(A.snortAtMoved && !A.sounds.some((e) => e.what === 'lockSnortQuiet'), `${tag}: the lock's snort sounds with another snort 1 s before it (exempt from minGapMs), and the idle snort's gap counts from it`);
 				check(!B.sounds.some((e) => snortPlay(e) || e.what === 'lockSnort'), `${tag}: with the wind-up off, no snort (as today)`, B.sounds.filter((e) => /snort/i.test(e.what)));
 				const P = A.ch?.puff;
 				const lockRow = lockMark ? A.rows.find((r) => Math.abs(r.c - lockMark.clock) < 0.2) : null;
