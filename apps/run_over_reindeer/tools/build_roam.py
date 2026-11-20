@@ -71,6 +71,29 @@ def resize_box(im, bw, bh):
     return Image.fromarray((o * 255).round().astype(np.uint8), "RGBA")
 
 
+# THE CHARGE CLIPS' REACH (2026-11-20), read from their frames at the native render, frame px from the anchor: `up`,
+# `back`, `fwd` are the solid ink (alpha >= SOLID: his body, antlers and the light bulbs), `glow*` all ink (the bulbs'
+# soft glow too). The roam's keep-outs use the solid ink for these two clips (game/road/roam.ts ROAM_REACH): their boxes
+# (1160 up) count the bulbs' glow, which only the lowered head's antlers raise that high, and on the desktop that box left
+# him almost no spot to stand on (265 of 300 seeded picks found none). The glow may lie up to (glowUp - up) past it.
+SOLID = 128
+
+
+def ink_reach(src, clip, frames, m):
+    ax, ay = m["anchor_px"]
+    up = back = fwd = gup = gback = gfwd = 0
+    for f in frames:
+        a = np.asarray(Image.open(os.path.join(src, clip, f"{f:04d}.png")).convert("RGBA"))[..., 3]
+        for thr, glow in ((SOLID - 1, False), (1, True)):
+            ys, xs = np.where(a > thr)
+            u, b, w = ay - int(ys.min()), ax - int(xs.min()), int(xs.max()) + 1 - ax
+            if glow:
+                gup, gback, gfwd = max(gup, u), max(gback, b), max(gfwd, w)
+            else:
+                up, back, fwd = max(up, u), max(back, b), max(fwd, w)
+    return {"up": up, "back": back, "fwd": fwd, "glowUp": gup, "glowBack": gback, "glowFwd": gfwd}
+
+
 def pack(pictures):
     """the shelf packing (tallest first, SHEET_MAX pages, a 2 px gap): the rule the roam sheets were packed by"""
     gap = 2
@@ -124,6 +147,8 @@ def main():
                 c["hoof"] = [[round(v, 2) for v in q] for q in m["hoof_fr"]]
             if "beats" in m:
                 c["beats"] = m["beats"]
+            if src == CHARGE_SOURCE:
+                c["reach"] = ink_reach(src, clip, frames, m)
             if len(frames) != len(set(frames)) or (src == CHARGE_SOURCE and frames != list(range(1, m["frames"] + 1))):
                 sys.exit(f"build_roam: {clip} must pack every frame, 1 to {m['frames']}")
             spec["clips"][name] = c

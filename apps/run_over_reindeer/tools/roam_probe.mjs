@@ -1325,7 +1325,17 @@ const CHARGE_STRIKE = async (p, o) =>
 			const r = s.runner;
 			const ro = s.roam;
 			const rr = F['runner'];
-			rows.push({ i, c: Math.round((F['clock'] - tS) * 1000) / 1000, rate: F.rate, roam: { state: ro.state, clip: ro.clip, frame: ro.frame, visible: ro.visible, x: ro.x, y: ro.y, drawn: ro.drawn ? ro.drawn.sprite : null, windup: !!ro.windup }, run: r ? { phase: r.phase, view: r.view, stride: r.stride, x: r.x, y: r.y, vis: !!(rr && rr.sprite.visible), alpha: r.alpha, scale: r.scale, mirrored: r.mirrored } : null, fx: s.charge ? s.charge.up : null, xh: F['xh'] ? F['xh'].state : null });
+			// his INK as drawn, road px: the sprite's trimmed picture (getBounds gives the clip's whole box)
+			const sp = F.roam.sprite;
+			const tx = sp.texture;
+			const ink = sp.visible && tx.trim ? (() => {
+				const ax = sp.anchor.x * tx.orig.width;
+				const ay = sp.anchor.y * tx.orig.height;
+				const xa = sp.x + (tx.trim.x - ax) * sp.scale.x;
+				const xb = sp.x + (tx.trim.x + tx.trim.width - ax) * sp.scale.x;
+				return [Math.min(xa, xb), sp.y + (tx.trim.y - ay) * sp.scale.y, Math.max(xa, xb), sp.y + (tx.trim.y + tx.trim.height - ay) * sp.scale.y];
+			})() : null;
+			rows.push({ i, c: Math.round((F['clock'] - tS) * 1000) / 1000, rate: F.rate, roam: { state: ro.state, clip: ro.clip, frame: ro.frame, visible: ro.visible, x: ro.x, y: ro.y, drawn: ro.drawn ? ro.drawn.sprite : null, ink, windup: !!ro.windup }, run: r ? { phase: r.phase, view: r.view, stride: r.stride, x: r.x, y: r.y, vis: !!(rr && rr.sprite.visible), alpha: r.alpha, scale: r.scale, mirrored: r.mirrored } : null, fx: s.charge ? s.charge.up : null, xh: F['xh'] ? F['xh'].state : null });
 			if (r && r.phase === 'impact' && impactAt === null) impactAt = Math.round((F['clock'] - tS) * 1000) / 1000;
 			if (impactAt !== null && (after += step * F.rate) > (o.afterMs ?? 760)) break;
 		}
@@ -1411,12 +1421,13 @@ async function chargeSize(browser, S, spotsFrom) {
 		if (spotsFrom && spotsFrom[S.name]) spots = spotsFrom[S.name];
 		out.spots = spots.slice(0, CHARGE_CASES.length).map((q) => ({ x: q.x, y: q.y }));
 		if (!timing) {
-			// his reach: from the art's boxes (the rig's manifests, via tools/build_roam.py), the charge clips counted in
+			// his reach: the four roam clips by their boxes (the rig's manifests), the two charge clips by their solid ink
+			// (read from the art by tools/build_roam.py ink_reach: 1076 frame px up, the bulbs' glow to 1148)
 			const K = 0.18465;
 			const B = geo.roam.box;
-			const ups = Object.values(B).map((b) => b.anchorY * b.height);
-			const sides = Object.values(B).map((b) => Math.max(b.anchorX, 1 - b.anchorX) * b.width);
-			check(!!B.charge && !!B.chargeDown && Math.abs(geo.roam.reach.up - Math.max(...ups)) < 1e-6 && Math.abs(geo.roam.reach.side - Math.max(...sides)) < 1e-6 && Math.abs(geo.roam.reach.up - 1160 * K) < 0.01, `${name}: his reach counts the charge clips (up ${r1(geo.roam.reach.up)} road px = 1160 frame px, side ${r1(geo.roam.reach.side)})`, { reach: geo.roam.reach, box: B });
+			const old = ['walk', 'start', 'stop', 'sniff'].map((c) => B[c]);
+			const up = Math.max(...old.map((b) => b.anchorY * b.height), 1076 * K);
+			check(!!B.charge && !!B.chargeDown && Math.abs(geo.roam.reach.up - up) < 1e-6 && Math.abs(geo.roam.reach.glowUp - (1148 * K - up)) < 1e-6, `${name}: his reach counts the charge clips' solid ink (up ${r1(geo.roam.reach.up)} road px = ${r1(geo.roam.reach.up / K)} frame px; their bulbs' glow up to ${r1(geo.roam.reach.glowUp)} road px past it; side ${r1(geo.roam.reach.side)})`, { reach: geo.roam.reach, box: B });
 			const bad = [];
 			for (const q of picks) if (q.pass >= 0) {
 				const hz = hitsAt(geo, zones, q.x, q.y);
@@ -1481,13 +1492,14 @@ async function chargeSize(browser, S, spotsFrom) {
 				const left = row ? (A.plan.lockAt - row.c) / row.rate : null;
 				const prev = row ? A.rows[A.rows.indexOf(row) - 1] : null;
 				const leftPrev = prev ? (A.plan.lockAt - prev.c) / prev.rate : Infinity;
-				const firstOk = A.plan.lockAt <= 1e-6 ? row === A.rows[0] : left !== null && left <= 140 + 1e-3 && leftPrev > 140 - 1e-3;
+				// (the strike's first frame can be a ticker frame of the frozen clock before the first step: at 0 ms)
+				const firstOk = A.plan.lockAt <= 1e-6 ? !!snort && (row === A.rows[0] || Math.abs(snort.clock) < 0.2) : left !== null && left <= 140 + 1e-3 && leftPrev > 140 - 1e-3;
 				const played = A.sounds.filter(snortPlay);
 				check(lockSnorts.length === 1 && snort.what === 'lockSnort' && firstOk && played.length === 1 && /^lock:/.test(played[0].detail || '') && Math.abs(played[0].clock - snort.clock) < 0.2, `${tag}: the snort once, on the first frame within 140 real ms of the lock (${left === null ? '-' : r1(left)} ms before it${A.plan.lockAt <= 1e-6 ? ': the lock is the start, its first frame' : ''})`, { lockSnorts, played, lockAt: A.plan.lockAt, row, leftPrev });
 				check(!B.sounds.some((e) => snortPlay(e) || e.what === 'lockSnort'), `${tag}: with the wind-up off, no snort (as today)`, B.sounds.filter((e) => /snort/i.test(e.what)));
 				const P = A.ch?.puff;
 				const lockRow = lockMark ? A.rows.find((r) => Math.abs(r.c - lockMark.clock) < 0.2) : null;
-				check(!!P && !!lockMark && Math.abs(P.t - A.plan.lockAt) < 0.01 && P.running === (A.plan.lockAt >= A.t0 - 1e-6) && !!lockRow && lockRow.fx.puff > 0, `${tag}: the breath puff from the lock's moment (${r1(A.plan.lockAt)} ms; shown from its frame at ${lockMark ? r1(lockMark.clock) : '-'}), from the ${P?.running ? `running stride ${P.stride}'s` : `${P?.clip} frame ${P?.frame}'s`} nose`, { P, lockMark, t0: A.t0, lockRow });
+				check(!!P && !!lockMark && Math.abs(P.t - A.plan.lockAt) < 0.01 && P.running === (A.plan.lockAt >= A.t0 - 1e-6) && ((!!lockRow && lockRow.fx.puff > 0) || (Math.abs(lockMark.clock) < 0.2 && A.rows[0].fx.puff > 0)), `${tag}: the breath puff from the lock's moment (${r1(A.plan.lockAt)} ms; shown from its frame at ${lockMark ? r1(lockMark.clock) : '-'}), from the ${P?.running ? `running stride ${P.stride}'s` : `${P?.clip} frame ${P?.frame}'s`} nose`, { P, lockMark, t0: A.t0, lockRow });
 				const early = A.rows.filter((r) => r.fx && r.fx.puff > 0 && lockMark && r.c < lockMark.clock - 0.2);
 				check(early.length === 0, `${tag}: no puff before the lock`, early.slice(0, 2));
 			}
@@ -1509,14 +1521,16 @@ async function chargeSize(browser, S, spotsFrom) {
 				check(afterClear.length > 0 && afterClear.every((r) => r.fx && r.fx.shown === 0 && r.fx.snow === 0 && r.fx.pending === 0 && r.fx.puff === 0), `${tag}: the board put up as it is (clearAll, the cut of SKIP TO RESULT and a resume) leaves no effect sprite from that frame on`, afterClear.filter((r) => r.fx && r.fx.shown).slice(0, 2));
 			}
 			if (C.hurryAt !== undefined || C.turboAt) check(W.clip === 'charge' && A.rows.filter((r) => r.roam.visible).every((r) => r.roam.clip === 'charge'), `${tag}: a ${C.turboAt ? 'turbo change' : 'slam stop'} during the wind-up keeps the slow drag (it only speeds the board clock)`);
-			// his drawn picture inside his reach (his keep-outs' box) on every wind-up frame
-			const geo2 = { view: A.view, roam: { ...geo.roam, reach: A.reach, scale: A.at0.scale }, vp: geo.vp };
-			const out2 = before.filter((r) => {
-				const b = bodyOf(geo2).body(r.roam.x, r.roam.y);
-				const d = r.roam.drawn;
-				return !d || d[0] < b.x0 - 0.6 || d[2] > b.x1 + 0.6 || d[1] < b.y0 - 0.6 || d[3] > b.y1 + 0.6;
+			// his drawn ink inside his reach (his keep-outs' box) on every wind-up frame, road px: the solid ink is the reach,
+			// the bulbs' soft glow may lie up to reach.glowUp over its top (both read from the art by tools/build_roam.py)
+			const sc = A.at0.scale;
+			const outInk = before.filter((r) => {
+				const q = r.roam.ink;
+				const top = r.roam.y - (A.reach.up + (A.reach.glowUp || 0)) * sc;
+				return !q || q[1] < top - 0.5 || q[0] < r.roam.x - A.reach.side * sc - 0.5 || q[2] > r.roam.x + A.reach.side * sc + 0.5 || q[3] > r.roam.y + 0.5;
 			});
-			check(out2.length === 0, `${tag}: on every wind-up frame his picture lies inside the reach his keep-outs are tested with`, out2.slice(0, 2).map((r) => ({ c: r.c, drawn: r.roam.drawn, body: bodyOf(geo2).body(r.roam.x, r.roam.y) })));
+			const over = Math.max(0, ...before.filter((r) => r.roam.ink).map((r) => (r.roam.y - A.reach.up * sc - r.roam.ink[1]) * A.view.k));
+			check(outInk.length === 0, `${tag}: on every wind-up frame his ink lies inside the reach his keep-outs are tested with (the bulbs' glow over its top by ${r1(over)} CSS px at most, ${r1((A.reach.glowUp || 0) * sc * A.view.k)} allowed)`, outInk.slice(0, 2).map((r) => ({ c: r.c, ink: r.roam.ink, x: r.roam.x, y: r.roam.y, reach: A.reach, sc })));
 			const kick = want.at[16];
 			console.log(`  INFO ${tag}: ${want.clip}, k ${r1(want.k * 1000) / 1000}${want.hop !== null ? `, hit on the hop at ${r1(want.hop)}` : quick ? '' : ', hit at its own 266.7'} ms; lock ${A.plan ? r1(A.plan.lockAt) : '-'}, set off ${r1(A.t0)}, impact ${r1(A.impactAt)} ms (board); cut on frame ${before.length ? before[before.length - 1].roam.frame : '-'}${!quick ? `; kick ${kick < A.t0 ? 'shown' : 'cut'}` : ''}; snort ${lockSnorts.map((e) => e.what).join(',') || 'none'}`);
 		}

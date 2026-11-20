@@ -391,6 +391,14 @@ export const REINDEER_ROAM = {
 					21
 				],
 				"hold": 21
+			},
+			"reach": {
+				"up": 1076,
+				"back": 548,
+				"fwd": 543,
+				"glowUp": 1148,
+				"glowBack": 549,
+				"glowFwd": 637
 			}
 		},
 		"chargeDown": {
@@ -424,7 +432,15 @@ export const REINDEER_ROAM = {
 					414.0,
 					-247.6
 				]
-			]
+			],
+			"reach": {
+				"up": 1076,
+				"back": 546,
+				"fwd": 543,
+				"glowUp": 1148,
+				"glowBack": 546,
+				"glowFwd": 637
+			}
 		}
 	},
 	"tiers": {

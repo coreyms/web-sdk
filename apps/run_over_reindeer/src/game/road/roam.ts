@@ -40,14 +40,18 @@ import { castReach, castShadow, makeShadow, shadowStrength } from './shadows';
 
 const K = REINDEER_ROAM.roadPxPerFramePx;
 const C = REINDEER_ROAM.clips;
-/** (2026-11-20) the charge wind-up's clips reach further back and up than the sniff loop (the rig's boxes: +25 frame px
- *  back, +86 up): counted in, so the keep-outs hold while he winds up where he stands */
-const CLIPS: RoamClip[] = ['walk', 'start', 'stop', 'sniff', 'charge', 'chargeDown'];
+const CLIPS: RoamClip[] = ['walk', 'start', 'stop', 'sniff'];
 const BOX: Record<RoamClip, RoamBox> = { walk: roamBox('walk'), start: roamBox('start'), stop: roamBox('stop'), sniff: roamBox('sniff'), charge: roamBox('charge'), chargeDown: roamBox('chargeDown') };
+/** (2026-11-20) THE CHARGE WIND-UP's clips, counted in by their solid ink read from the art (tools/build_roam.py
+ *  ink_reach: the lowered head raises the antlers; their boxes, 1160 frame px up, count the bulbs' soft glow, and on the
+ *  desktop left him almost nowhere to stand), so the keep-outs hold while he winds up where he stands */
+const CHARGE_REACH = (['charge', 'chargeDown'] as const).map((c) => C[c].reach);
 /** his body's reach from his feet at the built size, road px, whichever clip and whichever way he faces */
 export const ROAM_REACH = {
-	side: Math.max(...CLIPS.map((c) => Math.max(BOX[c].anchorX, 1 - BOX[c].anchorX) * BOX[c].width)),
-	up: Math.max(...CLIPS.map((c) => BOX[c].anchorY * BOX[c].height)),
+	side: Math.max(...CLIPS.map((c) => Math.max(BOX[c].anchorX, 1 - BOX[c].anchorX) * BOX[c].width), ...CHARGE_REACH.map((q) => Math.max(q.back, q.fwd) * K)),
+	up: Math.max(...CLIPS.map((c) => BOX[c].anchorY * BOX[c].height), ...CHARGE_REACH.map((q) => q.up * K)),
+	/** how far the charge clips' glow may lie past it, road px (the probes' allowance) */
+	glowUp: Math.max(0, ...CHARGE_REACH.map((q) => q.glowUp * K)) - Math.max(...CLIPS.map((c) => BOX[c].anchorY * BOX[c].height), ...CHARGE_REACH.map((q) => q.up * K)),
 };
 /** the strip at his feet checked against the road (its share of his height) */
 const FEET_SHARE = 0.06;
