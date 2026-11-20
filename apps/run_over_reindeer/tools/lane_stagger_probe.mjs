@@ -581,7 +581,7 @@ try {
 				const f3 = hurry3.length;
 				T.check(tapped !== null && sp.length === 4 && sp[2].cut && !sp[1].cut && !sp[3].cut, `${tag}: the tap cut free spin 2 only (cuts: ${sp.map((x) => x.cut).join(' ')})`, { tapped, sp: sp.map((x) => [x.cut, x.level]) });
 				T.check(f3 > 0 && hurry3.length > 0 && hurry3.every((h) => h === 0), `${tag}: free spin 3 runs with no hurry on any of its ${hurry3.length} frames`, [...new Set(hurry3)]);
-				T.check(len1 > 0 && len3 > 0 && Math.abs(len3 - len1) <= 2 && s3.level === turbo, `${tag}: free spin 3 takes its full normal length: ${len3} frames from its drive in to its rest, as free spin 1 (same board) took ${len1} (turbo level ${s3?.level})`, { len1, len3, f1 });
+				T.check(len1 > 0 && len3 > 0 && Math.abs(len3 - len1) <= 2 && s3.level === s1.level && s3.level === 0, `${tag}: free spin 3 takes its full normal length: ${len3} frames from its drive in to its rest, as free spin 1 (same board) took ${len1} (speed level ${s3?.level}, as free spin 1's ${s1?.level}: a bonus round enters at regular speed whatever the base game's turbo level, the stock rule of 2026-11-17)`, { len1, len3, f1 });
 				const st1 = stopsIn(s1);
 				const st3 = stopsIn(s3);
 				T.check(st1 > 0 && st3 === st1, `${tag}: free spin 3's lane stops sound as free spin 1's did (${st3} and ${st1})`, { st1, st3 });
