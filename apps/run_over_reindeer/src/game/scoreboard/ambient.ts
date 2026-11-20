@@ -299,10 +299,12 @@ const stack: Draw = (g, W, H, t) => {
 		}
 		moved = true;
 		if (p.i === 5) continue; // (the top one: off the top, see below)
-		// away from the hit, mostly in his direction: a kick right and up by how near the hit it was
+		// away from the hit, mostly in his direction: the bottom row skids and hops along the road, the higher ones fly
+		// higher and further; the nearer the hit, the harder the kick (so they scatter, not move as one block)
 		const near = 1 - clamp(dist / Math.max(1, stackR - stackL + ph), 0, 1);
-		const vx = W * (0.32 + 0.3 * near + 0.12 * hash(p.i * 3.1));
-		const vy = H * (1.6 + 1.4 * near + p.lv * 0.6);
+		// (and fast enough to be off the strip by the clear: across what is left of it in at most the clear's time)
+		const vx = Math.max(W * (0.2 + 0.11 * p.lv + 0.2 * near + 0.1 * hash(p.i * 3.1)), (W + 2 - p.x) / ((S.clearBy - S.hitAt - 100) / 1000));
+		const vy = H * (0.7 + 1.3 * p.lv + 0.9 * near + 0.3 * hash(p.i * 1.7));
 		const grav = H * 9;
 		let x = p.x + vx * tt;
 		let yB = p.yB - vy * tt + 0.5 * grav * tt * tt;
@@ -312,7 +314,7 @@ const stack: Draw = (g, W, H, t) => {
 			const tb = tt - t1;
 			const vb = vy * 0.4;
 			yB = H - 1 - Math.max(0, vb * tb - 0.5 * grav * tb * tb);
-			x = p.x + vx * t1 + vx * 0.7 * tb;
+			x = p.x + vx * tt;
 		}
 		if (x > W + 1) continue;
 		const r = picTurned(g, p.name, x, yB, ph, Math.floor((x - p.x) / (ph * 0.8)) + 1);
