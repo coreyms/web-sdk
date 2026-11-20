@@ -1,5 +1,5 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
-// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadBoard.ts,game/road/roadFeatures.ts};
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadBoard.ts,game/road/roadFeatures.ts,game/road/wildMult.ts};
 // WATCHES: ; __reindeer.atRest, __reindeer.board, __reindeer.boardLayout, __reindeer.clock, __reindeer.frame, __reindeer.hud
 // WATCHES: ; __reindeer.roadBoard, __reindeer.setBoard, __reindeer.step, __reindeer.tune, __reindeer.turbo, COLUMN.loadWaitMs, COLUMN, RED_BOX
 // WATCHES: ; .landing
@@ -389,6 +389,9 @@ try {
 				if (!reached) continue;
 				// standing: the character hidden in both (only the clouds are judged here; the right overlap is below)
 				if (name === 'standing') await R(p, (reel) => (window.__reindeer.roadBoard().features.columns.find((x) => x.reel === reel).body.renderable = false), reel);
+				// the multiplier not drawn in either (2026-11-19, "E Candy Cane": its letters and their baked shadow sit on the
+				// bottom band; the frame alone is judged here, the number by tools/wild_mult_probe.mjs)
+				await R(p, (reel) => (window.__reindeer.roadBoard().features.columns.find((x) => x.reel === reel && x.phase !== 'leave').label.root.renderable = false), reel);
 				const a = await shot(p);
 				await setInside(p, reel, false);
 				const b = await shot(p);
@@ -416,6 +419,7 @@ try {
 				if (st.backdrop) check(st.backdrop.x >= st.roadOuter.x - 0.01 && st.backdrop.x1 <= st.roadOuter.x1 + 0.01, `${tag}: ${name}: the still cloud inside the frame's outer edge`);
 				if (name === 'entrance cloud') check(!!st.body && !st.over && st.body.x1 <= st.roadOuter.x1 + 0.01 && st.body.x >= st.roadOuter.x - 0.01, `${tag}: entrance cloud frames: the clip (cloud and all) is cropped on all four sides (road x ${r1(st.body?.x)} to ${r1(st.body?.x1)})`);
 				if (name === 'standing') await R(p, (reel) => (window.__reindeer.roadBoard().features.columns.find((x) => x.reel === reel).body.renderable = true), reel);
+				await R(p, (reel) => (window.__reindeer.roadBoard().features.columns.find((x) => x.reel === reel && x.phase !== 'leave').label.root.renderable = true), reel);
 				if (OUT && dpr === 2 && S.name !== 'short') {
 					for (const side of ['left', 'right']) {
 						const bx = st.box;

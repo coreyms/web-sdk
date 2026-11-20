@@ -360,7 +360,9 @@ export default {
 	"symbols/symbols.json": "82972c35",
 	"symbols/symbols.webp": "e42fbb6d",
 	"wheel/super-wheel-phone.webp": "43218eea",
-	"wheel/super-wheel.webp": "d552a91b"
+	"wheel/super-wheel.webp": "d552a91b",
+	"wild/wild-mult-full.webp": "4ed5cdfa",
+	"wild/wild-mult-phone.webp": "9b4e54ea"
 } as const;
 
 export const fileBytes = {
@@ -724,7 +726,9 @@ export const fileBytes = {
 	"symbols/symbols.json": 4573822,
 	"symbols/symbols.webp": 4564226,
 	"wheel/super-wheel-phone.webp": 388822,
-	"wheel/super-wheel.webp": 757618
+	"wheel/super-wheel.webp": 757618,
+	"wild/wild-mult-full.webp": 547410,
+	"wild/wild-mult-phone.webp": 150662
 } as const;
 
 export const landingSizes = {

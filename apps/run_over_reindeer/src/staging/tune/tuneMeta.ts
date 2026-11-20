@@ -53,6 +53,9 @@ export const GROUP_META: Record<string, { label: string; when: When }> = {
 	logoSign: { label: 'Billboard logo', when: 'live' },
 	// the Super wheel (game/road/superWheel.ts): its numbers are read as each wheel plays
 	superWheel: { label: 'Super wheel', when: 'live' },
+	// the Wilds' multipliers (game/road/wildMult.ts, 2026-11-19 "E Candy Cane"): the motion is read every frame; a place's
+	// letter height and width when the number next changes
+	wildMult: { label: 'Wild multipliers (candy lettering)', when: 'live' },
 	// the scene swap (2026-11-17): the three presets by hand, the cross-fade's length (read when a swap starts)
 	scene: { label: 'Scene (the snow and the dark grass sets: day, Free Spins and Super; forest, edge cover)', when: 'resize' },
 	// the LED scoreboard (game/scoreboard/): the rise, the timings and the cartoon are read every frame or at a show's

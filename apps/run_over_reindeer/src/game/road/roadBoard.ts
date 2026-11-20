@@ -1024,6 +1024,17 @@ export class RoadBoard {
 		const reels = new Set<number>();
 		for (const w of wins) for (const c of w.cells) reels.add(Math.floor(c / ROWS));
 		this.features.winColumns([...reels]);
+		// THE WILDS' MULTIPLIERS on the winning lines play their win from their line's start, and where two add on a line
+		// copies fly to its multiplier as it shows (game/road/wildMult.ts; win ms to board ms at the board's rate)
+		const toBoard = Math.max(0.01, this.features.rate || 1);
+		this.features.winNumbers(
+			drawn.map((w) => w.cells),
+			drawn.map((_, k) => (this.lineStarts[k] ?? 0) * toBoard),
+			drawn.map((_, k) => {
+				const b = this.lightsOn ? (this.winFx?.badgeAt(k) ?? null) : null;
+				return b ? { x: b.x, y: b.y, inMs: b.at * toBoard } : null;
+			}),
+		);
 		this.winLayer.alpha = 1;
 		this.winLayer.visible = true;
 		// a line win dims the symbols that are not part of it; a plain message over the board (no cells) dims nothing
