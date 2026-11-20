@@ -1,7 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
-// WATCHES: apps/run_over_reindeer/src/{game/road/wildMult.ts,game/road/roadFeatures.ts,game/road/roadBoard.ts,game/road/winLights.ts,game/wildMultSpec.ts};
+// WATCHES: apps/run_over_reindeer/src/{game/road/wildMult.ts,game/road/roadFeatures.ts,game/road/roadBoard.ts,game/road/winLights.ts,game/wildMultSpec.ts,game/road/garland.ts};
 // WATCHES: ; __reindeer.atRest, __reindeer.board, __reindeer.clock, __reindeer.hud, __reindeer.roadBoard, __reindeer.setBoard,
-// WATCHES: ; __reindeer.tune, __reindeer.wildMult, __reindeer.wildMultMemory, __reindeer.road, WILD_MULT, COLUMN.joinMs, COLUMN.loadWaitMs
+// WATCHES: ; __reindeer.tune, __reindeer.wildMult, __reindeer.wildMultMemory, __reindeer.road, WILD_MULT, WILD_FRAME.band, COLUMN.joinMs, COLUMN.loadWaitMs
 // WATCHES: ; .landing
 // THE WILDS' MULTIPLIERS PROBE (Corey 2026-11-19: "E Candy Cane"; game/road/wildMult.ts, constants WILD_MULT,
 // tools/build_wild_mult.py). At 1440x900 and 390x844 (the phone tier), device scale 1 and 3:
@@ -40,9 +40,9 @@ const VALUES = [2, 3, 5, 8, 10, 25, 33, 50, 75, 99, 100, 250, 500];
 const MIN_CSS = 10;
 /** road px the letters' soft shadow tail may reach past the frame's inside */
 const SLACK = 3;
-/** the frame's band from its outer edge to its inside (road px): a column's RED_BOX.edge + COLUMN.frameWidth + RED_BOX.edge
- *  less the 1 px the outer box stands inside the cell; a cell's RED_BOX.width + 2 RED_BOX.edge */
-const BAND = { col: 19, cell: 15 };
+/** the frame's band from its outer edge to its inside (road px): the garland's WILD_FRAME.band (2026-11-19; the red box's
+ *  were 19 and 15), read from the game's tune when the page is up (these are its values) */
+let BAND = { col: 26, cell: 20 };
 const BOARD = [['L4', 'H3', 'L2', 'H2'], ['L3', 'L1', 'L4', 'L5'], ['L3', 'L5', 'L1', 'L4'], ['H4', 'L4', 'L2', 'L4'], ['H3', 'L1', 'L4', 'H1']];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let fails = 0;
@@ -71,15 +71,22 @@ const boxes = (p) =>
 			const b = o.getBounds();
 			return { x: b.x, y: b.y, w: b.width, h: b.height };
 		};
+		// (2026-11-19, the garland: its outer edge as laid, road px, through its own transform; its root's bounds take in
+		// the baubles hung on its corners)
+		const outer = (box) => {
+			const o = box.parts().outer;
+			const a = box.root.toGlobal({ x: o.x, y: o.y });
+			const b = box.root.toGlobal({ x: o.x + o.w, y: o.y + o.h });
+			return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
+		};
 		const cols = {};
 		for (const c of F.columns) {
 			if (c.phase === 'leave') continue;
-			const o = c.box.outer.map(g);
-			cols[c.reel] = { x: o[2].x, y: o[0].y, w: o[3].x + o[3].w - o[2].x, h: o[1].y + o[1].h - o[0].y };
+			cols[c.reel] = outer(c.box);
 		}
 		const cells = {};
-		for (const c of F.clouds) if (c.leaving === null) cells[c.cell] = g(c.box.root);
-		return { cols, cells };
+		for (const c of F.clouds) if (c.leaving === null) cells[c.cell] = outer(c.box);
+		return { cols, cells, band: { ...window.__reindeer.tune.wildFrame.band } };
 	});
 
 const inside = (gl, box, slack = 1) => gl.every((q) => q.x >= box.x - slack && q.x + q.w <= box.x + box.w + slack && q.y >= box.y - slack && q.y + q.h <= box.y + box.h + slack);
@@ -154,6 +161,7 @@ async function run(browser, S, dpr) {
 		});
 		const m = await mults(p);
 		const b = await boxes(p);
+		BAND = b.band;
 		const all = [...m.columns.map((c) => ({ ...c, key: c.tier, box: b.cols[c.reel], band: BAND.col, where: `${c.tier} column` })), ...m.cells.map((c) => ({ ...c, key: 'cell', box: b.cells[c.cell], band: BAND.cell, where: 'cell' }))];
 		check(rested, `${tag} ${v}x: every number is back at rest after its appear`, all.map((c) => c.mode));
 		for (const c of all) {

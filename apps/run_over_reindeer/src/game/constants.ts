@@ -510,6 +510,53 @@ export const COLUMN = {
 	upload: { gapMs: 120, quietMaxMs: 1200 },
 };
 
+// ---- THE WILD FRAMES: TINSEL GARLAND (game/road/garland.ts, tools/build_garland.py) ------------------------------------
+// Corey 2026-11-19, from the wild border mock's seven candidates (Desktop/Run Over Reindeer/wild_borders_r1_2026-11-19):
+// "I'd go for Garland (F), but I'd go Red for Santa because it doesn't clash with the Green number", "We should jsut go
+// static colors for Reindeer Santa, Grandma for the multipliers and the garland" and "just swap the garland on santa and
+// grandma". The frame of a full column Wild, the single cell Grandma Wild and the marked Grandma car is a tinsel garland
+// (baked tiles and corners, a glass bauble on each corner) in ONE LOOK PER CHARACTER at every multiplier value (the
+// mock's value tiers are off). Its outer edge is where the red box's dark line was (RED_BOX.inset in from the cell, less
+// RED_BOX.edge); the band is drawn inward from it. Road px and board ms. The tune panel lists this block (TUNE).
+export type GarlandTinsel = 'silver' | 'red' | 'green';
+export type GarlandLook = { tinsel: GarlandTinsel; bauble: 'red' | 'gold' };
+export const WILD_FRAME = {
+	/** each character's tinsel and baubles: one line to change one (Reindeer silver with red baubles against his red
+	 *  number, Santa a dark red with gold baubles against his green number, Grandma green with gold against her gold) */
+	look: {
+		reindeer: { tinsel: 'silver', bauble: 'red' },
+		santa: { tinsel: 'red', bauble: 'gold' },
+		grandma: { tinsel: 'green', bauble: 'gold' },
+	} as Record<'reindeer' | 'santa' | 'grandma', GarlandLook>,
+	/** the single cell Grandma Wild's (her set), and the red box's old place on a Grandma car in a struck Santa reel */
+	cell: { tinsel: 'green', bauble: 'gold' } as GarlandLook,
+	mark: { tinsel: 'green', bauble: 'gold' } as GarlandLook,
+	/** THE BAND, road px from the frame's outer edge in (the mock's F): a full column's, and a cell's (the struck cell's box,
+	 *  the Grandma Wild, the marked car). A growing box thickens from the cell's to the column's. On a 390 x 844 phone a
+	 *  road px is 0.254 CSS px: 6.6 and 5.1 CSS px. */
+	band: { col: 26, cell: 20 },
+	/** THE BAUBLES: their size against their picture (a column's, a cell's; times the band drawn over its own), set in
+	 *  from the corner by half the band plus `inset` x size, hung from their cap */
+	bauble: { col: 0.9, cell: 0.78, inset: 4 },
+	/** LAND: once the box is whole (a column at the end of its grow, a Grandma Wild as her pop settles) the baubles drop
+	 *  in from `dropPx` above, one after the other clockwise from the top left (`staggerMs`), each over `dropMs` */
+	land: { dropMs: 200, dropPx: 26, staggerMs: 60, cellDelayMs: 170 },
+	/** WIN (a winning line through the Wild): the tinsel flashes itself (its own picture added onto it, `flash` at each
+	 *  beat's peak), a soft halo round the frame (`ring`), the baubles swing (`swing` radians, sin(t / swingMs), dying
+	 *  over swingDecayMs), `stars` more twinkles for starsMs; two beats `beatMs` long at `beats` */
+	win: { beats: [0, 700], beatMs: 600, flash: 0.55, ring: 0.5, swing: 0.3, swingMs: 120, swingDecayMs: 1200, stars: 8, starsMs: 1400, totalMs: 2500 },
+	/** IDLE: `stars` twinkles take turns along the band (each `starMs`, `starScale` of the star picture), and the baubles
+	 *  sway `sway` radians (sin(t / swayMs)) */
+	idle: { stars: 3, starMs: 700, starScale: 0.45, sway: 0.05, swayMs: 700 },
+	/** the win's halo: its tint per tinsel, how far it reaches past the frame */
+	ring: { tint: { silver: 0xe8f0ff, red: 0xff7080, green: 0x80ffa0 } as Record<GarlandTinsel, number>, out: 28 },
+	/** the target crosshair hands over to the frame over this last share of its morph (the crosshair fades, the frame
+	 *  comes in under it) */
+	crosshairBlend: 0.4,
+	/** before the frame atlas is on the GPU: the plain box (the old red box's quads) in the tinsel's own color */
+	plain: { silver: 0x9aa4ae, red: 0xb3192b, green: 0x238c3c } as Record<GarlandTinsel, number>,
+};
+
 // ---- THE BONUS ROUND'S CARDS AND BEATS (ui/RoundCard.svelte, game/bookEventHandlerMap.ts) -----------------------------
 export const ROUND = {
 	/** the scatters pulse this long before the intro card */
@@ -1788,14 +1835,15 @@ export const WILD_MULT = {
 	/** THE PLACES, inside the Wild's frame (2026-11-19: the number covered the frame's bottom rail from 25x; it now fits
 	 *  the frame's inside and never overlaps the rail). `caps` the letter height per value band (road px), `maxW` the
 	 *  widest the number's letters may be (a long number shrinks to it: their outline, baked shadow and the idle's 2%
-	 *  swell then stay inside the frame's inside width: about 210 road px in a column, 218 in a cell), `floor` the inside
-	 *  of the frame's bottom rail (road px above the column's foot or the cell's bottom edge: RED_BOX.inset + its band +
-	 *  RED_BOX.edge), `gap` the letters' outline above it (their baked shadow, down and right, then barely reaches the rail). The atlas is baked for these (tools/build_wild_mult.py PLACE
+	 *  swell then stay inside the frame's inside width: 196 road px in a column, 208 in a cell, with the garland's band,
+	 *  WILD_FRAME.band, since 2026-11-19; 12 road px of slack, 18 before, so a 500x keeps its 10 CSS px digits on a phone),
+	 *  `floor` the inside of the frame's bottom rail
+	 *  (road px above the column's foot or the cell's bottom edge: RED_BOX.inset - RED_BOX.edge + WILD_FRAME.band), `gap` the letters' outline above it (their baked shadow, down and right, then barely reaches the rail). The atlas is baked for these (tools/build_wild_mult.py PLACE
 	 *  keeps the same numbers; DEV says so once when a number draws over its bake). `sum`: the copies that fly to a line's
 	 *  multiplier when two Wilds add on it (drawn about their centre). */
 	place: {
-		cell: { caps: [56, 58, 60, 62], maxW: 200, floor: 16, gap: 6 },
-		col: { caps: [70, 76, 82, 88], maxW: 192, floor: 20, gap: 6 },
+		cell: { caps: [56, 58, 60, 62], maxW: 196, floor: 21, gap: 6 },
+		col: { caps: [70, 76, 82, 88], maxW: 184, floor: 27, gap: 6 },
 		sum: { caps: [60, 64, 68, 72], maxW: 220, floor: 0, gap: 0 },
 	},
 	/** the glow behind the number (the atlas's soft blob, additive) in a win: its tint per color set, its size against
@@ -1875,6 +1923,7 @@ export const WILD_MULT = {
 	star: { rot: 1.4 },
 };
 (TUNE as Record<string, unknown>).wildMult = WILD_MULT;
+(TUNE as Record<string, unknown>).wildFrame = WILD_FRAME;
 
 // ---- the house HUD's own constants (unchanged from Manticore Mayhem) ---------------------------------------------------
 /** a slam stop speeds the rest of the spin up (ui/controls.svelte.ts) */

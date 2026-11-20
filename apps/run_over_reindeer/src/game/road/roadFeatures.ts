@@ -6,10 +6,13 @@
 // layers and ticks this from its own update), and everything it shows was said by a book event: which cell, which
 // tier, which multiplier. Nothing is rolled or chosen here; the reindeer's path is fixed presentation (STRIKE).
 //
-// No filter, mask or shader. The red box is plain colored quads. The cloud is "revealed" as the box grows by moving
-// a texture's frame (a crop of the picture), and it stays inside the box because the entrance frames were cut to the
-// column's width offline (tools/build_columns.py). The character is cropped the same way to its box's outer edge, and
-// its red frame is drawn over it (since 2026-11-15; it used to spill over the box and the neighboring cells).
+// No filter, mask or shader. THE FRAMES (since 2026-11-19) are the tinsel garland, baked tiles, corners and baubles in
+// one look per character (game/road/garland.ts, constants WILD_FRAME); before that, and until the garland's atlas is in,
+// the red box's plain colored quads. The cloud is "revealed" as the box grows by moving a texture's frame (a crop of
+// the picture), and it stays inside the box because the entrance frames were cut to the column's width offline
+// (tools/build_columns.py). The character is cropped the same
+// way to its box's outer edge, and its frame is drawn over it (since 2026-11-15; it used to spill over the box and the
+// neighboring cells).
 //
 // THE DRAW ORDER (Corey 2026-11-10; the characters under the frames since 2026-11-15), bottom to top, each its own
 // layer across ALL columns:
@@ -39,7 +42,7 @@
 import * as PIXI from 'pixi.js';
 
 import { ROAD_ART } from '../roadArtSpec';
-import { CLOUD_CELL, COLUMN, CROSSHAIR, RED_BOX, REINDEER_SOUND, ROAM, SHADOW, STRIKE, WILD_MULT } from '../constants';
+import { CLOUD_CELL, COLUMN, CROSSHAIR, RED_BOX, REINDEER_SOUND, ROAM, SHADOW, STRIKE, WILD_FRAME, WILD_MULT, type GarlandLook } from '../constants';
 import type { LayoutKind } from '../layoutSpec';
 import type { ColumnTier, HeldColumn } from '../typesBookEvent';
 import { getBackdrop, getClip, isWanted, loadBackdrop, loadClip, releaseClip, setStandingProbe, setUploadGate, type Clip } from './columnClips';
@@ -52,6 +55,7 @@ import { castShadow, dropShadow, makeShadow, shadowStrength } from './shadows';
 import { Roam, roamDev } from './roam';
 import type { RoadRect } from '../roamPaths';
 import { WildMult } from './wildMult';
+import { GarlandFrame } from './garland';
 
 const ROWS = ROAD_ART.board.rows;
 const COLS = ROAD_ART.board.columns;
@@ -105,7 +109,9 @@ export class NumberLabel {
 }
 
 /** the red box: four sides with a dark line around them and nothing inside (Corey 2026-11-10: "We shouldn't have the
- *  inner lines", at every stage, growing or held). Plain white quads, tinted. */
+ *  inner lines", at every stage, growing or held). Plain white quads, tinted. Since 2026-11-19 the Wilds' frames are the
+ *  tinsel garland (game/road/garland.ts); this box is what a garland draws until its atlas is on the GPU, in the
+ *  tinsel's own color (WILD_FRAME.plain). */
 class RedBox {
 	readonly root = new PIXI.Container();
 	private readonly outer: PIXI.Sprite[] = [];
@@ -119,7 +125,7 @@ class RedBox {
 	 *  stops at its red's inner edge, so no dark line of a rail ever lies across a side band's red: the side bands are
 	 *  in other layers, and a full width inner line drew over them as a notch at each inner corner (2026-11-17) */
 	private readonly inner: PIXI.Sprite[] = [];
-	constructor(split = false) {
+	constructor(split = false, color: number = RED_BOX.color) {
 		this.rightRoot = split ? new PIXI.Container() : null;
 		this.leftRoot = split ? new PIXI.Container() : null;
 		const quad = (tint: number, side: number) => {
@@ -129,7 +135,7 @@ class RedBox {
 			return s;
 		};
 		for (let i = 0; i < 4; i++) this.outer.push(quad(RED_BOX.edgeColor, i));
-		for (let i = 0; i < 4; i++) this.sides.push(quad(RED_BOX.color, i));
+		for (let i = 0; i < 4; i++) this.sides.push(quad(color, i));
 		if (split) for (let i = 0; i < 2; i++) this.inner.push(quad(RED_BOX.edgeColor, i));
 	}
 
@@ -206,6 +212,10 @@ class RedBox {
 	}
 }
 
+/** A WILD'S FRAME (constants WILD_FRAME, game/road/garland.ts): the tinsel garland in its look, with the red box's
+ *  quads in its tinsel's color as its plain box until the frame atlas is in */
+const makeFrame = (split: boolean, look: GarlandLook, place: 'col' | 'cell', seed: number) => new GarlandFrame(split, look, place, new RedBox(split, WILD_FRAME.plain[look.tinsel]), seed);
+
 const cellRect = (cell: number) => {
 	const reel = Math.floor(cell / ROWS);
 	const row = cell % ROWS;
@@ -217,7 +227,7 @@ const inset = (r: { x: number; y: number; w: number; h: number }) => ({ x: r.x +
 const columnInside = (reel: number) => inset({ x: BOARD_X + reel * PITCH, y: COLUMN_TOP, w: PITCH, h: COLUMN_H });
 
 /** voiced: its crash has played (its first frame); wildVoiced: the Grandma Wild's sound (its pop settled) */
-type CloudCell = { cell: number; root: PIXI.Container; cloud: PIXI.Sprite; box: RedBox; t0: number; leaving: number | null; voiced: boolean; wildVoiced: boolean; num: WildMult; multiplier: number };
+type CloudCell = { cell: number; root: PIXI.Container; cloud: PIXI.Sprite; box: GarlandFrame; t0: number; leaving: number | null; voiced: boolean; wildVoiced: boolean; num: WildMult; multiplier: number };
 
 /** the target crosshair of the strike under way (constants CROSSHAIR, game/road/crosshair.ts) */
 type Crosshair = {
@@ -245,11 +255,12 @@ type Column = {
 	tier: ColumnTier;
 	multiplier: number;
 	sticky: boolean;
-	/** under every red frame: the still cloud, the cloud while the box grows, and the entrance while its cloud shows */
+	/** under every frame: the still cloud, the cloud while the box grows, and the entrance while its cloud shows */
 	back: PIXI.Container;
 	/** the still cloud that stays behind the character for as long as the column stands */
 	backdrop: PIXI.Sprite;
-	box: RedBox;
+	/** its frame (the tinsel garland, WILD_FRAME) */
+	box: GarlandFrame;
 	/** the cloud while the box grows: the entrance's first frame, cropped to the box by its texture frame */
 	cloud: PIXI.Sprite;
 	cloudTex: PIXI.Texture | null;
@@ -620,6 +631,8 @@ export class RoadFeatures {
 	private readonly stacks: { root: PIXI.Container; right: PIXI.Container; body: PIXI.Container; left: PIXI.Container }[] = [];
 	/** the full columns' top and bottom bands (the rails), over every character */
 	private readonly railLayer = new PIXI.Container();
+	/** the column frames' twinkles and win halos (additive), over every rail (one blend change for all of them) */
+	private readonly frameFxLayer = new PIXI.Container();
 	/** THE RUNNING REINDEER'S CAST SHADOW: on the road's ground, under every lane (game/road/roadBoard.ts puts this layer
 	 *  in its ground), so it never lies over a symbol */
 	readonly groundLayer = new PIXI.Container();
@@ -636,8 +649,8 @@ export class RoadFeatures {
 	private clouds: CloudCell[] = [];
 	private columns: Column[] = [];
 	private runner: Runner | null = null;
-	/** the red boxes on Grandma cars in struck Santa reels, until their column covers them */
-	private marks: { cell: number; box: RedBox }[] = [];
+	/** the frames on Grandma cars in struck Santa reels, until their column covers them */
+	private marks: { cell: number; box: GarlandFrame }[] = [];
 	private waiters: Waiter[] = [];
 	private clock = 0;
 	private destroyed = false;
@@ -691,7 +704,7 @@ export class RoadFeatures {
 		}
 		// reel 5 at the back, reel 1 on top
 		for (let reel = COLS - 1; reel >= 0; reel--) this.stackLayer.addChild(this.stacks[reel].root);
-		this.layer.addChild(this.backLayer, this.stackLayer, this.railLayer, this.cellLayer, this.numberLayer, this.crosshairLayer);
+		this.layer.addChild(this.backLayer, this.stackLayer, this.railLayer, this.frameFxLayer, this.cellLayer, this.numberLayer, this.crosshairLayer);
 		this.runnerLayer.addChild(this.roam.shadow, this.roam.sprite);
 		roamDev.roam = this.roam;
 		// the roaming reindeer's safety net waits while a strike runs
@@ -783,9 +796,10 @@ export class RoadFeatures {
 
 	/** the red box on a Grandma car in a struck Santa reel: under the column, which grows over it (Corey 2026-11-10) */
 	private markCell(cell: number) {
-		const box = new RedBox();
+		const box = makeFrame(false, WILD_FRAME.mark, 'cell', cell * 0.71);
 		const b = inset(cellRect(cell));
 		box.set(b.x, b.y, b.w, b.h);
+		box.land(this.clock);
 		this.backLayer.addChild(box.root);
 		this.marks.push({ cell, box });
 	}
@@ -793,7 +807,7 @@ export class RoadFeatures {
 	private dropMarks(reel: number | null) {
 		for (const m of [...this.marks]) {
 			if (reel !== null && Math.floor(m.cell / ROWS) !== reel) continue;
-			m.box.root.destroy({ children: true });
+			m.box.destroy();
 			this.marks = this.marks.filter((x) => x !== m);
 		}
 	}
@@ -867,6 +881,18 @@ export class RoadFeatures {
 		return !!this.xh && this.xh.plan.target === cell;
 	}
 
+	/** THE HAND-OVER TO THE WILD'S FRAME (WILD_FRAME.crosshairBlend; the crosshair is red quads, the frame a tinsel
+	 *  garland): 0 while the crosshair stands on this cell, rising to 1 over the last share of its morph as the crosshair
+	 *  fades out over the frame, 1 once it has gone (and for any other cell) */
+	private crosshairHandover(cell: number): number {
+		const x = this.xh;
+		if (!x || x.plan.target !== cell) return 1;
+		if (x.morphAt === null) return 0;
+		const b = Math.max(0.001, WILD_FRAME.crosshairBlend);
+		const k = Math.max(0, Math.min(1, ((this.clock - x.morphAt) / Math.max(1, x.morphMs) - (1 - b)) / b));
+		return k * k * (3 - 2 * k);
+	}
+
 	private endCrosshair() {
 		if (!this.xh) return;
 		this.xh.art.root.destroy({ children: true });
@@ -938,7 +964,8 @@ export class RoadFeatures {
 			arm = from.arm + (rect.w / 2 - from.arm) * e;
 			armH = from.arm + (rect.h / 2 - from.arm) * e;
 			tick = C.tickPx * (1 - e);
-			x.art.root.alpha = 1;
+			// (it fades over the Wild's own frame as it closes: crosshairHandover)
+			x.art.root.alpha = 1 - this.crosshairHandover(x.plan.target);
 			x.state = 'morph';
 			x.scale = to.w > 0 ? rect.w / to.w : 1;
 			if (u >= 1) {
@@ -997,7 +1024,7 @@ export class RoadFeatures {
 		const r = cellRect(cell);
 		const root = new PIXI.Container();
 		root.position.set(r.x + r.w / 2, r.y + r.h / 2);
-		const box = new RedBox();
+		const box = makeFrame(false, WILD_FRAME.cell, 'cell', cell * 0.71);
 		const b = inset(r);
 		// (2026-11-17: the smoke fills the box edge to edge, its picture's opaque core cropped to the box: cellCloudTex)
 		const cloud = new PIXI.Sprite(this.cellCloudTex(b.w, b.h));
@@ -1005,6 +1032,8 @@ export class RoadFeatures {
 		cloud.width = b.w;
 		cloud.height = b.h;
 		box.set(-b.w / 2, -b.h / 2, b.w, b.h);
+		// its baubles drop in as her pop settles (WILD_FRAME.land cellDelayMs)
+		box.land(this.clock + WILD_FRAME.land.cellDelayMs);
 		const word = new PIXI.Sprite(this.tex('word_wild') ?? PIXI.Texture.EMPTY);
 		const art = ROAD_ART.feature.wordWild;
 		word.anchor.set(0.5);
@@ -1022,7 +1051,7 @@ export class RoadFeatures {
 		this.clouds.push({ cell, root, cloud, box, t0: this.clock, leaving: null, voiced: false, wildVoiced: false, num, multiplier });
 		// the crosshair on this cell closes onto her box while her cloud pops (the box shows when it is done)
 		if (this.xh && this.xh.plan.target === cell && this.xh.morphAt !== null) this.xh.morphMs = CLOUD_CELL.popMs;
-		box.root.visible = !this.crosshairOn(cell);
+		box.opacity = this.crosshairHandover(cell);
 		this.hideCell(cell, true);
 		// (its crash, cloud loop and Wild sound are cued from its frames: updateClouds)
 		return this.wait(this.clock + CLOUD_CELL.holdMs);
@@ -1035,7 +1064,7 @@ export class RoadFeatures {
 		const cloud = new PIXI.Sprite();
 		const cellCloud = new PIXI.Sprite(this.tex('cloud_cell') ?? PIXI.Texture.EMPTY);
 		const body = new PIXI.Sprite();
-		const box = new RedBox(true);
+		const box = makeFrame(true, WILD_FRAME.look[tier], 'col', reel * 1.37);
 		const label = new WildMult('col', WILD_MULT.colors[tier], reel * 0.37);
 		backdrop.visible = false;
 		cloud.visible = false;
@@ -1049,6 +1078,7 @@ export class RoadFeatures {
 		back.addChild(backdrop, cellCloud, cloud, foot, body);
 		this.backLayer.addChild(back);
 		this.railLayer.addChild(box.root);
+		this.frameFxLayer.addChild(box.fxRoot);
 		this.stacks[reel].right.addChild(box.rightRoot!);
 		this.stacks[reel].left.addChild(box.leftRoot!);
 		this.numberLayer.addChild(label.root);
@@ -1115,8 +1145,9 @@ export class RoadFeatures {
 			if (!want || want.tier !== column.tier) this.removeColumn(column.reel, false);
 			else {
 				column.sticky = true;
-				// its number stands at rest into the new spin (a win's move is not carried over)
+				// its number and its frame stand at rest into the new spin (a win's move is not carried over)
 				column.label.settle();
+				column.box.settle();
 				// a book that disagrees is a fault in the book; it is said in DEV and the number on screen stays
 				if (import.meta.env.DEV && want.multiplier !== column.multiplier) console.warn(`[reindeer] held column ${column.reel}: the book says ${want.multiplier}x, it landed with ${column.multiplier}x`);
 			}
@@ -1128,6 +1159,7 @@ export class RoadFeatures {
 			column.t0 = this.clock;
 			column.labelShown = true;
 			column.label.show(h.multiplier, 'rest', this.clock);
+			column.box.land(-Infinity);
 			void loadClip(h.tier, 'idle');
 			void loadClip(h.tier, 'win');
 			for (let row = 0; row < ROWS; row++) this.hideCell(h.reel * ROWS + row, true);
@@ -1154,6 +1186,7 @@ export class RoadFeatures {
 			column.t0 = this.clock;
 			column.labelShown = true;
 			column.label.show(multiplier, 'rest', this.clock);
+			column.box.land(-Infinity);
 		}
 	}
 
@@ -1252,20 +1285,22 @@ export class RoadFeatures {
 		this.endFlies();
 		const told = new Set<WildMult>();
 		lines.forEach((cells, k) => {
-			const on: { num: WildMult; value: number; x: number; y: number }[] = [];
+			const on: { num: WildMult; frame: GarlandFrame; value: number; x: number; y: number }[] = [];
 			for (const c of this.clouds) {
 				if (c.leaving !== null || !cells.includes(c.cell)) continue;
 				const r = cellRect(c.cell);
-				on.push({ num: c.num, value: c.multiplier, x: r.x + r.w / 2, y: r.y + r.h - WILD_MULT.place.cell.floor + c.num.centreY });
+				on.push({ num: c.num, frame: c.box, value: c.multiplier, x: r.x + r.w / 2, y: r.y + r.h - WILD_MULT.place.cell.floor + c.num.centreY });
 			}
 			for (const col of this.columns) {
 				if (col.phase === 'leave' || !col.labelShown || !cells.some((cell) => Math.floor(cell / ROWS) === col.reel)) continue;
-				on.push({ num: col.label, value: col.label.target, x: col.label.root.x, y: col.label.root.y + col.label.centreY });
+				on.push({ num: col.label, frame: col.box, value: col.label.target, x: col.label.root.x, y: col.label.root.y + col.label.centreY });
 			}
 			for (const o of on) {
 				if (told.has(o.num)) continue;
 				told.add(o.num);
 				o.num.win(this.clock + (startsMs[k] ?? 0));
+				// its frame wins with it (WILD_FRAME.win)
+				o.frame.win(this.clock + (startsMs[k] ?? 0));
 			}
 			const badge = badges[k];
 			if (!badge || on.length < 2) return;
@@ -1334,6 +1369,7 @@ export class RoadFeatures {
 		this.roam.update(clock);
 		this.updateCrosshair();
 		this.updateClouds();
+		for (const m of this.marks) m.box.update(clock);
 		for (const column of [...this.columns]) this.updateColumn(column);
 		this.updateFlies();
 		// THE CRASH CLOUDS on screen this frame (the cloud loop), and whether a strike or a column's arrival is going on
@@ -1532,6 +1568,7 @@ export class RoadFeatures {
 				if (u >= 1) {
 					this.hideCell(c.cell, false);
 					c.num.destroy();
+					c.box.destroy();
 					c.root.destroy({ children: true });
 					this.clouds = this.clouds.filter((x) => x !== c);
 				}
@@ -1550,7 +1587,9 @@ export class RoadFeatures {
 				this.sounds.mark('wild', `cell ${c.cell}`);
 				this.sounds.cue('grandmaWild', `cell ${c.cell}`);
 			}
-			if (!c.box.root.visible && !this.crosshairOn(c.cell)) c.box.root.visible = true;
+			// her frame comes in as the crosshair hands over to it, and moves (its baubles, its twinkles, a win)
+			c.box.opacity = this.crosshairHandover(c.cell);
+			c.box.update(this.clock);
 			// out past its size, then back onto it
 			const over = CLOUD_CELL.popOver;
 			const k = u < 0.7 ? CLOUD_CELL.popFrom + (over - CLOUD_CELL.popFrom) * (u / 0.7) : over + (1 - over) * ((u - 0.7) / 0.3);
@@ -1581,6 +1620,7 @@ export class RoadFeatures {
 	private fadeColumn(column: Column, alpha: number) {
 		column.back.alpha = alpha;
 		column.box.root.alpha = alpha;
+		column.box.fxRoot.alpha = alpha;
 		if (column.box.rightRoot) column.box.rightRoot.alpha = alpha;
 		if (column.box.leftRoot) column.box.leftRoot.alpha = alpha;
 		column.body.alpha = alpha;
@@ -1592,9 +1632,7 @@ export class RoadFeatures {
 		// the character may be in either layer; it goes with the rest
 		column.back.addChild(column.body);
 		column.back.destroy({ children: true });
-		column.box.root.destroy({ children: true });
-		column.box.rightRoot?.destroy({ children: true });
-		column.box.leftRoot?.destroy({ children: true });
+		column.box.destroy();
 		column.label.destroy();
 		column.footTex?.destroy(false);
 		column.footTex = null;
@@ -1708,9 +1746,12 @@ export class RoadFeatures {
 			// the box is traced around the struck cell first, the symbol still showing under it
 			const sinceBox = this.clock - column.boxT0;
 			const cell = column.reel * ROWS + column.fromRow;
-			// the band thickens from the cell box's to the full column's as it grows (the crosshair closes onto the cell's)
-			const band = RED_BOX.width + (COLUMN.frameWidth - RED_BOX.width) * g;
-			column.box.set(full.x, y, full.w, h, column.fromRow < 0 ? 1 : column.xhBox ? (this.crosshairOn(cell) ? 0 : 1) : sinceBox / COLUMN.boxDrawMs, band);
+			// THE BAND thickens from a cell's to the full column's as it grows (WILD_FRAME.band); the crosshair hands over to
+			// the cell's frame as it closes onto it (crosshairHandover), and the frame moves on the board clock
+			const band = WILD_FRAME.band.cell + (WILD_FRAME.band.col - WILD_FRAME.band.cell) * g;
+			column.box.set(full.x, y, full.w, h, column.fromRow < 0 || column.xhBox ? 1 : sinceBox / COLUMN.boxDrawMs, band);
+			column.box.opacity = column.xhBox ? this.crosshairHandover(cell) : 1;
+			column.box.update(this.clock);
 			// the cloud in the box: the cell cloud pops in once the box is whole, then the entrance's own first frame
 			// cropped to the box as it grows
 			const sincePop = sinceBox - COLUMN.boxDrawMs;
@@ -1772,6 +1813,8 @@ export class RoadFeatures {
 				column.phase = 'enter';
 				column.t0 = this.clock;
 				column.cloud.visible = false;
+				// the box is whole: its baubles drop in (WILD_FRAME.land)
+				column.box.land(this.clock);
 				// the entrance's first frame is all cloud: the crash cloud carries on through this hand-over (its loop with it)
 				column.enterCloud = !!reveal && reveal.cloudFrames > 0;
 				for (let row = 0; row < ROWS; row++) this.hideCell(column.reel * ROWS + row, true);
@@ -1785,7 +1828,9 @@ export class RoadFeatures {
 			return;
 		}
 
-		column.box.set(full.x, full.y, full.w, full.h, 1, COLUMN.frameWidth);
+		column.box.set(full.x, full.y, full.w, full.h, 1, WILD_FRAME.band.col);
+		column.box.opacity = 1;
+		column.box.update(this.clock);
 		column.cellCloud.visible = false;
 		column.cloud.visible = false;
 		// THE STILL CLOUD, wall to wall inside the frame, from the first frame of the entrance to the column's last. The
@@ -1952,6 +1997,16 @@ export class RoadFeatures {
 		if (!c) return null;
 		const [top, bottom, left, right] = c.box.lines();
 		return { ms: this.clock - c.boxT0, phase: c.phase, top: top.width, right: right.height, bottom: bottom.width, left: left.height, boxY: top.y, boxBottom: bottom.y + bottom.height, cellCloud: c.cellCloud.visible ? c.cellCloud.width : 0, growCloud: c.cloud.visible ? c.cloud.height : 0 };
+	}
+
+	/** THE WILDS' FRAMES as laid (dev hook __reindeer.wildFrames, tools/garland_probe.mjs): each column's, each Grandma Wild
+	 *  cell's and each marked car's garland (road px), its look, what of it is drawn */
+	frames() {
+		return {
+			columns: this.columns.filter((c) => c.phase !== 'leave').map((c) => ({ reel: c.reel, tier: c.tier, phase: c.phase, frame: c.frame, ...c.box.parts() })),
+			cells: this.clouds.filter((c) => c.leaving === null).map((c) => ({ cell: c.cell, scale: c.root.scale.x, ...c.box.parts() })),
+			marks: this.marks.map((m) => ({ cell: m.cell, ...m.box.parts() })),
+		};
 	}
 
 	snapshot() {

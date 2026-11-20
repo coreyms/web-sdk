@@ -361,6 +361,8 @@ export default {
 	"symbols/symbols.webp": "057d5619",
 	"wheel/super-wheel-phone.webp": "43218eea",
 	"wheel/super-wheel.webp": "d552a91b",
+	"wild/garland-full.webp": "f47d0eca",
+	"wild/garland-phone.webp": "e9b479c8",
 	"wild/wild-mult-full.webp": "4ed5cdfa",
 	"wild/wild-mult-phone.webp": "9b4e54ea"
 } as const;
@@ -727,6 +729,8 @@ export const fileBytes = {
 	"symbols/symbols.webp": 5465208,
 	"wheel/super-wheel-phone.webp": 388822,
 	"wheel/super-wheel.webp": 757618,
+	"wild/garland-full.webp": 46818,
+	"wild/garland-phone.webp": 12378,
 	"wild/wild-mult-full.webp": 547410,
 	"wild/wild-mult-phone.webp": 150662
 } as const;

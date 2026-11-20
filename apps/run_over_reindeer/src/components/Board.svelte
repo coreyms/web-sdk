@@ -88,6 +88,7 @@
 	import { planRun } from '../game/road/roadFeatures';
 	import { boardRate, stateGame } from '../game/stateGame.svelte';
 	import { loadWildMult, setWildMultMipmapper, wildMultMemory } from '../game/road/wildMult';
+	import { garlandMemory, loadGarland, setGarlandMipmapper } from '../game/road/garland';
 	import { clipMemory, setClipRebatch, setClipUploader, setClipView } from '../game/road/columnClips';
 	import { loadRunViews, runMemory, setRunMipmapper } from '../game/road/reindeerRun';
 	import { loadRoamFrames, roamMemory, setRoamMipmapper } from '../game/road/roamFrames';
@@ -754,6 +755,9 @@
 		// its sheet is drawn well under its 3x size on both tiers (a long number shrinks to the frame): a mip chain on both
 		setWildMultMipmapper((source) => enableMipmaps(source, app?.renderer as PIXI.Renderer | undefined));
 		void loadWildMult();
+		// THE WILDS' FRAMES (game/road/garland.ts, the tinsel garland): their atlas the same way, a mip chain on both tiers
+		setGarlandMipmapper((source) => enableMipmaps(source, app?.renderer as PIXI.Renderer | undefined));
+		void loadGarland();
 		const tick = (ticker: PIXI.Ticker) => {
 			// THE SIGN IDLE (constants SIGN_WIN idleShow) only on an idle board (the symbol popup's rule)
 			road.signIdleOk = boardIdle();
@@ -965,6 +969,9 @@
 			 *  the atlas's weight */
 			wildMult: () => road.features.multipliers(),
 			wildMultMemory: () => wildMultMemory(),
+			/** THE WILDS' FRAMES (game/road/garland.ts): every one as laid, and the frame atlas's weight */
+			wildFrames: () => road.features.frames(),
+			garlandMemory: () => garlandMemory(),
 			atRest: () => road.atRest && !stateGame.busy,
 			board: () => stateGame.board.map((reel) => [...reel]),
 			gameType: () => stateGame.gameType,

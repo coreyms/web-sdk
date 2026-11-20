@@ -1,7 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
-// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadBoard.ts,game/road/roadFeatures.ts,game/road/wildMult.ts};
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadBoard.ts,game/road/roadFeatures.ts,game/road/wildMult.ts,game/road/garland.ts};
 // WATCHES: ; __reindeer.atRest, __reindeer.board, __reindeer.boardLayout, __reindeer.clock, __reindeer.frame, __reindeer.hud
-// WATCHES: ; __reindeer.roadBoard, __reindeer.setBoard, __reindeer.step, __reindeer.tune, __reindeer.turbo, COLUMN.loadWaitMs, COLUMN, RED_BOX
+// WATCHES: ; __reindeer.roadBoard, __reindeer.setBoard, __reindeer.step, __reindeer.tune, __reindeer.turbo, COLUMN.loadWaitMs, COLUMN, RED_BOX, WILD_FRAME
 // WATCHES: ; .landing
 // THE COLUMN FRAME PROBE (pass 6, Corey 2026-11-16; game/road/roadFeatures.ts, constants COLUMN, RED_BOX). A full column
 // Wild's red frame and what may pass it:
@@ -14,9 +14,10 @@
 //     right borders"): a standing character (idle and win) is cropped at the left, top and bottom (inside the frame's
 //     dark line) and not on the right; the right band draws under the characters, the other three bands over them; the
 //     clouds never pass the frame on any side (the entrance's cloud frames are cropped on the right too)
-//   - THE CLEAN RECTANGLE (2026-11-17, Corey: "it should draw as a rectangle"): with its clouds and character not drawn, each
-//     band's red unbroken from corner to corner along its middle and each inner dark line unbroken (no stray line or notch
-//     on any side), at grow end and standing, every size and device scale
+//   - THE GARLAND UNBROKEN (2026-11-19; was the red box's CLEAN RECTANGLE of 2026-11-17, Corey: "it should draw as a
+//     rectangle"): with its clouds and character not drawn, against the same moment with no frame, every band covered
+//     from corner to corner at three depths and round each corner, with no seam across a band (a tile joint or a corner
+//     that does not meet), at grow end and standing, every size and device scale
 //   - LEFT TO RIGHT (2026-11-17): four layouts of five columns side by side holding every pair of the three characters at
 //     every reel (two of them sticky, as in the bonus rounds), idle and win, and a grow beside a standing Santa: each
 //     character draws over its right-hand neighbor's left band and character and under the neighbor's rails and number;
@@ -122,12 +123,16 @@ const COLUMN_STATE = (reel) => {
 		const b = s.getBounds();
 		return { x: cv.x + b.x, y: cv.y + b.y, w: b.width, h: b.height };
 	};
-	const outer = c.box.outer.map(g);
-	const box = { x: outer[2].x, y: outer[0].y, w: outer[3].x + outer[3].w - outer[2].x, h: outer[1].y + outer[1].h - outer[0].y };
+	// (2026-11-19: the frame is the tinsel garland, game/road/garland.ts; its outer edge as laid, road px, to CSS px through
+	// its own layer's transform)
+	const P = c.box.parts();
+	const o = P.outer;
+	const ga = c.box.root.toGlobal({ x: o.x, y: o.y });
+	const gb = c.box.root.toGlobal({ x: o.x + o.w, y: o.y + o.h });
+	const box = { x: cv.x + ga.x, y: cv.y + ga.y, w: gb.x - ga.x, h: gb.y - ga.y };
 	// the road px box of the frame's outer edge and of the body as drawn
-	const band = c.box.sides.map((q) => ({ x: q.x, y: q.y, w: q.width, h: q.height }));
-	const ob = c.box.outer.map((q) => ({ x: q.x, y: q.y, w: q.width, h: q.height }));
-	const roadOuter = { x: ob[2].x, y: ob[0].y, x1: ob[3].x + ob[3].w, y1: ob[1].y + ob[1].h };
+	const band = P.band;
+	const roadOuter = { x: o.x, y: o.y, x1: o.x + o.w, y1: o.y + o.h };
 	const body = c.body.visible ? { x: c.body.x, y: c.body.y, x1: c.body.x + c.body.width, y1: c.body.y + c.body.height } : null;
 	const cloud = c.cloud.visible ? { x: c.cloud.x, y: c.cloud.y, x1: c.cloud.x + c.cloud.width, y1: c.cloud.y + c.cloud.height } : null;
 	const backdrop = c.backdrop.visible ? { x: c.backdrop.x, y: c.backdrop.y, x1: c.backdrop.x + c.backdrop.width, y1: c.backdrop.y + c.backdrop.height } : null;
@@ -152,7 +157,8 @@ const COLUMN_STATE = (reel) => {
 		body,
 		cloud,
 		backdrop,
-		band: band.map((b) => ({ x: Math.round(b.x * 10) / 10, y: Math.round(b.y * 10) / 10, w: Math.round(b.w * 10) / 10, h: Math.round(b.h * 10) / 10 })),
+		band: Math.round(band * 10) / 10,
+		look: P.look,
 		layers: { body: c.body.parent === stack.body ? at(c.body) : -1, rightBand: at(c.box.rightRoot), leftBand: at(c.box.leftRoot), rails: at(c.box.root), number: at(c.label.root) },
 		edge: h.tune.redBox.edge,
 	};
@@ -277,61 +283,83 @@ const FRAME_GEO = (reel) => {
 	const c = F.columns.find((x) => x.reel === reel && x.phase !== 'leave');
 	if (!c) return null;
 	const cv = document.querySelector('canvas').getBoundingClientRect();
-	const top = c.box.outer[0];
-	const b = top.getBounds();
-	const k = b.width / top.width;
-	const parts = c.box.parts();
-	const ob = c.box.outer.map((q) => q.getBounds());
-	const X0 = cv.x + ob[2].x;
-	const Y0 = cv.y + ob[0].y;
-	const X1 = cv.x + ob[3].x + ob[3].width;
-	const Y1 = cv.y + ob[1].y + ob[1].height;
-	return { X0, Y0, X1, Y1, e: window.__reindeer.tune.redBox.edge * k, t: parts.sides[2].w * k, k };
+	// (2026-11-19, the garland: its outer edge as laid and its band, road px, through its layer's transform; `t` keeps the
+	// old meaning for the pairs' regions: the band less a dark line each side)
+	const P = c.box.parts();
+	const o = P.outer;
+	const a = c.box.root.toGlobal({ x: o.x, y: o.y });
+	const b = c.box.root.toGlobal({ x: o.x + o.w, y: o.y + o.h });
+	const k = (b.x - a.x) / o.w;
+	const X0 = cv.x + a.x;
+	const Y0 = cv.y + a.y;
+	const X1 = cv.x + b.x;
+	const Y1 = cv.y + b.y;
+	const e = window.__reindeer.tune.redBox.edge * k;
+	return { X0, Y0, X1, Y1, e, T: P.band * k, t: P.band * k - 2 * e, k };
 };
 const { PNG } = require('playwright-core/lib/utilsBundle');
-/** the frame's center lines (each band's red, corner to corner) and its inner dark lines, read from a screenshot: the
- *  samples that are not red (bands) or not dark (inner lines) */
-function frameLines(png, G, dpr) {
-	const px = (x, y) => {
-		const X = Math.min(png.width - 1, Math.max(0, Math.round(x * dpr - 0.5)));
-		const Y = Math.min(png.height - 1, Math.max(0, Math.round(y * dpr - 0.5)));
-		const i = (Y * png.width + X) * 4;
-		return [png.data[i], png.data[i + 1], png.data[i + 2]];
+/** THE GARLAND UNBROKEN (2026-11-19, the tinsel garland in place of the red box's quads): the frame alone (`png`)
+ *  against the same moment with the frame not drawn either (`bare`). Along each band's straight run (between its rounded
+ *  corners) at a quarter, a half and three quarters of its thickness in from the outer edge, and round each corner at
+ *  half its thickness, every sample must be covered (differ from the road under it by over 24 levels summed). A SEAM is a
+ *  place along a band where all three lines are uncovered at once (a gap across the band: a tile joint or a corner that
+ *  does not meet); none is allowed, and at least 97% of each line's samples must be covered (a white lane mark under a
+ *  pale strand may match by chance). */
+function frameCover(png, bare, G, dpr) {
+	const at = (img, x, y) => {
+		const X = Math.min(img.width - 1, Math.max(0, Math.round(x * dpr - 0.5)));
+		const Y = Math.min(img.height - 1, Math.max(0, Math.round(y * dpr - 0.5)));
+		const i = (Y * img.width + X) * 4;
+		return [img.data[i], img.data[i + 1], img.data[i + 2]];
 	};
-	const red = ([r, g, b]) => r >= 170 && g <= 80 && b <= 100;
-	const dark = ([r, g, b]) => r < 120 && r + g + b < 260;
-	const { X0, Y0, X1, Y1, e, t } = G;
-	const trim = Math.max(1 / dpr, e * 0.5);
-	const line = (x0, y0, x1, y1, ok) => {
+	const covered = (x, y) => {
+		const a = at(png, x, y);
+		const b = at(bare, x, y);
+		return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) > 24;
+	};
+	const { X0, Y0, X1, Y1, T } = G;
+	const out = {};
+	const run = (name, x0, y0, x1, y1, nx, ny) => {
 		const n = Math.max(2, Math.round(Math.hypot(x1 - x0, y1 - y0) * dpr));
-		let bad = 0;
+		let seams = 0;
+		const miss = [0, 0, 0];
 		const where = [];
 		for (let i = 0; i <= n; i++) {
 			const x = x0 + ((x1 - x0) * i) / n;
 			const y = y0 + ((y1 - y0) * i) / n;
-			if (!ok(px(x, y))) {
-				bad += 1;
-				if (where.length < 4) where.push([Math.round(x * 10) / 10, Math.round(y * 10) / 10, px(x, y).join('/')]);
+			const hit = [0.25, 0.5, 0.75].map((f) => covered(x + nx * T * f, y + ny * T * f));
+			hit.forEach((h, j) => (miss[j] += h ? 0 : 1));
+			if (!hit.some(Boolean)) {
+				seams += 1;
+				if (where.length < 4) where.push([Math.round(x * 10) / 10, Math.round(y * 10) / 10]);
 			}
 		}
-		return { bad, n: n + 1, where };
+		out[name] = { n: n + 1, seams, miss, where, bad: seams > 0 || miss.some((m) => m > 0.03 * (n + 1)) };
 	};
-	const out = {
-		top: line(X0 + e + trim, Y0 + e + t / 2, X1 - e - trim, Y0 + e + t / 2, red),
-		bottom: line(X0 + e + trim, Y1 - e - t / 2, X1 - e - trim, Y1 - e - t / 2, red),
-		left: line(X0 + e + t / 2, Y0 + e + trim, X0 + e + t / 2, Y1 - e - trim, red),
-		right: line(X1 - e - t / 2, Y0 + e + trim, X1 - e - t / 2, Y1 - e - trim, red),
-	};
-	// the inner dark lines, where they are at least 1.5 device px thick (thinner, the screen blends them)
-	if (e * dpr >= 1.5) {
-		const m = e * 0.5;
-		out.innerTop = line(X0 + e + t + m, Y0 + e + t + m, X1 - e - t - m, Y0 + e + t + m, dark);
-		out.innerBottom = line(X0 + e + t + m, Y1 - e - t - m, X1 - e - t - m, Y1 - e - t - m, dark);
-		out.innerLeft = line(X0 + e + t + m, Y0 + e + t + m, X0 + e + t + m, Y1 - e - t - m, dark);
-		out.innerRight = line(X1 - e - t - m, Y0 + e + t + m, X1 - e - t - m, Y1 - e - t - m, dark);
-	}
+	run('top', X0 + T, Y0, X1 - T, Y0, 0, 1);
+	run('bottom', X0 + T, Y1, X1 - T, Y1, 0, -1);
+	run('left', X0, Y0 + T, X0, Y1 - T, 1, 0);
+	run('right', X1, Y0 + T, X1, Y1 - T, -1, 0);
+	// the corners: round the inner corner at half the band
+	const corners = [[X0 + T, Y0 + T, Math.PI, 1.5 * Math.PI], [X1 - T, Y0 + T, 1.5 * Math.PI, 2 * Math.PI], [X1 - T, Y1 - T, 0, 0.5 * Math.PI], [X0 + T, Y1 - T, 0.5 * Math.PI, Math.PI]];
+	corners.forEach(([cx, cy, a0, a1], i) => {
+		const n = Math.max(4, Math.round(T * 0.8 * dpr));
+		let miss = 0;
+		for (let k = 0; k <= n; k++) {
+			const a = a0 + ((a1 - a0) * k) / n;
+			if (!covered(cx + Math.cos(a) * T * 0.5, cy + Math.sin(a) * T * 0.5)) miss += 1;
+		}
+		out[`corner${i}`] = { n: n + 1, seams: miss, miss: [miss], where: [], bad: miss > 0 };
+	});
 	return out;
 }
+
+/** the frame drawn or not (all four of its roots) */
+const setFrame = (p, reel, on) =>
+	R(p, ({ reel, on }) => {
+		const c = window.__reindeer.roadBoard().features.columns.find((x) => x.reel === reel && x.phase !== 'leave');
+		for (const r of [c.box.root, c.box.rightRoot, c.box.leftRoot, c.box.fxRoot]) if (r) r.renderable = on;
+	}, { reel, on });
 
 const LAYOUTS = [
 	['santa', 'reindeer', 'grandma', 'santa', 'grandma'],
@@ -406,13 +434,18 @@ try {
 					writeFileSync(`${base}_B.png`, Buffer.from(b, 'base64'));
 					writeFileSync(`${base}.json`, JSON.stringify({ dpr, st, diff }, null, 1));
 				}
-				// THE CLEAN RECTANGLE: the frame alone (its clouds and character not drawn), each band's red unbroken corner to
-				// corner and its inner dark line unbroken (no stray line or notch on any side)
+				// THE GARLAND UNBROKEN (was THE CLEAN RECTANGLE of the red box, 2026-11-17): the frame alone (its clouds and
+				// character not drawn) against the same moment without the frame: every band covered corner to corner, no seam
 				if (name !== 'entrance cloud') {
 					const G = await R(p, FRAME_GEO, reel);
-					const lines = frameLines(PNG.sync.read(Buffer.from(b, 'base64')), G, dpr);
-					const badSides = Object.entries(lines).filter(([, l]) => l.bad > 0);
-					check(!!G && badSides.length === 0, `${tag}: ${name}: the frame draws as one clean rectangle (${Object.entries(lines).map(([k, l]) => `${k} ${l.bad}/${l.n}`).join(', ')} samples off)`, Object.fromEntries(badSides.map(([k, l]) => [k, l.where])));
+					await setInside(p, reel, false);
+					await setFrame(p, reel, false);
+					const c = await shot(p);
+					await setFrame(p, reel, true);
+					await setInside(p, reel, true);
+					const lines = frameCover(PNG.sync.read(Buffer.from(b, 'base64')), PNG.sync.read(Buffer.from(c, 'base64')), G, dpr);
+					const badSides = Object.entries(lines).filter(([, l]) => l.bad);
+					check(!!G && badSides.length === 0, `${tag}: ${name}: the garland covers every band and corner with no seam (${Object.entries(lines).map(([k, l]) => `${k} ${l.seams}/${l.n}`).join(', ')} seams)`, Object.fromEntries(badSides.map(([k, l]) => [k, { miss: l.miss, where: l.where }])));
 				}
 				check(pale.length === 0, `${tag}: ${name}: nothing pale just outside the frame on any side (${Object.entries(diff).map(([k, d]) => `${k} ${d.pale}/${d.px} max ${d.max}`).join(', ')})`, { cloud: st.cloud, body: st.body, roadOuter: st.roadOuter });
 				if (st.cloud) check(st.cloud.x >= st.roadOuter.x - 0.01 && st.cloud.x1 <= st.roadOuter.x1 + 0.01, `${tag}: ${name}: the moving cloud inside the frame's outer edge (road x ${r1(st.cloud.x)} to ${r1(st.cloud.x1)}, frame ${r1(st.roadOuter.x)} to ${r1(st.roadOuter.x1)})`);
