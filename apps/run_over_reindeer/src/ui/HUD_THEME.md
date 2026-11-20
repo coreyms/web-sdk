@@ -28,6 +28,7 @@ win, icy blue words, white numbers, deep ice blue menus.
 | `menu-key-1/2-rgb`, `menu-key-a`, `menu-key-rim-rgb` | NEW (bet bar fix): the Menu key's own near opaque dark glass and rim |
 | `key-on-1/2-rgb`, `key-on-a`, `key-on-ink-rgb` | NEW (bet bar fix): a lit key's fill and ink (Auto loaded, Turbo on, Menu open, the picked scene) |
 | `key-hot-1/2-rgb`, `key-hot-ink-rgb` | NEW (bet bar fix): the hotter lit key (a run playing, Turbo at instant) |
+| `mark-g1..g4-rgb`, `mark-accent-rgb`, `mark-scrim-a` | NEW (the engraved mark, 2026-11-19): the inlay's gold, the hub's accent, the dark under the mode's word |
 | `edge-top-rgb`/`-a`, `edge-bottom-rgb`/`-a`, `spec-a` | the 1 px gradient edge (top, bottom) and the specular line |
 | `edge-key-rgb` | NEW: a key's bottom edge (round keys, steppers, chips) |
 | `spin-core-rgb`, `spin-deep-rgb`, `spin-rim-top/side/bottom` | the Spin hero |
@@ -60,6 +61,14 @@ Stake rejected the bar ("Poor bet UI bar"); Corey's fixes to the existing bar, t
    (`--rim`, `--hl`, `--lo`, `--ov`, `--glow`) so hover and press work on a lit key too.
 6. The glass a step darker (HUD_GLASS).
 7. The help menu has no tail: a plain panel over the bar (hudLayout `panelRect`, `PANEL_GAP`).
+
+## The engraved mark (2026-11-19)
+
+The feature key has no word at rest: the PolyMath mark is etched into its glass (`HUD_CONFIG.featureMark.rest`, Corey's
+settings from the approved mock logo_button_r1); with a mode on the same mark is inlaid in gold and the mode's word
+sits over it (`.on`), the two cross-fading in 150 ms. `ui/hud/engrave.ts` draws it (no filter, mask or blend), from the
+one outline in `ui/hud/polymathMark.ts`. The key's inset lights moved to `.lt`, an overlay above the mark. `featureMark:
+null` brings the word back.
 
 ## Per-game words, glyph and mode
 

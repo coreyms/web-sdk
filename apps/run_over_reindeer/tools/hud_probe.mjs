@@ -18,7 +18,8 @@
 //   · no control or readout changes its box between idle, spinning, autoplay running, a win shown, free spins, and
 //     each Ante level on (0.5 px)
 //   · the three amount fields hold the long values at their fixed type size: BALANCE "$9,999,999.99", WIN
-//     "$1,250,000.00", the amount "$1,000.00"; the feature button's word stays inside the button (FAST LANE, ANTE)
+//     "$1,250,000.00", the amount "$1,000.00"; the feature button: no word at rest (the engraved mark), ANTE inside it
+//     with an Ante level on
 //   · desktop sizes: the WIN readout's centre within 2 px of the viewport's vertical centre line
 //   · the help menu opens fully on screen and off the Spin, a plain panel with no tail (its box is its body, since the bet
 //     bar fix 2026-11-19), and closes on a second Menu press; the Autoplay menu opens
@@ -26,6 +27,8 @@
 //   · portrait (round 6): one row inside the bar, left to right feature, Menu, Auto, Spin, Turbo, minus, plus; every key
 //     inside the bar's height; WIN over BALANCE at the left and the amount at the right, BALANCE and the amount ending
 //     just above the bar (0 to 4 mock px); each word 1 mock px over its number; no readout on a control; the key words 18 %
+//     (Menu, Auto, Turbo: the feature key shows only the engraved PolyMath mark at rest since 2026-11-19, its word only
+//     with a mode on)
 //     of their key's height
 //   · no win streak on the glass after a win (.sweep)
 //   · the words: no character outside printable ASCII in the HUD's and the Autoplay menu's visible text; in social mode
@@ -324,7 +327,8 @@ async function runSize(browser, S) {
 		const W = Object.entries(row.words)
 			.filter(([, v]) => v)
 			.map(([k, v]) => ({ k, ratio: v.font / v.h }));
-		check(W.length === 4 && W.every((w) => Math.abs(w.ratio - 0.18) <= 0.006), `${name}: the key words 18 % of their key's height (${W.map((w) => `${w.k} ${(w.ratio * 100).toFixed(1)} %`).join(', ')})`, W);
+		// (the feature key has no word at rest since the engraved mark, 2026-11-19: Menu, Auto and Turbo)
+		check(W.length === 3 && !row.words.feature && W.every((w) => Math.abs(w.ratio - 0.18) <= 0.006), `${name}: the key words 18 % of their key's height (${W.map((w) => `${w.k} ${(w.ratio * 100).toFixed(1)} %`).join(', ')})`, W);
 		const sz = (b) => `${r1(b.x1 - b.x0)}x${r1(b.y1 - b.y0)}`;
 		console.log(`  INFO ${name}: u ${ru.toFixed(3)}, row t ${row.hf ? row.hf.t.toFixed(3) : '-'}, band ${row.hf ? r1(row.hf.gap * ru) : '-'} px; Spin ${sz(c.spin)}, feature ${sz(c.feature)}, Menu ${sz(c.menu)}, Auto ${sz(c.auto)}, Turbo ${sz(c.turbo)}, minus ${sz(c.minus)}, plus ${sz(c.plus)}`);
 		console.log(`  INFO ${name}: numbers ${R.balance.vlPx.toFixed(2)} px, words ${R.balance.lbPx.toFixed(2)} px; WIN top to the board ${r1(R.win.box.y0 - sc.board.y1)} px, Spin top to the board ${r1(c.spin.y0 - sc.board.y1)} px; minus to the Spin's edge ${r1(c.minus.x0 - c.spin.x1)} px`);
@@ -355,8 +359,14 @@ async function runSize(browser, S) {
 	}, READOUTS);
 	check(Object.values(fits).length === 3 && Object.values(fits).every((f) => f.left >= -0.5 && f.right >= -0.5), `${name}: the long values fit their fields at the fixed type size`, fits);
 	console.log(`  INFO ${name}: long values ${Object.entries(fits).map(([k, f]) => `${k} ${f.value} in ${f.field} at ${f.font}`).join(', ')}`);
-	const fw = await featureWordInside(p);
-	check(!!fw && fw.inside, `${name}: the feature button's word "${fw?.text}" ${fw?.shown ? 'inside the button' : '(icon only here)'}`, fw);
+	// THE ENGRAVED MARK (2026-11-19, Corey: "No text. Only logo"): at rest the feature button has no word, only the
+	// PolyMath mark etched into its glass (and its aria-label names it); with a mode on the word comes back (below)
+	const fr = await p.evaluate(() => {
+		const b = document.querySelector('.hudp .fb');
+		const rest = b?.querySelector('.em-rest svg');
+		return b ? { text: b.textContent.trim(), aria: b.getAttribute('aria-label'), mark: !!rest && getComputedStyle(rest.parentElement).opacity === '1', on: !!b.querySelector('.em-on svg') } : null;
+	});
+	check(!!fr && fr.text === '' && fr.mark && fr.on && !!fr.aria, `${name}: the feature button at rest: the etched mark and no word (aria-label "${fr?.aria}")`, fr);
 
 	// the words, real mode: no symbol character (the restricted words are checked in social mode, where the soc()
 	// switch takes them out; real mode keeps "BET" as the house's soc() pattern does)
