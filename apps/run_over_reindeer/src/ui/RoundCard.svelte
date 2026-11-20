@@ -44,10 +44,8 @@
 	};
 
 	onMount(() => {
-		// THE CARD'S SOUNDS (constants REINDEER_SOUND cards): it comes up on this frame (its pop starts with the mount), and
-		// a wrap-up that says the round was topped up to its minimum has the top-up beat with it
+		// THE CARD'S SOUNDS (constants REINDEER_SOUND cards): it comes up on this frame (its pop starts with the mount)
 		voice(REINDEER_SOUND.cards.in);
-		if (card.kind === 'outro' && card.topUp) voice(REINDEER_SOUND.cards.topUp);
 		// Space belongs to the card while it is up (ui/Chrome.svelte holds its own Space hotkey off)
 		context.stateGame.pressGates += 1;
 		const arm = setTimeout(() => (armed = true), ROUND.armMs);
@@ -56,9 +54,9 @@
 		// (2026-11-17, Corey: "Free Spin Entry does not wait for Press for Continue (without Autoplay even running)"): the
 		// intro's own 4 s timer continued it by itself. With no autoplay running the intro now waits for the press
 		// (ROUND.introWaitsForPress); in autoplay it keeps the old timing (1.4 s with the bonuses played through, else 4 s)
-		// (a wrap-up that carries a line, a top-up or the cap, waits too since 2026-11-17, ROUND.lineOutroWaitsForPress: its
+		// (a wrap-up that carries a line, the cap, waits too since 2026-11-17, ROUND.lineOutroWaitsForPress: its
 		// line scrolls on the LED strip from the moment the amount lands and needs about 10 s to pass once)
-		const lined = card.kind === 'outro' && (!!card.topUp || card.capped) && ROUND.lineOutroWaitsForPress;
+		const lined = card.kind === 'outro' && card.capped && ROUND.lineOutroWaitsForPress;
 		// THE ENTRY IN AUTOPLAY (2026-11-18, Corey on staging: "I had auto spins on, without the option selected for AutoPlay
 		// Bonuses, and it entered bonus games without me clicking to continue on the intro screen"): the rule above exempted
 		// every live run, so with Autoplay Bonuses off the entry still went by itself after introAutoMs. Only Autoplay
@@ -108,7 +106,6 @@
 	});
 
 	const amount = (value: number) => bookEventAmountToCurrencyString(value);
-	const floorText = (floor: number) => `${floor / 100}x`;
 </script>
 
 <button class="am-ui catch" class:board onclick={press} aria-label="Continue"></button>
@@ -123,11 +120,6 @@
 			<div class="label">{card.capped ? 'MAX WIN' : 'TOTAL WIN'}</div>
 			<div class="slot-num amount" data-round-total>{amount(card.amount)}</div>
 			{#if card.capped}<div class="line">{config.maxWin.toLocaleString('en-US')}x {soc('the bet, the most a round can pay', 'the play amount, the most a round can award')}.</div>{/if}
-			{#if card.topUp}
-				<div class="line" data-top-up>
-					Includes {amount(card.topUp.amount)} added to bring this round up to its {floorText(card.topUp.floor)} minimum.
-				</div>
-			{/if}
 		{/if}
 		<div class="prompt">PRESS ANYWHERE TO CONTINUE</div>
 	</div>

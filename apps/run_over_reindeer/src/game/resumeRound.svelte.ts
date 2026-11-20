@@ -10,7 +10,7 @@
 // SKIP TO RESULT, frontend only: the book is not changed and nothing is worked out here. The round's events are cut to
 // what its end needs, in book order: the session state the snapshot rebuilds (the trigger, the last running total), one
 // frontend event that puts the final board up at once (the last spin's board and every column standing at its end), then
-// the book's own end events (floorTopUp, freeSpinEnd with its Total Win card, wincap, finalWin). The end-round is the
+// the book's own end events (freeSpinEnd with its Total Win card, wincap, finalWin). The end-round is the
 // resume machine's, exactly as for Play Round: once.
 import { stateBet, stateUrlDerived } from 'state-shared';
 
@@ -51,7 +51,7 @@ export const roundHasNothingLeft = (bet: { active?: boolean; payoutMultiplier?: 
 export const resumeCardWanted = (): boolean => !!stateBet.betToResume?.active && !roundHasNothingLeft(stateBet.betToResume) && !stateUrlDerived.replay();
 
 /** the events kept after the final board, in the book's order (the round's own end) */
-export const SKIP_END_EVENTS = ['floorTopUp', 'freeSpinEnd', 'wincap', 'finalWin'];
+export const SKIP_END_EVENTS = ['freeSpinEnd', 'wincap', 'finalWin'];
 const END_EVENTS = SKIP_END_EVENTS;
 
 /** SKIP TO RESULT: the open round's book cut to its end (see the top of the file). */

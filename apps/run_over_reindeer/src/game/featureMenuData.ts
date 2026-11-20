@@ -4,7 +4,7 @@
 // THE ODDS ROWS, read off the math build of 2026-11-15 (results/build_2026-11-15/BUILD_REPORT.md, "Final numbers per
 // mode": the shaped lookup tables of the production books, P1 paytable), rounded to whole numbers: base game Free Spins
 // 1 in 212.7 and Super 1 in 2,128; Ante 2x 1 in 76.4 / 1,000; Ante 4x 1 in 42.6 / 250; Ante 10x 1 in 51.4 / 40; the max
-// win in the base game 1 in 2.97 million; the bought Super's 20x minimum. ODDS_ARE_PROVISIONAL stays true until Corey
+// win in the base game 1 in 2.97 million. ODDS_ARE_PROVISIONAL stays true until Corey
 // has looked at the build and the books are published (the menu carries a small line saying the figures come from the
 // simulation while it is true). Rows a figure does not exist for yet (how often a bought round pays more than it cost)
 // are simply not shown.
@@ -15,8 +15,12 @@ import { soc } from './social';
 // THE ONE SWITCH (review blocker, 2026-11-18): false takes the provisional line off the menu foot, nothing else changes
 // (the foot's layout without it checked at every fast_lane_probe size). Before flipping it, check against the new math
 // build's report: BUY_ODDS' "In the base game" rows, every ANTE_ODDS row and MAX_WIN_ROW (the max win's odds depend on
-// the line pays); the typed 10 spins, 20x minimum and 7,777x match config.ts. The math rebuild of 2026-11-18 is under way.
+// the line pays); the typed 10 spins and 7,777x match config.ts. The math rebuild of 2026-11-18 is under way.
 export const ODDS_ARE_PROVISIONAL = false; // Corey 2026-11-18: "I think the Math is done." Every row checked against results/build_2026-11-18/BUILD_REPORT.md
+// MATH 2026.11.20 (Corey 2026-11-20, option B: every published trigger rate kept; REDRAW_2026-11-20.md): every trigger row is
+// unchanged to the digit shown (base 1 in 212.76 / 2,127.6; antes 76.44 / 1,000, 42.60 / 250, 51.44 / 40). The max win in
+// the base game is now 1 in 4.42 million (4,424,690; was 2,967,562). The bought Super's "Guaranteed minimum 20x" row is
+// gone: the game states no minimum anywhere.
 
 /** one short odds row: what it is, and the figure */
 export type OddsRow = { label: string; value: string };
@@ -112,7 +116,7 @@ export const FAST_LANE_TEXT = {
 };
 
 // ---- the odds rows (PROVISIONAL: see the top of the file) -----------------------------------------------------------
-const MAX_WIN_ROW: OddsRow = { label: 'Max win 7,777x, base game', value: '~1 in 2.97 million' };
+const MAX_WIN_ROW: OddsRow = { label: 'Max win 7,777x, base game', value: '~1 in 4.42 million' };
 
 export const BUY_ODDS: Record<'BONUS' | 'SUPER', OddsRow[]> = {
 	BONUS: [
@@ -123,7 +127,6 @@ export const BUY_ODDS: Record<'BONUS' | 'SUPER', OddsRow[]> = {
 	SUPER: [
 		{ label: 'Free spins', value: '10' },
 		{ label: 'In the base game', value: '~1 in 2,128' },
-		{ label: 'Guaranteed minimum', value: '20x' },
 		{ label: 'Max win', value: '7,777x' },
 	],
 };

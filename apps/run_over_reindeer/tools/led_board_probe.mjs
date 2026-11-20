@@ -11,7 +11,7 @@
 // WATCHES: ; __reindeer.scoreboardRace, __reindeer.scoreboardRaise, __reindeer.scoreboardSkip, __reindeer.scoreboardStep
 // WATCHES: ; __reindeer.scoreboardWin, __reindeer.soundTap, __reindeer.tune, __reindeer.turbo, INTRO_LINE, LED_BOARD.fps, LED_BOARD, ROUND
 // WATCHES: ; SHOWCASE_ROUNDS, sfx_win_*, sfx_win_big, sfx_win_epic, sfx_win_max, sfx_win_mega, sfx_win_super, data-round-card, data-round-board
-// WATCHES: ; data-top-up, .landing, .hudp, .spin, .am-ui, .wrap, .layer, .modals, .go
+// WATCHES: ; .landing, .hudp, .spin, .am-ui, .wrap, .layer, .modals, .go
 // THE LED SCOREBOARD PROBE (part A, 2026-11-17; bigwin_led_r3_2026-11-16 "r3b"; constants LED_BOARD, game/scoreboard/). At each size:
 //   - THE STRIP'S RULE per layout class, worked out here from the game's own geometry (the road picture's place, the board,
 //     the HUD's layout functions): desktop and tablet 0.62 of the road picture, centred on the window, top the bottom lane
@@ -44,7 +44,7 @@
 //     (since 2026-11-17: never with the back board up, and none starts while a card is up)
 //     on the strip; in a real Grandma strike round the gag is no longer cut by the round's own small win
 //   - THE CHASE AS RUNS draws the same picture as dot by dot (the face's pixels hashed both ways), and its cost both ways
-//   - THE GAG'S RULE (2026-11-17): base_grandma_strike's base game strike plays the gag; in floor_top_up's free spins the
+//   - THE GAG'S RULE (2026-11-17): base_grandma_strike's base game strike plays the gag; in natural_small_free_spins' free spins the
 //     first Grandma strike (no win) plays it, a later one on a paying spin plays it, a later one with no win does not
 //   - THE ENTRY'S SENTENCE (scenes, 2026-11-17): while an entry waits, the intro card's sentence (constants INTRO_LINE,
 //     the same words the HTML card shows) scrolls on the strip and the press line is never more than 3 s away
@@ -52,7 +52,8 @@
 //     board's face by their drawn dots within half a dot, 4 dots clear of each side, the bounce inside the top; again with
 //     the class's size knob at 2 and 0.3
 //   - REAL ROUNDS: natural_free_spins (the entry on the board, a press lands it, a press continues; the Total Win on the board),
-//     floor_top_up (its wrap-up keeps the HTML card: the top-up line); autoplay's tier sounds once per tier per round
+//     natural_small_free_spins (math 2026.11.20: its wrap-up on the board with NO line: no top-up or minimum is ever said, no
+//     HTML card, it waits for the press); autoplay's tier sounds once per tier per round
 //   - THE CURRENCY (section currency, desktop, sideways, upright, 2026-11-17 led_currency): with the play currency set by hand
 //     (USD, EUR, JPY, BRL, INR, a made-up XQZ, social XSC) a small win's amount on the strip is, dot for dot, the game's own
 //     drawRow of the expected text (symbol, number, decimals as the HUD writes them; XQZ the number alone) inside the face, and
@@ -977,14 +978,15 @@ async function cards(p, S, full) {
 	const baseCalls = await R(p, () => window.__reindeer.gagsAsked(true));
 	check(base.ok && strikes.length === 1 && / gag true$/.test(strikes[0]) && /^basegame/.test(strikes[0]) && baseCalls === 1, `${tag}: base_grandma_strike: a base game Grandma strike plays the gag (${strikes.join('; ')}; gags asked ${baseCalls})`, { strikes, baseCalls });
 	strikes.length = 0;
-	// floor_top_up: its free spins hold three Grandma strikes (the round's first on a spin with no win, a later one on a
-	// paying spin, a later one with no win); its wrap-up (a top-up) plays on the back board since 2026-11-17, its top-up line
-	// scrolled on the strip, no HTML card
+	// natural_small_free_spins (fixtures_2026-11-20; it replaces 2026-11-18's floor_top_up, a round the math no longer makes,
+	// with the same strike pattern): its free spins hold three Grandma strikes (the round's first on a spin with no win, a
+	// later one on a paying spin, a later one with no win); its wrap-up plays on the back board with NO line (math 2026.11.20,
+	// Corey 2026-11-20: no top-up, and the game never mentions a minimum), no HTML card, and waits for the press
 	let fIntro = null;
 	let fPressed = 0;
-	const top = { board: false, html: false, line: null, lineAt: 0, pressed: false, waited: false };
+	const top = { board: false, html: false, line: null, totalAt: 0, pressed: false, waited: false, minimumWords: false };
 	await R(p, () => window.__reindeer.gagModes(true));
-	const b = await playRound(p, 'floor_top_up', {
+	const b = await playRound(p, 'natural_small_free_spins', {
 		pressTotal: false,
 		limit: 240000,
 		during: async (s, ms) => {
@@ -1010,12 +1012,11 @@ async function cards(p, S, full) {
 					}
 					return h.scoreboardFace('strip')?.entryWait?.sentence ?? null;
 				});
-				if (w && !top.line) {
-					top.line = w;
-					top.lineAt = ms;
-				}
-				// (the wrap-up with a line waits for the press with no autoplay: pressed 3 s after its line came)
-				if (top.line && !top.pressed && ms - top.lineAt > 3000) {
+				if (w && !top.line) top.line = w;
+				if (await R(p, () => /minimum|added to bring|top.?up/i.test(document.body.innerText))) top.minimumWords = true;
+				top.totalAt ||= ms;
+				// (the wrap-up waits for the press with no autoplay, line or not, since 2026-11-18: pressed 3 s after it came)
+				if (!top.pressed && ms - top.totalAt > 3000) {
 					top.pressed = true;
 					top.waited = (await cardNow(p)).card === 'total';
 					await p.mouse.click(S.vp.width / 2, S.vp.height * 0.3);
@@ -1023,14 +1024,14 @@ async function cards(p, S, full) {
 			}
 		},
 	});
-	check(top.board && !top.html && !!top.line && /^Includes \$[0-9.,]+ added to bring this round up to its [0-9.]+x minimum\.$/.test(top.line) && top.waited && b.ok, `${tag}: floor_top_up: the wrap-up plays on the back board with its top-up line on the big board (the strip with explain off) ("${top.line}"), no HTML card, it waits for the press, and the round ends`, top);
+	check(top.board && !top.html && !top.line && !top.minimumWords && top.waited && b.ok, `${tag}: natural_small_free_spins: the wrap-up plays on the back board with no line on the big board or the strip (${top.line ? `"${top.line}"` : 'none'}), no words about a minimum or a top-up on the page, no HTML card, it waits for the press, and the round ends`, top);
 	await drainStrikes();
 	const fsCalls = await R(p, () => window.__reindeer.gagsAsked(true));
 	const rulings = strikes.map((x) => / gag (true|false)$/.exec(x)?.[1]);
-	check(strikes.length === 3 && strikes.every((x) => /^freegame/.test(x)) && rulings.join() === 'true,true,false' && fsCalls === 2, `${tag}: floor_top_up's free spins: the first Grandma strike plays the gag, a later one on a paying spin plays it, a later one on a spin with no win does not (${strikes.join('; ')}; gags asked ${fsCalls})`, { strikes, fsCalls });
+	check(strikes.length === 3 && strikes.every((x) => /^freegame/.test(x)) && rulings.join() === 'true,true,false' && fsCalls === 2, `${tag}: natural_small_free_spins' free spins: the first Grandma strike plays the gag, a later one on a paying spin plays it, a later one on a spin with no win does not (${strikes.join('; ')}; gags asked ${fsCalls})`, { strikes, fsCalls });
 	// (2026-11-17) in a bonus round the gag is the short line, one screen
 	const fsModes = await R(p, () => window.__reindeer.gagModes(true));
-	check(fsModes.length === fsCalls && fsModes.every((m) => m === 'short'), `${tag}: floor_top_up's free spins: each gag is the short line (${fsModes.join(', ')})`, fsModes);
+	check(fsModes.length === fsCalls && fsModes.every((m) => m === 'short'), `${tag}: natural_small_free_spins' free spins: each gag is the short line (${fsModes.join(', ')})`, fsModes);
 }
 
 // ---- THE RACE'S RESULT CARDS (2026-11-17, Corey: the picture sat behind the words): REINDEER, POLICE CAR and the TIE, the
@@ -1716,13 +1717,13 @@ async function m4Checks(p, S) {
 }
 
 /** THE EXPLANATION ON THE BIG BOARD (2026-11-18, constants LED_BOARD.explain): for the Free Spins entry, the Super entry and a
- *  wrap-up with a line (a top-up), in layouts A and B, driven by hand past the READY beat: the sentence's text box lies inside
+ *  wrap-up with a line (a test sentence: since math 2026.11.20 the cap's is the only real one), in layouts A and B, driven by hand past the READY beat: the sentence's text box lies inside
  *  the back board's face and touches nothing (A: not the head), every word is there, and the strip shows the press line alone
  *  (no sentence on it) */
 async function explainBoards(p, S) {
 	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
 	await quietBoard(p);
-	const line = 'Includes $12.30 added to bring this round up to its 10x minimum.';
+	const line = 'A test sentence for the wrap-up page, about as long as one can be.';
 	const want = await R(p, () => window.__reindeer.tune);
 	void want;
 	// (round 2, 2026-11-18: layout C, one page with B's look and the heavy face, compositions C1 and C2, the default C1)
@@ -2604,7 +2605,7 @@ async function ideasChecks(browser) {
 					['max', { x: 7777, play: 1000, title: 'MAX WIN', line: CAP, capped: true }],
 					['max turbo', { x: 7777, play: 1000, title: 'MAX WIN', line: CAP, capped: true, rate: 2 }],
 					['max autoplay', { x: 7777, play: 1000, title: 'MAX WIN', line: CAP, capped: true, auto: true }],
-					['top-up line', { x: 20, play: 1, line: 'Includes $1.00 added to bring this round up to its 20x minimum.' }],
+					['other line', { x: 20, play: 1, line: 'A test sentence that is not the cap, for the hold rule only.' }],
 				]) {
 					h.scoreboardCard('total', o);
 					let s = h.scoreboardStep(0);
@@ -2648,7 +2649,7 @@ async function ideasChecks(browser) {
 				check(okLen, `${tag}: COUNT BY SIZE (${L.I.totalBySize.on ? 'on' : 'off'}): small ${len('small')}, big ${len('big')}, huge ${len('huge')}, max ${len('max')} ms, max at a turbo rate of 2 ${len('max turbo')} ms`, L.rows.map((r) => ({ k: r.key, ms: r.countMs })));
 				const pa = (k) => L.rows.find((r) => r.key === k)?.pressAfter;
 				const hold = L.I.capPageHold.on ? L.I.capPageHold.ms : 0;
-				check(pa('max') === hold && pa('max autoplay') === 0 && pa('top-up line') === 0 && pa('big') === L.after, `${tag}: THE CAP'S HOLD (${L.I.capPageHold.on ? 'on' : 'off'}): the cap's page ${pa('max')} ms after the landing (${hold}), with Autoplay Bonuses continuing it ${pa('max autoplay')}, a top-up's line ${pa('top-up line')}, a plain Total Win's press line ${pa('big')}`, L.rows.map((r) => ({ k: r.key, after: r.pressAfter })));
+				check(pa('max') === hold && pa('max autoplay') === 0 && pa('other line') === 0 && pa('big') === L.after, `${tag}: THE CAP'S HOLD (${L.I.capPageHold.on ? 'on' : 'off'}): the cap's page ${pa('max')} ms after the landing (${hold}), with Autoplay Bonuses continuing it ${pa('max autoplay')}, a top-up's line ${pa('top-up line')}, a plain Total Win's press line ${pa('big')}`, L.rows.map((r) => ({ k: r.key, after: r.pressAfter })));
 				const big = L.rows.find((r) => r.key === 'big');
 				const first = big ? `$${(15 * 2).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : null;
 				check(L.I.total !== 'ladder' || big?.atFirst === first, `${tag}: THE PACER: 125x at $2 reads ${big?.atFirst} as its first rung's segment ends (want ${first}: 15x)`, big);

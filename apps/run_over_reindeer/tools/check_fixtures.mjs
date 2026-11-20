@@ -16,10 +16,11 @@ const fail = (round, message) => {
 	console.error(`FAIL ${round.name}: ${message}`);
 };
 
-// contract 2026-11-15a (2026-11-10a plus winInfo capped): what the board relies on, and what is gone
+// contract 2026-11-20a (2026-11-10a plus winInfo capped; floorTopUp gone since 2026-11-20a, so a book holding one is
+// an unknown event and fails): what the board relies on, and what is gone
 const OLD_STRIKE_FIELDS = ['side', 'runRow', 'dart', 'passes'];
 const OLD_COLUMN_FIELDS = ['grandmaCell', 'grandmaWalksOut', 'grandmaAdd'];
-const KNOWN = ['reveal', 'strike', 'grandmaWild', 'columnWild', 'winInfo', 'setTotalWin', 'freeSpinTrigger', 'freeSpinRetrigger', 'floorTopUp', 'freeSpinEnd', 'wincap', 'finalWin'];
+const KNOWN = ['reveal', 'strike', 'grandmaWild', 'columnWild', 'winInfo', 'setTotalWin', 'freeSpinTrigger', 'freeSpinRetrigger', 'freeSpinEnd', 'wincap', 'finalWin'];
 
 let books = 0;
 let wins = 0;
@@ -91,10 +92,6 @@ for (const round of SHOWCASE_ROUNDS) {
 			else if (sum !== event.totalWin) fail(round, `winInfo totalWin ${event.totalWin} is not the sum of its wins ${sum}`);
 			total += event.totalWin;
 			if (round.events.slice(0, i).some((e) => e.type === 'freeSpinTrigger')) free += event.totalWin;
-		} else if (event.type === 'floorTopUp') {
-			if (event.featureWin + event.amount !== event.floor) fail(round, `top-up ${event.amount} does not bring ${event.featureWin} to the floor ${event.floor}`);
-			total += event.amount;
-			free += event.amount;
 		} else if (event.type === 'setTotalWin') {
 			if (event.amount !== Math.min(total, config.maxWin * 100)) fail(round, `setTotalWin ${event.amount}, running total ${total}`);
 		} else if (event.type === 'freeSpinEnd') {
