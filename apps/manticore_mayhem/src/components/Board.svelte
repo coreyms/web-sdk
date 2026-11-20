@@ -1,5 +1,6 @@
 <script lang="ts" module>
 	import type { StingKind } from '../game/typesBookEvent';
+	import { boardPace } from '../game/boardPace';
 	import type { SoundEffectName } from '../game/sound';
 
 	export type FeatureBeat = 'swipe' | 'roar';
@@ -194,6 +195,8 @@
 				push: (kind: ChainGustKind, sourceX: number | null = null) => chainGust(kind, Math.max(0.2, context.stateGameDerived.timeScale()), sourceX),
 			},
 		});
+		// THE SPIN KEY'S RING: the board's own count of spin starts (game/boardPace.ts serial; hud_probe `rounds`)
+		(window as any).__manticore.spinSerial = () => boardPace.serial();
 		// BOARD EXIT probe (tools/manticore/boardfix_probe.js): every exit played (who started it, when, the
 		// style rate, when the reveal took the board over, any hold it asked of the new drop, when it ended),
 		// the tiles falling right now (the board's own before the reveal, `leaving` after) and the constants
