@@ -1027,6 +1027,16 @@
 								})(),
 								drop: logoTreeDrop,
 								short: logoTreeShort,
+								/** (2026-11-20) its visible art's left and right edges (CSS px), read from the sign's own pixels (footShares:
+								 *  the columns with a visible pixel): the LED board's keep-clear check on desktop and tablet */
+								artX: (() => {
+									const fs = logo!.footShares();
+									if (!fs || !fs.length) return null;
+									let a = -1;
+									let z = -1;
+									for (let i = 0; i < fs.length; i++) if (!Number.isNaN(fs[i])) (a < 0 && (a = i), (z = i));
+									return a < 0 ? null : { left: ox + (b.x + (a / fs.length) * b.width) * k, right: ox + (b.x + ((z + 1) / fs.length) * b.width) * k };
+								})(),
 							}
 						: null,
 				};

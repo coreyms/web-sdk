@@ -874,15 +874,15 @@ const LOOK: Look[] = [
 // ---- THE WIN'S PLACE ON A FACE (cached): stacked (title over amount), one row, or a two line tag (a short strip) ------------
 type WinLay = { stacked: boolean; tag?: boolean; m: number; ts: number; titleX?: number; titleY: number; numX?: number; numW?: number; numY: number; cap: number; cx?: number };
 const wlCache = new Map<string, WinLay>();
-function winLayout(W: number, H: number, finalStr: string, titles: string[], size = 1, extraGap = 0, liftK = 0): WinLay {
-	const key = W + 'x' + H + '|' + finalStr + '|' + titles.join(',') + '|' + size + '|' + extraGap + '|' + liftK;
+function winLayout(W: number, H: number, finalStr: string, titles: string[], size = 1, extraGap = 0, liftK = 0, maxTs = 5): WinLay {
+	const key = W + 'x' + H + '|' + finalStr + '|' + titles.join(',') + '|' + size + '|' + extraGap + '|' + liftK + '|' + maxTs;
 	let r = wlCache.get(key);
 	if (r) return r;
 	const m = H >= 30 ? 4 : 2;
 	let stacked: WinLay | null = null;
 	if (H >= 22) {
 		let ts = 1;
-		for (const s of [5, 4, 3, 2, 1])
+		for (let s = maxTs; s >= 1; s--)
 			if (Math.max(...titles.map((x) => textW(x, s))) <= W - 2 * m - 6 && 7 * s <= H * 0.24) {
 				ts = s;
 				break;
@@ -961,7 +961,11 @@ function slideAt(s: Show, lay: WinLay) {
 
 // ---- THE WIN (one face: the strip's line or the back board) -------------------------------------------------------------------
 /** the win's place: on the back board (part B) the number keeps above the scene's bottom band (the mock's winLay) */
-const winLay = (W: number, H: number, s: Show, back: boolean) => winLayout(W, back ? H - Math.round(H * LED_BOARD.scenes.band) : H, s.finalStr, titles(), back ? titleKnobs().size : 1, back ? titleGapKnob() : 0, back ? bounceK() : 0);
+/** the back board's win titles' largest dot scale: 5, and on board size d's desktop and tablet face (35 percent more dots each
+ *  way, LED_BOARD.size) LED_BOARD.sizeD.winTitleMax, so BIG to MAX WIN keep today's share of the face (the amount below them
+ *  already scales with the face) */
+const winTitleMax = (back: boolean) => (back && boardClass === 'desktop' && LED_BOARD.size === 'd' ? LED_BOARD.sizeD.winTitleMax : 5);
+const winLay = (W: number, H: number, s: Show, back: boolean) => winLayout(W, back ? H - Math.round(H * LED_BOARD.scenes.band) : H, s.finalStr, titles(), back ? titleKnobs().size : 1, back ? titleGapKnob() : 0, back ? bounceK() : 0, winTitleMax(back));
 /** ballpark block letters: each letter bobs in turn, a wave running along the word (the mock's bounceTitle); since
  *  2026-11-17 set by boardTitle (the word's own letter gap, centered on its drawn dots, the class's knobs) */
 function bounceTitle(g: Ctx, str: string, cx: number, y: number, ts: number, style: string, t: number | null) {

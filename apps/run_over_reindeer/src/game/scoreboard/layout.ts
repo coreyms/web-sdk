@@ -104,6 +104,16 @@ export const scoreboardGeometry = (kind: LayoutKind, vw: number, vh: number, mai
 	const f = frameFor(h);
 	const ol = f / 3;
 	const cap = (f * 4) / 3;
+	// BOARD SIZE d ON DESKTOP AND TABLET (2026-11-20, constants LED_BOARD.size): the faces span the reel board (its rect from
+	// layoutSpec boardRect, the same the road draws), the strip as wide, the back board from the board's top to the strip
+	let backTop: number | null = null;
+	if (kind === 'landscape' && LED_BOARD.size === 'd') {
+		const rbx = masterLeft + br.x * main.scale;
+		const rbw = br.width * main.scale;
+		x = rbx - f;
+		w = rbw + 2 * f;
+		backTop = boardTop - 1.7 * f;
+	}
 	// THE STRIP (the mock's geomStrip)
 	const faceW = w - 2 * f;
 	const dotsW = Math.max(20, Math.floor(faceW / pitch0));
@@ -113,7 +123,7 @@ export const scoreboardGeometry = (kind: LayoutKind, vw: number, vh: number, mai
 	const stripFace = { x: x + f, y: y + 1.7 * f, w: faceW, h: faceH, dotsW, dotsH };
 	const stripHousing = { x, y, w, h: faceH + 2.7 * f };
 	// THE BACK BOARD (the mock's geomBack): its bottom rail tucks under the strip's snow cap
-	const backH = Math.max(40, R.backShare * backRoom);
+	const backH = backTop !== null ? Math.max(40, y + 0.5 * f - backTop) : Math.max(40, R.backShare * backRoom);
 	const bDotsH = Math.max(10, Math.floor((backH - 2.7 * f) / p));
 	const bFaceH = bDotsH * p;
 	const hh = bFaceH + 2.7 * f;

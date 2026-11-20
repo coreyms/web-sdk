@@ -123,6 +123,9 @@ const SIZES = [
 	{ name: 'side', vp: { width: 844, height: 390 }, phone: true, cls: 'phone', mock: { w: 391, h: 53, x: 227, y: 317 }, rise: true },
 	{ name: 'portrait', vp: { width: 390, height: 844 }, phone: true, cls: 'portrait', mock: { w: 351, h: 71, x: 19.5, y: 600 }, rise: true, throttle: true, scenes: true },
 	{ name: 'short', vp: { width: 390, height: 620 }, phone: true, cls: 'portrait', mock: { w: 351, h: 58, x: 19.5, y: 430 }, acceptRuleH: true },
+	// (2026-11-20, board size d: the tablet shapes that share the desktop rule; no mock numbers, no fixed pitch)
+	{ name: 'tablet', vp: { width: 1180, height: 820 }, phone: false, cls: 'tablet', pitch: null },
+	{ name: 'tablet43', vp: { width: 1024, height: 768 }, phone: false, cls: 'tablet', pitch: null },
 ].filter((s) => !ONLY.length || ONLY.includes(s.name));
 
 let pass = 0;
@@ -172,9 +175,17 @@ const expectRule = (p) =>
 		if (bl.kind === 'landscape') {
 			const dock = H.desktopGeo(f, 0).y0 * f.u;
 			const lane = pic.y + 851 * k;
-			const w = 0.62 * 1535 * k;
 			const y = lane + 0.15 * (dock - lane);
-			return { cls: f.variant === 'tablet' ? 'tablet' : 'desktop', w, x: vw / 2 - w / 2, y, h: Math.min(125 * k, 0.85 * (dock - lane)), hud: dock };
+			const h = Math.min(125 * k, 0.85 * (dock - lane));
+			// (2026-11-20, LED_BOARD.size 'd': the strip as wide as the reel board plus its frame either side, centred on the board;
+			// the frame by the strip's height, the mock's 9 / 8 / 7 / 6)
+			if (window.__reindeer.tune.ledBoard.size === 'd') {
+				const fr = Math.max(6, Math.min(9, 6 + ((h - 53) * 3) / 37));
+				const RB = bl.css;
+				return { cls: f.variant === 'tablet' ? 'tablet' : 'desktop', w: RB.width + 2 * fr, x: RB.x - fr, y, h, hud: dock, board: RB, size: 'd' };
+			}
+			const w = 0.62 * 1535 * k;
+			return { cls: f.variant === 'tablet' ? 'tablet' : 'desktop', w, x: vw / 2 - w / 2, y, h, hud: dock };
 		}
 		if (bl.kind === 'portrait') {
 			const G = H.portraitGeo(f, 0);
@@ -215,16 +226,26 @@ async function sizeChecks(p, S, memory) {
 		check(sb.cls === E.cls, `${tag}: layout class ${sb.cls} (rule: ${E.cls})`);
 		const near = (a, b, tol = 0.6) => Math.abs(a - b) <= tol;
 		check(near(st.w, E.w) && near(st.x, E.x) && near(st.y, E.y) && near(st.h, E.h), `${tag}: the strip ${r1(st.w)} x ${r1(st.h)} at ${r1(st.x)}, ${r1(st.y)} follows its class's rule (${r1(E.w)} x ${r1(E.h)} at ${r1(E.x)}, ${r1(E.y)})`, { st, E });
-		check(Math.abs(st.x + st.w / 2 - (S.cls === 'phone' ? E.x + E.w / 2 : S.vp.width / 2)) <= 0.6, `${tag}: the strip is centred (${S.cls === 'phone' ? 'on the road' : 'on the window'})`);
+		check(Math.abs(st.x + st.w / 2 - (S.cls === 'phone' || E.size === 'd' ? E.x + E.w / 2 : S.vp.width / 2)) <= 0.6, `${tag}: the strip is centred (${S.cls === 'phone' ? 'on the road' : E.size === 'd' ? 'on the reel board' : 'on the window'})`);
+		// BOARD SIZE d (2026-11-20, desktop and tablet): the back board's face is the reel board's box (its left and right edges
+		// within 0.6 px, its top within one dot under the board's top, its bottom on the strip's seam as before) and the strip
+		// is exactly as wide as the back board
+		if (E.size === 'd') {
+			const bf = sb.back.face;
+			const RB = E.board;
+			check(near(bf.x, RB.x) && near(bf.x + bf.w, RB.x + RB.width) && bf.y >= RB.y - 0.6 && bf.y <= RB.y + sb.pitch + 0.6 && near(sb.back.housing.w, st.w) && near(sb.back.housing.x, st.x), `${tag}: BOARD SIZE d: the back board's face ${r1(bf.x)}..${r1(bf.x + bf.w)} x from ${r1(bf.y)} on the reel board's ${r1(RB.x)}..${r1(RB.x + RB.width)} x from ${r1(RB.y)} (within 0.6 px across, one dot down), the strip as wide as the back board (${r1(st.w)} and ${r1(sb.back.housing.w)})`, { bf, RB, st, back: sb.back.housing });
+		}
 		// (390 x 620: Corey accepted the game's own strip height on 2026-11-17, 6.1 px under the mock's by-eye 58: the
 		// expected height there is the game's rule, E.h, and the strip must stand between the road's edge and the HUD)
-		const M = S.acceptRuleH ? { ...S.mock, h: E.h } : S.mock;
+		const M = S.mock ? (S.acceptRuleH ? { ...S.mock, h: E.h } : S.mock) : null;
 		if (S.acceptRuleH) check(st.y >= E.y - 0.6 && st.housingBottom <= E.hud + 0.5, `${tag}: the strip stands between the road's edge (${r1(E.y)}) and the HUD's top (${r1(E.hud)}): ${r1(st.y)} to ${r1(st.housingBottom)}`);
-		const dm = { w: r1(st.w - M.w), x: r1(st.x - M.x), y: r1(st.y - M.y), h: r1(st.h - M.h) };
-		check(Math.abs(dm.w) <= 6 && Math.abs(dm.x) <= 6 && Math.abs(dm.y) <= 6 && Math.abs(dm.h) <= 6, `${tag}: against the mock's own numbers (${M.w} x ${M.h} at ${M.x}, ${M.y}): w ${dm.w}, x ${dm.x}, y ${dm.y}, h ${dm.h} (within 6 px: the mock read the road's edges by eye)`, dm);
+		const dm = M ? { w: r1(st.w - M.w), x: r1(st.x - M.x), y: r1(st.y - M.y), h: r1(st.h - M.h) } : { w: 0, x: 0, y: 0, h: 0 };
+		// (board size d: the bigwin mock's strip numbers are today's width; the height and the place still hold)
+		if (E.size === 'd') dm.w = dm.x = 0;
+		if (M) check(Math.abs(dm.w) <= 6 && Math.abs(dm.x) <= 6 && Math.abs(dm.y) <= 6 && Math.abs(dm.h) <= 6, `${tag}: against the mock's own numbers (${M.w} x ${M.h} at ${M.x}, ${M.y}): w ${dm.w}, x ${dm.x}, y ${dm.y}, h ${dm.h} (within 6 px: the mock read the road's edges by eye)`, dm);
 		check(st.housingBottom <= E.hud + 0.5, `${tag}: the strip ends (${st.housingBottom}) above the HUD's top (${r1(E.hud)})`);
 		if (E.columns) check(sb.back.housing.x >= E.columns[0] && sb.back.housing.x + sb.back.housing.w <= E.columns[1], `${tag}: held sideways the strip and the back board stand between the HUD's columns (${r1(E.columns[0])} to ${r1(E.columns[1])})`);
-		check(Math.abs(sb.pitch - (S.name === 'desktop' ? 2.49 : S.name === 'wide' ? 3.31 : S.name === 'side' ? 1.56 : 1.3)) <= 0.03, `${tag}: the dot pitch ${sb.pitch} CSS px (the press screen's)`);
+		if (S.pitch !== null) check(Math.abs(sb.pitch - (S.name === 'desktop' ? 2.49 : S.name === 'wide' ? 3.31 : S.name === 'side' ? 1.56 : 1.3)) <= 0.03, `${tag}: the dot pitch ${sb.pitch} CSS px (the press screen's)`);
 		check(st.dotsH >= 14 && st.dotsW >= 200, `${tag}: the strip's face ${st.dotsW} x ${st.dotsH} dots (the mock's smallest: 16 tall at 1920 x 1080), the back board's ${sb.back.dotsW} x ${sb.back.dotsH}`);
 		check(sb.gpuBytes <= 1.2 * 1048576, `${tag}: the scoreboard holds ${(sb.gpuBytes / 1048576).toFixed(3)} MB of GPU textures (budget 1.2 MB; the snow cover adds none)`);
 		memory[S.name] = { gpuMB: Math.round((sb.gpuBytes / 1048576) * 1000) / 1000, strip: `${st.dotsW}x${st.dotsH}`, back: `${sb.back.dotsW}x${sb.back.dotsH}`, cover: sb.cover };

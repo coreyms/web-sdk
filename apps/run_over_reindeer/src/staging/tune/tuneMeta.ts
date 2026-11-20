@@ -326,6 +326,11 @@ export const META: Record<string, Meta> = {
 	'ledBoard.strobe.ladderFlash': { label: 'ladder rung wash', options: ['soft', 'today'] },
 	'ledBoard.strobe.softStrength': { label: 'soft: strength', min: 0, max: 1, step: 0.05 },
 	'ledBoard.strobe.softLength': { label: 'soft: length', min: 1, max: 5, step: 0.1, unit: 'x' },
+	// THE BOARD'S SIZE ON DESKTOP AND TABLET (2026-11-20, option d): read by the layout, so it shows on a resize
+	'ledBoard.size': { label: 'board size on desktop and tablet (d: the reel board\'s box; today: the old rule)', options: ['d', 'today'], when: 'resize' },
+	'ledBoard.sizeD': { label: 'Board size d: title sizes', when: 'live' },
+	'ledBoard.sizeD.winTitleMax': { label: 'win titles largest dot scale', min: 3, max: 9, step: 1 },
+	'ledBoard.sizeD.pressScaleMax': { label: 'press screen figure largest dot scale', min: 4, max: 10, step: 1 },
 	// THE DOT GRID (2026-11-20): his pick is today's grid; the others to compare (the tile is made again on a change)
 	'ledBoard.grid': { label: 'Dot grid (today: round, 0.73, row 1, gaps 1, lit over 0, no snap, unlit grid)', when: 'live' },
 	'ledBoard.grid.shape': { label: 'dot shape', options: ['round', 'square', 'soft'] },
