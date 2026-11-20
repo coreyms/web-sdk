@@ -2,10 +2,10 @@
 // (2026-11-17: with constants LED_SIGN.onBoard the press screen is the game's own expanded LED board; boardPress() below
 // checks it at every size and the billboard's checks are skipped. They still run with LED_SIGN.onBoard false.)
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/assets.ts,game/config.ts,game/constants.ts,game/landing/ledScreens.ts,game/landing/ledSign.ts};
-// WATCHES: apps/run_over_reindeer/src/{game/landingBoard.ts,game/scene/logoSign.ts,game/sceneArtSpec.ts,game/gpuWarm.ts,game/road/roadFeatures.ts};
+// WATCHES: apps/run_over_reindeer/src/{game/landingBoard.ts,game/scene/logoSign.ts,game/sceneArtSpec.ts,game/gpuWarm.ts,game/road/roadFeatures.ts,game/scoreboard/ledGrid.ts,game/scoreboard/scoreboard.ts};
 // WATCHES: apps/run_over_reindeer/{static/assets/audio/music.json,static/assets/audio/sounds.json,static/assets/symbols/symbols-phone.json,static/assets/symbols/symbols.json};
 // WATCHES: ; data-resume-card, data-resume, __reindeer.atRest, __reindeer.board, __reindeer.boardLayout, __reindeer.fixtures, __reindeer.gameType, __reindeer.led
-// WATCHES: ; __reindeer.gpuWarm, GPU_WARM
+// WATCHES: ; __reindeer.gpuWarm, GPU_WARM, LED_BOARD.density, __reindeer.scoreboard, __reindeer.scoreboardFace
 // WATCHES: apps/run_over_reindeer/src/game/scenePrefetch.ts; prefetchOtherSceneSet
 // WATCHES: ; __reindeer.ledFreeze, __reindeer.road, __reindeer.scene, __reindeer.tune, LED_SIGN, SCENE_ART, SCREENS, data-title-sign, .landing
 // WATCHES: ; .pressText, .title, .am-ui, .hidden, .hudp, .spin
@@ -28,6 +28,8 @@
 //   - a resumed round (the fixture RGS's resume: a free spin with a held column) comes back with its own column only
 //   - the billboard's cost per content step on a phone profile with the CPU throttled 4x (CDP), its GPU bytes, the bytes
 //     it adds to the press gate
+//   - THE PRESS SCREEN ON THE LED BOARD (LED_SIGN.onBoard): the board's grid by the density rule (constants LED_BOARD.density,
+//     2026-11-19: 1.5 LEDs per dot at every size here, both faces at it, the faces' LEDs their dots x 1.5)
 //   - no page errors
 // With OUT=<dir> it saves each screen at each size (phones at device pixel ratio 3, desktop at 2, 1920x1080 at 1), 4x crops
 // of the face, the exit, the board after the press, and bytes.json.
@@ -51,12 +53,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // dots: the page's grid where the face keeps the page's size (null: worked out from the layout's rule, checked loosely)
 const SIZES = [
-	{ name: 'desktop', vp: { width: 1440, height: 900 }, dpr: 2, phone: false, dots: [362, 143], pitch: 2.49 },
-	{ name: 'wide', vp: { width: 1920, height: 1080 }, dpr: 1, phone: false, dots: [362, 143], pitch: 3.31 },
-	{ name: 'landscape', vp: { width: 844, height: 390 }, dpr: 3, phone: true, hudColumns: true },
-	{ name: 'portrait', vp: { width: 390, height: 844 }, dpr: 3, phone: true, resume: true, dots: [257, 221], throttle: true, upright: true },
-	{ name: 'short', vp: { width: 390, height: 620 }, dpr: 3, phone: true, dots: [257, 167], upright: true },
-	{ name: 'phone402', vp: { width: 402, height: 874 }, dpr: 3, phone: true, upright: true },
+	// (ledK: the LED board's LEDs per dot at that size, constants LED_BOARD.density, 2026-11-19: 1.5 at every size here)
+	{ name: 'desktop', vp: { width: 1440, height: 900 }, dpr: 2, phone: false, dots: [362, 143], pitch: 2.49, ledK: 1.5 },
+	{ name: 'wide', vp: { width: 1920, height: 1080 }, dpr: 1, phone: false, dots: [362, 143], pitch: 3.31, ledK: 1.5 },
+	{ name: 'landscape', vp: { width: 844, height: 390 }, dpr: 3, phone: true, hudColumns: true, ledK: 1.5 },
+	{ name: 'portrait', vp: { width: 390, height: 844 }, dpr: 3, phone: true, resume: true, dots: [257, 221], throttle: true, upright: true, ledK: 1.5 },
+	{ name: 'short', vp: { width: 390, height: 620 }, dpr: 3, phone: true, dots: [257, 167], upright: true, ledK: 1.5 },
+	{ name: 'phone402', vp: { width: 402, height: 874 }, dpr: 3, phone: true, upright: true, ledK: 1.5 },
 ].filter((s) => !ONLY.length || ONLY.includes(s.name));
 const POSE_SIDES = { 0: ['H2', 'L1', 'H4', 'L3'], 4: ['L2', 'H3', 'L4', 'L5'] };
 const NEXT = [
@@ -208,12 +211,20 @@ async function boardPress(p, S, tag, errs) {
 	check([0, 4].every((r) => JSON.stringify(a.board[r]) === JSON.stringify(POSE_SIDES[r])), `${tag}: reels 1 and 5 hold the eight ordinary symbols once each`, a.board);
 	const html = await p.evaluate(() => !!document.querySelector('.landing .pressText'));
 	check(!html, `${tag}: the HTML press line steps aside for the strip's line`);
-	const s0 = await p.evaluate(() => ({ s: window.__reindeer.scoreboard(), led: window.__reindeer.led(), dimWant: window.__reindeer.tune.ledBoard.dim.alpha, logo: window.__reindeer.scene()?.logo?.css ?? null, face: window.__reindeer.scoreboardFace('strip') }));
+	const s0 = await p.evaluate(() => ({ s: window.__reindeer.scoreboard(), led: window.__reindeer.led(), dimWant: window.__reindeer.tune.ledBoard.dim.alpha, logo: window.__reindeer.scene()?.logo?.css ?? null, face: window.__reindeer.scoreboardFace('strip'), rule: { ...window.__reindeer.tune.ledBoard.density } }));
 	const s = s0.s;
 	check(!s0.led, `${tag}: no separate billboard (one board)`);
 	check(s.show?.kind === 'press' && s.back.visible && Math.abs(s.back.offset) < 0.5 && s.press.up, `${tag}: the game's LED back board is up and seated (expanded: offset ${s.back.offset}, the press show ${s.show?.phase})`, { show: s.show, back: s.back });
 	check(Math.abs(s.dim.alpha - s0.dimWant) < 0.01, `${tag}: the scene behind is dimmed as a big win dims it (${s.dim.alpha}, a big win's ${s0.dimWant})`);
 	check(s.stripPick?.item === 'entry' && s.press.ready && s0.face.lit > 20, `${tag}: PRESS ANYWHERE TO CONTINUE runs on the strip as its top item (${s.stripPick?.item}, ${s0.face.lit} dots lit)`);
+	// THE FINER GRID (2026-11-19, constants LED_BOARD.density): the board's LEDs per dot by the rule (1.5 where an LED stays at
+	// least minDevicePx device px at the renderer's resolution, else 1; every size here gets 1.5), both faces at it, the
+	// strip's and the back board's LEDs its dots x k, the dot pitch (CSS px) the layout's as before
+	const dn = s.density;
+	const DR = s0.rule;
+	const wantK = !!dn && DR.on && (s.pitch * dn.ratio) / DR.k >= DR.minDevicePx ? DR.k : 1;
+	const sf = s0.face;
+	check(!!dn && Math.abs(dn.ratio - S.dpr) < 0.01 && dn.k === wantK && (S.ledK === undefined || dn.k === S.ledK) && dn.strip === dn.k && dn.back === dn.k && dn.faceRoots.strip === 1 && dn.faceRoots.back === 1 && sf.k === dn.k && sf.ledW === Math.round(sf.W * dn.k) && sf.ledH === Math.round(sf.H * dn.k), `${tag}: the board's grid: ${dn?.k} LEDs per dot (the rule: pitch ${s.pitch} x ${dn?.ratio} / ${DR.k} = ${dn ? Math.round(((s.pitch * dn.ratio) / DR.k) * 100) / 100 : '-'} device px against ${DR.minDevicePx}${S.ledK !== undefined ? `; want ${S.ledK}` : ''}), the strip ${sf.W} x ${sf.H} dots in ${sf.ledW} x ${sf.ledH} LEDs, the back board ${dn?.backLeds}, both faces at one density`, { dn, sf: { W: sf.W, H: sf.H, k: sf.k, ledW: sf.ledW, ledH: sf.ledH } });
 	// the screens advance (driven by hand 100 ms at a time: 3 screens of LED_SIGN holdS + transS)
 	const seen = await p.evaluate(() => {
 		window.__reindeer.scoreboardManual(true);

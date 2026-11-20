@@ -5,8 +5,15 @@
 // the pictures stepped down to the dot size with the LED punch, the three screens (the max win, the sleigh strike, the
 // Grandma car strike) and the ticker. The sign (game/landing/ledSign.ts) shows these canvases through the dot grille.
 // Plain 2D canvas drawing (composite modes on small canvases), no filter.
+// THE FINER GRID (2026-11-19, game/scoreboard/ledGrid.ts, constants LED_BOARD.density): on a face of k LEDs per dot the
+// words are redrawn at the LED grid (fineMask: the 5 x 7 sizes in Overpass at density.smallWeight, each letter in its own
+// 5 x 7 cell k times finer; the heavy face from 3 up at k times the cap, each letter on today's place), the pictures baked
+// at k times the dots, and the decorations set in LEDs; every width and place is today's (textW, textInk, letterGap read
+// today's masks), so every layout is today's. At k = 1 every path is exactly as before.
 
-import { SENTENCE_SIGNS } from '../scoreboard/ledSigns';
+import { LED_BOARD } from '../constants';
+import { AMOUNT_OUTLINES, SENTENCE_SIGNS, ledSignCanvas } from '../scoreboard/ledSigns';
+import { blit, dotAt, fillP, kOf, ledN, overpassReady, ringPts } from '../scoreboard/ledGrid';
 
 export type Cv = HTMLCanvasElement & { ctx: CanvasRenderingContext2D };
 type Ctx = CanvasRenderingContext2D;
@@ -193,6 +200,118 @@ function vecMask(str: string, s: number): Cv {
 	c.putImageData(id, 0, 0);
 	return m;
 }
+/** an LED controller's snap of a soft mask: alpha under 80 off, the rest x1.4 (the face's own rule) */
+function snapAlpha(c: Ctx, w: number, h: number) {
+	const id = c.getImageData(0, 0, w, h);
+	const d = id.data;
+	for (let i = 3; i < d.length; i += 4) d[i] = d[i] < 80 ? 0 : Math.min(255, d[i] * 1.4);
+	c.putImageData(id, 0, 0);
+}
+// ---- THE WORDS ON THE FINER GRID (k LEDs per dot) ----------------------------------------------------------------------------
+const fineCache = new Map<string, Cv>();
+const capOf = new Map<number, number>();
+/** Overpass's cap height per px of its size, at a weight */
+const capShare = (wt: number) => {
+	let m = capOf.get(wt);
+	if (m === undefined) {
+		const p = mk(4, 4).ctx;
+		p.font = `${wt} 200px ${LED_FONT}`;
+		m = p.measureText('H').actualBoundingBoxAscent / 200 || 0.7;
+		capOf.set(wt, m);
+	}
+	return m;
+};
+/** the 5 x 7 sizes (1 and 2) redrawn: each letter in Overpass at `wt` in its own cell (today's width, 7 x s dots tall, k
+ *  times finer), a capital filling the cell, a letter with a tail raised until the tail is in it (as the dot font sets
+ *  g, p, y), one wider than its cell narrowed to it; a sign the font lacks drawn from its LED outline (ledSigns.ts) */
+function cellMask(str: string, s: number, k: number, wt: number): Cv {
+	const gl = [...str].map((ch) => FONT[ch] || SENTENCE_SIGNS[ch] || FONT[' ']);
+	let w1 = 0;
+	gl.forEach((g, i) => (w1 += g[0].length + (i ? 1 : 0)));
+	const Hc = Math.round(7 * s * k);
+	const px = Hc / capShare(wt);
+	const m = mk(Math.max(1, Math.round(w1 * s * k)), Hc);
+	const c = m.ctx;
+	c.font = `${wt} ${px}px ${LED_FONT}`;
+	c.fillStyle = '#fff';
+	c.textBaseline = 'alphabetic';
+	let x = 0;
+	[...str].forEach((ch, i) => {
+		if (i) x += 1;
+		const gw = gl[i][0].length;
+		if (ch !== ' ' && ch !== ' ') {
+			const cx = (x + gw / 2) * s * k;
+			const room = (gw + 0.6) * s * k;
+			const sign = !FONT[ch] && ch in AMOUNT_OUTLINES ? ledSignCanvas(ch, Hc) : null;
+			if (sign) {
+				const kx = Math.min(1, room / Math.max(1, sign.adv));
+				c.drawImage(sign.c, 0, 0, sign.c.width, sign.c.height, cx - ((sign.adv + 2) * kx) / 2, -1, sign.c.width * kx, sign.c.height);
+			} else if (!FONT[ch] && SENTENCE_SIGNS[ch]) {
+				// (a hand set sign with no outline: its own 5 x 7 dots on the cell, as a block each)
+				const rows = SENTENCE_SIGNS[ch];
+				const cw = (gw * s * k) / rows[0].length;
+				const chh = Hc / 7;
+				rows.forEach((r, j) => [...r].forEach((d, q) => d === '#' && c.fillRect(Math.round(x * s * k + q * cw), Math.round(j * chh), Math.max(1, Math.round(cw)), Math.max(1, Math.round(chh)))));
+			} else {
+				const mt = c.measureText(ch);
+				const asc = mt.actualBoundingBoxAscent;
+				const desc = Math.max(0, mt.actualBoundingBoxDescent);
+				// a glyph taller than the cell ($): shrunk into it; a tail: the letter raised until the tail is in the cell
+				const fit = asc + desc > Hc * 1.04 ? Hc / (asc + desc) : 1;
+				const base = fit < 1 ? asc * fit : desc > Hc * 0.04 ? Hc - desc : Hc;
+				const kx = Math.min(1, room / Math.max(1, mt.width * fit));
+				c.save();
+				c.translate(cx, Math.round(base));
+				c.scale(kx * fit, fit);
+				c.fillText(ch, -mt.width / 2, 0);
+				c.restore();
+			}
+		}
+		x += gw;
+	});
+	snapAlpha(c, m.width, m.height);
+	return m;
+}
+/** the heavy face (3 and up) redrawn: each letter at k times today's cap, centred on its place in today's mask (vecMask's
+ *  own arithmetic at the dot size), so the mask is today's k times over */
+function vecMaskK(str: string, s: number, k: number): Cv {
+	const capH1 = 7 * s;
+	const px1 = Math.round(capH1 / 0.72);
+	const sp1 = Math.max(1, Math.round(s * 0.45));
+	const p1 = mk(4, 4).ctx;
+	p1.font = `900 ${px1}px ${LED_FONT}`;
+	const ws1 = [...str].map((ch) => Math.ceil(p1.measureText(ch).width));
+	const w1 = ws1.reduce((a, b) => a + b, 0) + sp1 * (ws1.length - 1) + 2;
+	const h1 = capH1 + Math.round(s * 1.4);
+	const capH = Math.round(capH1 * k);
+	const m = mk(Math.round(w1 * k), Math.round(h1 * k));
+	const c = m.ctx;
+	c.font = `900 ${Math.round(capH / 0.72)}px ${LED_FONT}`;
+	c.fillStyle = '#fff';
+	c.textBaseline = 'alphabetic';
+	let x = 1;
+	[...str].forEach((ch, i) => {
+		const mw = c.measureText(ch).width;
+		c.fillText(ch, Math.round((x + ws1[i] / 2) * k - mw / 2), capH);
+		x += ws1[i] + sp1;
+	});
+	snapAlpha(c, m.width, m.height);
+	return m;
+}
+/** a line's mask at k LEDs per dot (k = 1: today's) */
+function maskAt(str: string, s: number, k: number): Cv {
+	if (k === 1) return textMask(str, s);
+	const wt = s >= 3 ? 900 : LED_BOARD.density.smallWeight;
+	const key = `${str}|${s}|${k}|${wt}`;
+	let m = fineCache.get(key);
+	if (m) return m;
+	m = s >= 3 ? vecMaskK(str, s, k) : cellMask(str, s, k, wt);
+	// (kept only once its face is in: never a fallback font for good)
+	if (!overpassReady(wt)) return m;
+	if (fineCache.size > 1500) fineCache.clear();
+	fineCache.set(key, m);
+	return m;
+}
 function textMask(str: string, s: number): Cv {
 	const key = str + '|' + s;
 	let m = maskCache.get(key);
@@ -254,9 +373,11 @@ const solidCache = new Map<string, Cv>();
 let tmp: Cv | null = null;
 export type Fill = string | ((t: Ctx, w: number, h: number) => CanvasGradient | string);
 export function drawText(g: Ctx, str: string, x: number, y: number, s: number, fill: Fill, post?: ((t: Ctx, w: number, h: number) => void) | null) {
-	const m = textMask(str, s);
+	// (the finer grid: the line's mask made for the face's own density, drawn at its own size, its corner on a whole LED)
+	const k = kOf(g);
+	const m = maskAt(str, s, k);
 	if (typeof fill === 'string' && !post) {
-		const key = `${str}|${s}|${fill}`;
+		const key = `${str}|${s}|${fill}|${k}`;
 		let c = solidCache.get(key);
 		if (!c) {
 			c = mk(m.width, m.height);
@@ -265,9 +386,9 @@ export function drawText(g: Ctx, str: string, x: number, y: number, s: number, f
 			c.ctx.fillStyle = fill;
 			c.ctx.fillRect(0, 0, m.width, m.height);
 			c.ctx.globalCompositeOperation = 'source-over';
-			solidCache.set(key, c);
+			if (k === 1 || overpassReady(s >= 3 ? 900 : LED_BOARD.density.smallWeight)) solidCache.set(key, c);
 		}
-		g.drawImage(c, Math.round(x), Math.round(y));
+		blit(g, c, x, y);
 		return;
 	}
 	tmp ??= mk(8, 8);
@@ -287,7 +408,7 @@ export function drawText(g: Ctx, str: string, x: number, y: number, s: number, f
 		post(t, m.width, m.height);
 	}
 	t.globalCompositeOperation = 'source-over';
-	g.drawImage(tmp, 0, 0, m.width, m.height, Math.round(x), Math.round(y), m.width, m.height);
+	blit(g, tmp, x, y, 0, 0, m.width, m.height);
 }
 function wrap(text: string, s: number, maxW: number): string[] | null {
 	const words = text.split(' ');
@@ -374,10 +495,11 @@ const size = (name: string, src?: number[] | null): [number, number] => {
 	const f = ART?.frames[name];
 	return f ? [f.w, f.h] : [1, 1];
 };
-// one picture at one size in dots: a stepped downscale, then an LED punch (saturation and lift), baked once
-function art(name: string, src: number[] | null, dw: number, dh: number): Cv {
-	dw = Math.max(1, Math.round(dw));
-	dh = Math.max(1, Math.round(dh));
+// one picture at one size in dots: a stepped downscale, then an LED punch (saturation and lift), baked once; on the finer
+// grid baked at k times the dots (from the sheet itself: the picture's own detail, never today's bake blown up)
+function art(name: string, src: number[] | null, dw: number, dh: number, k = 1): Cv {
+	dw = Math.max(1, Math.round(Math.max(1, Math.round(dw)) * k));
+	dh = Math.max(1, Math.round(Math.max(1, Math.round(dh)) * k));
 	const key = name + '|' + (src ? src.join(',') : '') + '|' + dw + 'x' + dh;
 	let c = artCache.get(key);
 	if (c) return c;
@@ -423,9 +545,9 @@ function drawFit(g: Ctx, name: string, box: Rect, opts: { src?: number[] | null;
 	const dh = Math.round(sh * k);
 	const x = Math.round(box.x + (box.w - dw) / 2 + (opts.dx || 0));
 	const y = Math.round(opts.top ? box.y : box.y + box.h - dh) + (opts.dy || 0);
-	const a = art(name, src, dw, dh);
+	const a = art(name, src, dw, dh, kOf(g));
 	if (opts.alpha !== undefined) g.globalAlpha = opts.alpha;
-	g.drawImage(a, x, y);
+	blit(g, a, x, y);
 	g.globalAlpha = 1;
 	return { x, y, w: dw, h: dh };
 }
@@ -445,10 +567,8 @@ function hash(n: number) {
 	const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
 	return x - Math.floor(x);
 }
-function dot(g: Ctx, x: number, y: number, col: string) {
-	g.fillStyle = col;
-	g.fillRect(Math.round(x), Math.round(y), 1, 1);
-}
+/** one dot of a decoration (ledGrid dotAt: ledN(k, 1) LEDs square on the finer grid) */
+const dot = dotAt;
 
 // ---- the words (constants LED_SIGN.text; the max win from config) ----
 export type LedText = {
@@ -459,23 +579,19 @@ export type LedText = {
 };
 
 // ---- SCREEN 1: WIN UP TO / the max win ----
-const perimCache = new Map<string, number[][]>();
+// (in LEDs since 2026-11-19: the ring one dot in, its bulbs one dot square, one every three dots, running nine dots a second,
+// each a whole number of LEDs on the face's grid, the same all round; at k = 1 the dots as before)
 function border(g: Ctx, W: number, H: number, t: number) {
-	const key = W + 'x' + H;
-	let pts = perimCache.get(key);
-	if (!pts) {
-		pts = [];
-		for (let x = 1; x < W - 1; x++) pts.push([x, 1]);
-		for (let y = 2; y < H - 1; y++) pts.push([W - 2, y]);
-		for (let x = W - 3; x >= 1; x--) pts.push([x, H - 2]);
-		for (let y = H - 3; y >= 2; y--) pts.push([1, y]);
-		perimCache.set(key, pts);
-	}
+	const k = kOf(g);
+	const u = ledN(k, 1);
+	const pts = ringPts(Math.round(W * k), Math.round(H * k), Math.round(k), 1, u);
+	const per = ledN(k, 3);
 	const cols = [C.red, C.green, C.gold, C.ice];
-	const step = Math.floor(t * 9);
+	const step = Math.floor(t * 9 * k);
 	for (let i = 0; i < pts.length; i++) {
-		if ((i + step) % 3 !== 0) continue;
-		dot(g, pts[i][0], pts[i][1], cols[Math.floor((i + step) / 3) % 4]);
+		if ((i + step) % per !== 0) continue;
+		g.fillStyle = cols[Math.floor((i + step) / per) % 4];
+		fillP(g, pts[i][0], pts[i][1], u, u);
 	}
 }
 const goldFill = (t: Ctx, _w: number, h: number) => {
@@ -508,12 +624,18 @@ function twinkles(g: Ctx, box: Rect, t: number, n: number) {
 		const r = a > 0.75 ? 2 : a > 0.35 ? 1 : 0;
 		const col = k % 2 ? C.white : C.yellow;
 		g.globalAlpha = 0.35 + 0.65 * a;
-		dot(g, x, y, col);
+		// (in LEDs: the middle one dot square, each arm step one dot, on the face's grid)
+		const q = kOf(g);
+		const u = ledN(q, 1);
+		const px = Math.round(x * q);
+		const py = Math.round(y * q);
+		g.fillStyle = col;
+		fillP(g, px, py, u, u);
 		for (let i = 1; i <= r; i++) {
-			dot(g, x - i, y, col);
-			dot(g, x + i, y, col);
-			dot(g, x, y - i, col);
-			dot(g, x, y + i, col);
+			fillP(g, px - i * u, py, u, u);
+			fillP(g, px + i * u, py, u, u);
+			fillP(g, px, py - i * u, u, u);
+			fillP(g, px, py + i * u, u, u);
 		}
 		g.globalAlpha = 1;
 	}
@@ -583,18 +705,25 @@ function screenWin(g: Ctx, W: number, H: number, t: number, T: LedText) {
 const cloudCell = (g: Ctx, box: Rect) => {
 	const [cw, chh] = size('cloud');
 	const sh = Math.min(chh, cw * (box.h / Math.max(1, box.w)));
-	const a = art('cloud', [0, (chh - sh) / 2, cw, sh], box.w, box.h);
-	g.drawImage(a, Math.round(box.x), Math.round(box.y));
+	const a = art('cloud', [0, (chh - sh) / 2, cw, sh], box.w, box.h, kOf(g));
+	blit(g, a, Math.round(box.x), Math.round(box.y));
 };
+// (in LEDs: each rule one dot tall, the dashes three dots on and two off, whole LEDs on the face's grid)
 function lanes(g: Ctx, P: Rect, rowsTop: number, cellH: number, NR: number) {
+	const k = kOf(g);
+	const u = ledN(k, 1);
+	const x0 = Math.round(P.x * k);
+	const x1 = Math.round((P.x + P.w) * k);
+	const dash = ledN(k, 3);
+	const per = dash + ledN(k, 2);
 	for (let r = 0; r <= NR; r++) {
-		const y = rowsTop + r * cellH;
+		const y = Math.round((rowsTop + r * cellH) * k);
 		if (r === 0 || r === NR) {
 			g.fillStyle = 'rgba(200,215,235,0.30)';
-			g.fillRect(P.x, y, P.w, 1);
+			fillP(g, x0, y, x1 - x0, u);
 		} else {
 			g.fillStyle = r * 2 === NR ? 'rgba(255,205,40,0.55)' : 'rgba(230,235,245,0.30)';
-			for (let x = P.x; x < P.x + P.w; x += 5) g.fillRect(x, y, 3, 1);
+			for (let x = x0; x < x1; x += per) fillP(g, x, y, dash, u);
 		}
 	}
 }
@@ -611,15 +740,22 @@ function burst(g: Ctx, cx: number, cy: number, p: number, rMax: number) {
 	}
 	g.globalAlpha = 1;
 }
+// (in LEDs: the frame `th` dots thick, the rows one dot, whole LEDs on the face's grid)
 function redBox(g: Ctx, b: Rect, th: number, rows: number[] | null) {
+	const k = kOf(g);
+	const t = ledN(k, th);
+	const x0 = Math.round(b.x * k);
+	const x1 = Math.round((b.x + b.w) * k);
+	const y0 = Math.round(b.y * k);
+	const y1 = Math.round((b.y + b.h) * k);
 	g.fillStyle = C.red;
-	g.fillRect(b.x - th, b.y - th, b.w + 2 * th, th);
-	g.fillRect(b.x - th, b.y + b.h, b.w + 2 * th, th);
-	g.fillRect(b.x - th, b.y, th, b.h);
-	g.fillRect(b.x + b.w, b.y, th, b.h);
+	fillP(g, x0 - t, y0 - t, x1 - x0 + 2 * t, t);
+	fillP(g, x0 - t, y1, x1 - x0 + 2 * t, t);
+	fillP(g, x0 - t, y0, t, y1 - y0);
+	fillP(g, x1, y0, t, y1 - y0);
 	if (rows) {
 		g.fillStyle = 'rgba(255,58,46,0.6)';
-		for (const y of rows) if (y > b.y + 1 && y < b.y + b.h - 1) g.fillRect(b.x, y, b.w, 1);
+		for (const y of rows) if (y > b.y + 1 && y < b.y + b.h - 1) fillP(g, x0, Math.round(y * k), x1 - x0, ledN(k, 1));
 	}
 }
 function multLabel(g: Ctx, str: string, cx: number, bottom: number, maxW: number) {
@@ -678,9 +814,9 @@ function screenStrike(g: Ctx, W: number, H: number, t: number, kind: 'sleigh' | 
 		const p = span(t, RUN0, HIT);
 		const x = x0 + (x1 - x0) * (p * p * 0.35 + p * 0.65);
 		const fi = Math.floor(t * 15) % RUN_FRAMES;
-		const a = art('run_strip', runSrc(fi), rw, rh);
+		const a = art('run_strip', runSrc(fi), rw, rh, kOf(g));
 		const bob = fi % 4 < 2 ? 0 : -1;
-		g.drawImage(a, Math.round(x), cell.y + cell.h - rh + 1 + bob);
+		blit(g, a, x, cell.y + cell.h - rh + 1 + bob);
 	}
 	const shake = t > HIT && t < HIT + 0.22 ? (Math.floor(t * 40) % 2 ? 1 : -1) : 0;
 	const target = kind === 'sleigh' ? 'sleigh' : 'car';
@@ -761,10 +897,11 @@ export const SCREENS: ((g: Ctx, W: number, H: number, t: number, T: LedText) => 
 ];
 
 /** the three screens' DISSOLVE (the page's default): a noise threshold from screen a to screen b, a bright edge */
-export function dissolve(out: Ctx, a: Cv, b: Cv, noise: Float32Array, e: number, W: number, H: number) {
+export function dissolve(out: Ctx, a: Cv, b: Cv, noise: Float32Array, e: number, _W: number, _H: number) {
 	e = clamp(e, 0, 1);
-	const A = a.ctx.getImageData(0, 0, W, H);
-	const B = b.ctx.getImageData(0, 0, W, H);
+	// (per LED: the canvases' own pixels, one noise value each; a face on the finer grid has k x k per dot)
+	const A = a.ctx.getImageData(0, 0, a.width, a.height);
+	const B = b.ctx.getImageData(0, 0, b.width, b.height);
 	const D = A.data;
 	const E = B.data;
 	for (let i = 0; i < noise.length; i++) {
@@ -796,9 +933,9 @@ export function shimmer(o: Ctx, W: number, H: number, T: number) {
 	o.globalCompositeOperation = 'source-over';
 }
 /** the press: the dots go out in a random order (e from 0 to 1) */
-export function powerOff(o: Ctx, W: number, H: number, noise: Float32Array, e: number) {
+export function powerOff(o: Ctx, _W: number, _H: number, noise: Float32Array, e: number) {
 	if (e <= 0) return;
-	const A = o.getImageData(0, 0, W, H);
+	const A = o.getImageData(0, 0, o.canvas.width, o.canvas.height);
 	const D = A.data;
 	for (let i = 0; i < noise.length; i++) if (noise[i] < e) D[i * 4 + 3] = 0;
 	o.putImageData(A, 0, 0);

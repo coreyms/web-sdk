@@ -10,12 +10,18 @@
 //                the six idle cartoons, the race and its result card, the Grandma gag; part B (2026-11-17): the back board's
 //                staged scenes (the Free Spins and Super entries, the Total Win, the Mega, Epic and Max bottom bands) and the
 //                strip's line while a card is up, from the mock's r3b scene code
+// THE FINER GRID (2026-11-19, game/scoreboard/ledGrid.ts, constants LED_BOARD.density): a face of k LEDs per dot. The
+// programs lay out in today's dots; the words, the amounts' glyphs and the pictures are made at the LED grid (vglyph at k
+// times the cap, each glyph on today's cell; art() baked at k times the dots) and the decorations (the chase borders,
+// sparkles, bulbs, single dots, scan lines and edges, stripes, the honk meter) are set in whole LEDs (ledN). Every place,
+// size and text box the probes read is in today's dots. At k = 1 every path is exactly as before.
 import { SCOREBOARD_ART } from '../scoreboardArtSpec';
 import { LED_FONT, drawText, letterGap, mk, textInk, textW, type Cv } from '../landing/ledScreens';
 import { ledSignCanvas } from './ledSigns';
 import { INTRO_LINE, LED_BOARD } from '../constants';
 import { amountNow, tierNow, type Show } from './show';
 import { newRace, raceProgress, type Race } from './race';
+import { blit, blitP, clearP, copyFace, copyP, dotAt, fillP, kOf, ledN, lwOf, mkFace, overpassReady, ringPts } from './ledGrid';
 
 /** the Max scene's races, one run after another, per show (decoration only: the race's own random source) */
 const maxRaces = new WeakMap<Show, Map<number, Race>>();
@@ -23,23 +29,29 @@ const maxRaces = new WeakMap<Show, Map<number, Race>>();
 type Ctx = CanvasRenderingContext2D;
 
 export type Face = {
+	/** the face in logical dots (every layout), its LEDs per dot `k` (constants LED_BOARD.density), its LEDs W x H */
 	dotsW: number;
 	dotsH: number;
+	k: number;
+	ledW: number;
+	ledH: number;
 	/** the picture drawn this step, the two scratch faces of a transition, the last step kept for a switch */
 	out: Cv;
 	a: Cv;
 	b: Cv;
 	prev: Cv;
+	/** one value per LED (the dissolves and the power down go LED by LED) */
 	noise: Float32Array;
 };
-export const makeFaceCanvases = (dotsW: number, dotsH: number): Face => {
-	const noise = new Float32Array(dotsW * dotsH);
+export const makeFaceCanvases = (dotsW: number, dotsH: number, k = 1): Face => {
+	const out = mkFace(dotsW, dotsH, k);
+	const noise = new Float32Array(out.width * out.height);
 	let h = 0x9e3779b9;
 	for (let i = 0; i < noise.length; i++) {
 		h = Math.imul(h ^ (h >>> 15), 0x85ebca6b) ^ (i * 0xc2b2ae35);
 		noise[i] = ((h >>> 0) % 10007) / 10007;
 	}
-	return { dotsW, dotsH, out: mk(dotsW, dotsH), a: mk(dotsW, dotsH), b: mk(dotsW, dotsH), prev: mk(dotsW, dotsH), noise };
+	return { dotsW, dotsH, k, ledW: out.width, ledH: out.height, out, a: mkFace(dotsW, dotsH, k), b: mkFace(dotsW, dotsH, k), prev: mkFace(dotsW, dotsH, k), noise };
 };
 
 // ---- small helpers -------------------------------------------------------------------------------------------------------
@@ -53,10 +65,8 @@ export const hash = (n: number) => {
 	const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
 	return x - Math.floor(x);
 };
-const dot = (g: Ctx, x: number, y: number, col: string) => {
-	g.fillStyle = col;
-	g.fillRect(Math.round(x), Math.round(y), 1, 1);
-};
+/** one dot of a decoration (ledGrid dotAt: ledN(k, 1) LEDs square on the finer grid) */
+const dot = dotAt;
 
 // ---- THE PICTURES (one sheet; set by the board once it is loaded) ---------------------------------------------------------
 let SHEET: CanvasImageSource | null = null;
@@ -72,10 +82,11 @@ const size = (name: ArtName, src: number[] | null): [number, number] => {
 	const f = frameOf(name);
 	return f ? [f.w, f.h] : [1, 1];
 };
-/** one picture at one size in dots: a stepped downscale, then the LED punch (saturation and lift), baked once */
-function art(name: ArtName, src: number[] | null, dw: number, dh: number): Cv {
-	dw = Math.max(1, Math.round(dw));
-	dh = Math.max(1, Math.round(dh));
+/** one picture at one size in dots: a stepped downscale, then the LED punch (saturation and lift), baked once; on the finer
+ *  grid baked at k times the dots, from the sheet itself (never today's bake blown up) */
+function art(name: ArtName, src: number[] | null, dw: number, dh: number, k = 1): Cv {
+	dw = Math.max(1, Math.round(Math.max(1, Math.round(dw)) * k));
+	dh = Math.max(1, Math.round(Math.max(1, Math.round(dh)) * k));
 	const key = name + '|' + (src ? src.join(',') : '') + '|' + dw + 'x' + dh;
 	let c = artCache.get(key);
 	if (c) return c;
@@ -119,14 +130,10 @@ function art(name: ArtName, src: number[] | null, dw: number, dh: number): Cv {
 function sprite(g: Ctx, name: ArtName, x: number, yBottom: number, h: number, flip = false, src: number[] | null = null): number {
 	const [sw, sh] = size(name, src);
 	const w = Math.max(1, Math.round((h * sw) / sh));
-	const a = art(name, src, w, Math.round(h));
-	if (flip) {
-		g.save();
-		g.translate(Math.round(x) + w, 0);
-		g.scale(-1, 1);
-		g.drawImage(a, 0, Math.round(yBottom - h));
-		g.restore();
-	} else g.drawImage(a, Math.round(x), Math.round(yBottom - h));
+	const k = kOf(g);
+	const a = art(name, src, w, Math.round(h), k);
+	// (on the LED grid: its corner on the LED nearest, so a moving picture steps one LED at a time; mirrored in its own box)
+	blitP(g, a, Math.round(x * k), Math.round((yBottom - h) * k), flip);
 	return w;
 }
 const RUN_FRAMES = 8;
@@ -137,8 +144,9 @@ const runSrc = (i: number) => [i * RUN_FW, 0, RUN_FW, RUN_FH];
 function gallop(g: Ctx, x: number, yBottom: number, h: number, t: number): number {
 	const w = Math.round((h * RUN_FW) / RUN_FH);
 	const fi = Math.floor(t / 66) % RUN_FRAMES;
-	const a = art('run_strip', runSrc(fi), w, h);
-	g.drawImage(a, Math.round(x), Math.round(yBottom - h));
+	const k = kOf(g);
+	const a = art('run_strip', runSrc(fi), w, h, k);
+	blitP(g, a, Math.round(x * k), Math.round((yBottom - h) * k));
 	return w;
 }
 
@@ -173,6 +181,38 @@ function vglyph(ch: string, cap: number) {
 	vgCache.set(key, g);
 	return g;
 }
+/** THE GLYPH ON THE FINER GRID: snapped at k times the cap (LEDs) in weight `wt` (the amounts Heavy, the big board's body
+ *  sentence LED_BOARD.density.bodyWeight), its advance in LEDs; drawn on today's cell (drawRow), never today's blown up */
+const vgkCache = new Map<string, { c: Cv; advP: number }>();
+function vglyphK(ch: string, cap: number, k: number, wt: number) {
+	const key = ch + '|' + cap + '|' + k + '|' + wt;
+	let g = vgkCache.get(key);
+	if (g) return g;
+	const capP = Math.round(cap * k);
+	const sign = ledSignCanvas(ch, capP);
+	if (sign) g = { c: sign.c as unknown as Cv, advP: sign.adv };
+	else {
+		const font = `${wt} ${capP / 0.72}px ${LED_FONT}`;
+		const pr = mk(4, 4).ctx;
+		pr.font = font;
+		const advP = Math.ceil(pr.measureText(ch).width);
+		const c = mk(advP + 2, Math.ceil(capP * 1.4) + 2);
+		c.ctx.font = font;
+		c.ctx.fillStyle = '#fff';
+		c.ctx.textBaseline = 'alphabetic';
+		c.ctx.fillText(ch, 1, capP + 1);
+		const id = c.ctx.getImageData(0, 0, c.width, c.height);
+		const d = id.data;
+		for (let i = 3; i < d.length; i += 4) d[i] = d[i] < 80 ? 0 : Math.min(255, d[i] * 1.4);
+		c.ctx.putImageData(id, 0, 0);
+		g = { c, advP };
+		// (kept only once its face is in: never a fallback font for good)
+		if (!overpassReady(wt)) return g;
+	}
+	if (vgkCache.size > 3000) vgkCache.clear();
+	vgkCache.set(key, g);
+	return g;
+}
 const riCache = new Map<string, { dcell: number; sp: number; cells: number[]; w: number }>();
 function rowInfo(str: string, cap: number) {
 	const key = str + '|' + cap;
@@ -193,8 +233,11 @@ function fitCap(str: string, maxW: number, capMax: number) {
 	return cap;
 }
 let rowTmp: Cv | null = null;
-/** style: a color, 'gold', or 'cut' (the glyphs punch unlit dots out of what is under them) */
-function drawRow(g: Ctx, str: string, x: number, y: number, cap: number, style: string, pulse = 0): number {
+/** style: a color, 'gold', or 'cut' (the glyphs punch unlit dots out of what is under them); `wt`: the weight on the finer
+ *  grid (today's grid draws Heavy) */
+function drawRow(g: Ctx, str: string, x: number, y: number, cap: number, style: string, pulse = 0, wt = 900): number {
+	const k = kOf(g);
+	if (k !== 1) return drawRowK(g, str, x, y, cap, style, pulse, k, wt);
 	const ri = rowInfo(str, cap);
 	const h = Math.ceil(cap * 1.4) + 2;
 	rowTmp ??= mk(8, 8);
@@ -233,6 +276,81 @@ function drawRow(g: Ctx, str: string, x: number, y: number, cap: number, style: 
 	g.drawImage(rowTmp, 0, 0, ri.w + 4, h, Math.round(x), Math.round(y) - 1, ri.w + 4, h);
 	g.globalCompositeOperation = op;
 	return ri.w;
+}
+/** drawRow on the finer grid: today's cells and gaps (rowInfo), each glyph made at k times the cap and centred on its cell
+ *  in LEDs; the row's top pad is one LED (the glyph's own), as today's is one dot */
+let rowTmpK: Cv | null = null;
+/** A ROW DRAWN AGAIN (the sentence's lines, a held amount, a title row) is kept made: a row's picture is cached the second
+ *  time the same row is asked for in a steady colour (never on its first: a counting amount, new every step, makes no
+ *  canvas), up to rowKeepBytes of them */
+const rowKept = new Map<string, Cv>();
+const rowSeen = new Set<string>();
+let rowKeptBytes = 0;
+const ROW_KEEP_BYTES = 3 * 1048576;
+function drawRowK(g: Ctx, str: string, x: number, y: number, cap: number, style: string, pulse: number, k: number, wt: number): number {
+	const ri = rowInfo(str, cap);
+	const capP = Math.round(cap * k);
+	const h = Math.ceil(capP * 1.4) + 2;
+	const w = Math.ceil((ri.w + 4) * k);
+	const key = pulse > 0 ? null : str + '|' + cap + '|' + k + '|' + wt + '|' + style;
+	let kept = key === null ? undefined : rowKept.get(key);
+	if (!kept && key !== null && rowSeen.has(key) && overpassReady(wt)) {
+		if (rowKeptBytes + w * h * 4 > ROW_KEEP_BYTES) {
+			rowKept.clear();
+			rowKeptBytes = 0;
+		}
+		kept = mk(w, h);
+		rowRaster(kept.ctx, str, ri, cap, capP, w, h, k, wt, style, 0);
+		rowKept.set(key, kept);
+		rowKeptBytes += w * h * 4;
+	} else if (key !== null && !kept) {
+		if (rowSeen.size > 600) rowSeen.clear();
+		rowSeen.add(key);
+	}
+	let src: Cv;
+	if (kept) src = kept;
+	else {
+		rowTmpK ??= mk(8, 8);
+		if (rowTmpK.width < w || rowTmpK.height < h) {
+			rowTmpK.width = Math.max(rowTmpK.width, w);
+			rowTmpK.height = Math.max(rowTmpK.height, h);
+		}
+		rowTmpK.ctx.clearRect(0, 0, rowTmpK.width, rowTmpK.height);
+		rowRaster(rowTmpK.ctx, str, ri, cap, capP, w, h, k, wt, style, pulse);
+		src = rowTmpK;
+	}
+	const op = g.globalCompositeOperation;
+	if (style === 'cut') g.globalCompositeOperation = 'destination-out';
+	g.drawImage(src, 0, 0, w, h, Math.round(x * k) / k, (Math.round(y * k) - 1) / k, w / k, h / k);
+	g.globalCompositeOperation = op;
+	return ri.w;
+}
+/** a row's glyphs at the LED grid on `t` (cleared), coloured */
+function rowRaster(t: Ctx, str: string, ri: { cells: number[]; sp: number }, cap: number, capP: number, w: number, h: number, k: number, wt: number, style: string, pulse: number) {
+	t.globalCompositeOperation = 'source-over';
+	let cx = 0;
+	[...str].forEach((ch, i) => {
+		const gl = vglyphK(ch, cap, k, wt);
+		t.drawImage(gl.c, Math.round((cx + ri.cells[i] / 2) * k - gl.advP / 2) - 1, 0);
+		cx += ri.cells[i] + ri.sp;
+	});
+	if (style !== 'cut') {
+		t.globalCompositeOperation = 'source-in';
+		if (style === 'gold') {
+			const gr = t.createLinearGradient(0, 1, 0, capP + 1);
+			gr.addColorStop(0, '#fff6b0');
+			gr.addColorStop(0.45, '#ffd02a');
+			gr.addColorStop(1, '#ff9010');
+			t.fillStyle = gr;
+		} else t.fillStyle = style;
+		t.fillRect(0, 0, w, h);
+		if (pulse > 0) {
+			t.globalCompositeOperation = 'source-atop';
+			t.fillStyle = `rgba(255,255,255,${0.75 * pulse})`;
+			t.fillRect(0, 0, w, h);
+		}
+		t.globalCompositeOperation = 'source-over';
+	}
 }
 function drawTitle(g: Ctx, str: string, cx: number, y: number, s: number, style: string) {
 	const w = textW(str, s);
@@ -331,7 +449,7 @@ export const clearTitle = (canvas: object) => {
  *  or null) drops them in one after another (marchAt) */
 function boardTitle(g: Ctx, str: string, cx: number, y: number, ts: number, style: string, opts: { bounce?: number | null; march?: { t: number; dropH: number; stepMs: number; landMs: number } | null; word?: boolean } = {}) {
 	// (`word`: a title always drawn as one word, FREE SPINS and TOTAL WIN, keeps the word's own letter gap)
-	const ink = setLine(str, ts, opts.word ? letterGap(ts) : titleGap(str, ts, g.canvas.width));
+	const ink = setLine(str, ts, opts.word ? letterGap(ts) : titleGap(str, ts, lwOf(g.canvas)));
 	const x0 = Math.round(cx - ink.w / 2) - ink.l;
 	const yy = Math.round(y);
 	const lift = ts * 1.6 * bounceK();
@@ -393,12 +511,13 @@ function rowInk(str: string, cap: number) {
 }
 /** a row's lit rows (ink), relative to the y drawRow is given: a currency sign's stems reach above and below the cap */
 const inkVCache = new Map<string, { t: number; b: number }>();
-function rowInkV(str: string, cap: number) {
-	const key = str + '|' + cap;
+/** (on the finer grid: drawn on a face of that density, its lit LED rows read back as the dots they are in) */
+function rowInkV(str: string, cap: number, k = 1) {
+	const key = str + '|' + cap + '|' + k;
 	let v = inkVCache.get(key);
 	if (v) return v;
 	const ri = rowInfo(str, cap);
-	const c = mk(ri.w + 8, Math.ceil(cap * 1.4) + 8);
+	const c = mkFace(ri.w + 8, Math.ceil(cap * 1.4) + 8, k);
 	drawRow(c.ctx, str, 2, 2, cap, '#ffffff', 0);
 	const d = c.ctx.getImageData(0, 0, c.width, c.height).data;
 	let t = Infinity;
@@ -406,8 +525,8 @@ function rowInkV(str: string, cap: number) {
 	for (let y = 0; y < c.height; y++)
 		for (let x = 0; x < c.width; x++)
 			if (d[(y * c.width + x) * 4 + 3] > 0) {
-				t = Math.min(t, y - 2);
-				b = Math.max(b, y - 2);
+				t = Math.min(t, Math.floor(y / k) - 2);
+				b = Math.max(b, Math.floor(y / k) - 2);
 				break;
 			}
 	v = Number.isFinite(t) ? { t, b } : { t: 0, b: cap - 1 };
@@ -417,8 +536,8 @@ function rowInkV(str: string, cap: number) {
 }
 /** (2026-11-18) the y that keeps a row's lit rows inside a face H dots tall (the dollar sign's stems were cut at the
  *  1440 x 900 strip's bottom row): moved up only as far as it must, never above the face's top */
-function rowYInside(str: string, y: number, cap: number, H: number) {
-	const k = rowInkV(str, cap);
+function rowYInside(str: string, y: number, cap: number, H: number, kd = 1) {
+	const k = rowInkV(str, cap, kd);
 	const over = y + k.b - (H - 1);
 	if (over <= 0) return y;
 	return Math.max(y - over, -k.t);
@@ -432,38 +551,41 @@ function centeredRow(g: Ctx, str: string, cx: number, y: number, cap: number, be
 }
 
 const BULBS = ['#ff3a2e', '#36ff74', '#ffd23a', '#4aa8ff'];
+/** a marquee bulb at (x, y) in LEDs: a plus one dot thick and three across (ledN LEDs on the finer grid), its middle white
+ *  when lit */
 function bulb(g: Ctx, x: number, y: number, col: string, on: boolean) {
+	const u = ledN(kOf(g), 1);
 	g.globalAlpha = on ? 1 : 0.22;
 	g.fillStyle = col;
-	g.fillRect(x, y - 1, 1, 3);
-	g.fillRect(x - 1, y, 3, 1);
+	fillP(g, x, y - u, u, 3 * u);
+	fillP(g, x - u, y, 3 * u, u);
 	if (on) {
 		g.fillStyle = '#fff';
-		g.fillRect(x, y, 1, 1);
+		fillP(g, x, y, u, u);
 	}
 	g.globalAlpha = 1;
 }
-const perimCache = new Map<string, number[][]>();
-function perimeter(W: number, H: number, inset: number, step: number): number[][] {
-	const key = `${W}x${H}|${inset}|${step}`;
-	let pts = perimCache.get(key);
-	if (pts) return pts;
-	pts = [];
-	for (let x = inset; x < W - inset; x += step) pts.push([x, inset]);
-	for (let y = inset + step; y < H - inset; y += step) pts.push([W - 1 - inset, y]);
-	for (let x = W - 1 - inset - step; x >= inset; x -= step) pts.push([x, H - 1 - inset]);
-	for (let y = H - 1 - inset - step; y > inset; y -= step) pts.push([inset, y]);
-	perimCache.set(key, pts);
-	return pts;
-}
-/** dots along a perimeter (the first `count`), each its color: with LED_BOARD.fastChase the dots next to each other in one
- *  row or column with the same color go as ONE rect (each dot is still drawn once, so the picture is the same; part B, the
- *  cost of a step), else dot by dot */
-function perimeterDots(g: Ctx, pts: number[][], count: number, colorOf: (i: number) => string) {
+/** the cells round a W x H box (ledGrid ringPts: in LEDs on a face of the finer grid) */
+const perimeter = (W: number, H: number, inset: number, step: number): number[][] => ringPts(W, H, inset, step, 1);
+/** LEDs along a perimeter (the first `count`), each its color, offset (ox, oy) LEDs: with LED_BOARD.fastChase the LEDs next
+ *  to each other in one row or column with the same color go as ONE rect (each is still drawn once, so the picture is the
+ *  same; part B, the cost of a step), else one by one */
+function perimeterDots(g: Ctx, pts: number[][], count: number, colorOf: (i: number) => string, ox = 0, oy = 0, band: { rows: number; W: number; H: number } | null = null) {
+	// (a BAND, the finer grid's border `rows` LEDs deep: each LED of the outer ring is drawn as a short bar going in, so the
+	// colors line up across the band's rows and its corners stay square; band null: the ring alone, as before)
+	const put = (x: number, y: number, len: number, vertical: boolean) => {
+		if (!band || band.rows <= 1) return vertical ? fillP(g, x + ox, y + oy, 1, len) : fillP(g, x + ox, y + oy, len, 1);
+		const r = band.rows;
+		if (!vertical && y === 0) fillP(g, x + ox, oy, len, r);
+		else if (!vertical && y === band.H - 1) fillP(g, x + ox, band.H - r + oy, len, r);
+		else if (x === band.W - 1) fillP(g, band.W - r + ox, y + oy, r, len);
+		else if (x === 0) fillP(g, ox, y + oy, r, len);
+		else fillP(g, x + ox, y + oy, vertical ? 1 : len, vertical ? len : 1);
+	};
 	if (!LED_BOARD.fastChase) {
 		for (let i = 0; i < count; i++) {
 			g.fillStyle = colorOf(i);
-			g.fillRect(pts[i][0], pts[i][1], 1, 1);
+			put(pts[i][0], pts[i][1], 1, pts[i][1] !== 0 && pts[i][1] !== (band?.H ?? 0) - 1);
 		}
 		return;
 	}
@@ -480,44 +602,68 @@ function perimeterDots(g: Ctx, pts: number[][], count: number, colorOf: (i: numb
 		}
 		const [x1, y1] = pts[j - 1];
 		g.fillStyle = c;
-		g.fillRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0) + 1, Math.abs(y1 - y0) + 1);
+		if (band && band.rows > 1) {
+			const vertical = x0 === x1 && y0 !== y1 ? true : x0 === x1 && y0 !== 0 && y0 !== band.H - 1;
+			if (vertical) put(x0, Math.min(y0, y1), Math.abs(y1 - y0) + 1, true);
+			else put(Math.min(x0, x1), y0, Math.abs(x1 - x0) + 1, false);
+		} else fillP(g, Math.min(x0, x1) + ox, Math.min(y0, y1) + oy, Math.abs(x1 - x0) + 1, Math.abs(y1 - y0) + 1);
 		i = j;
 	}
 }
-function chaseBorder(g: Ctx, W: number, H: number, t: number, cols: string[], thick: number, seg: number) {
-	const n = Math.floor(t / 60);
-	for (let k = 0; k < thick; k++) {
-		const pts = perimeter(W, H, k, 1);
-		perimeterDots(g, pts, pts.length, (i) => cols[Math.floor((i + n) / seg) % cols.length]);
+/** THE CHASE BORDER, in LEDs (2026-11-19): `thick` dots of rings (ledN LEDs, the same all round), each color `seg` dots
+ *  long (ledN LEDs), running a dot every 60 ms (the same speed on the finer grid: an LED every 60 / k ms); `inset` dots in
+ *  from the face's edge (the Super entry's inner border) */
+function chaseBorder(g: Ctx, W: number, H: number, t: number, cols: string[], thick: number, seg: number, inset = 0) {
+	const k = kOf(g);
+	const o = Math.round(inset * k);
+	const PW = Math.round((inset + W) * k) - o;
+	const PH = Math.round((inset + H) * k) - o;
+	const n = Math.floor((t * k) / 60);
+	const sP = ledN(k, seg);
+	const rows = ledN(k, thick);
+	const colorOf = (i: number) => cols[Math.floor((i + n) / sP) % cols.length];
+	// (the finer grid: one band `rows` LEDs deep, its colors in line across it; today's grid: ring by ring, as before)
+	if (k !== 1) {
+		const pts = perimeter(PW, PH, 0, 1);
+		perimeterDots(g, pts, pts.length, colorOf, o, o, { rows, W: PW, H: PH });
+		return;
+	}
+	for (let j = 0; j < rows; j++) {
+		const pts = perimeter(PW, PH, j, 1);
+		perimeterDots(g, pts, pts.length, colorOf, o, o);
 	}
 }
+/** sparkles, in LEDs: each at an LED of the face, one dot square (ledN), its arms one dot long when it peaks */
 function sparkles(g: Ctx, W: number, H: number, t: number, n: number, cols: string[], seed: number) {
+	const q = kOf(g);
+	const u = ledN(q, 1);
+	const PW = Math.round(W * q);
+	const PH = Math.round(H * q);
 	for (let k = 0; k < n; k++) {
 		const per = 900 + hash(k + seed) * 700;
 		const cyc = Math.floor((t + k * 137) / per);
 		const p = (t + k * 137) / per - cyc;
-		const x = Math.floor(hash(k * 13 + cyc * 7.3 + seed) * W);
-		const y = Math.floor(hash(k * 29 + cyc * 3.1 + seed) * H);
+		const x = Math.floor(hash(k * 13 + cyc * 7.3 + seed) * PW);
+		const y = Math.floor(hash(k * 29 + cyc * 3.1 + seed) * PH);
 		const a = Math.sin(Math.PI * p);
 		g.globalAlpha = a;
-		const col = cols[k % cols.length];
-		dot(g, x, y, col);
+		g.fillStyle = cols[k % cols.length];
+		fillP(g, x, y, u, u);
 		if (a > 0.7) {
-			dot(g, x - 1, y, col);
-			dot(g, x + 1, y, col);
-			dot(g, x, y - 1, col);
-			dot(g, x, y + 1, col);
+			fillP(g, x - u, y, u, u);
+			fillP(g, x + u, y, u, u);
+			fillP(g, x, y - u, u, u);
+			fillP(g, x, y + u, u, u);
 		}
 	}
 	g.globalAlpha = 1;
 }
 function snowDots(g: Ctx, W: number, H: number, t: number, n: number, col = '#dff3ff') {
 	g.globalAlpha = 0.55;
-	g.fillStyle = col;
 	for (let k = 0; k < n; k++) {
 		const x = (hash(k * 7.7) * W + Math.sin(t / 900 + k) * 2 + W) % W;
 		const y = (hash(k * 1.9) * H + t * (0.006 + hash(k) * 0.01)) % H;
-		g.fillRect(Math.round(x), Math.round(y), 1, 1);
+		dot(g, x, y, col);
 	}
 	g.globalAlpha = 1;
 }
@@ -595,7 +741,9 @@ const LOOK: Look[] = [
 			g.fillRect(0, 0, W, H);
 			const step = H >= 30 ? 6 : 4;
 			const ins = H >= 30 ? 2 : 1;
-			const pts = perimeter(W, H, ins, step);
+			// (in LEDs: the bulbs `step` dots apart, `ins` dots in, each one dot thick, on the face's grid)
+			const q = kOf(g);
+			const pts = ringPts(Math.round(W * q), Math.round(H * q), Math.round(ins * q), ledN(q, step), ledN(q, 1));
 			pts.forEach(([x, y], i) => bulb(g, x, y, BULBS[i % 4], hash(i * 5.1 + Math.floor(t / 180 + hash(i) * 3)) > 0.3));
 			sparkles(g, W, H, t, Math.round(W / 10), ['#ffd23a', '#ffffff'], 9);
 		},
@@ -608,13 +756,17 @@ const LOOK: Look[] = [
 		bg(g, W, H, t) {
 			g.fillStyle = '#ffd60a';
 			g.fillRect(0, 0, W, H);
-			const bh = H >= 30 ? Math.max(4, Math.round(H * 0.1)) : 2;
-			const sw = Math.max(3, bh);
-			const off = Math.floor(t / 40);
-			for (const y0 of [0, H - bh])
+			// (in LEDs: the bands, the stripes' width and their run a dot every 40 ms, whole LEDs on the face's grid)
+			const q = kOf(g);
+			const PW = Math.round(W * q);
+			const PH = Math.round(H * q);
+			const bh = ledN(q, H >= 30 ? Math.max(4, Math.round(H * 0.1)) : 2);
+			const sw = ledN(q, Math.max(3, H >= 30 ? Math.max(4, Math.round(H * 0.1)) : 2));
+			const off = Math.floor((t * q) / 40);
+			for (const y0 of [0, PH - bh])
 				for (let y = y0; y < y0 + bh; y++) {
 					const m = (y + off) % (2 * sw);
-					for (let x = -m; x < W; x += 2 * sw) g.clearRect(x, y, sw, 1);
+					for (let x = -m; x < PW; x += 2 * sw) clearP(g, x, y, sw, 1);
 				}
 		},
 	},
@@ -742,7 +894,7 @@ function drawWinScene(g: Ctx, W: number, H: number, s: Show, tier: number, str: 
 		const k = rowInk(str, lay.cap);
 		noteRec(g.canvas, { kind: 'amount', str, x0: nx + k.l, x1: nx + k.r, y0: lay.numY, y1: lay.numY + lay.cap, lift: 0, ts: lay.cap, before: nx });
 	}
-	drawRow(g, str, nx, back ? lay.numY : rowYInside(s.finalStr, lay.numY, lay.cap, H), lay.cap, look.num, pulse);
+	drawRow(g, str, nx, back ? lay.numY : rowYInside(s.finalStr, lay.numY, lay.cap, H, kOf(g)), lay.cap, look.num, pulse);
 }
 /** a win's face at its time: the tier's look, the title, the counting amount; at a tier change the new tier sweeps in
  *  from the left behind a bright edge. `back`: the back board's (the number above the scene's bottom band). */
@@ -765,19 +917,22 @@ export function showWin(F: Face, s: Show, back = false) {
 		const before = [...s.events].reverse().find((e) => e.tier < tier && e.at <= s.t)?.tier ?? 0;
 		drawWinScene(a, W, H, s, before, str, slide, 0, back);
 		drawWinScene(b, W, H, s, tier, str, slide, pulse, back);
-		const sx = Math.round(ease(since / LED_BOARD.sweepMs) * (W + 6)) - 3;
+		// (in LEDs: the edge runs LED by LED, two dots of the tier's color and one white, whole LEDs on the face's grid)
+		const k = F.k;
+		const PH = F.ledH;
+		const sx = Math.round(ease(since / LED_BOARD.sweepMs) * (F.ledW + ledN(k, 6))) - ledN(k, 3);
 		o.clearRect(0, 0, W, H);
-		o.drawImage(F.a, 0, 0);
+		copyFace(o, F.a);
 		if (sx > 0) {
-			o.clearRect(0, 0, sx, H);
-			o.drawImage(F.b, 0, 0, sx, H, 0, 0, sx, H);
+			clearP(o, 0, 0, sx, PH);
+			copyP(o, F.b, 0, 0, sx, PH);
 		}
 		o.fillStyle = LOOK[tier].sweep;
 		o.globalAlpha = 0.9;
-		o.fillRect(sx, 0, 2, H);
+		fillP(o, sx, 0, ledN(k, 2), PH);
 		o.fillStyle = '#ffffff';
 		o.globalAlpha = 0.95;
-		o.fillRect(sx + 2, 0, 1, H);
+		fillP(o, sx + ledN(k, 2), 0, ledN(k, 1), PH);
 		o.globalAlpha = 1;
 	} else {
 		o.clearRect(0, 0, W, H);
@@ -788,14 +943,16 @@ export function showWin(F: Face, s: Show, back = false) {
 export function countBorder(F: Face, s: Show) {
 	if (s.t >= s.countEnd || Math.floor(s.t / 120) % 2 === 0) return;
 	const g = F.out.ctx;
-	const W = F.dotsW;
-	const H = F.dotsH;
+	// (in LEDs: one dot wide, the same all round)
+	const W = F.ledW;
+	const H = F.ledH;
+	const u = ledN(F.k, 1);
 	g.fillStyle = '#ffffff';
 	g.globalAlpha = 0.5;
-	g.fillRect(0, 0, W, 1);
-	g.fillRect(0, H - 1, W, 1);
-	g.fillRect(0, 0, 1, H);
-	g.fillRect(W - 1, 0, 1, H);
+	fillP(g, 0, 0, W, u);
+	fillP(g, 0, H - u, W, u);
+	fillP(g, 0, 0, u, H);
+	fillP(g, W - u, 0, u, H);
 	g.globalAlpha = 1;
 }
 /** a tier change on the strip (Big, Super): confetti in the tier's colors bursts from the amount */
@@ -826,7 +983,7 @@ export function showSmall(F: Face, s: Show) {
 	const lay = winLayout(W, H, s.finalStr, ['WIN']);
 	const str = s.fmt(amountNow(s));
 	drawLayTitle(g, lay, 'WIN', '#7cc4ff', W);
-	drawRow(g, str, numX(lay, W, str, 0), rowYInside(s.finalStr, lay.numY, lay.cap, H), lay.cap, '#ffffff', s.t >= s.countEnd ? 1 - clamp((s.t - s.countEnd) / 300, 0, 1) : 0);
+	drawRow(g, str, numX(lay, W, str, 0), rowYInside(s.finalStr, lay.numY, lay.cap, H, kOf(g)), lay.cap, '#ffffff', s.t >= s.countEnd ? 1 - clamp((s.t - s.countEnd) / 300, 0, 1) : 0);
 	if (s.t > s.countEnd) {
 		const p = clamp((s.t - s.countEnd) / 1300, 0, 1);
 		const h = Math.round(H * 0.7);
@@ -875,10 +1032,20 @@ function drawRace(g: Ctx, race: Race, t: number, x0: number, W: number, yB: numb
 	const cw = Math.round(h * 1.6);
 	const startX = x0 + 2;
 	const finishX = x0 + W - 4;
-	// the finish line: a checkered post
-	for (let y = yB - h - 1; y <= yB; y++) {
-		dot(g, finishX, y, y % 2 ? '#ffffff' : '#202020');
-		dot(g, finishX + 1, y, y % 2 ? '#202020' : '#ffffff');
+	// the finish line: a checkered post (in LEDs: two columns of squares one dot each)
+	{
+		const k = kOf(g);
+		const u = ledN(k, 1);
+		const fx = Math.round(finishX * k);
+		const y0 = Math.round(yB - h - 1);
+		const yEnd = Math.round(yB * k);
+		for (let y = Math.round(y0 * k), j = 0; y <= yEnd; y += u, j++) {
+			const odd = (y0 + j) % 2;
+			g.fillStyle = odd ? '#ffffff' : '#202020';
+			fillP(g, fx, y, u, u);
+			g.fillStyle = odd ? '#202020' : '#ffffff';
+			fillP(g, fx + u, y, u, u);
+		}
 	}
 	const { r, c } = raceProgress(race, t);
 	// the nose of each racer runs from the start line to the finish line (the police car faces left in the art: mirrored)
@@ -1015,7 +1182,13 @@ export const CARTOONS: Cartoon[] = [
 				if (x + w < W && x > 0) dot(g, x + w + 1, H - 3, '#9aa6b3');
 				x += w + h * 0.6;
 			}
-			for (let i = 0; i < W; i += 6) dot(g, (i + Math.floor(t / 40)) % W, H - 1, '#ffd23a');
+			// the road's dashes (in LEDs: one dot square, six dots apart, a dot every 40 ms)
+			const k = kOf(g);
+			const u = ledN(k, 1);
+			const PW = Math.round(W * k);
+			const off = Math.floor((t * k) / 40);
+			g.fillStyle = '#ffd23a';
+			for (let i = 0; i < PW; i += ledN(k, 6)) fillP(g, (i + off) % PW, Math.round(H * k) - u, u, u);
 		},
 	},
 	{
@@ -1028,10 +1201,14 @@ export const CARTOONS: Cartoon[] = [
 			const grow = clamp(t / 3800, 0, 1);
 			const vanX = t < 3800 ? W + 10 : W - ((t - 3800) / 2200) * (W + H * 3);
 			g.fillStyle = '#e8f4ff';
-			for (let x = 0; x < W; x++) {
+			// (the pile LED column by LED column on the finer grid)
+			const k = kOf(g);
+			const PH = Math.round(H * k);
+			for (let xp = 0, n = Math.round(W * k); xp < n; xp++) {
+				const x = xp / k;
 				if (x > vanX + H * 1.4) continue;
-				const ph = Math.round(pileMax * grow * (0.6 + 0.4 * Math.sin(x * 0.21) * Math.sin(x * 0.07 + 1)));
-				if (ph > 0) g.fillRect(x, H - ph, 1, ph);
+				const ph = Math.round(pileMax * grow * (0.6 + 0.4 * Math.sin(x * 0.21) * Math.sin(x * 0.07 + 1)) * k);
+				if (ph > 0) fillP(g, xp, PH - ph, 1, ph);
 			}
 			if (t >= 3800) {
 				sprite(g, 'H3', vanX, H - 1, Math.round(H * 0.85));
@@ -1088,7 +1265,14 @@ export const CARTOONS: Cartoon[] = [
 				st.raceFor = at;
 			}
 			if (t < LED_BOARD.race.runMs + 150) {
-				for (let x = 0; x < W; x += 4) dot(g, x, H - 1, Math.floor(x / 4) % 2 ? '#ffffff' : '#404040');
+				// the track's dots (in LEDs: one dot square, four dots apart)
+				const k = kOf(g);
+				const u = ledN(k, 1);
+				const sp = ledN(k, 4);
+				for (let x = 0, i = 0, n = Math.round(W * k); x < n; x += sp, i++) {
+					g.fillStyle = i % 2 ? '#ffffff' : '#404040';
+					fillP(g, x, Math.round(H * k) - u, u, u);
+				}
 				drawRace(g, st.race, t, 0, W, H - 2, Math.round(H * 0.78));
 			} else raceCard(g, st.race, W, H, t - LED_BOARD.race.runMs - 150);
 		},
@@ -1174,24 +1358,27 @@ export const gagWordsAt = (t: number): string => {
 export function scanReveal(F: Face, u: number) {
 	if (u >= 1) return;
 	const o = F.out.ctx;
-	const y = Math.round(u * F.dotsH);
-	o.clearRect(0, y + 1, F.dotsW, F.dotsH - y);
+	// (in LEDs: the line one dot tall, running LED row by LED row)
+	const y = Math.round(u * F.ledH);
+	const t = ledN(F.k, 1);
+	clearP(o, 0, y + t, F.ledW, F.ledH - y - t + 1);
 	o.fillStyle = 'rgba(255,255,255,0.9)';
-	o.fillRect(0, y, F.dotsW, 1);
+	fillP(o, 0, y, F.ledW, t);
 }
-/** the press screen's dot noise ops, on a face: the power down (the dots go out at random), the dissolve between two lines */
+/** the press screen's dot noise ops, on a face: the power down (the dots go out at random), the dissolve between two lines
+ *  (LED by LED: one noise value per LED) */
 export function powerOffFace(F: Face, e: number) {
 	if (e <= 0) return;
 	const o = F.out.ctx;
-	const A = o.getImageData(0, 0, F.dotsW, F.dotsH);
+	const A = o.getImageData(0, 0, F.ledW, F.ledH);
 	const D = A.data;
 	const n = F.noise;
 	for (let i = 0; i < n.length; i++) if (n[i] < e) D[i * 4 + 3] = 0;
 	o.putImageData(A, 0, 0);
 }
 export function dissolveFace(F: Face, e: number) {
-	const W = F.dotsW;
-	const H = F.dotsH;
+	const W = F.ledW;
+	const H = F.ledH;
 	e = clamp(e, 0, 1);
 	const A = F.a.ctx.getImageData(0, 0, W, H);
 	const B = F.b.ctx.getImageData(0, 0, W, H);
@@ -1225,10 +1412,10 @@ type Box = { x: number; y: number; w: number; h: number };
 /** a picture fitted in a box, its foot on the box's foot (the mock's drawFit) */
 function drawFit(g: Ctx, name: ArtName, box: Box, dx = 0) {
 	const [sw, sh] = size(name, null);
-	const k = Math.min(box.w / sw, box.h / sh);
-	const dw = Math.max(1, Math.round(sw * k));
-	const dh = Math.max(1, Math.round(sh * k));
-	g.drawImage(art(name, null, dw, dh), Math.round(box.x + (box.w - dw) / 2 + dx), Math.round(box.y + box.h - dh));
+	const z = Math.min(box.w / sw, box.h / sh);
+	const dw = Math.max(1, Math.round(sw * z));
+	const dh = Math.max(1, Math.round(sh * z));
+	blit(g, art(name, null, dw, dh, kOf(g)), Math.round(box.x + (box.w - dw) / 2 + dx), Math.round(box.y + box.h - dh));
 }
 function fitScale(str: string, maxW: number, maxH: number, list: number[]) {
 	for (const z of list) if (textW(str, z) <= maxW && 7 * z <= maxH) return z;
@@ -1259,11 +1446,8 @@ function flash(g: Ctx, W: number, H: number, t: number, len: number) {
 /** fireworks bursts (the mock's); `keep` leaves out the dots outside a region (instead of a clip) */
 function fireworks(g: Ctx, W: number, H: number, t: number, cols: string[], n: number, keep: ((x: number, y: number) => boolean) | null = null) {
 	const put = (x: number, y: number, c: string) => {
-		const rx = Math.round(x);
-		const ry = Math.round(y);
-		if (keep && !keep(rx, ry)) return;
-		g.fillStyle = c;
-		g.fillRect(rx, ry, 1, 1);
+		if (keep && !keep(Math.round(x), Math.round(y))) return;
+		dot(g, x, y, c);
 	};
 	for (let k = 0; k < n; k++) {
 		const per = 1300;
@@ -1371,9 +1555,8 @@ export function showEntryScene(F: Face, s: Show) {
 				for (let k = 0; k < n; k++) {
 					const x = (hash(k * 5.3) * W + Math.sin(s.t / 500 + k) * 2 + W) % W;
 					const y = (hash(k * 2.7) * H + s.t * (0.01 + hash(k) * 0.012)) % H;
-					g.fillStyle = BULBS[k % 4];
 					g.globalAlpha = 0.7;
-					g.fillRect(Math.round(x), Math.round(y), 1, 1);
+					dot(g, x, y, BULBS[k % 4]);
 				}
 				g.globalAlpha = 1;
 				// presents bouncing either side of the number, clear of the words
@@ -1403,12 +1586,8 @@ export function showEntryScene(F: Face, s: Show) {
 	g.fillRect(0, 0, W, H);
 	sparkles(g, W, H, s.t, Math.round((W * H) / 120), ['#ffffff', '#cfe8ff', '#ffd23a'], 41);
 	chaseBorder(g, W, H, s.t, ['#ff3a2e', '#ffd23a'], 1, 3);
-	if (H >= 40) {
-		g.save();
-		g.translate(3, 3);
-		chaseBorder(g, W - 6, H - 6, s.t + 180, ['#ffd23a', '#ff3a2e'], 1, 3);
-		g.restore();
-	}
+	// (the inner border three dots in: an inset, never a moved context, so it lands on the face's LEDs)
+	if (H >= 40) chaseBorder(g, W - 6, H - 6, s.t + 180, ['#ffd23a', '#ff3a2e'], 1, 3, 3);
 	const mr = Math.max(3, Math.round(H * 0.07));
 	g.fillStyle = '#fff3c4';
 	g.beginPath();
@@ -1458,13 +1637,16 @@ export function showTotalScene(F: Face, s: Show) {
 	g.clearRect(0, 0, W, H);
 	const band = Math.round(H * LED_BOARD.scenes.band);
 	const Hm = H - band;
-	// the border runs round the face as the board comes on, then chases (fast while it counts)
-	const pts = perimeter(W, H, 0, 1);
-	const on = t < 400 ? Math.round((Math.max(0, t) / 400) * pts.length) : pts.length;
+	// the border runs round the face as the board comes on, then chases (fast while it counts); in LEDs: one dot of rings,
+	// three dots a color, a dot every 50 (120) ms
+	const q = F.k;
 	const landAt = s.countEnd;
 	const counting = s.t < landAt;
-	const step = Math.floor(s.t / (counting ? 50 : 120));
-	perimeterDots(g, pts, on, (i) => (Math.floor((i + step) / 3) % 2 ? '#ffd23a' : '#36ff74'));
+	const step = Math.floor((s.t * q) / (counting ? 50 : 120));
+	const segP = ledN(q, 3);
+	const pts = perimeter(F.ledW, F.ledH, 0, 1);
+	const on = t < 400 ? Math.round((Math.max(0, t) / 400) * pts.length) : pts.length;
+	perimeterDots(g, pts, on, (i) => (Math.floor((i + step) / segP) % 2 ? '#ffd23a' : '#36ff74'), 0, 0, { rows: ledN(q, 1), W: F.ledW, H: F.ledH });
 	// (a capped round's wrap-up says MAX WIN, as the HTML card did)
 	const title = s.title ?? 'TOTAL WIN';
 	const tts = titleScale(title, fitScale(title, W - 16, Hm * 0.2, [5, 4, 3, 2, 1]), W, Hm * 0.4);
@@ -1495,10 +1677,13 @@ export function showTotalScene(F: Face, s: Show) {
 	sprite(g, 'car', gx, yb - (Math.floor(s.t / 260) % 2) - jump, ch * 0.95);
 	const pw = sprite(g, 'H4', px, yb - jump, ch);
 	const lit = Math.floor(s.t / 140) % 2;
+	// (the lights two dots square, in LEDs)
+	const lz = ledN(q, 2);
+	const ly = Math.round((yb - ch - jump - 1) * q);
 	g.fillStyle = lit ? '#ff3a2e' : '#4aa8ff';
-	g.fillRect(Math.round(px + pw * 0.42), Math.round(yb - ch - jump - 1), 2, 2);
+	fillP(g, Math.round((px + pw * 0.42) * q), ly, lz, lz);
 	g.fillStyle = lit ? '#4aa8ff' : '#ff3a2e';
-	g.fillRect(Math.round(px + pw * 0.52), Math.round(yb - ch - jump - 1), 2, 2);
+	fillP(g, Math.round((px + pw * 0.52) * q), ly, lz, lz);
 	sprite(g, 'reindeer_col', W * 0.44, yb - (Math.floor(s.t / 180) % 2) * 2 - jump, ch * 1.1);
 }
 
@@ -1528,10 +1713,17 @@ export function winBand(F: Face, s: Show) {
 		const w = W - 12;
 		const mh = Math.max(4, Math.round(band * 0.35));
 		drawText(g, 'HONK METER', x0, y, 1, '#ffffff');
-		for (let i = 0; i < w; i += 2) {
-			const on = i / w <= frac;
-			g.fillStyle = on ? (i / w < 0.5 ? '#36ff74' : i / w < 0.8 ? '#ffd23a' : '#ff3a2e') : '#303030';
-			g.fillRect(x0 + i, y + 10, 1, mh);
+		// (in LEDs: bars one dot wide, one dot apart, `mh` dots tall)
+		const q = F.k;
+		const u = ledN(q, 1);
+		const wP = Math.round((x0 + w) * q) - Math.round(x0 * q);
+		const bx = Math.round(x0 * q);
+		const by = Math.round((y + 10) * q);
+		const bh = ledN(q, mh);
+		for (let i = 0; i < wP; i += 2 * u) {
+			const on = i / wP <= frac;
+			g.fillStyle = on ? (i / wP < 0.5 ? '#36ff74' : i / wP < 0.8 ? '#ffd23a' : '#ff3a2e') : '#303030';
+			fillP(g, bx + i, by, u, bh);
 		}
 		if (frac > 0.97 && Math.floor(s.t / 150) % 2) {
 			const z = band >= 30 ? 2 : 1;

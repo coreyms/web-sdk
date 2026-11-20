@@ -734,7 +734,8 @@ export const fileBytes = {
 export const landingSizes = {
 	"fonts/ui/Outfit-Variable.woff2": 13704,
 	"fonts/ui/Sora-Variable.woff2": 14980,
-	"fonts/overpass/Overpass-heavy.woff2": 35400
+	"fonts/overpass/Overpass-heavy.woff2": 35400,
+	"fonts/overpass/Overpass-bold.woff2": 34436
 } as const;
 
-export const bootSizes = {"landing":64084,"preload":7145211,"audio":901338} as const;
+export const bootSizes = {"landing":98520,"preload":7145211,"audio":901338} as const;
