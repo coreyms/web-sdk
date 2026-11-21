@@ -475,6 +475,13 @@ export const setBoardClass = (cls: string) => {
 const titleKnobs = () => LED_BOARD.titles[boardClass];
 /** the layout class the back board is drawn for now (the Total Win ladder's size d labels) */
 export const boardClassNow = (): BoardClass => boardClass;
+/** the back board's dot pitch now, CSS px per logical dot (game/scoreboard/scoreboard.ts layout; the Total Win ladder's label
+ *  floor, LED_BOARD.sizeD.ladderLabelMinCss); 0 before the first layout */
+let boardPitch = 0;
+export const setBoardPitch = (p: number) => {
+	boardPitch = p > 0 && Number.isFinite(p) ? p : 0;
+};
+export const boardPitchNow = () => boardPitch;
 /** the dots added between a title and its amount, and the bounce's strength (LED_BOARD.titles, live) */
 const titleGapKnob = () => Math.round(LED_BOARD.titles.gap);
 const bounceK = () => Math.max(0, LED_BOARD.titles.bounce);

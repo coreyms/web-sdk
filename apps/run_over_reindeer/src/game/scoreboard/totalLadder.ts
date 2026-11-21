@@ -12,7 +12,7 @@
 import { drawText, textW } from '../landing/ledScreens';
 import { LED_BOARD } from '../constants';
 import { amountAtCount, ladderBars, winSizeOf, type Show } from './show';
-import { boardClassNow, boardTitle, burst, rowInkV, centeredRow, cornerFireworks, drawRow, fitCap, fitScale, gallop, noteFlash, oneShot, perimeter, perimeterDots, rowInfo, sceneT, showTotalScene, titleGapKnob, titleScale, TOTAL_BLINK_DIM, type Face } from './scoreboardDraw';
+import { boardClassNow, boardPitchNow, boardTitle, burst, rowInkV, centeredRow, cornerFireworks, drawRow, fitCap, fitScale, gallop, noteFlash, oneShot, perimeter, perimeterDots, rowInfo, sceneT, showTotalScene, titleGapKnob, titleScale, TOTAL_BLINK_DIM, type Face } from './scoreboardDraw';
 import { dotAt, ledN } from './ledGrid';
 import { box, clamp, ease, lerp, noteIdea, type Ctx } from './ideasKit';
 
@@ -63,37 +63,56 @@ function reachOf(s: Show, v: number) {
 /** a rung's label: its bar in play multiples, as the game writes a multiple (7,777X) */
 export const rungLabel = (bar: number) => `${bar.toLocaleString('en-US')}X`;
 
-/** THE MARKS' SCALE (the labels' dot scale z, the lamps' and the runner's factor f, the runner's height) for a face: 1 except
- *  on board size d's desktop and tablet face, where a label's height comes to the share of the amount's cap it has on today's
- *  upright phone board for the same amount (LED_BOARD.sizeD.ladderPhoneFace), cut back until the labels clear each other and
- *  the border's bottom row and the runner clears the amount's lowest lit row (its stems and comma included) */
+/** THE MARKS' SCALE (the labels' dot scale z, the lamps' and the runner's factor f, the lamps' size, the runner's height) for
+ *  a face: at board size d on every layout (LED_BOARD.sizeD.ladderRule 'amount'; 'desktop' is f3e9bab's desktop and tablet
+ *  class only) a label's height comes to the share of the amount's cap it has on today's upright phone board for the same
+ *  amount (LED_BOARD.sizeD.ladderPhoneFace), and to ladderLabelMinCss CSS px at the least, never under today's (factor 1); cut
+ *  back until the labels clear each other and the border's bottom row and the runner clears the amount's lowest lit row (its
+ *  stems and comma included) */
 function ladderMarks(H: number, s: Show, L: Lay, fy: number, n: number, span: number, fine: boolean) {
 	const ink = rowInkV(s.finalStr, L.cap);
 	const amount = { y0: L.numY + ink.t, y1: L.numY + ink.b + 1 };
 	const border = 1;
 	const rh0 = Math.max(7, Math.round(L.band * 0.5));
-	const base = { f: 1, z: 1, rh: rh0, amount, border, ratio: Math.round((7 / L.cap) * 1000) / 1000, limited: false, want: 1 };
-	if (!(boardClassNow() === 'desktop' && LED_BOARD.size === 'd')) return base;
+	const K = LED_BOARD.sizeD;
+	const rule = K.ladderRule === 'desktop' ? 'desktop' : 'amount';
+	const pitch = boardPitchNow();
+	const r3 = (v: number) => Math.round(v * 1000) / 1000;
+	// (today's marks: lamps and runner from the face's own band, labels at size 1)
+	const base = { f: 1, z: 1, rh: rh0, lampW: Math.max(3, Math.round(L.band * 0.2)), lampH: Math.max(2, Math.round(L.band * 0.13)), amount, border, ratio: r3(7 / L.cap), limited: false, want: 1, byAmount: 1, byFloor: 0, rule, pitch: r3(pitch), labelCss: r3(7 * pitch), bandK: L.band };
+	if (LED_BOARD.size !== 'd') return base;
+	// ('desktop', f3e9bab's rule, to compare: the desktop and tablet class only, no floor, the face's own band)
+	if (rule === 'desktop' && boardClassNow() !== 'desktop') return base;
 	const gap = span / (n + 0.15);
 	const labels = ladderBars().map(rungLabel);
-	// the target: today's upright phone board's proportion for the same amount (its face, sizeD.ladderPhoneFace, lays out the
-	// same Total Win: a rung label of 7 dots against its amount's cap), so the factor is this cap over the phone's cap
-	const [pw, ph] = LED_BOARD.sizeD.ladderPhoneFace;
-	const want = Math.max(1, L.cap / totalLay(pw, ph, s).cap);
+	// THE FACTOR: today's upright phone board's proportion for the same amount (its face, sizeD.ladderPhoneFace, lays out the
+	// same Total Win: a rung label of 7 dots against its amount's cap), so this cap over the phone's cap; on every layout
+	// ('amount') also as large as a label of ladderLabelMinCss CSS px takes at this face's pitch; never under 1 (a face whose
+	// amount is the phone's or smaller keeps today's marks, untouched)
+	const [pw, ph] = K.ladderPhoneFace;
+	const P = totalLay(pw, ph, s);
+	const byAmount = L.cap / P.cap;
+	const byFloor = rule === 'amount' && pitch > 0 ? K.ladderLabelMinCss / (7 * pitch) : 0;
+	const want = Math.max(1, byAmount, byFloor);
+	if (want <= 1) return { ...base, byAmount: r3(byAmount), byFloor: r3(byFloor) };
+	// the band the lamps and the runner are sized over: the face's own (f3e9bab's), held on every layout ('amount') to at
+	// most ladderBandSlack over the phone face's band, so they keep the phone's share of the amount on a tall face too
+	const bandK = rule === 'amount' ? Math.min(L.band, P.band * (1 + Math.max(0, K.ladderBandSlack))) : L.band;
 	for (let f = want; f >= 1; f -= 0.05) {
 		// (the labels' dot scale: the factor itself on the finer grid, where the 5 x 7 face is redrawn at any size; today's
 		// grid draws whole scales only)
 		const z = fine ? Math.round(f * 100) / 100 : Math.max(1, Math.round(f));
-		const lampH = Math.max(2, Math.round(L.band * 0.13 * f));
+		const lampW = Math.max(3, Math.round(bandK * 0.2 * f));
+		const lampH = Math.max(2, Math.round(bandK * 0.13 * f));
 		// the labels inside the face, a dot above the border's bottom row, and clear of each other by 3 dots
 		if (fy + 3 + lampH + 2 + 7 * z > H - border - 1) continue;
 		if (Math.max(...labels.map((l) => textW(l, z))) > gap - 3) continue;
 		// the runner as much larger as the room under the amount allows (its top, a hop of 2 included, a dot under the
 		// amount's lowest lit row), never smaller than today's
-		const rh = Math.max(rh0, Math.min(Math.round(L.band * 0.5 * f), fy - 1 - 2 - (amount.y1 + 1)));
-		return { f: Math.round(f * 100) / 100, z, rh, amount, border, ratio: Math.round(((7 * z) / L.cap) * 1000) / 1000, limited: f < want - 1e-6, want: Math.round(want * 100) / 100 };
+		const rh = Math.max(rh0, Math.min(Math.round(bandK * 0.5 * f), fy - 1 - 2 - (amount.y1 + 1)));
+		return { f: Math.round(f * 100) / 100, z, rh, lampW, lampH, amount, border, ratio: r3((7 * z) / L.cap), limited: f < want - 1e-6, want: Math.round(want * 100) / 100, byAmount: r3(byAmount), byFloor: r3(byFloor), rule, pitch: r3(pitch), labelCss: r3(7 * z * pitch), bandK: Math.round(bandK * 100) / 100 };
 	}
-	return base;
+	return { ...base, limited: true, want: Math.round(want * 100) / 100, byAmount: r3(byAmount), byFloor: r3(byFloor) };
 }
 
 export function ladderTotal(F: Face, s: Show) {
@@ -146,13 +165,15 @@ export function ladderTotal(F: Face, s: Show) {
 	const fy = top + Math.round(L.band * 0.18);
 	box(g, xL, fy, xR - xL, 1, '#3a2a14');
 	box(g, xL, fy, Math.max(0, fx - xL), 1, '#ffd23a');
-	// THE LADDER'S MARKS AT BOARD SIZE d (Corey 2026-11-20: "Yes" to enlarging them; desktop and tablet only): the rung labels,
-	// the lamps and the runner scale with the amount over them, in the proportion they have on today's phone board (a label's
-	// height against the amount's cap, LED_BOARD.sizeD.ladderPhoneFace), as far as they stay clear of the amount above, of each
-	// other and of the border's bottom row; phones and today's size keep 1
+	// THE LADDER'S MARKS AT BOARD SIZE d (Corey 2026-11-20: "Yes" to enlarging them; 2026-11-21 on every layout, the upright
+	// tablet included, LED_BOARD.sizeD.ladderRule): the rung labels, the lamps and the runner scale with the amount over them,
+	// in the proportion they have on today's phone board (a label's height against the amount's cap,
+	// LED_BOARD.sizeD.ladderPhoneFace), never under ladderLabelMinCss CSS px, as far as they stay clear of the amount above, of
+	// each other and of the border's bottom row; a face whose amount is the phone's or smaller (the phones) and today's size
+	// keep 1
 	const M = ladderMarks(H, s, L, fy, bars.length, xR - xL, F.k > 1);
-	const lampW = Math.max(3, Math.round(L.band * 0.2 * M.f));
-	const lampH = Math.max(2, Math.round(L.band * 0.13 * M.f));
+	const lampW = M.lampW;
+	const lampH = M.lampH;
 	const ly = fy + 3;
 	const play = s.amount / X;
 	const rec: { bar: number; label: string; lit: boolean; x: number; box: { x0: number; x1: number; y0: number; y1: number } }[] = [];
@@ -185,5 +206,5 @@ export function ladderTotal(F: Face, s: Show) {
 	// the spark at the fuse's tip
 	if (!landed) dot(g, fx + 1, fy - (Math.floor(s.t / 60) % 2), '#ffffff');
 	if (landed && size !== 'small') cornerFireworks(g, W, H, since, size === 'max' ? ['#ffd23a', '#ff3a2e', '#ffffff'] : ['#ffd23a', '#ffffff'], L.Hm);
-	noteIdea(g.canvas, 'ladder', { size, x: Math.round(X * 100) / 100, rungs: rec, fuse: Math.round(fx), multiple: Math.round(mNow * 100) / 100, marks: { f: Math.round(M.f * 100) / 100, z: M.z, lampW, lampH, lampY: ly, runner: { h: rh, y0: fy - 1 - rh - 2, y1: fy - 1 }, amount: M.amount, cap: L.cap, band: L.band, W, H, border: M.border, ratio: M.ratio, limited: M.limited, want: M.want } });
+	noteIdea(g.canvas, 'ladder', { size, x: Math.round(X * 100) / 100, rungs: rec, fuse: Math.round(fx), multiple: Math.round(mNow * 100) / 100, marks: { f: Math.round(M.f * 100) / 100, z: M.z, lampW, lampH, lampY: ly, runner: { h: rh, y0: fy - 1 - rh - 2, y1: fy - 1 }, amount: M.amount, cap: L.cap, band: L.band, W, H, border: M.border, ratio: M.ratio, limited: M.limited, want: M.want, byAmount: M.byAmount, byFloor: M.byFloor, rule: M.rule, pitch: M.pitch, labelCss: M.labelCss, bandK: M.bandK, fine: F.k > 1, phoneBand: Math.round(LED_BOARD.sizeD.ladderPhoneFace[1] * LED_BOARD.scenes.band) } });
 }
