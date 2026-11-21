@@ -47,7 +47,11 @@
 
 	const modeKey = $derived((replayBet?.mode ?? stateBet.activeBetModeKey ?? 'BASE').toUpperCase());
 	const meta = $derived(betModeMeta[modeKey]);
-	const modeLabel = $derived(meta?.type === 'default' || !meta ? 'BASE GAME' : meta.text.title);
+	// A MODE THE GAME NO LONGER OFFERS (2026-11-21: the Epic and Mystery buys left; an old link can still name EPIC or
+	// MYSTERY): the card names it by its short name ("EPIC", "MYSTERY") rather than calling it the base game. If the RGS
+	// still serves that round it plays from its book like any other (the Mystery's handlers stay, keyed on the book's own
+	// `mystery` event); if it does not, the shared Authenticate shows the error card with RELOAD
+	const modeLabel = $derived(!meta ? (modeKey === 'BASE' ? 'BASE GAME' : modeShortLabel(modeKey)) : meta.type === 'default' ? 'BASE GAME' : meta.text.title);
 	const base = $derived(stateBet.betAmount);
 	// the replay response is the authority on what the round cost; the local table is only a fallback
 	const costMultiplier = $derived(Number((replayBet as { costMultiplier?: number } | null)?.costMultiplier) || meta?.costMultiplier || 1);
@@ -60,7 +64,7 @@
 	$effect(() => {
 		if (!replayBet) return;
 		replayState.hud = {
-			label: meta?.type === 'buy' ? modeShortLabel(modeKey) : soc('SPIN', 'PLAY'),
+			label: meta?.type === 'buy' || (!meta && modeKey !== 'BASE') ? modeShortLabel(modeKey) : soc('SPIN', 'PLAY'),
 			total: numberToCurrencyString(totalPlay),
 			base: numberToCurrencyString(base),
 			isBase: modeKey === 'BASE',

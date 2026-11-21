@@ -9,6 +9,7 @@ import { stateBet, stateBetDerived } from 'state-shared';
 import { eventEmitter } from './eventEmitter';
 import type { MusicName, SoundEffectName } from './sound';
 import { playBookEvent } from './utils';
+import { isOfferedMode } from './betModeMeta';
 import { creatureHandOverPrepare, creatureHandOverReady } from './creatureLoad';
 import { winLevelMap, type WinLevel, type WinLevelData } from './winLevelMap';
 import { getWinLevelDataByBookEventAmount, getFeatureSpinWinLevelData, featureSpinStages } from './winLevelMap';
@@ -1021,7 +1022,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// is where a bought round ends. Stake review 2026-09-20: a bought feature must not re-arm
 		// itself — the game returns to the base game and the player selects and confirms the price
 		// again to play another. The two Ante modes are type 'activate' and deliberately persist.
-		if (stateBetDerived.activeBetMode()?.type === 'buy') stateBet.activeBetModeKey = 'BASE';
+		// a mode the game no longer offers (an old Epic or Mystery buy round, replayed or resumed: 2026-11-21) is returned
+		// to BASE too, so the next press can never ask the RGS for it (stateBetDerived.activeBetMode() is null for it)
+		const played = stateBetDerived.activeBetMode();
+		if (played?.type === 'buy' || (!played && !isOfferedMode(stateBet.activeBetModeKey))) stateBet.activeBetModeKey = 'BASE';
 		// the round's Max Win bookkeeping ends with the round (a cut step nothing landed is landed here, so the
 		// board is the book's whatever path the round took)
 		await landCapTail();

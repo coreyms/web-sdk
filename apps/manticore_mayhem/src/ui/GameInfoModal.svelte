@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Game Info: sticky tab strip + scroll-spied sections. Stake Engine requires full feature
-	// disclosure here: paytable, modes, the Mystery split and the Epic floor, max win, RTP per mode,
+	// disclosure here: paytable, modes, the feature floors, max win, RTP per mode,
 	// volatility, and the verbatim rules disclaimer. Every NUMBER comes from config.ts, which mirrors
 	// game_config.py, and from the RGS's own prices.
 	//
@@ -32,7 +32,7 @@
 	import { skipAllowed } from '../game/stateGame.svelte';
 	import { stamp } from '../game/assets';
 	import { SYMBOL_COLORS } from '../game/constants';
-	import { gameInfoText, guideRowShown, runs, MODE_NAMES, pct, type GuideId } from '../game/gameInfoText';
+	import { gameInfoText, guideRowShown, runs, MODE_NAMES, FEATURE_NAMES, pct, type GuideId } from '../game/gameInfoText';
 	import { modeCost } from '../game/betModeMeta';
 	import { measureFitText } from '../game/textFit';
 
@@ -61,7 +61,6 @@
 		{ id: 'guide', label: 'UI Guide' },
 		{ id: 'howto', label: 'How to Play' },
 		{ id: 'modes', label: 'Game Modes' },
-		{ id: 'mystery', label: 'Mystery Disclosure' },
 		{ id: 'tiles', label: 'Multiplier Tiles' },
 		{ id: 'maxwin', label: 'Max Win & RTP' },
 		{ id: 'legal', label: 'Legal' },
@@ -111,10 +110,9 @@
 		{ id: 'super_ante', accent: '#e08a3c', rgs: 'SUPER_ANTE' },
 		{ id: 'bonus', accent: '#2eb0a8', rgs: 'BONUS' },
 		{ id: 'super', accent: '#7fb6ff', rgs: 'SUPER' },
-		{ id: 'epic', accent: '#ff6a4a', rgs: 'EPIC' },
-		{ id: 'mystery', accent: '#b07fe0', rgs: 'MYSTERY' },
 	];
-	// RTP per mode from the published math (Stake wants it per mode, the seven cell grid stays: Corey 2026-10-13)
+	// RTP per mode from the published math (Stake wants it per mode; Corey 2026-10-13 kept the per mode grid). Five cells
+	// since 2026-11-21, when the Epic buy and the Mystery buy left the game
 	const MODES = $derived(
 		MODE_STYLE.map((m) => ({
 			...m,
@@ -125,6 +123,10 @@
 			...T.modes.cards[m.id],
 		})),
 	);
+	// EPIC FREE SPINS: a feature card after the mode cards (2026-11-21, the Epic buy left: "Leaving Epic Spins as spun into
+	// only"). The same card in the Epic's colour as before; one tile in place of price, RTP and max win
+	const FEATURE_STYLE: { id: string; accent: string }[] = [{ id: 'epic', accent: '#ff6a4a' }];
+	const FEATURES = $derived(FEATURE_STYLE.map((f) => ({ ...f, label: FEATURE_NAMES[f.id], ...T.modes.features[f.id] })));
 
 	// UI guide (submission checklist "User interaction guide is included in the game information"):
 	// one control per row: the same icon the chrome draws, the name, what a press does (text: gameInfoText.ts)
@@ -341,13 +343,30 @@
 							</div>
 						</div>
 					{/each}
-				</div>
-			</section>
-
-			<section bind:this={sectionEls.mystery}>
-				<h2>Mystery Disclosure</h2>
-				<div class="callout gold">
-					{#each T.mystery as p}<p>{@render rich(p)}</p>{/each}
+					<!-- the Epic feature card (2026-11-21): no price, RTP or max win of its own -->
+					{#each FEATURES as m (m.id)}
+						<div class="mode feature" class:narrow data-mode={m.id} data-feature={m.id} style:border-left-color={m.accent}>
+							<div class="mode-head">
+								<div class="mode-name" style:color={m.accent} style:font-size="{dense ? 16.5 : 20}px">{m.label}</div>
+								<div class="stats">
+									<div class="stat tag" data-stat="feature">
+										<div class="stat-k">{T.modes.featureTag.k}</div>
+										<div class="slot-num stat-v" style:color={m.accent} style:font-size="{statSize}px">{T.modes.featureTag.v}</div>
+									</div>
+								</div>
+							</div>
+							<div class="kv-grid" style:grid-template-columns={narrow ? '1fr' : '1fr 1fr'}>
+								<div><div class="k">{T.modes.labels.enter}</div><div class="v">{@render rich(m.enter)}</div></div>
+								<div><div class="k">{T.modes.labels.spins}</div><div class="v">{@render rich(m.spins)}</div></div>
+							</div>
+							<div>
+								<div class="k">{T.modes.labels.mech}</div>
+								<ul class="mech">
+									{#each m.mech as s}<li>{@render rich(s)}</li>{/each}
+								</ul>
+							</div>
+						</div>
+					{/each}
 				</div>
 			</section>
 
@@ -749,6 +768,10 @@
 	.mode:not(.narrow) .stat.max {
 		width: 178px;
 	}
+	/* the Epic feature card's one tile (2026-11-21): as wide as the price tile it stands in for, at least */
+	.mode:not(.narrow) .stat.tag {
+		min-width: 164px;
+	}
 	.mode.narrow .stat {
 		flex: 1 1 auto;
 	}
@@ -847,10 +870,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-	}
-	.callout.gold {
-		border-color: rgba(255, 220, 74, 0.45);
-		background: rgba(255, 220, 74, 0.06);
 	}
 	.callout.red {
 		border-color: rgba(197, 60, 36, 0.55);

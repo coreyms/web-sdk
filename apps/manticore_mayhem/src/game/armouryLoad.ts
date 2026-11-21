@@ -1,6 +1,6 @@
 // THE ARMOURY'S MENU CORE, THE DEFERRED PHASE'S LAST GROUP (spec feedback/armoury_build_r1 3.3 "When things load").
 //
-//   armoury   the plaque, the crest, the thumbs sheet and the six flat heroes (full tier 0.61 MB; the phone tier's half
+//   armoury   the plaque, the crest, the thumbs sheet and the four flat heroes (six until 2026-11-21; the phone tier's half
 //             size heroes 0.29 MB): HTML pictures, not Pixi textures, so they never touch the canvas budget
 //
 // NOTHING OF THE ARMOURY IS IN THE PRELOAD: the landing screen and the time to PRESS ANYWHERE do not change. The group

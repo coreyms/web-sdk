@@ -8,7 +8,7 @@ import { numberToCurrencyString, bookEventAmountToCurrencyString } from '../game
 
 import { getContext } from '../game/context';
 import { betCostFull } from '../game/modeChipData';
-import { modeShortLabel } from '../game/betModeMeta';
+import { isOfferedMode, modeShortLabel } from '../game/betModeMeta';
 import { soc } from '../game/social';
 import type { AutoLoadout } from '../game/stateGame.svelte';
 import { SLAM_HURRY } from '../game/constants';
@@ -51,12 +51,12 @@ export const createControls = () => {
 	const held = () => context.stateGame.resumeHold;
 	const isReplay = () => stateUi.config.mode === 'replay';
 	const anteActive = () => stateBetDerived.activeBetMode()?.type === 'activate';
-	// armed buy mode: a selected feature (BONUS/SUPER/MYSTERY) loaded on the spin button for ONE round
+	// armed buy mode: a selected feature (BONUS/SUPER) loaded on the spin button for ONE round
 	// the KEY, always upper case: a replay or a resumed round can hand the key over in the URL's or the
 	// RGS's own case (mode=bonus), and callers compare it with the upper-case card keys
 	const armedBuy = () => (stateBetDerived.activeBetMode()?.type === 'buy' ? stateBet.activeBetModeKey.toUpperCase() : null);
-	/** short mode name for the HUD label, the Spin button face and the feature button: BONUS / SUPER /
-	 *  EPIC / MYSTERY, read from the mode table (game/betModeMeta.ts modeShortLabel), never the raw key */
+	/** short mode name for the HUD label, the Spin button face and the feature button: BONUS / SUPER,
+	 *  read from the mode table (game/betModeMeta.ts modeShortLabel), never the raw key */
 	const armedLabel = () => {
 		const key = armedBuy();
 		return key === null ? null : modeShortLabel(key);
@@ -103,7 +103,7 @@ export const createControls = () => {
 				startLoadout();
 				return;
 			}
-			// an armed buy mode (BONUS/SUPER/MYSTERY) plays ONE feature round: bookEventHandlerMap's
+			// an armed buy mode (BONUS/SUPER) plays ONE feature round: bookEventHandlerMap's
 			// finalWin drops it back to BASE when the round ends (Stake review 2026-09-20)
 			context.eventEmitter.broadcast({ type: 'bet' });
 			return;
@@ -242,7 +242,8 @@ export const createControls = () => {
 		stateModal.modal = { name: 'buyBonus' };
 	};
 	const activateMode = (mode: string) => {
-		if (held()) return;
+		// only a mode the game offers (game/betModeMeta.ts isOfferedMode): the Epic and Mystery buys left on 2026-11-21
+		if (held() || !isOfferedMode(mode)) return;
 		stateBet.activeBetModeKey = mode;
 		stateUi.autoSpinsLossLimitText = INFINITY_MARK;
 		stateUi.autoSpinsSingleWinLimitText = INFINITY_MARK;
@@ -250,7 +251,8 @@ export const createControls = () => {
 	};
 	const buyMode = (mode: string) => {
 		// never on top of a loaded autoplay run (the Armoury's ACTIVATE is unavailable then and says so)
-		if (held() || context.stateGame.autoLoadout) return;
+		// only a mode the game offers (game/betModeMeta.ts isOfferedMode): the Epic and Mystery buys left on 2026-11-21
+		if (held() || context.stateGame.autoLoadout || !isOfferedMode(mode)) return;
 		// arm only: the feature loads onto the spin button for ONE round. Nothing is charged and
 		// nothing plays until the player presses Spin, and the round's finalWin returns the game to
 		// the base game, so the next feature round is a fresh selection + confirmation.
@@ -326,7 +328,7 @@ export const createControls = () => {
 	const betText = () => numberToCurrencyString(betCostFull());
 	// The label over that readout. "$100.00 / SPIN" read as a 100x charge PER FREE SPIN (Stake review
 	// 2026-09-20), so while a BOUGHT feature is armed or playing the label names the mode instead of
-	// the unit: BONUS / SUPER / MYSTERY (the mode key is the short name the Chow Line cards use). Base
+	// the unit: BONUS / SUPER (the mode key is the short name the Chow Line cards use). Base
 	// play, a natural feature and Ante keep SPIN / PLAY (Corey 2026-09-20): their price is per spin.
 	const betLabel = () => armedLabel() ?? soc('SPIN', 'PLAY');
 	const hasWin = () => stateBet.winBookEventAmount > 0;

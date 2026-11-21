@@ -113,7 +113,8 @@ type BookEventBonusEnd = {
 	spinsPlayed: number;
 };
 
-/** the 250x Mystery buy, first event of the book. Never a regular bonus. */
+/** the 250x Mystery buy, first event of the book. Never a regular bonus. The buy left the published set on 2026-11-21;
+ *  the type and its handler stay so a book that carries it (an old round, replayed) still plays */
 type BookEventMystery = { index: number; type: 'mystery'; outcome: MysteryOutcome };
 
 // ---- core SDK events kept as-is ----

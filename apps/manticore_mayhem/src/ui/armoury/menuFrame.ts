@@ -10,7 +10,7 @@
 //                                                         to the window, with the menu's own copies of the bet controls
 //                                                         (the 400 x 225 mini player, 800 x 450 popouts, 16:9 phones)
 //   portrait chrome, a phone (short side <= 480)       -> portrait phone
-//   portrait chrome, not a phone, frame >= minFrame    -> tablet portrait (six tiles in a row)
+//   portrait chrome, not a phone, frame >= minFrame    -> tablet portrait (four tiles in a row; six until 2026-11-21)
 //   portrait chrome, not a phone, narrower             -> portrait phone stacking
 //
 // UNITS. "design px" are the prototype's own pixel numbers; the menu is authored in them inside one wrapper scaled by

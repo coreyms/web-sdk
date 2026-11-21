@@ -7,10 +7,14 @@ import { soc } from './social';
 // a math re-publish that reprices a buy can never leave the UI quoting a price /wallet/play won't
 // charge. config.betModes is the fallback only.
 //
-// KEYS ARE THE RGS MODE NAMES, UPPERCASED. The published index.json names the seven modes
-// base / ante / super_ante / bonus / super / epic / mystery, and the mock RGS builds its betModes
-// map straight from that file, so the keys here are BASE / ANTE / SUPER_ANTE / BONUS / SUPER /
-// EPIC / MYSTERY. A key that does not match is a mode the player can never buy.
+// KEYS ARE THE RGS MODE NAMES, UPPERCASED. The published index.json names the five modes
+// base / ante / super_ante / bonus / super, and the mock RGS builds its betModes map straight from
+// that file, so the keys here are BASE / ANTE / SUPER_ANTE / BONUS / SUPER. A key that does not
+// match is a mode the player can never buy.
+// THE EPIC AND MYSTERY BUYS ARE GONE (Corey 2026-11-21: "I'd also consider removing Epic buy, and Mystery Buy from
+// Manticore Mayhem. Leaving Epic Spins as spun into only.", then "yes"). This table is the list of modes the game
+// offers: ui/controls.svelte.ts activateMode / buyMode refuse a key that is not in it, and a round of a mode that is
+// not in it (an old replay link, say) is returned to BASE at its finalWin (game/bookEventHandlerMap.ts).
 const LOCAL_COST: Record<string, number> = Object.fromEntries(
 	Object.entries(config.betModes).map(([key, mode]) => [key.toUpperCase(), mode.cost]),
 );
@@ -42,8 +46,6 @@ const MODE_SHORT: Record<string, string> = {
 	SUPER_ANTE: 'SUPER ANTE',
 	BONUS: 'BONUS',
 	SUPER: 'SUPER',
-	EPIC: 'EPIC',
-	MYSTERY: 'MYSTERY',
 };
 /** a mode's short player-facing name, whatever the case of the key it is asked with */
 export const modeShortLabel = (mode: string): string => {
@@ -57,7 +59,7 @@ const spins = config.freeSpins;
 // THE COPY AGREES WITH THE RULES PAGE (game/gameInfoText.ts, approved 2026-10-14): Ante names all three features;
 // Super Ante says what 4 scatters award; the tiles "double up to" their cap; the Epic floor names its base ("your
 // bet", social "your play amount"); the Free Spins and Super floors (math 2026.10.16) are stated on the rules page only
-// (Corey 2026-10-17); the Mystery Epic's own floor is stated nowhere. `description` and `dialog` are not drawn
+// (Corey 2026-10-17). `description` and `dialog` are not drawn
 // by THE ARMOURY (its copy is game/armouryText.ts); they stay filled because the shared BetModeMeta type carries them.
 const SCATTERS = `${config.symbols.S.name}s`;
 
@@ -150,43 +152,7 @@ export const betModeMeta: BetModeMeta = {
 			tickerSpin: '',
 		},
 	},
-	EPIC: {
-		mode: 'EPIC',
-		costMultiplier: modeCost('EPIC'),
-		type: 'buy',
-		parent: '',
-		children: '',
-		maxWin: config.maxWin,
-		assets: placeholderAssets,
-		text: {
-			title: 'EPIC FREE SPINS',
-			description: `${spins.epic} free spins. Tiles persist and double up to ${config.tileCap.epic}x, and Super Stings land far more often than in Super Free Spins.`,
-			dialog: soc(`Buy ${spins.epic} Epic Free Spins.`, `Play ${spins.epic} Epic Free Spins.`),
-			button: soc('BUY', 'PLAY'),
-			betAmountLabel: 'EPIC FREE SPINS',
-			tickerIdle: '',
-			tickerSpin: '',
-		},
-	},
-	MYSTERY: {
-		mode: 'MYSTERY',
-		costMultiplier: modeCost('MYSTERY'),
-		type: 'buy',
-		parent: '',
-		children: '',
-		maxWin: config.maxWin,
-		assets: placeholderAssets,
-		text: {
-			title: 'MYSTERY',
-			description: `${config.mystery.nothing * 100}% no feature (the spin itself can still win), ${config.mystery.super * 100}% Super Free Spins, ${config.mystery.epic * 100}% Epic Free Spins. Never regular Free Spins.`,
-			dialog: soc(
-				`Buy a Mystery: ${config.mystery.super * 100}% Super Free Spins, ${config.mystery.epic * 100}% Epic Free Spins, ${config.mystery.nothing * 100}% no feature. Never a regular Free Spins round.`,
-				`Play a Mystery: ${config.mystery.super * 100}% Super Free Spins, ${config.mystery.epic * 100}% Epic Free Spins, ${config.mystery.nothing * 100}% no feature. Never a regular Free Spins round.`,
-			),
-			button: soc('BUY', 'PLAY'),
-			betAmountLabel: 'MYSTERY',
-			tickerIdle: '',
-			tickerSpin: '',
-		},
-	},
 };
+
+/** a mode this game offers (a key of the table above, any case). The Epic and Mystery buys are not (2026-11-21) */
+export const isOfferedMode = (mode: string | null | undefined): boolean => Object.prototype.hasOwnProperty.call(betModeMeta, String(mode ?? '').toUpperCase());

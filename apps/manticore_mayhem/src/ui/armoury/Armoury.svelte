@@ -31,7 +31,7 @@
 	// Chrome.svelte's .armoury-open rules, so the steppers here are the real ones (real rules, sounds, disabled states).
 	//
 	// THE GAME NEVER COMPUTES AN OUTCOME: confirming only sets stateBet.activeBetModeKey, through the same calls the old
-	// menu uses (controls.activateMode for the two per spin modes, controls.buyMode for the four buys). Nothing reaches
+	// menu uses (controls.activateMode for the two per spin modes, controls.buyMode for the two buys). Nothing reaches
 	// the wallet until the player presses Spin. Every amount is the RGS's cost multiplier times the live bet, formatted
 	// by the one formatter (numberToCurrencyString), never abbreviated. Copy: game/armouryText.ts only.
 	//
@@ -59,7 +59,7 @@
 	import { landscapeTrioSpan } from '../../game/layoutSpec';
 	import TrioStat from '../TrioStat.svelte';
 	import StepButton from '../StepButton.svelte';
-	import { ARMOURY_ART_ORDER, ARMOURY_ASSETS, ARMOURY_MODES, armouryMode, type ArmouryMode, type ArmouryModeId } from '../../game/armouryData';
+	import { ARMOURY_THUMB_CELLS, ARMOURY_ASSETS, ARMOURY_MODES, armouryMode, type ArmouryMode, type ArmouryModeId } from '../../game/armouryData';
 	import { ARMOURY_TEXT as TX, afterTag, anteConfirm, armouryName, boldRuns, fill } from '../../game/armouryText';
 	import { FEATURE_ONE_IN, oneInText, type OddsFeature } from '../../game/armouryOdds';
 	import { armouryDecoded, whenArmouryCore, heroGridReady, heroGridsInfo, loadArmouryCore, onHeroGrids, pauseHeroGrids, selectHeroGrid, startHeroGrids } from '../../game/armouryLoad';
@@ -103,7 +103,7 @@
 	let note = $state<ArmouryModeId | null>(null);
 
 	const mode = $derived(armouryMode(view)!);
-	/** the mode that is on (an ante active or a buy loaded on Spin), if it is one of the six */
+	/** the mode that is on (an ante active or a buy loaded on Spin), if it is one of the four */
 	const activeId = $derived.by(() => {
 		const k = (stateBet.activeBetModeKey ?? '').toUpperCase();
 		return armouryMode(k) ? (k as ArmouryModeId) : null;
@@ -683,7 +683,7 @@
 	};
 	/** the HUD's two bet steppers, or the menu's copies of them: the minus and the plus */
 	const hudSteppers = (): HTMLButtonElement[] => litParts().steppers;
-	/** what Tab walks, in order: the six tiles in reading order, ACTIVATE, close, then the HUD's minus and plus. In
+	/** what Tab walks, in order: the four tiles in reading order, ACTIVATE, close, then the HUD's minus and plus. In
 	 *  confirm: CONFIRM (once its guard is over and it shows) and Cancel */
 	const tabStops = (): HTMLElement[] => {
 		const usable = (el: HTMLElement | undefined | null): el is HTMLElement =>
@@ -864,7 +864,8 @@
 			() => asked.delete(url), // asked again on the next open
 		);
 	};
-	const thumbPos = (m: ArmouryMode) => `${(ARMOURY_ART_ORDER.indexOf(m.art) / Math.max(1, ARMOURY_ART_ORDER.length - 1)) * 100}% 0%`;
+	// the cell of thumbs.webp (six cells, background-size 600%), whatever the tray holds (armouryData.ts ARMOURY_THUMB_CELLS)
+	const thumbPos = (m: ArmouryMode) => `${(ARMOURY_THUMB_CELLS.indexOf(m.art) / Math.max(1, ARMOURY_THUMB_CELLS.length - 1)) * 100}% 0%`;
 	const url = (u: string) => `url("${u}")`;
 
 	// the rays behind every picture: 24 triangles and two circles, defined once (a <symbol>), in the mode colour
@@ -881,9 +882,10 @@
 	let detailH = $state(0);
 	// THE ODDS ROWS (Corey 2026-11-17, "B Comparison"; game/armouryOdds.ts the figures, armouryText.ts rates the words):
 	// ANTE and SUPER ANTE compare each feature's Base Game figure with their own (the rows take the sentence's place);
-	// a bought plate adds how often its feature starts by itself in the Base Game; the Mystery keeps its share bars
+	// a bought plate adds how often its feature starts by itself in the Base Game (the Mystery's share bars left with the
+	// Mystery buy, 2026-11-21)
 	type RateRow = { f: OddsFeature; base: string; here: string | null; aria: string };
-	const BUY_FEATURE: Partial<Record<ArmouryModeId, OddsFeature>> = { BONUS: 'bonus', SUPER: 'super', EPIC: 'epic' };
+	const BUY_FEATURE: Partial<Record<ArmouryModeId, OddsFeature>> = { BONUS: 'bonus', SUPER: 'super' };
 	const rates = $derived.by((): { spin: boolean; rows: RateRow[] } | null => {
 		const R = TX.rates;
 		const base = (f: OddsFeature) => oneInText(FEATURE_ONE_IN.BASE[f] ?? 0);
@@ -901,7 +903,7 @@
 		const f = BUY_FEATURE[mode.id];
 		return f ? { spin: false, rows: [{ f, base: base(f), here: null, aria: fill(R.ariaBuy, { feat: R.feat[f], base: base(f) }) }] } : null;
 	});
-	const hasOdds = $derived(!!mode.odds || !!rates);
+	const hasOdds = $derived(!!rates);
 	const detailTop = $derived(hasOdds ? 92 : 96);
 
 	const tileLabel = (m: ArmouryMode) =>
@@ -1483,18 +1485,6 @@
 										</div>
 										<div class="qfoot">{TX.rates.foot}</div>
 									{/if}
-									{#if mode.odds}
-										<div class="odds">
-											{#each mode.odds as o (o.text)}
-												{@const n = Math.round(o.share * 100)}
-												<div class="orow">
-													<span class="opct">{fill(TX.oddsShare, { n })}</span>
-													<span class="obar" aria-hidden="true"><i style:width="{n}%" style:background={o.color}></i></span>
-													<span class="oname">{TX.odds[o.text]}</span>
-												</div>
-											{/each}
-										</div>
-									{/if}
 									{#if status}
 										<div class="status" bind:this={statusEl}>{#if status.tag}<span class="on-tag">{status.tag}</span>{/if}{@render rich(status.text, status.amt)}</div>
 									{/if}
@@ -1529,7 +1519,7 @@
 				</div>
 			</div>
 
-			<!-- the tray: two per spin modes, four buys. Still box (the confirm's fade), the slab (the open's fade) -->
+			<!-- the tray: two per spin modes, two buys. Still box (the confirm's fade), the slab (the open's fade) -->
 			<div class="tray-box" inert={confirm} bind:this={trayBoxEl} bind:offsetHeight={trayH}>
 				<div class="tray" bind:this={trayEl}>
 					{#each trayGroups as grp (grp.g)}
@@ -1600,7 +1590,7 @@
 								</div>
 							{/each}
 						</div>
-						<div class="c-what" class:mystery={mode.id === 'MYSTERY'}>{@render rich(mode.group === 'spin' ? anteConfirm(mode.id as 'ANTE' | 'SUPER_ANTE') : named(mode.id === 'MYSTERY' ? TX.confirmMystery : TX.confirmBuy, mode.id), '')}</div>
+						<div class="c-what">{@render rich(mode.group === 'spin' ? anteConfirm(mode.id as 'ANTE' | 'SUPER_ANTE') : named(TX.confirmBuy, mode.id), '')}</div>
 					</div>
 					<div class="c-flash" class:on={flash}></div>
 				</div>
@@ -2258,37 +2248,6 @@
 	.arm.touch.odds-tight.has-odds .buy {
 		margin-top: 6px;
 	}
-	.odds {
-		margin-top: 12px;
-		display: grid;
-		gap: 4px;
-	}
-	.orow {
-		display: grid;
-		grid-template-columns: 58px 190px 1fr;
-		align-items: center;
-		gap: 12px;
-		height: 26px;
-		font-size: 17px;
-	}
-	.opct {
-		font: 700 20px/1 var(--display);
-		color: var(--gold);
-		text-align: right;
-	}
-	.obar {
-		height: 12px;
-		background: var(--iron-deep);
-		border: 1px solid var(--brass-dark);
-		box-sizing: border-box;
-	}
-	.obar i {
-		display: block;
-		height: 100%;
-	}
-	.oname {
-		color: var(--cream);
-	}
 	.status {
 		margin-top: 14px;
 		font-size: 17px;
@@ -2436,11 +2395,19 @@
 			inset 0 3px 0 var(--iron-deep),
 			inset 0 4px 0 var(--shine-30);
 	}
-	.grp-spin {
-		flex: 2;
-	}
+	/* FOUR TILES (2026-11-21: the Epic and Mystery buys left the menu). Each group holds two tiles at the size the row of
+	   six drew (204 wide: (1320 - 44 - 5 x 14) / 6, between 202 and 206 before), and the row of four is centred in the
+	   slab under the hero and the plate, so no tile stretches and no slot stands empty */
+	.grp-spin,
 	.grp-buy {
-		flex: 4;
+		flex: none;
+	}
+	.arm.lay-desktop .tray {
+		justify-content: center;
+	}
+	.arm.lay-desktop .tile {
+		flex: none;
+		width: 204px;
 	}
 	.gh {
 		display: flex;
@@ -2923,7 +2890,8 @@
 			cursor: grab;
 		}
 	}
-	/* the tray: PER SPIN as two wide tiles, FEATURE BUYS as four small ones, directly above the plate */
+	/* the tray: PER SPIN and FEATURE BUYS as two wide tiles each (since 2026-11-21; the buys were four small ones),
+	   directly above the plate */
 	.arm.touch > .tray-box {
 		order: 1;
 	}
@@ -2993,10 +2961,10 @@
 		width: auto;
 		aspect-ratio: 1;
 	}
-	.arm.lay-portrait .grp-spin .tile {
+	.arm.lay-portrait .tile {
 		height: 54px;
 	}
-	.arm.lay-portrait .grp-spin .tf {
+	.arm.lay-portrait .tf {
 		display: grid;
 		grid-template-columns: 46px auto;
 		grid-template-rows: auto auto;
@@ -3007,24 +2975,14 @@
 		justify-items: start;
 		padding: 0 6px 3px;
 	}
-	.arm.lay-portrait .grp-spin .thumb {
+	.arm.lay-portrait .thumb {
 		grid-row: 1 / 3;
 		align-self: center;
 		height: 42px;
 		--bs: 56px;
 	}
-	.arm.lay-portrait .grp-spin .tn {
+	.arm.lay-portrait .tn {
 		font-size: 15px;
-	}
-	.arm.lay-portrait .grp-buy .tile {
-		height: 76px;
-	}
-	.arm.lay-portrait .grp-buy .thumb {
-		height: 33px;
-		--bs: 46px;
-	}
-	.arm.lay-portrait .grp-buy .tn {
-		font-size: 13px;
 	}
 	/* the buy plate: lowest, right over the bet row; its height from its content; its top rule in the mode's colour */
 	.arm.touch > .panel {
@@ -3106,22 +3064,6 @@
 		width: 9px;
 		height: 9px;
 		border-width: 1.5px;
-	}
-	.arm.touch .odds {
-		margin-top: 6px;
-		gap: 2px;
-	}
-	.arm.touch .orow {
-		grid-template-columns: 40px 104px 1fr;
-		gap: 9px;
-		height: 21px;
-		font-size: 14px;
-	}
-	.arm.touch .opct {
-		font-size: 16px;
-	}
-	.arm.touch .obar {
-		height: 9px;
 	}
 	.arm.touch .status {
 		margin-top: 6px;
@@ -3240,23 +3182,15 @@
 		font-size: 14px;
 		line-height: 19px;
 	}
-	/* the Mystery's longer closing lines (harsh review 2026-11-17 m7) run to five lines at 14 px on the 366 x 549 card
-	   (upright phone, tablet), and CONFIRM (placeKeys: never over the foot ornament) would sit 15 px over the last one;
-	   at 12.5 / 17 they take four (68 px) and CONFIRM clears them. The sideways slab grows with its text instead */
-	.arm.touch:not(.lay-sideways) .c-what.mystery {
-		font-size: 12.5px;
-		line-height: 17px;
-	}
 
-	/* ── TABLET PORTRAIT (page.css 399-420): the phone's pieces; the tray one row (PER SPIN 190 wide), all six tiles 76
-	   high with the picture on top, the group sub lines dropped; the name under the clock strip; content capped at 720 ── */
+	/* ── TABLET PORTRAIT (page.css 399-420): the phone's pieces; the tray one row, all four tiles 76 high with the picture
+	   on top (the two groups share the row evenly since 2026-11-21; PER SPIN was 190 wide beside four buys), the group
+	   sub lines dropped; the name under the clock strip; content capped at 720 ── */
 	.arm.lay-tablet .tray {
 		flex-direction: row;
 		gap: 14px;
 	}
-	.arm.lay-tablet .grp-spin {
-		flex: 0 0 190px;
-	}
+	.arm.lay-tablet .grp-spin,
 	.arm.lay-tablet .grp-buy {
 		flex: 1 1 0;
 		min-width: 0;
@@ -3329,7 +3263,9 @@
 	.arm.lay-sideways .btn > .face {
 		font-size: 16px;
 	}
-	/* the rail: the six modes two wide, PER SPIN on top; the close in its top right corner, level with PER SPIN */
+	/* the rail: the four modes two wide, PER SPIN on top; the close in its top right corner, level with PER SPIN. The
+	   tiles are 112 high since 2026-11-21 (86 under three rows of six modes): two rows of four take less of the rail
+	   than the three did, and the picture grows with the tile */
 	.arm.lay-sideways > .tray-box {
 		position: absolute;
 		left: auto;
@@ -3361,14 +3297,14 @@
 		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 	}
 	.arm.lay-sideways .tile {
-		height: 86px;
+		height: 112px;
 	}
 	.arm.lay-sideways .tf {
-		gap: 3px;
+		gap: 4px;
 	}
 	.arm.lay-sideways .thumb {
-		height: 40px;
-		--bs: 54px;
+		height: 52px;
+		--bs: 70px;
 	}
 	.arm.lay-sideways .tn {
 		font-size: 15px;
