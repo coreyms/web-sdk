@@ -284,6 +284,27 @@ export class RingDriver {
 		this.set('rest');
 	}
 
+	/** this driver's animations are on the face showing now (a face rebuilt under a ring that was started on the new one) */
+	onFace(): boolean {
+		const L = this.layer();
+		return !!L && ((L.rr.__an?.length ?? 0) > 0 || (L.rw.__an?.length ?? 0) > 0);
+	}
+
+	/** an endless loop of this driver is running on the face showing */
+	looping(): boolean {
+		const L = this.layer();
+		return !!L && (L.rr.__an ?? []).some((a) => a.playState === 'running' && a.effect?.getTiming().iterations === Infinity);
+	}
+
+	/** THE BACKSTOP: a loop left running at rest is braked from its own speed (as a round's end with no rest seen) */
+	rescue(t: 0 | 1 | 2) {
+		const M = ringMotion(t);
+		this.upEnd = 0;
+		this.set('spin');
+		this.brake(M.brake, M.settle, t);
+		if (this.phase !== 'brake') this.stop();
+	}
+
 	/** nothing turns: every animation of this driver cancelled, the ring where the idle hop holds it (reduced motion, a
 	 *  rebuilt face) */
 	stop() {
