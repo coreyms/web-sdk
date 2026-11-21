@@ -145,8 +145,20 @@ const pump = async () => {
 			const job = queue[0];
 			const U = COLUMN.upload;
 			const heldFrom = performance.now();
-			// its turn: the gap after the last upload, and out of an impact's frames (unless it is needed now)
-			while (!job.needNow() && (performance.now() - lastUploadEnd < U.gapMs || (gate.quiet() && performance.now() - heldFrom < U.quietMaxMs))) await nextFrame();
+			// its turn: the gap after the last upload, and out of an impact's frames (unless it is needed now). A picture a
+			// column is waiting on that comes into the queue while this one is held goes first (2026-11-20, the probe host's
+			// shadow_probe: the Santa idle sheet 2 was picked while the entrance's sheet 2 was still decoding, then held as
+			// quiet for up to quietMaxMs, and quiet only because the column stood waiting on that very entrance sheet)
+			let overtaken = false;
+			while (!job.needNow() && (performance.now() - lastUploadEnd < U.gapMs || (gate.quiet() && performance.now() - heldFrom < U.quietMaxMs))) {
+				await nextFrame();
+				if (queue.some((other) => other !== job && other.needNow())) {
+					overtaken = true;
+					break;
+				}
+			}
+			// (sorted again: the one needed now first; this one waits its turn again)
+			if (overtaken) continue;
 			queue.shift();
 			// the staging readout's label: a long frame right after this is this sheet's upload
 			if (STAGING_TOOLS) perfMark(`upload:${job.label}`);
