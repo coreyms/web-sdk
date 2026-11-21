@@ -1240,6 +1240,10 @@
 			},
 			scoreboardCardPress: () => scoreboard?.cardPress() ?? false,
 			scoreboardFace: (which: 'strip' | 'back', png = false) => scoreboard?.faceStats(which, png) ?? null,
+			/** the game's own scoreboardDev (its board, bet and fmt). A probe's import('/src/game/scoreboard/scoreboard.ts') is
+			 *  a fresh copy of the module (board null, bet 1) once a file it imports changed under the running dev server: the
+			 *  game then loads it as scoreboard.ts?t=... (led_board_probe currency, 90be3f4 on the probe host) */
+			scoreboardDev: () => scoreboardDev,
 			/** the play currency by hand (the LED currency probe: the boards' symbols and the fallback; game/scoreboard/ledCurrency.ts) */
 			ledCurrency: (code: string) => (stateBet.currency = code as typeof stateBet.currency),
 			scoreboardCardEnd: () => scoreboard?.endCard(),
