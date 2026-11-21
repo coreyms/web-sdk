@@ -24,7 +24,7 @@
 	import { replayState } from '../replayState.svelte';
 	import { fitFont, UI_TEXT_FACE } from '../../game/textFit';
 	import { boardPace } from '../../game/boardPace';
-	import { FILL_C, laneRingSvg, ringMotion, RingDriver, sparksSvg, stopSquareSvg, type RingTheme } from './spinRing';
+	import { ang, FILL_C, laneRingSvg, REST_METHODS, RingDriver, sparksSvg, stopSquareSvg, type RestMethod, type RingTheme } from './spinRing';
 
 	type Props = { controls: Controls; x: number; y: number; d: number };
 	const { controls, x, y, d }: Props = $props();
@@ -97,20 +97,14 @@
 		});
 	};
 
-	// the round as the ring sees it: whether the board's spin was seen live, the stop pressed, the win flourish still due
-	let sawLive = false;
+	// the round as the ring sees it: the stop pressed, the win flourish still due (whether the board's spin was seen live,
+	// and THE ROUND'S OWN START, game/boardPace.ts serial, are the driver's: ui/hud/ringPlan.ts RingCore.frame)
 	let halted = false;
-	/** THE ROUND'S OWN START (game/boardPace.ts serial; 2026-11-20, the probe host: autoplay rounds that start back to
-	 *  back with no gap never let `live` fall, so a ring started on its rising edge missed them): the ring starts when
-	 *  this count changes, so a round that begins on the very frame the last one ends still starts it */
-	let lastSerial = boardPace.serial();
-	let startedAt = 0;
+	driver.core.lastSerial = boardPace.serial();
 	let winDue = false;
 	const startRing = () => {
 		halted = false;
-		sawLive = false;
 		winDue = true;
-		startedAt = performance.now();
 		if (reduced) return;
 		driver.start(turbo());
 		flash('goIn', 520);
@@ -118,38 +112,13 @@
 	};
 	/** a face that rests (no round of its own is playing on it) */
 	const restingMode = (m: string) => m === 'idle' || m === 'loaded' || m === 'armed' || m === 'replay';
-	/** each frame while a round can play: wind up on a new spin, brake as the board comes to rest */
+	/** each frame while a round can play: wind up on a new spin, brake as the board comes to rest (onto the home pose:
+	 *  the driver plans the ring's whole way to rest from what the board says, ui/hud/ringPlan.ts) */
 	const tick = () => {
-		if (reduced) {
-			if (driver.phase !== 'rest') driver.stop();
-			lastSerial = boardPace.serial();
-			return;
-		}
-		// THE BACKSTOP (2026-11-21): a loop still drawn on the face showing while the ring is at rest is braked
-		if (driver.phase === 'rest' && driver.looping()) driver.rescue(turbo());
-		const live = boardPace.live();
-		const restIn = boardPace.restIn();
-		const t = turbo();
-		const M = ringMotion(t);
-		if (driver.phase === 'brake' && driver.settled()) driver.rest();
-		const serial = boardPace.serial();
-		if (serial !== lastSerial) {
-			lastSerial = serial;
-			// (the press has already wound it up a moment ago: the same spin)
-			if (!(driver.phase === 'spin' && performance.now() - startedAt < 600)) startRing();
-		}
-		if (driver.phase === 'spin') {
-			if (live) sawLive = true;
-			const lead = M.brake + M.settle;
-			if (restIn !== null && halted) driver.brake(Math.max(70, restIn * 0.62), Math.max(50, restIn * 0.38), t);
-			else if (restIn !== null && restIn <= lead) {
-				const k = Math.max(0.2, restIn / lead);
-				driver.brake(M.brake * k, M.settle * k, t);
-			} else if (!live && (sawLive || restingMode(mode))) driver.brake(M.brake, M.settle, t);
-		}
+		driver.frame({ live: boardPace.live(), restIn: boardPace.restIn(), serial: boardPace.serial(), halted, reduced, turbo: turbo(), resting: restingMode(mode) }, startRing);
 	};
 	let raf = 0;
-	const needLoop = () => !restingMode(mode) || driver.phase !== 'rest' || driver.looping();
+	const needLoop = () => !restingMode(mode) || driver.phase !== 'rest' || driver.turning();
 	const loop = () => {
 		raf = 0;
 		tick();
@@ -174,9 +143,8 @@
 			// THE RING THAT NEVER STOPPED (2026-11-21, the probe host, on both live games): an autoplay run's last round, or
 			// a free spins round, hands the key back by changing its face in the same update that turns it to Stop. That is
 			// not a press (a press turns Play into Stop on the same face), and this effect runs before the face's own (below),
-			// so a start here landed on the new face and the face change then set the driver at rest over a turning loop:
-			// it turned at rest for ever. A start here only for a press on the face it began on; the round's own start (the
-			// board's count) has turned the ring already
+			// so a start here landed on the new face and the face change then set the driver at rest over a turning loop. A
+			// start here only for a press on the face it began on; the round's own start (the board's count) turned the ring
 			const faceChanging = lastFace !== '' && faceKind !== lastFace;
 			if (now === 'run' && was === 'idle' && driver.phase !== 'spin' && !faceChanging) startRing();
 			if (now === 'halt') halted = true;
@@ -190,10 +158,9 @@
 			const was = lastFace;
 			lastFace = k;
 			if (!was || was === k) return;
-			// (the old face's ring goes with it; a ring already turning on the face showing goes on, and brakes as usual)
-			if (driver.phase !== 'rest' && !driver.onFace()) driver.rest();
+			if (driver.phase !== 'rest') driver.rest();
 			// a spin still live winds up again on the new face's ring
-			if (boardPace.live()) lastSerial = -1;
+			if (boardPace.live()) driver.core.forgetSerial();
 			flash('pop', 420);
 			kick();
 		});
@@ -210,6 +177,50 @@
 			lastWin = w;
 		});
 	});
+	// THE HOVER (Corey 2026-11-20: "hover over and progress it"): a desktop pointer over the key turns the ring a quarter
+	// forward; when it leaves (or the key is disabled under it) the ring goes on forward to home and bounces; a press
+	// during it simply starts the spin from where the ring is. Never on touch, never under reduced motion (ui/hud/ringPlan.ts
+	// RingCore.hover; it took the place of the CSS quarter turn on .rh, which came back the other way)
+	const finePointer = () => typeof matchMedia !== 'undefined' && matchMedia('(hover: hover) and (pointer: fine)').matches;
+	const hoverOn = (e: PointerEvent) => {
+		if (e.pointerType !== 'mouse' || reduced || disabled || !finePointer()) return;
+		driver.hover(true);
+	};
+	const hoverOff = (e: PointerEvent) => {
+		if (e.pointerType !== 'mouse') return;
+		driver.hover(false);
+	};
+	$effect(() => {
+		if (disabled) untrack(() => driver.hover(false));
+	});
+	// reduced motion switched on: nothing turns, the ring simply at home (the driver's animations cancelled)
+	$effect(() => {
+		if (reduced) untrack(() => driver.stop());
+	});
+	// DEV: THE REST METHOD by hand and the ring's rounds as planned (the main repo's tools/manticore/hud_probe.js section
+	// `home`; the method stays through a rebuilt HUD). Not in a production build.
+	if (import.meta.env.DEV && typeof window !== 'undefined') {
+		const hook = ((window as unknown as { __manticore?: Record<string, unknown> }).__manticore ??= {});
+		driver.core.record = true;
+		driver.core.method = (hook.ringMethodSet as RestMethod | undefined) ?? 'steer';
+		Object.assign(hook, {
+			/** the ring's rest method: 'steer' (the cruise steer, the game's), 'long' (the long brake) or 'fixed' (today's
+			 *  brake bent onto home); no argument: the one in use */
+			ringMethod: (m?: RestMethod) => {
+				if (m && REST_METHODS.includes(m)) hook.ringMethodSet = driver.core.method = m;
+				return driver.core.method;
+			},
+			/** the ring's last rounds as planned: kind, shape, brake ms and today's, the cruise's largest speed change, the
+			 *  planned rest angle and its distance from home (ui/hud/ringPlan.ts RingRound) */
+			ringRounds: () => driver.core.rounds.map((r) => ({ ...r })),
+			/** the ring now: its phase, its angle on the page (the two driven wrappers, 0..360), the backstop's count */
+			ringNow: () => {
+				const rw = btn?.querySelector<HTMLElement>('.rw');
+				const rr = btn?.querySelector<HTMLElement>('.rr');
+				return { phase: driver.phase, angle: rw && rr ? (ang(rw) + ang(rr)) % 360 : null, t: performance.now(), watchdogs: driver.core.watchdogs };
+			},
+		});
+	}
 	onDestroy(() => {
 		if (raf) cancelAnimationFrame(raf);
 		for (const k of Object.keys(fxTimers)) clearTimeout(fxTimers[k]);
@@ -299,6 +310,8 @@
 	style:--d="{d}px"
 	{disabled}
 	onclick={replay ? () => replayState.start?.() : controls.spin}
+	onpointerenter={hoverOn}
+	onpointerleave={hoverOff}
 	aria-label={label}
 >
 	<i class="halo"></i>
