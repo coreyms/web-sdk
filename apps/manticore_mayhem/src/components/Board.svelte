@@ -22,8 +22,8 @@
 		| { type: 'stingBeat'; phase: 'charge' | 'wait' | 'strike'; kind: StingKind; center: number; cells: number[]; more?: boolean }
 		/** THE CREATURE'S LOOK-AHEAD (game/creature.ts; presentation only, nothing waits on it): the next feature's own
 		 *  beat (a swipe's tears, a roar, the first sting of a run) comes in `inMs` of STYLE time from now, so his
-		 *  wind-up can start early and its strike land on that beat. 'growl': the growl that answers a Mystery which
-		 *  awarded nothing, now. */
+		 *  wind-up can start early and its strike land on that beat. 'growl': a growl, now (nothing in the game sends it
+		 *  since the Mystery's miss growl left with the Mystery mode on 2026-11-21; kept for the creature's DEV hook). */
 		| { type: 'creatureCue'; what: 'swipe' | 'roar' | 'sting' | 'growl'; inMs: number; kind?: StingKind };
 </script>
 
@@ -126,7 +126,7 @@
 			assetKeys: () => Object.keys(context.stateApp.loadedAssets ?? {}),
 			/** scatters counted this spin, the stung-in ones included */
 			scatters: () => [...stateGame.scatterCells],
-			/** the per-column tease (the Mystery's or the derived one), as the board engine has it */
+			/** the per-column tease (the derived one), as the board engine has it */
 			anticipation: () => stateGame.anticipation.map((a) => ({ on: a.on, q: Number(a.q.toFixed(2)), tease: a.tease, fade: Number(a.fade.toFixed(3)), rainFade: Number(a.rainFade.toFixed(3)), rain: Number(a.rain.toFixed(3)), el: Math.round(a.el) })),
 			/** the last reveal's derived scatter tease (ANTICIPATION_TEASE): plan in style ms, the drop's real-time origin and rate */
 			tease: () => JSON.parse(JSON.stringify(revealTease)),
@@ -139,8 +139,6 @@
 			refillHoldLog: () => refillHoldLog.slice(),
 			/** every sting beat played on this page, oldest first: { phase, kind, center, at } */
 			stings: () => stingLog.slice(),
-			/** the Mystery outcome of the round being played, null outside a Mystery book */
-			mysteryOutcome: () => stateGame.mysteryOutcome,
 			/** press SKIP TO RESULT (stateGameDerived.requestSkip): true if the press took */
 			skip: () => context.stateGameDerived.requestSkip(),
 			/** DEV: force Stake's jurisdiction switches as authenticate would have set them (skip_probe.js, motion_probe.js):

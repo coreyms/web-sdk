@@ -7,8 +7,6 @@ export type GameType = keyof typeof config.paddingReels;
 
 /** which feature a round is in — the book's `bonus` field (bonusStart / bonusEnd) */
 export type BonusMode = 'bonus' | 'super' | 'epic';
-/** the Mystery buy's resolution (mystery event) */
-export type MysteryOutcome = 'nothing' | 'super' | 'epic';
 
 /** a cell of the 8x8 board, addressed the way the book does: `reel * 8 + row`, 0-63 */
 export type CellIndex = number;

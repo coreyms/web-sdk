@@ -9,7 +9,11 @@ export default {
 	// books); rules, RTP, max win odds and every disclosed rate unchanged; the other modes byte-identical
 	// 2026.10.16 (math reshape, Corey 2026-10-16 16:16): 44% base hit rate, swipes and sting runs that always complete a
 	// winning cluster, the free-spins rescue swipe, Free Spins 10x / Super 25x floors (freeSpinsMinWin / superMinWin)
-	mathVersion: '2026.11.02', // wilds survive the swipe (Corey 2026-11-02: "they should persist the claw swipe ... What I was looking for is for it to keep the wilds"); was 2026.10.18
+	// 2026.11.02: wilds survive the swipe (Corey 2026-11-02: "they should persist the claw swipe ... What I was looking for is for it to keep the wilds")
+	// 2026.11.21 (base game shape option B, Corey 2026-11-21 after playing it: "Okay, I think the Frequency of B feels much
+	// better", then "Yes"): only the Base Game's lookup table re-shaped (35.1% of spins pay, was 44.2%; a 15x+ base win
+	// about 1 in 150, was 308); feature odds, RTP and max win unchanged. math-sdk MATH_VERSION, the same string
+	mathVersion: '2026.11.21',
 	providerName: 'polymath_games',
 	gameName: 'Manticore Unleashed',
 	gameID: 'manticore_mayhem',

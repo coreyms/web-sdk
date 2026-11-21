@@ -431,6 +431,8 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 			// harsh review 2026-11-17 m5 (Corey's exact wording, one sentence for standard and social): "Wins come often but are
 			// mostly small" read as a contradiction of EXTREME; "Big wins are rare and can be very large" left (the new first
 			// sentence says it); the RTP share sentence kept (published tables 2026-11-17: features 43.7% of the base return)
+			// math 2026.11.21 (base game shape B): a win on 35.1% of base spins, 24.4% of spins still pay under 1x, the features
+			// still carry 43.6% of the base return: the three sentences stay true, no figure in them moves
 			volatility:
 				'Most of the return comes from rare, large wins. Small wins are common between them. The free spin rounds carry a large share of the long-run RTP.',
 		},

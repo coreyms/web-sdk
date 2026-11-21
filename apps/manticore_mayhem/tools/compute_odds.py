@@ -35,7 +35,7 @@ PUB = os.path.join(MATH, "publish_files")
 FORCES = os.path.join(MATH, "forces")
 MAX_WIN_CENTS = 1_000_000  # 10,000x the base bet (config maxWin)
 SPIN_MODES = ["base", "ante", "super_ante"]
-BUY_MODES = ["bonus", "super", "epic", "mystery"]
+BUY_MODES = ["bonus", "super", "epic"]  # mystery left the game and the math source on 2026-11-21
 FEATURES = ["bonus", "super", "epic"]
 BONUS_RE = re.compile(r'"type": "bonusStart", "bonus": "(\w+)"')
 
