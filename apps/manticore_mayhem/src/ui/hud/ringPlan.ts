@@ -63,6 +63,11 @@ export const BOUNCE_DEG = [8, 8, 6] as const;
  *  within today's stop + STOP_EXTRA_MS; the rush keeps its fastest speed under RUSH_PEAK x the loop's while the time
  *  allows, and is never shorter than RUSH_MIN_MS */
 export const STOP_EXTRA_MS = 250;
+/** every plan stays this far inside its bound (the plan is exact; this is room for the page's own rounding) */
+export const BOUND_MARGIN_MS = 5;
+/** THE ROUND TURNS (2026-11-21, the probe host: back to back Super Turbo rounds of 417 ms left the ring still): every
+ *  round's rest lies at least this far past where the round began, so a round always turns the ring */
+export const MIN_TURN_DEG = 360;
 /** a stop press's bounce: the shortest of the range (so the rush home has the most of the time) */
 export const STOP_BOUNCE_MS = 180;
 const RUSH_PEAK = 3;
@@ -92,7 +97,7 @@ const SHARE_HALT: [number, number] = [0.15, 0.85];
 /** the long brake's share (the WIP's) */
 const SHARE_LONG = 0.85;
 /** the renderer samples a curved piece so the page's straight lines between samples stay within this of the curve
- *  (deg; a chord's error is about the curve's acceleration x step^2 / 8), every 0.5 to 25 ms */
+ *  (deg; a chord's error is about the curve's acceleration x step^2 / 8), every 0.25 to 25 ms */
 export const SAMPLE_TOL = 0.04;
 
 const mod = (a: number, m: number) => ((a % m) + m) % m;
@@ -290,8 +295,8 @@ export class RingPath {
 					acc = Math.max(acc, Math.abs(v - pv) / ((b - a) / 32));
 					pv = v;
 				}
-				const h = Math.max(0.5, Math.min(25, acc > 0 ? Math.sqrt((8 * SAMPLE_TOL) / acc) : 25));
-				const n = Math.min(400, Math.max(2, Math.ceil((b - a) / h)));
+				const h = Math.max(0.25, Math.min(25, acc > 0 ? Math.sqrt((8 * SAMPLE_TOL) / acc) : 25));
+				const n = Math.min(1000, Math.max(2, Math.ceil((b - a) / h)));
 				for (let i = 1; i < n; i++) ts.push(a + ((b - a) * i) / n);
 			}
 			ts.push(b);
@@ -322,9 +327,10 @@ const familyBrake = (s: number, T: number, D: number, o: number, share: [number,
 	return { T, shape: 'brake', d: D + o, f, m0: s * T };
 };
 /** THE SNAP: one Hermite from angle a at speed s to the home nearest the natural landing (a + s T / 2), over T */
-const snapBrake = (a: number, s: number, T: number, o: number, home: number): BrakeSol => {
+const snapBrake = (a: number, s: number, T: number, o: number, home: number, minD = 0): BrakeSol => {
 	const nat = Math.max(0, s) * (T / 2);
-	const D = nat + wrap180(home - (a + nat));
+	let D = nat + wrap180(home - (a + nat));
+	if (D < minD - 1e-6) D += 360 * Math.ceil((minD - 1e-6 - D) / 360);
 	return { T, shape: 'snap', d: D + o, f: 0, m0: s * T };
 };
 /** a Hermite's fastest speed (deg / ms) from m0 (deg per unit) to d with no end speed, over T */
@@ -340,9 +346,9 @@ const hermPeak = (m0: number, d: number, T: number) => {
  *  it, when the next is too near to stop on going forward), arriving o past it with no speed, over a time from RUSH_MIN_MS
  *  to Thi: as near today's Tlo as keeps its fastest speed under RUSH_PEAK x the loop's, else the slowest it can be. A
  *  Hermite from (0, s T) to d stays forward exactly while d >= s T / 3. */
-export const rushBrake = (a: number, s: number, Tlo: number, Thi: number, o: number, vLoop: number, home = RING_HOME): BrakeSol => {
+export const rushBrake = (a: number, s: number, Tlo: number, Thi: number, o: number, vLoop: number, home = RING_HOME, minD = 0): BrakeSol => {
 	const s0 = Math.max(0, s);
-	const D0 = mod(home - a, 360);
+	const D0 = mod(home - a, 360) < minD - 1e-6 ? mod(home - a, 360) + 360 * Math.ceil((minD - 1e-6 - mod(home - a, 360)) / 360) : mod(home - a, 360);
 	const hi = Math.max(Thi, RUSH_MIN_MS);
 	let best: BrakeSol | null = null;
 	let cost = Infinity;
@@ -363,10 +369,16 @@ export const rushBrake = (a: number, s: number, Tlo: number, Thi: number, o: num
 /** the brake that starts at once (a rest learned too late, the board home before the ring knew): from angle a, speed
  *  s, today's brake T; the shortest extra time (0 to `extra`) and the share nearest today's that land on home with a
  *  falling speed, else THE RUSH within T + extra */
-export const solveBrakeNow = (a: number, s: number, T: number, o: number, extra: number, vLoop: number, home = RING_HOME): BrakeSol => {
+/** the nearest way to a home ahead that is at least minD (deg) ahead */
+const firstHome = (a: number, minD: number, home: number) => {
+	let D = mod(home - a, 360);
+	if (D < minD - 1e-6) D += 360 * Math.ceil((minD - 1e-6 - D) / 360);
+	return D;
+};
+export const solveBrakeNow = (a: number, s: number, T: number, o: number, extra: number, vLoop: number, home = RING_HOME, minD = 0): BrakeSol => {
 	let best: BrakeSol | null = null;
 	let cost = Infinity;
-	const D0 = mod(home - a, 360);
+	const D0 = firstHome(a, minD, home);
 	for (let post = 0; post <= extra + 1e-9; post += 5) {
 		const TT = T + post;
 		const fNat = 0.5 + o / Math.max(1e-6, s * TT);
@@ -380,12 +392,12 @@ export const solveBrakeNow = (a: number, s: number, T: number, o: number, extra:
 			}
 		}
 	}
-	return best ?? rushBrake(a, s, T, T + extra, o, vLoop, home);
+	return best ?? rushBrake(a, s, T, T + extra, o, vLoop, home, minD);
 };
 /** the long brake: the next home ahead at the long share, stretched as long as it takes */
-const longBrake = (a: number, s: number, T: number, o: number, vLoop: number, home = RING_HOME): BrakeSol => {
+const longBrake = (a: number, s: number, T: number, o: number, vLoop: number, home = RING_HOME, minD = 0): BrakeSol => {
 	const se = Math.max(s, 0.25 * vLoop);
-	let D = mod(home - a, 360);
+	let D = firstHome(a, minD, home);
 	while (D + o < SHARE_HALT[0] * se * T) D += 360;
 	let f = (D + o) / (se * T);
 	let TT = T;
@@ -404,7 +416,7 @@ const longBrake = (a: number, s: number, T: number, o: number, vLoop: number, ho
  *  more brake: the cruise speed v1, the brake's rest share g (0.5 is today's), how early the brake
  *  starts (pre) and how late it ends (post), the cheapest that lands on home exactly. null: none does. */
 export type CruiseSol = { v1: number; R: number; tb: number; T: number; d: number; f: number; pre: number; post: number; cost: number };
-export const solveCruise = (tc: number, a: number, s: number, restAt: number, T: number, Ts: number, o: number, v: number, home = RING_HOME, share: [number, number] = SHARE_STEER, extra = HOME_EXTRA_MS): CruiseSol | null => {
+export const solveCruise = (tc: number, a: number, s: number, restAt: number, T: number, Ts: number, o: number, v: number, home = RING_HOME, share: [number, number] = SHARE_STEER, extra = HOME_EXTRA_MS, minH = -Infinity): CruiseSol | null => {
 	let best: CruiseSol | null = null;
 	for (let pre = 0; pre <= extra + 1e-9; pre += 10) {
 		for (let post = 0; pre + post <= extra + 1e-9; post += 10) {
@@ -420,6 +432,7 @@ export const solveCruise = (tc: number, a: number, s: number, restAt: number, T:
 				for (let j = -1; j <= 2; j++) {
 					const L0 = a + s * C;
 					const D = mod(home - L0, 360) + 360 * j;
+					if (L0 + D < minH - 1e-6) continue;
 					const g = D / (s * TT);
 					const f = g + o / (s * TT);
 					if (f < share[0] || f > share[1]) continue;
@@ -436,6 +449,7 @@ export const solveCruise = (tc: number, a: number, s: number, restAt: number, T:
 				const Lnat = A + v * B;
 				const H0 = Lnat + wrap180(home - Lnat);
 				for (let j = -1; j <= 1; j++) {
+					if (H0 + 360 * j < minH - 1e-6) continue;
 					const v1 = (H0 + 360 * j - A) / B;
 					const dev = Math.abs(v1 / v - 1);
 					if (dev > STEER_CAP + 1e-9 || !(v1 > 0)) continue;
@@ -451,7 +465,7 @@ export const solveCruise = (tc: number, a: number, s: number, restAt: number, T:
 };
 
 // ---- the round's record (the probes' and the test's) ---------------------------------------------------------------
-export type EndKind = 'cruise' | 'late' | 'halt' | 'now' | 'hover';
+export type EndKind = 'cruise' | 'late' | 'halt' | 'now' | 'hover' | 'through';
 export type RingRound = {
 	n: number;
 	method: RestMethod;
@@ -487,8 +501,9 @@ export type RingRound = {
 	 *  swings back) */
 	peak: number | null;
 	low: number | null;
-	/** how it ended: at rest, the next spin began first, nothing turns (reduced motion, a rebuilt face) */
-	ended: 'rest' | 'next' | 'stop' | null;
+	/** how it ended: at rest, the next spin began first, nothing turns (reduced motion), its face rebuilt (its drawing
+	 *  went with the old face; the new one stands at home) */
+	ended: 'rest' | 'next' | 'stop' | 'face' | null;
 };
 
 export type RingInputs = { live: boolean; restIn: number | null; serial: number; halted: boolean; reduced: boolean; turbo: Turbo; resting: boolean };
@@ -523,6 +538,14 @@ export class RingCore {
 	private n = 0;
 	/** the pointer is over the key (a desktop hover) and its quarter turn is on */
 	hovering = false;
+	/** where this round began (the ring's angle at its start): its rest lies MIN_TURN_DEG past it at least */
+	private startA = 0;
+	/** THE BACKSTOP's count (rescue): a loop still drawn with no plan at rest; 0 in every test and probe */
+	watchdogs = 0;
+	/** the turbo level of the round under way */
+	get turboNow(): Turbo {
+		return this.turbo;
+	}
 	private hoverRound: RingRound | null = null;
 	private onPhase: (p: RingPhase) => void;
 	constructor(onPhase: (p: RingPhase) => void = () => {}) {
@@ -534,7 +557,7 @@ export class RingCore {
 		this.phase = p;
 		this.onPhase(p);
 	}
-	private close(how: 'rest' | 'next' | 'stop') {
+	private close(how: 'rest' | 'next' | 'stop' | 'face') {
 		const r = this.cur;
 		if (!r) return;
 		r.ended = how;
@@ -561,6 +584,7 @@ export class RingCore {
 		const has = this.path.segs.length > 0;
 		const vNow = has ? this.path.vel(now) : 0;
 		if (has) a = this.path.pos(now);
+		this.startA = a;
 		if (this.cur) this.close(this.phase === 'rest' ? 'rest' : 'next');
 		if (this.hoverRound && now < (this.hoverRound.restAt ?? 0)) this.hoverRound.ended = 'next';
 		this.hoverRound = null;
@@ -639,14 +663,28 @@ export class RingCore {
 		const M = ringMotion(inp.turbo);
 		const lead = M.brake + M.settle;
 		const r = inp.restIn;
+		// THE IDLE KEY (2026-11-21, the probe host: after an autoplay run's last round and after a free spins round the
+		// ring went on turning with the key idle): the key at rest, no plan and no rest to come: home now (after the
+		// press's own moment, when the key is still changing face)
+		if (inp.resting && !this.plan && r === null && now - this.startedAt > 300) {
+			this.brakeNow(now, 'now', M.brake, M.settle, inp.turbo);
+			return;
+		}
 		if (r !== null && inp.halted) this.brakeNow(now, 'halt', Math.max(70, r * 0.62), Math.max(50, r * 0.38), inp.turbo);
 		else if (r !== null) {
 			const restAt = now + r;
 			if (this.plan && Math.abs(restAt - this.plan.restAt) <= REPLAN_MS) return;
 			if (r <= lead) {
+				// THE SHORT ROUND (2026-11-21): a rest already inside the brake's lead (a round shorter than a turn and its
+				// arrival, often still in the wind-up) does not brake now: the ring keeps turning to the board's rest and
+				// arrives from there (planThrough), or the next round simply carries on from its speed
+				if (!inp.resting && (!this.plan || this.plan.kind === 'through')) {
+					this.planThrough(now, restAt, inp.turbo);
+					return;
+				}
 				const k = Math.max(0.2, r / lead);
 				this.brakeNow(now, 'late', M.brake * k, M.settle * k, inp.turbo, restAt);
-			} else this.planCruise(now, restAt, inp.turbo);
+			} else this.planCruise(now, restAt, inp.turbo, inp.resting);
 		} else if (!inp.live && (this.sawLive || inp.resting)) this.brakeNow(now, 'now', M.brake, M.settle, inp.turbo);
 	}
 
@@ -696,16 +734,19 @@ export class RingCore {
 		const a = this.path.pos(now);
 		const s = this.path.vel(now);
 		const allowed = kind === 'halt' ? STOP_EXTRA_MS : HOME_EXTRA_MS;
-		// the brake's own time may grow by what the bound leaves after the bounce
-		const extra = Math.max(0, allowed + Ts - Tb);
+		// the brake's own time may grow by what the bound leaves after the bounce (BOUND_MARGIN_MS inside it)
+		const extra = Math.max(0, allowed - BOUND_MARGIN_MS + Ts - Tb);
+		// THE ROUND TURNS: its rest at least MIN_TURN_DEG past where it began (a stop press only rushes to the next home
+		// ahead: the press asked it to stop)
+		const minD = kind === 'halt' ? 0 : this.startA + MIN_TURN_DEG - a;
 		const b =
 			this.method === 'long'
-				? longBrake(a, s, T, o, this.v)
+				? longBrake(a, s, T, o, this.v, RING_HOME, minD)
 				: this.method === 'fixed'
-					? snapBrake(a, s, T, o, RING_HOME)
+					? snapBrake(a, s, T, o, RING_HOME, minD)
 					: kind === 'halt'
-						? rushBrake(a, s, T, T + extra, o, this.v)
-						: solveBrakeNow(a, s, T, o, extra, this.v);
+						? rushBrake(a, s, T, T + extra, o, this.v, RING_HOME, minD)
+						: solveBrakeNow(a, s, T, o, extra, this.v, RING_HOME, minD);
 		this.path.cut(now);
 		this.pushBrake(now, b, Tb, o);
 		this.open = false;
@@ -728,16 +769,21 @@ export class RingCore {
 	}
 
 	/** a rest further off than the brake's lead: the cruise to the brake and the brake, planned to the rest */
-	private planCruise(now: number, restAt: number, t: Turbo) {
+	private planCruise(now: number, restAt: number, t: Turbo, resting = true) {
 		const M = ringMotion(t);
 		const T = M.brake;
 		const Ts = M.settle;
 		const o = BOUNCE_DEG[t];
 		const Tb = BOUNCE_MS[t];
-		const extra = Math.max(0, HOME_EXTRA_MS + Ts - Tb);
+		const extra = Math.max(0, HOME_EXTRA_MS - BOUND_MARGIN_MS + Ts - Tb);
 		const tc = Math.max(now, this.upEnd);
 		// (the standard brake now starts T + Tb before the board's rest, so the ring rests with the board)
 		if (restAt - T - Tb - tc <= 0) {
+			// (THE SHORT ROUND, as in frame(): keep turning to the board's rest, arrive from there)
+			if (!resting && (!this.plan || this.plan.kind === 'through')) {
+				this.planThrough(now, restAt, t);
+				return;
+			}
 			const k = Math.min(1, Math.max(0.2, (restAt - now) / (T + Ts)));
 			this.brakeNow(now, 'late', T * k, Ts * k, t, restAt);
 			return;
@@ -749,7 +795,8 @@ export class RingCore {
 		let b: BrakeSol;
 		let shape: 'brake' | 'snap' | 'rush' = 'brake';
 		// (the steered brake's own shares first; a short cruise may take the stop press's wider ones before a rush)
-		const sol = this.method === 'steer' ? (solveCruise(tc, a, s, restAt, T, Tb, o, this.v, RING_HOME, SHARE_STEER, extra) ?? solveCruise(tc, a, s, restAt, T, Tb, o, this.v, RING_HOME, SHARE_HALT, extra)) : null;
+		const minH = this.startA + MIN_TURN_DEG;
+		const sol = this.method === 'steer' ? (solveCruise(tc, a, s, restAt, T, Tb, o, this.v, RING_HOME, SHARE_STEER, extra, minH) ?? solveCruise(tc, a, s, restAt, T, Tb, o, this.v, RING_HOME, SHARE_HALT, extra, minH)) : null;
 		if (sol) {
 			tb = sol.tb;
 			if (sol.R > 0 && Math.abs(sol.v1 - s) > 1e-9) this.path.push({ k: 'ramp', t0: tc, t1: tc + sol.R, v0: s, v1: sol.v1 });
@@ -760,7 +807,8 @@ export class RingCore {
 			// the cruise as it is to the standard brake (long, fixed, or a steer with nothing that lands)
 			this.path.push({ k: 'lin', t0: tc, t1: tb, v: s });
 			const ab = this.path.pos(tb);
-			b = this.method === 'long' ? longBrake(ab, s, T, o, this.v) : this.method === 'fixed' ? snapBrake(ab, s, T, o, RING_HOME) : rushBrake(ab, s, T, T + extra, o, this.v);
+			const minD = minH - ab;
+			b = this.method === 'long' ? longBrake(ab, s, T, o, this.v, RING_HOME, minD) : this.method === 'fixed' ? snapBrake(ab, s, T, o, RING_HOME, minD) : rushBrake(ab, s, T, T + extra, o, this.v, RING_HOME, minD);
 			shape = b.shape;
 		}
 		this.pushBrake(tb, b, Tb, o);
@@ -832,9 +880,64 @@ export class RingCore {
 	settled(now: number): boolean {
 		return this.phase === 'brake' && !!this.plan && now >= this.plan.endAt;
 	}
+	/** THE SHORT ROUND's plan: the ring turns on as it is to the board's rest (restAt), then arrives home from there:
+	 *  today's brake time and the bounce (the brake family or the rush, forward only, at least MIN_TURN_DEG past where the
+	 *  round began), inside today's brake + HOME_EXTRA_MS. A next round that starts first carries on from its speed. */
+	private planThrough(now: number, restAt: number, t: Turbo) {
+		const M = ringMotion(t);
+		const T = M.brake;
+		const Ts = M.settle;
+		const o = BOUNCE_DEG[t];
+		const Tb = BOUNCE_MS[t];
+		const tb = Math.max(now, restAt);
+		const a = this.path.pos(tb);
+		const s = this.path.vel(tb);
+		const extra = Math.max(0, HOME_EXTRA_MS - BOUND_MARGIN_MS + Ts - Tb);
+		const b = solveBrakeNow(a, s, T, o, extra, this.v, RING_HOME, this.startA + MIN_TURN_DEG - a);
+		this.path.cut(tb);
+		this.pushBrake(tb, b, Tb, o);
+		this.open = false;
+		const endAt = tb + b.T + Tb;
+		this.plan = { kind: 'through', restAt, brakeAt: tb, endAt };
+		this.version++;
+		this.note('through', tb, endAt, T + Ts, b.shape, this.cruiseSteer(tb), Math.max(T + Ts + HOME_EXTRA_MS, Math.max(T, RUSH_MIN_MS) + Tb), o, Tb);
+		if (tb <= now) this.set('brake');
+	}
+
+	/** A FACE CHANGE (HudSpin, the key between its faces). `same`: the elements this path is drawn on are the face showing
+	 *  now (its drawing is still on screen). Then a round under way is brought home at once (the 'now' arrival; one
+	 *  already braking keeps its own), never dropped; else the path went with the old face (the new one stands at home). */
+	faceChanged(now: number, same: boolean, t: Turbo) {
+		if (same && this.path.segs.length) {
+			if (this.phase === 'spin') {
+				const M = ringMotion(t);
+				this.brakeNow(now, 'now', M.brake, M.settle, t);
+			} else if (this.phase === 'rest' && this.hovering) this.hover(now, false, 0);
+			return;
+		}
+		this.rest('face');
+	}
+
+	/** THE BACKSTOP (not the fix): the page still turns an endless loop with no plan at rest (angle a): bring it home now
+	 *  from the loop's speed, a normal arrival, and count it */
+	rescue(now: number, a: number, t: Turbo) {
+		this.watchdogs += 1;
+		const v = this.v || 360 / ((RING_P * 1000) / RING_RATE[t]);
+		this.v = v;
+		this.turbo = t;
+		this.path.segs = [{ k: 'lin', t0: now, t1: Infinity, te: Infinity, a0: a, v }];
+		this.startA = a - MIN_TURN_DEG;
+		this.upEnd = now;
+		this.open = false;
+		this.hovering = false;
+		this.set('spin');
+		const M = ringMotion(t);
+		this.brakeNow(now, 'now', M.brake, M.settle, t);
+	}
+
 	/** a face rebuilt mid round: nothing of this path is on the page any more */
-	rest() {
-		this.close('stop');
+	rest(how: 'stop' | 'face' = 'stop') {
+		this.close(how);
 		this.hovering = false;
 		this.hoverRound = null;
 		this.plan = null;

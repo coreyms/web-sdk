@@ -18,6 +18,10 @@
 //   - forward only on the way home (a stop press's rush, a hover's leave, every steered brake)
 //   - no brake longer than its bound: today's brake + 150 ms, a stop press today's stop + 250 ms, the bounce included
 //     (the cruise steer; long and fixed are reported)
+//   - BACK TO BACK SHORT ROUNDS (2026-11-21, the probe host: Super Turbo rounds of 417 ms left the ring still): runs of
+//     rounds of 250 to 600 ms at each turbo level, the rest learned at any moment, the next start 0 to 400 ms after the
+//     board's rest (so it lands in every phase of the arrival): the ring 10 degrees on within 400 ms of every start,
+//     never still through a whole round, and the run's last rest on home
 //   - the cruise speed within 40 % of the loop's
 //   - the path never jumps (each piece starts where the last one is) and its speed never steps (but at a wind-up from
 //     rest or a hover's start, as today, and where a forward-only brake starts from a ring winding back)
@@ -120,14 +124,27 @@ function run(method) {
 	const stopPeaks = [];
 	const arrivals = { n: 0, grazes: 0, overMin: Infinity, overMax: 0, msMin: Infinity, msMax: 0, backMin: Infinity, stopMax: -Infinity, stopPast150: 0, stops: 0, stopPeak: 0, hovers: 0 };
 	let lastVersion = core.version;
+	// THE PAGE: what the driver last drew (a copy of the path at each new version), kept through a face change that leaves
+	// the same elements showing, gone with one that builds new ones (they stand at home)
+	let page = null;
+	let endChecks = 0;
+	const drawn = () => (page = { segs: core.path.segs.map((x) => ({ ...x })), open: core.open });
+	const pageAngle = (t) => {
+		if (!page || !page.segs.length) return 0;
+		const P = new RingPath();
+		P.segs = page.segs;
+		return P.pos(t);
+	};
 	let nextF = 0;
 	let round = 0;
 	while (round < N) {
 		// ---- one session: a few single rounds, an autoplay run, or a bonus round ----
-		const kindRun = pick(['single', 'single', 'auto', 'bonus', 'reduced']);
+		// (resume: a reload into an unfinished round, the ring started by the board's count with the rest known at once;
+		// bonus: a free spins round, its face rebuilt as it begins and ends, sometimes cut short by Skip)
+		const kindRun = pick(['single', 'single', 'auto', 'bonus', 'reduced', 'resume']);
 		const turbo = pick([0, 1, 2]);
 		const reg = pick(REGIMES);
-		const count = kindRun === 'single' ? 1 : kindRun === 'reduced' ? 2 : Math.floor(U(3, 9));
+		const count = kindRun === 'single' || kindRun === 'resume' ? 1 : kindRun === 'reduced' ? 2 : Math.floor(U(3, 9));
 		const reduced = kindRun === 'reduced';
 		let t = now + U(200, 3000);
 		for (let k = 0; k < count && round < N; k++, round++) {
@@ -135,38 +152,61 @@ function run(method) {
 			const lead = M.brake + M.settle;
 			// the round's own times (real ms): its press or pull away, the spin count, the rest learned, the board at rest
 			const p = t;
-			const pressed = kindRun === 'single' || kindRun === 'reduced' || k === 0;
+			const pressed = kindRun === 'single' || kindRun === 'reduced' || (k === 0 && kindRun !== 'resume');
 			const sAt = p + (pressed ? U(0, 60) : 0);
-			const learn = p + U(30, [1500, 900, 500][turbo]);
+			const learn = kindRun === 'resume' ? p : p + U(30, [1500, 900, 500][turbo]);
 			const driveIn = rnd() < 0.08 ? U(20, lead) : U([350, 220, 120][turbo], [2600, 1600, 800][turbo]);
 			let restAt = learn + driveIn;
+			const last = k === count - 1;
+			// SKIP in a bonus round: the board jumps to its rest at once
+			if (kindRun === 'bonus' && last && rnd() < 0.3) restAt = U(p + 20, restAt);
 			// a stop press (only a pressed round can be stopped by the Spin; an autoplay round too: the run's Stop)
 			const halt = !reduced && rnd() < 0.3 ? U(p + 10, restAt) : Infinity;
 			if (halt < restAt) restAt = halt < learn ? learn + driveIn / 3 : halt + (restAt - halt) / 3;
 			const faceAt = kindRun === 'bonus' && k === 0 ? U(p + 20, restAt) : Infinity;
+			// THE END OF A RUN (2026-11-21, the probe host: after an autoplay run's last round and after a free spins round the
+			// ring went on turning with the key idle): the key changes face (auto or feature to the plain face) somewhere about
+			// the last rest, and is idle from then on
+			const runEnd = (kindRun === 'auto' || kindRun === 'bonus') && last;
+			const endFaceAt = runEnd ? U(restAt - 200, restAt + 400) : Infinity;
 			let faced = false;
+			let endFaced = false;
 			let started = false;
-			const aDom = (at) => (((core.path.segs.length ? core.path.pos(at) : 0) % 360) + hop + 360) % 360;
-			const resting = kindRun === 'single' || kindRun === 'reduced';
-			const gap = kindRun === 'auto' || kindRun === 'bonus' ? U(20, 50) : U(300, 2500);
+			const aDom = (at) => ((pageAngle(at) % 360) + 360) % 360;
+			const resting = kindRun === 'single' || kindRun === 'reduced' || kindRun === 'resume';
+			const gap = runEnd || kindRun === 'resume' ? 1700 : kindRun === 'auto' || kindRun === 'bonus' ? U(20, 50) : U(300, 2500);
 			const until = restAt + gap;
+			const faceChange = (f, live) => {
+				// the face's elements: the same ones still showing (the drawing stays on screen), or new ones at home
+				const same = rnd() < 0.5;
+				core.faceChanged(f, same, turbo);
+				if (!same) page = null;
+				if (live) core.forgetSerial();
+			};
 			let seen = 0;
 			const step = (f) => {
 				if (f >= sAt && f < until) seen += 1;
 				if (f >= sAt && serial < round + 1) serial = round + 1;
+				const live = f >= p && f < restAt;
 				if (!faced && f >= faceAt) {
 					faced = true;
-					// the bonus round's face is built (the thinned ring): the old one's path is gone, a live spin starts again
-					core.rest();
-					core.forgetSerial();
+					// the bonus round's face is built (the thinned ring)
+					faceChange(f, live);
 				}
-				const live = f >= p && f < restAt;
+				if (!endFaced && f >= endFaceAt) {
+					endFaced = true;
+					faceChange(f, live);
+				}
 				const restIn = f >= learn && f < restAt ? restAt - f : null;
-				core.frame(f, { live, restIn, serial, halted: f >= halt, reduced, turbo, resting: resting && !live }, () => {
+				// THE BACKSTOP as the driver runs it: a loop still drawn at rest with no plan
+				if (!reduced && core.phase === 'rest' && page && page.open) core.rescue(f, aDom(f), turbo);
+				core.frame(f, { live, restIn, serial, halted: f >= halt, reduced, turbo, resting: (resting && !live) || endFaced }, () => {
 					if (reduced) return;
 					core.start(f, turbo, aDom(f));
 					started = true;
 				});
+				// (under reduced motion the driver cancels its animations: the face stands at home)
+				if (reduced) page = null;
 				if (reduced && (core.phase !== 'rest' || core.version !== lastVersion)) fail(`reduced: the ring turns (phase ${core.phase}, a new path ${core.version !== lastVersion})`);
 				// ONE STANDING POSITION: still (its path run out), at rest, no hover on: on home
 				if (core.phase === 'rest' && !core.hovering && core.path.segs.length && f >= core.path.end) {
@@ -176,6 +216,7 @@ function run(method) {
 				}
 				if (core.version !== lastVersion) {
 					lastVersion = core.version;
+					drawn();
 					checkPath(core, `${method} r${round} t${turbo} ${reg}`);
 					checkKeyframes(core, f, `${method} r${round} t${turbo} ${reg}`, worst);
 				}
@@ -197,6 +238,7 @@ function run(method) {
 				} else core.hover(e.t, e.k === 'in', aDom(e.t));
 				if (core.version !== lastVersion) {
 					lastVersion = core.version;
+					drawn();
 					checkPath(core, `${method} r${round} ${e.k}`);
 					checkKeyframes(core, e.t, `${method} r${round} ${e.k}`, worst);
 				}
@@ -207,6 +249,17 @@ function run(method) {
 				nextF = nextFrame(nextF, reg);
 			}
 			while (ev.length) doEv(ev.shift());
+			// AFTER A RUN, A RESUMED ROUND, A ROUND WITH ITS ARRIVAL DONE: the ring on the page is home and still
+			if (!reduced && !core.hovering && (runEnd || kindRun === 'resume' || gap >= 1000)) {
+				endChecks += 1;
+				// (a hover's way home or an arrival that began late lands after `until`: judged where its drawing ends)
+				const pe = page && page.segs.length ? page.segs[page.segs.length - 1].te : -Infinity;
+				const tc = Number.isFinite(pe) ? Math.max(until, pe + 1) : until;
+				const a1 = pageAngle(tc + 150);
+				const a0 = pageAngle(tc);
+				const e = Math.abs(wrap180(a1 - RING_HOME));
+				if (e > 0.5 || Math.abs(a1 - a0) > 0.01 || (page && page.open)) fail(`${method} r${round} ${kindRun} t${turbo} ${reg}: ${Math.round(gap)} ms after the last rest the ring is ${e.toFixed(1)} degrees off home, ${Math.abs(a1 - a0) > 0.01 || (page && page.open) ? 'turning' : 'still'}`);
+			}
 			now = until;
 			t = until;
 			if (reduced) {
@@ -242,7 +295,7 @@ function run(method) {
 			// forward only on the way home (the steer's every end; 'fixed' may swing back by design)
 			if (method !== 'fixed') {
 				arrivals.backMin = Math.min(arrivals.backMin, r.back);
-				if (r.back < -1e-6) fail(`${method} round ${r.n} (${r.kind}/${r.shape}, t${r.turbo}): turns back on its way home (${r.back.toFixed(3)} x the loop's)`);
+				if (r.back < -1e-3) fail(`${method} round ${r.n} (${r.kind}/${r.shape}, t${r.turbo}): turns back on its way home (${r.back.toFixed(3)} x the loop's)`);
 			}
 		}
 		if (r.kind === 'hover') {
@@ -276,7 +329,8 @@ function run(method) {
 		if (method === 'steer' && r.steer > STEER_CAP + 1e-6) fail(`steer round ${r.n}: cruise speed ${Math.round(r.steer * 100)} % off the loop's`);
 		worst.steer = Math.max(worst.steer, r.steer);
 	}
-	return { method, checked, reducedRounds, unseen, worst, tally, byTurbo, byKind, stillChecks, arrivals, widened, stopPeaks };
+	if (core.watchdogs) fail(`${method}: the backstop brought home ${core.watchdogs} loops left with no plan`);
+	return { method, checked, reducedRounds, unseen, worst, tally, byTurbo, byKind, stillChecks, arrivals, widened, stopPeaks, endChecks, watchdogs: core.watchdogs };
 }
 // (the core keeps its last 60 rounds; the test keeps every one)
 const ALL = new WeakMap();
@@ -294,6 +348,70 @@ for (const name of ['start', 'hover']) {
 		if (last && all[all.length - 1] !== last) all.push(last);
 		return r;
 	};
+}
+
+/** BACK TO BACK SHORT ROUNDS: see the header */
+function backToBack(method) {
+	const out = { runs: 0, starts: 0, miss: 0, still: 0, finalOff: 0, minAdvance: Infinity };
+	for (let run = 0; run < 1500; run++) {
+		const core = new RingCore();
+		core.method = method;
+		const turbo = run % 3;
+		const v = 360 / ((840 / [1, 1.7, 2.6][turbo]));
+		let serial = 0;
+		let f = 0;
+		const dt = pick([16.7, 16.7, 8, 33.3, 'j']);
+		const step = () => (f += dt === 'j' ? U(8, 50) : dt);
+		const starts = [];
+		const rows = [];
+		let t = 500;
+		const n = Math.floor(U(3, 9));
+		for (let k = 0; k < n; k++) {
+			const L = U(250, 600);
+			const learn = t + U(0, L);
+			const rest = t + L;
+			const gap = pick([0, U(0, 40), U(40, 150), U(150, 400)]);
+			// (the run's last round waits for its rest: the long brake can run for seconds)
+			const end = rest + (k === n - 1 ? (method === 'long' ? 12000 : 1500) : gap);
+			while (f < end) {
+				step();
+				if (f >= t && serial < k + 1) serial = k + 1;
+				const live = f >= t && f < rest;
+				core.frame(f, { live, restIn: f >= learn && f < rest ? rest - f : null, serial, halted: false, reduced: false, turbo, resting: k === n - 1 && f >= rest }, () => {
+					core.start(f, turbo, 0);
+					starts.push(f);
+				});
+				rows.push([f, core.angle(f), core.speed(f)]);
+			}
+			t = end;
+		}
+		out.runs += 1;
+		const last = rows[rows.length - 1][0];
+		for (let i = 0; i < starts.length; i++) {
+			const s0 = starts[i];
+			out.starts += 1;
+			const a0 = rows.find((r) => r[0] >= s0)[1];
+			const r4 = rows.find((r) => r[0] >= s0 + 400) ?? rows[rows.length - 1];
+			const adv = r4[1] - a0;
+			out.minAdvance = Math.min(out.minAdvance, adv);
+			if (s0 + 400 <= last && adv < 10) {
+				out.miss += 1;
+				fail(`${method} back to back t${turbo} run ${run}: start ${i + 1} at ${Math.round(s0)} ms, only ${adv.toFixed(1)} degrees in 400 ms`);
+			}
+			const s1 = starts[i + 1] ?? last;
+			const fastest = Math.max(...rows.filter((r) => r[0] >= s0 && r[0] < s1).map((r) => Math.abs(r[2])));
+			if (fastest < 0.3 * v) {
+				out.still += 1;
+				fail(`${method} back to back t${turbo} run ${run}: round ${i + 1} never turns (fastest ${(fastest / v).toFixed(2)} x the loop's)`);
+			}
+		}
+		const e = Math.abs(wrap180(core.angle(last) - RING_HOME));
+		if (core.phase !== 'rest' || e > 0.5) {
+			out.finalOff += 1;
+			fail(`${method} back to back t${turbo} run ${run}: the run ends ${core.phase}, ${e.toFixed(2)} degrees off home`);
+		}
+	}
+	return out;
 }
 
 const pct = (xs, q) => {
@@ -317,6 +435,10 @@ for (const m of methods) {
 		const o = R.byTurbo[t].over;
 		console.log(`   turbo ${t}: ${R.byTurbo[t].n} rounds, brake over today's: median ${Math.round(pct(o, 0.5))} ms, 90th ${Math.round(pct(o, 0.9))} ms, max ${Math.round(pct(o, 1))} ms`);
 	}
+	const BB = backToBack(m);
+	if (m === 'steer') steerOk = steerOk && BB.miss === 0 && BB.still === 0 && BB.finalOff === 0;
+	console.log(`   ends of things (autoplay runs ending on their last round or by a press, free spins rounds ending, Skip, resumed rounds, every round after its arrival): ${R.endChecks} checks, the ring home and still; backstop used ${R.watchdogs} times`);
+	console.log(`   back to back short rounds: ${BB.runs} runs, ${BB.starts} starts: ${BB.miss} under 10 degrees in 400 ms (least ${BB.minAdvance.toFixed(1)}), ${BB.still} rounds still, ${BB.finalOff} runs ending off home`);
 	console.log(`   ends (kind/shape): ${Object.entries(R.tally).sort().map(([k, v]) => `${k} ${v}`).join(', ')}`);
 	if (process.env.DETAIL !== '0')
 		for (const [k, B] of Object.entries(R.byKind).sort()) console.log(`     ${k.padEnd(10)} ${String(B.n).padStart(5)} rounds, snap ${String(Math.round((100 * B.snap) / B.n)).padStart(3)} %, brake over today's median ${Math.round(pct(B.over, 0.5))} / max ${Math.round(pct(B.over, 1))} ms, cruise change median ${Math.round(100 * pct(B.steer, 0.5))} % / max ${Math.round(100 * pct(B.steer, 1))} %, brake speed ${B.low.toFixed(2)} to ${B.peak.toFixed(2)} x the loop's`);

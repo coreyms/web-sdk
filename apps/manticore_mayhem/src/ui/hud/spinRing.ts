@@ -170,6 +170,9 @@ export class RingDriver {
 	/** the round as the ring sees it, and its path (ui/hud/ringPlan.ts) */
 	core: RingCore;
 	private drawn = -1;
+	/** the element the path was last drawn on, and the endless loop on it while the path is open */
+	private drawnRr: Element | null = null;
+	private loopAnim: Animation | null = null;
 	constructor(
 		private layer: () => { rw: Tracked; rr: Tracked } | null,
 		onPhase: (p: RingPhase) => void,
@@ -198,6 +201,14 @@ export class RingDriver {
 			return;
 		}
 		const now = performance.now();
+		// THE BACKSTOP: an endless loop still drawn on the face showing while the ring is at rest with no plan
+		if (this.turning()) {
+			const L = this.layer();
+			if (L) {
+				this.core.rescue(now, ang(L.rw) + ang(L.rr), inp.turbo);
+				if (import.meta.env.DEV) console.debug('[spin ring] backstop: a loop with no plan at rest, brought home');
+			}
+		}
 		this.core.frame(now, inp, onStart);
 		this.draw(now);
 	}
@@ -224,9 +235,21 @@ export class RingDriver {
 		return this.core.settled(performance.now());
 	}
 
-	/** the face is being rebuilt: its elements and this path go together */
+	/** the key changed faces: a path still drawn on the face showing is brought home, else it went with the old face
+	 *  (RingCore.faceChanged) */
 	rest() {
-		this.core.rest();
+		const L = this.layer();
+		const now = performance.now();
+		this.core.faceChanged(now, !!L && L.rr === this.drawnRr, this.core.turboNow);
+		this.draw(now);
+	}
+
+	/** an endless loop is still drawn on the face showing while the ring is at rest (THE BACKSTOP's case; HudSpin keeps
+	 *  its frames running while it is) */
+	turning(): boolean {
+		const a = this.loopAnim;
+		const el = (a?.effect as KeyframeEffect | null)?.target;
+		return !!a && a.playState === 'running' && this.core.phase === 'rest' && !!el && el.isConnected && el === this.layer()?.rr;
 	}
 
 	/** nothing turns: every animation of this driver cancelled, the ring where the idle hop holds it (reduced motion) */
@@ -252,6 +275,8 @@ export class RingDriver {
 		this.drawn = C.version;
 		cancelOwn(L.rw);
 		cancelOwn(L.rr);
+		this.loopAnim = null;
+		this.drawnRr = L.rr;
 		const P = C.path;
 		const w = C.windUp;
 		if (C.open && w) {
@@ -274,7 +299,7 @@ export class RingDriver {
 					{ duration: C.upEnd - t0, fill: 'both' },
 					t0,
 				);
-			anim(L.rr, [{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }], { duration: 360 / C.v, iterations: Infinity, delay: C.upEnd - t0 }, t0);
+			this.loopAnim = anim(L.rr, [{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }], { duration: 360 / C.v, iterations: Infinity, delay: C.upEnd - t0 }, t0);
 			return;
 		}
 		if (!P.segs.length) return;
