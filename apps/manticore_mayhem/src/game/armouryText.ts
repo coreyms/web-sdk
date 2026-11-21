@@ -11,10 +11,15 @@
 // COPY RULES: no em or en dash anywhere; the social wording (soc's second argument) never says bet, buy, cost,
 // charged, price, pay or purchase ("play amount", "uses", "Nothing was used"). The feature floors (Free Spins, Super
 // and Epic, math 2026.10.16) are stated on the rules page only (gameInfoText.ts), never here (Corey 2026-10-17 "I don't
-// want to state these at least"; Epic 11:07 "Remove it"); the Mystery Epic's own floor is stated nowhere.
+// want to state these at least"; Epic 11:07 "Remove it").
 //
-// Numbers come from the game: spin counts and tile caps from config.ts, the Mystery's shares from config.mystery,
-// cost multiples from the RGS (modeCost, filled in at render time as {x}).
+// Numbers come from the game: spin counts and tile caps from config.ts, cost multiples from the RGS (modeCost, filled
+// in at render time as {x}).
+//
+// THE EPIC AND MYSTERY BUYS LEFT THE MENU on 2026-11-21 (Corey: "I'd also consider removing Epic buy, and Mystery Buy
+// from Manticore Mayhem. Leaving Epic Spins as spun into only.", then "yes"): their plate sentences, confirm lines, the
+// Mystery's share rows and its own confirm card went with them. Epic Free Spins are still named wherever a feature is
+// (the antes' rows, the upgrade lines): it is still in the game, reached by scatters.
 import config from './config';
 import { soc } from './social';
 import { modeCost, modeShortLabel } from './betModeMeta';
@@ -24,7 +29,6 @@ import type { ArmouryGroup, ArmouryModeId } from './armouryData';
 const SPINS = config.freeSpins;
 const CAP = config.tileCap;
 const SCATTERS = `${config.symbols.S.name}s`;
-const share = (x: number) => Math.round(x * 100);
 /** THE UPGRADE (2026-10-15, approval review minor): a bought Free Spins or Super round can still become a higher feature
  *  (its trigger spin can land more scatters). Said on the plate and the confirm card, the same words as the rules page
  *  (gameInfoText.ts cards); no odds are stated */
@@ -70,17 +74,12 @@ export const ARMOURY_TEXT = {
 		// feature (its trigger spin lands more scatters). No odds are stated
 		BONUS: `**${SPINS.bonus} free spins** where **Multiplier Tiles** stay all round and double up to **${CAP.bonus}x**. ${UPGRADE.BONUS}`,
 		SUPER: `**${SPINS.super} free spins**, tiles double up to **${CAP.super}x**, a **roar** that clears the low symbols and a possible **Super Sting**. ${UPGRADE.SUPER}`,
-		EPIC: `**${SPINS.epic} free spins**, tiles double up to **${CAP.epic}x** and **Super Stings** land far more often.`,
-		MYSTERY: 'One spin reveals **no feature**, **Super** or **Epic Free Spins**.',
 	} satisfies Record<ArmouryModeId, string>,
-	/** the Mystery's odds rows (armouryData.ts ARMOURY_MODES odds): {n} is the share in percent */
-	odds: { nothing: 'No feature', super: 'Super Free Spins', epic: 'Epic Free Spins' },
-	oddsShare: '{n}%',
 	/** THE ODDS ROWS (Corey 2026-11-17, "B Comparison"; mock ~/Desktop/Manticore Mayhem/feedback/armoury_odds_mock_2026-11-17,
 	 *  figures game/armouryOdds.ts). On ANTE and SUPER ANTE three rows replace the plate's sentence (`pitch` stays for the
 	 *  confirm card's line and the probes): each feature, the Base Game's figure, a drawn step mark, this mode's figure under
 	 *  the mode's own name. A bought plate keeps its sentence and adds one row: how often that feature starts by itself in
-	 *  the Base Game. The Mystery has its share bars. No word a social session forbids, so one string serves both */
+	 *  the Base Game. No word a social session forbids, so one string serves both */
 	rates: {
 		feat: { bonus: 'Free Spins', super: 'Super Free Spins', epic: 'Epic Free Spins' },
 		baseHead: 'BASE GAME',
@@ -101,8 +100,6 @@ export const ARMOURY_TEXT = {
 		SUPER_ANTE: `Super and Epic Free Spins only, 4 ${SCATTERS} award Super Free Spins`,
 		BONUS: `${SPINS.bonus} free spins, Multiplier Tiles stay all round, up to ${CAP.bonus}x. ${UPGRADE.BONUS}`,
 		SUPER: `${SPINS.super} free spins, tiles up to ${CAP.super}x, the roar, a possible Super Sting. ${UPGRADE.SUPER}`,
-		EPIC: `${SPINS.epic} free spins, tiles up to ${CAP.epic}x, far more Super Stings`,
-		MYSTERY: `One spin: ${share(config.mystery.nothing)}% no feature, ${share(config.mystery.super)}% Super, ${share(config.mystery.epic)}% Epic`,
 	} satisfies Record<ArmouryModeId, string>,
 	/** the confirm card's rows. A buy: BET / <NAME> {x}x / TOTAL. An ante: BET / <NAME> {x}x / EVERY SPIN */
 	confirmRow: { base: soc('BET', 'PLAY AMOUNT'), multiple: '{x}x', total: 'TOTAL', everySpin: soc('EVERY SPIN', 'EVERY PLAY') },
@@ -110,16 +107,9 @@ export const ARMOURY_TEXT = {
 		'Loads **{name}** onto the Spin button. Nothing is charged until you press **Spin**, and that press plays **one feature round**.',
 		'Loads **{name}** onto the Spin button. Nothing happens until you press **Spin**, and that press plays **one feature round**.',
 	),
-	// THE MYSTERY'S CARD (harsh review 2026-11-17 m7, Corey's exact closing sentences): half of Mysteries award no
-	// feature, so its card does not end on "one feature round"; what comes before is confirmBuy's, word for word. The
-	// names are the rules' full names (the desktop card's odds line above it says "Super" and "Epic" for short)
-	confirmMystery: soc(
-		'Loads **{name}** onto the Spin button. Nothing is charged until you press **Spin**. That press plays **one Mystery spin**. It may award Super Free Spins, Epic Free Spins, or no feature.',
-		'Loads **{name}** onto the Spin button. Nothing happens until you press **Spin**. That press plays **one Mystery spin**. It may award Super Free Spins, Epic Free Spins, or no feature.',
-	),
 	confirmTitle: 'Confirm {name}',
 	aria: {
-		/** a tile's label: "EPIC, feature buy, 500 times the bet" (", on" appended when the mode is on) */
+		/** a tile's label: "SUPER, feature buy, 250 times the bet" (", on" appended when the mode is on) */
 		tile: soc('{name}, {kind}, {x} times the bet', '{name}, {kind}, {x} times the play amount'),
 		kind: { spin: soc('per spin mode', 'per play mode'), buy: soc('feature buy', 'feature') } satisfies Record<ArmouryGroup, string>,
 		on: ', on',

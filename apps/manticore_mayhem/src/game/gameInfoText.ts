@@ -1,5 +1,5 @@
 import config from './config';
-import { modeCost, modeShortLabel } from './betModeMeta';
+import { modeShortLabel } from './betModeMeta';
 import { soc } from './social';
 import { FEATURE_MENU_NAME } from './constants';
 import { FEATURE_ONE_IN, aboutTimes, oneInText, timesBase } from './armouryOdds';
@@ -18,6 +18,10 @@ export const DISCLAIMER =
 // example stays. The Epic floor names its base and shows the live amount ("200x your bet ($20.00)", social "your play
 // amount"); the Mystery Epic's own floor is stated nowhere (menu or rules); the menu is FEATURE_MENU_NAME everywhere,
 // and that name carries its article ("in THE ARMOURY", never "the ... menu").
+// THE EPIC AND MYSTERY BUYS LEFT THE GAME on 2026-11-21 (Corey: "I'd also consider removing Epic buy, and Mystery Buy
+// from Manticore Mayhem. Leaving Epic Spins as spun into only.", then "yes"; and "Epic's must always be Epic, except
+// when bought"). Five modes; the Mystery Disclosure section and the Mystery card went; Epic Free Spins keep their card
+// as a FEATURE (no price, no RTP of its own: `features` below), entered by 6 or more scatters only.
 // Layout round 1 (Corey 2026-10-15): the cards' one meta line became three stat tiles (modes.stats), the intro gained
 // the line that defines "your bet", and MECHANICS became WHAT'S DIFFERENT, its copy split into bullets at sentence
 // boundaries with every sentence unchanged.
@@ -26,16 +30,14 @@ export const DISCLAIMER =
 // cost / price: "play amount", "instantly triggered", "win", "value" (tools/manticore/rules_probe.js sweeps both).
 // `**word**` marks a keyword set in bold (the page renders it as <strong>, never as HTML).
 //
-// Numbers come from config.ts (which mirrors game_config.py) and prices from the RGS (modeCost). The few
+// Numbers come from config.ts (which mirrors game_config.py) and prices from the RGS (modeCost, ui/GameInfoModal.svelte). The few
 // game_config.py constants that config.ts does not carry are pinned here, each with its source name.
 /** AUTOPLAY NEVER PLAYS A LOADED FEATURE (ui/controls.svelte.ts loadAutoplay and buyMode, 2026-11-19): one sentence in the
  *  Autoplay row (where the Armoury is drawn) and one in the Armoury's row (where Autoplay is drawn) */
-const AUTO_PLAYS_BASE = 'Autoplay plays base game spins (Ante spins while an Ante is on) and never a loaded Free Spins, Super Free Spins, Epic Free Spins or Mystery round: loading a run unloads one.';
+const AUTO_PLAYS_BASE = 'Autoplay plays base game spins (Ante spins while an Ante is on) and never a loaded Free Spins or Super Free Spins round: loading a run unloads one.';
 const FEATURE_NOT_IN_AUTO = 'Autoplay never plays a loaded feature: loading an Autoplay run unloads it, and a feature cannot be loaded while a run waits on the Spin button.';
 const STING_MAX_PER_SPIN = 5; // game_config.STING_MAX_PER_SPIN
 const SWIPE_MAX_PER_SPIN = 'twice'; // game_config.SWIPE_MAX_PER_SPIN = 2
-const MYSTERY_SCATTERS = 3; // game_config.MYSTERY_SCATTER_REELS (0, 1, 2): one per column
-const MYSTERY_STINGS = { super: 2, epic: 3 }; // game_config.MYSTERY_STING_COUNT
 // Feature rates against the Base Game, measured on the 2026.10.16 books (feedback/math_reshape_r1/data/
 // today_vs_new_real_books.md): base Free Spins / Super / Epic 1 in 363 / 2,432 / 13,911; Ante 1 in 64 / 379 / 2,372,
 // which is 5.7x / 6.4x / 5.9x the base rate, so about six times on every tier; Super Ante Super 1 in 40 (60.8x base)
@@ -51,8 +53,8 @@ const SUPER_ANTE_EPIC_RATE = `about ${aboutTimes(timesBase('SUPER_ANTE', 'epic')
 /** the example in "About the odds": the Ante's Free Spins figure, as the menu shows it */
 const ODDS_EXAMPLE = oneInText(FEATURE_ONE_IN.ANTE.bonus ?? 0);
 // THE FEATURE FLOORS (math 2026.10.16): the free spins of a Free Spins round total at least config.freeSpinsMinWin and of
-// a Super round at least config.superMinWin, whatever started it (scatters, a buy, a Mystery: lowest live totals 10.0x
-// and 25.0x on the books); the Epic as before. Each names its base and shows the live amount, like the Epic floor
+// a Super round at least config.superMinWin, whatever started it (scatters or a buy: lowest live totals 10.0x and 25.0x
+// on the books); the Epic as before. Each names its base and shows the live amount, like the Epic floor
 const FS_FLOOR = config.freeSpinsMinWin;
 const SUPER_FLOOR = config.superMinWin;
 
@@ -62,11 +64,12 @@ export const MODE_NAMES: Record<string, string> = {
 	super_ante: 'Super Ante',
 	bonus: 'Free Spins',
 	super: 'Super Free Spins',
+};
+/** the features that are not a mode of their own (2026-11-21: the Epic buy left; Epic Free Spins stay, by scatters) */
+export const FEATURE_NAMES: Record<string, string> = {
 	epic: 'Epic Free Spins',
-	mystery: 'Mystery',
 };
 export const pct = (x: number) => `${(x * 100).toFixed(2)}%`;
-const share = (x: number) => `${Math.round(x * 100)}%`;
 
 const MODE_RTP_LINE = Object.entries(config.betModes)
 	.map(([key, m]) => `${MODE_NAMES[key] ?? key.toUpperCase()} ${pct(m.rtp)}`)
@@ -84,7 +87,7 @@ const SWIPE_BAND = { 1: 'one', 2: 'two', 3: 'three', 4: 'four' }[config.swipeBan
 const CAP_LOW = config.tileCap.bonus;
 const CAP_HIGH = config.tileCap.super;
 const MENU = FEATURE_MENU_NAME;
-/** a mode card's HOW TO ENTER where the operator's disabledBuyFeature leaves no way in (Ante, Super Ante, Mystery) */
+/** a mode card's HOW TO ENTER where the operator's disabledBuyFeature leaves no way in (Ante, Super Ante) */
 const NOT_OFFERED = 'Not offered on this site.';
 
 /** one guide row's text, keyed by the row id GameInfoModal draws its icon for */
@@ -180,8 +183,8 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 				feature: {
 					name: soc('Bonus Buy', 'Feature Menu'),
 					text: soc(
-						`Opens ${MENU}: switch Ante Bet or Super Ante Bet on, or buy Free Spins, Super Free Spins, Epic Free Spins or a Mystery directly. A loaded feature is shown by its short name on the Spin button and on this button. Open it again and press **UNLOAD** (or **SWITCH OFF** for an Ante) to cancel it.${j.disabledAutoplay ? '' : ' ' + FEATURE_NOT_IN_AUTO}`,
-						`Opens ${MENU}: switch Ante Mode or Super Ante Mode on, or trigger Free Spins, Super Free Spins, Epic Free Spins or a Mystery instantly. A loaded feature is shown by its short name on the Spin button and on this button. Open it again and press **UNLOAD** (or **SWITCH OFF** for an Ante) to cancel it.${j.disabledAutoplay ? '' : ' ' + FEATURE_NOT_IN_AUTO}`,
+						`Opens ${MENU}: switch Ante Bet or Super Ante Bet on, or buy Free Spins or Super Free Spins directly. A loaded feature is shown by its short name on the Spin button and on this button. Open it again and press **UNLOAD** (or **SWITCH OFF** for an Ante) to cancel it.${j.disabledAutoplay ? '' : ' ' + FEATURE_NOT_IN_AUTO}`,
+						`Opens ${MENU}: switch Ante Mode or Super Ante Mode on, or trigger Free Spins or Super Free Spins instantly. A loaded feature is shown by its short name on the Spin button and on this button. Open it again and press **UNLOAD** (or **SWITCH OFF** for an Ante) to cancel it.${j.disabledAutoplay ? '' : ' ' + FEATURE_NOT_IN_AUTO}`,
 					),
 				},
 				menu: { name: 'Menu', text: 'Game Info (this screen), plus music and sound-effect volume sliders, each with a mute button. All sound can be turned off.' },
@@ -246,20 +249,20 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 		],
 		modes: {
 			// UNDER disabledBuyFeature (Corey 2026-10-17 20:27): the feature button is not drawn and THE ARMOURY never opens,
-			// so Ante, Super Ante, the buys and the Mystery cannot be reached. The page then names no buy and no menu: the
+			// so Ante, Super Ante and the buys cannot be reached. The page then names no buy and no menu: the
 			// intro says only the Base Game is offered, the short names (seen only on a loaded buy) and the two bought
 			// feature paragraphs go, and the cards stay for their RTP and rules
 			intro: [
 				noBuy
-					? `Seven modes. On this site only the Base Game is offered, and the features are entered by ${SCATTERS} alone. The other cards are shown for reference.`
+					? `Five modes. On this site only the Base Game is offered, and the features are entered by ${SCATTERS} alone. The other cards are shown for reference.`
 					: soc(
-							`Seven modes. Base, Ante and Super Ante are bet-by-bet. The features are entered by ${SCATTERS}, a direct bonus buy, or a Mystery.`,
-							`Seven modes. Base, Ante and Super Ante run spin by spin. The features are entered by ${SCATTERS}, triggered instantly from ${MENU}, or served by a Mystery.`,
+							`Five modes. Base, Ante and Super Ante are bet-by-bet. Free Spins and Super Free Spins are entered by ${SCATTERS} or a direct bonus buy. Epic Free Spins cannot be bought: they are entered by ${SCATTERS} only.`,
+							`Five modes. Base, Ante and Super Ante run spin by spin. Free Spins and Super Free Spins are entered by ${SCATTERS} or triggered instantly from ${MENU}. Epic Free Spins cannot be triggered instantly: they are entered by ${SCATTERS} only.`,
 						),
 				// the menu cards, the HUD label and the Spin button carry the SHORT names (betModeMeta.ts modeShortLabel)
 				noBuy
 					? ''
-					: `In ${MENU}, on the Spin button and on the readout beside it, the features carry short names: ${modeShortLabel('BONUS')} is Free Spins, ${modeShortLabel('SUPER')} is Super Free Spins, ${modeShortLabel('EPIC')} is Epic Free Spins and ${modeShortLabel('MYSTERY')} is the Mystery.`,
+					: `In ${MENU}, on the Spin button and on the readout beside it, the features carry short names: ${modeShortLabel('BONUS')} is Free Spins and ${modeShortLabel('SUPER')} is Super Free Spins.`,
 				noBuy
 					? ''
 					: soc(
@@ -298,7 +301,8 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 			},
 			/** the card body's labels (drawn in capitals) */
 			labels: { enter: 'How to enter', spins: 'Spins', mech: "What's different" },
-			/** the seven cards' fields, keyed by config.betModes key. `mech` is the WHAT'S DIFFERENT bullets: the approved
+			/** the five mode cards' fields, keyed by config.betModes key (the Epic feature card is `features` below). `mech`
+			 *  is the WHAT'S DIFFERENT bullets: the approved
 			 *  mechanics copy split at its sentence boundaries, every sentence word for word (Corey 2026-10-15) */
 			cards: {
 				base: { enter: 'Default play.', spins: 'One spin per play.', mech: ['Multiplier Tiles reset every spin.', `${SCATTERS} trigger the features.`] },
@@ -343,42 +347,35 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 						noBuy ? '' : soc('A bought round can still upgrade to Epic Free Spins.', 'An instantly triggered round can still upgrade to Epic Free Spins.'),
 					].filter(Boolean),
 				},
+			} as Record<string, { enter: string; spins: string; mech: string[] }>,
+			// EPIC FREE SPINS, A FEATURE AND NOT A MODE (2026-11-21, the Epic buy left: Corey "Leaving Epic Spins as spun into
+			// only"). Drawn after the mode cards in the same card style, with no price or RTP tile (it has neither of its own:
+			// its return is inside the mode it starts in). Enter: game_config freespin_triggers 6 -> Epic, with the rarer
+			// 8-scatter first board counted as an Epic (never named, rule pass 3); a bought Free Spins or Super round's first
+			// spin can land them too (the upgrade lines on those cards). COPY RULE (Corey 2026-10-13 14:14): a guaranteed
+			// multiple names its base and shows the live amount
+			features: {
 				epic: {
-					enter: noBuy ? `Land 6 or more ${SCATTERS}.` : soc(`Land 6 or more ${SCATTERS}, or buy directly.`, `Land 6 or more ${SCATTERS}, or trigger it instantly from ${MENU}.`),
+					enter: `Land 6 or more ${SCATTERS}.`,
 					spins: `${config.freeSpins.epic} free spins.`,
-					// COPY RULE (Corey 2026-10-13 14:14): a guaranteed multiple names its base and shows the live amount. The
-					// Mystery Epic's own floor is stated nowhere, so this sentence names only the two routes it covers
 					mech: [
 						`Tiles persist and double up to ${config.tileCap.epic}×, and Super Stings land far more often than in Super Free Spins.`,
+						soc(
+							`**Epic floor:** a round triggered by ${SCATTERS} always pays at least **${config.epicMinWin}x your bet** (${amount(config.epicMinWin)}) from its free spins.`,
+							`**Epic floor:** a round triggered by ${SCATTERS} always wins at least **${config.epicMinWin}x your play amount** (${amount(config.epicMinWin)}) from its free spins.`,
+						),
 						noBuy
-							? soc(
-									`**Epic floor:** a round triggered by ${SCATTERS} always pays at least **${config.epicMinWin}x your bet** (${amount(config.epicMinWin)}) from its free spins.`,
-									`**Epic floor:** a round triggered by ${SCATTERS} always wins at least **${config.epicMinWin}x your play amount** (${amount(config.epicMinWin)}) from its free spins.`,
-								)
+							? ''
 							: soc(
-									`**Epic floor:** a round triggered by ${SCATTERS} or bought directly always pays at least **${config.epicMinWin}x your bet** (${amount(config.epicMinWin)}) from its free spins.`,
-									`**Epic floor:** a round triggered by ${SCATTERS} or instantly triggered always wins at least **${config.epicMinWin}x your play amount** (${amount(config.epicMinWin)}) from its free spins.`,
+									`Not sold in ${MENU}. A bought Free Spins or Super Free Spins round whose first spin lands 6 or more ${SCATTERS} becomes Epic Free Spins.`,
+									`Not offered in ${MENU}. An instantly triggered Free Spins or Super Free Spins round whose first spin lands 6 or more ${SCATTERS} becomes Epic Free Spins.`,
 								),
-					],
-				},
-				mystery: {
-					enter: noBuy ? NOT_OFFERED : soc(`Buy from ${MENU}.`, `Trigger from ${MENU}.`),
-					spins: 'One Mystery spin, then whatever it awards.',
-					mech: ['Awards Super Free Spins, Epic Free Spins or no feature, never regular Free Spins.', 'The exact shares are under Mystery Disclosure.'],
+					].filter(Boolean),
 				},
 			} as Record<string, { enter: string; spins: string; mech: string[] }>,
+			/** the feature card's one tile, where a mode card has its price, RTP and max win */
+			featureTag: { k: 'FEATURE', v: 'SCATTERS ONLY' },
 		},
-		mystery: [
-			soc(
-				`**What a Mystery awards:** exactly **${share(config.mystery.nothing)}** of Mysteries award no feature, **${share(config.mystery.super)}** award Super Free Spins and **${share(config.mystery.epic)}** award Epic Free Spins, for ${modeCost('MYSTERY')}x the bet. A Mystery never awards regular Free Spins. These shares are fixed in the published math.`,
-				`**What a Mystery awards:** exactly **${share(config.mystery.nothing)}** of Mysteries award no feature, **${share(config.mystery.super)}** award Super Free Spins and **${share(config.mystery.epic)}** award Epic Free Spins, for ${modeCost('MYSTERY')}x the play amount. A Mystery never awards regular Free Spins. These shares are fixed in the published math.`,
-			),
-			`**A Mystery is a real spin:** ${MYSTERY_SCATTERS} ${SCATTERS} always land, one in each of the first ${MYSTERY_SCATTERS} columns. The Manticore then stings in ${MYSTERY_STINGS.super} more for Super Free Spins, ${MYSTERY_STINGS.epic} more for Epic Free Spins, or none. No wild stings land on the Mystery spin, and no further ${SCATTERS} can drop in during its cascades.`,
-			soc(
-				"**The spin always plays out:** its clusters pay as normal, so a Mystery that awards no feature can still pay. When a feature is awarded, the spin's wins count toward the round and its tiles carry into the feature.",
-				"**The spin always plays out:** its clusters win as normal, so a Mystery that awards no feature can still win. When a feature is awarded, the spin's wins count toward the round and its tiles carry into the feature.",
-			),
-		],
 		tiles: {
 			intro: `Every winning cluster lights the cells under it, in every mode. A cold cell becomes a **${config.tileSeed}x Multiplier Tile** and a lit cell **doubles**.`,
 			rules: [
@@ -411,11 +408,11 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 					`**Swipe.** When a spin runs out of clusters, the paw may clear ${SWIPE_BAND} adjacent rows anywhere on the board, up to ${SWIPE_MAX_PER_SPIN} per spin. ${WILD}s and ${SCATTERS} in those rows are never cleared: they stay where they are. Every cell it clears, and every cell under a ${WILD}, lights up if it was cold and doubles if it was lit. The board refills and play carries on. A swipe always completes at least one winning cluster. In Free Spins, Super Free Spins and Epic Free Spins the paw is far more likely to strike on a spin that has not won yet.`,
 				),
 				`**Sting.** Before the board is evaluated, the tail may strike up to ${STING_MAX_PER_SPIN} times, one sting after another. A **normal sting** turns one cell wild, a **Big Sting** a cross of five cells and a **Super Sting** a 3x3 block of nine cells. A spin has at most one Big or Super Sting, and it is always the last sting of that spin. A Big or Super Sting always lands in a winning cluster, and so does the last sting of every run of normal stings. No sting ever lands on a ${SCATTER}.`,
-				'Normal stings can land in every spin except the Mystery spin. Big Stings land only in Free Spins, Super Free Spins and Epic Free Spins. Super Stings land only in Super Free Spins and Epic Free Spins.',
+				'Normal stings can land in every spin. Big Stings land only in Free Spins, Super Free Spins and Epic Free Spins. Super Stings land only in Super Free Spins and Epic Free Spins.',
 				'**Roar.** In Super Free Spins and Epic Free Spins only, the Manticore may roar before the board is evaluated. Every low symbol is blown off the board and replaced. The Multiplier Tiles under them stay. A roar always comes before any stings.',
 				soc(
-					`**Scatter sting.** On some naturally triggered features in the Base Game, Ante and Super Ante, the board lands with one or more ${SCATTERS} hidden and the Manticore stings them in. Nothing is paid until the stings are done, and the stings do not change the result: those ${SCATTERS} were part of the spin all along.${noBuy ? '' : ' This never happens on bought Free Spins, Super Free Spins or Epic Free Spins.'}`,
-					`**Scatter sting.** On some naturally triggered features in the Base Game, Ante and Super Ante, the board lands with one or more ${SCATTERS} hidden and the Manticore stings them in. Nothing is counted until the stings are done, and the stings do not change the result: those ${SCATTERS} were part of the spin all along.${noBuy ? '' : ' This never happens on instantly triggered Free Spins, Super Free Spins or Epic Free Spins.'}`,
+					`**Scatter sting.** On some naturally triggered features in the Base Game, Ante and Super Ante, the board lands with one or more ${SCATTERS} hidden and the Manticore stings them in. Nothing is paid until the stings are done, and the stings do not change the result: those ${SCATTERS} were part of the spin all along.${noBuy ? '' : ' This never happens on a bought feature.'}`,
+					`**Scatter sting.** On some naturally triggered features in the Base Game, Ante and Super Ante, the board lands with one or more ${SCATTERS} hidden and the Manticore stings them in. Nothing is counted until the stings are done, and the stings do not change the result: those ${SCATTERS} were part of the spin all along.${noBuy ? '' : ' This never happens on an instantly triggered feature.'}`,
 				),
 			],
 		},

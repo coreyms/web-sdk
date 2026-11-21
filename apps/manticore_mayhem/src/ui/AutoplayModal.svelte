@@ -45,7 +45,7 @@
 	// than 300), no 800x450 Popout L and no desktop can match it. Tighter gaps so the four chip columns hold "1000", the
 	// infinity sign and the price lines, and a two-line LOAD (the amount under the words)
 	const popS = $derived(wide && vw <= 480 && vh <= 300);
-	// the armed-mode pill reads "MYSTERY · $300.00 / SPIN", not "MYSTERY SPIN · $300.00 / SPIN":
+	// the armed-mode pill reads "SUPER · $250.00 / SPIN", not "SUPER FREE SPINS · $250.00 / SPIN":
 	// the mode word alone, since "/ SPIN" already says the rest and the long labels clipped the
 	// pill on phones (Corey 2026-09-15)
 	const shortMode = (label: string) =>

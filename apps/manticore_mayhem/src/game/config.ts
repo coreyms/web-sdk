@@ -24,8 +24,11 @@ export default {
 		super_ante: { cost: 10.0, feature: true, buyBonus: false, rtp: 0.967, max_win: 10000 },
 		bonus: { cost: 100.0, feature: false, buyBonus: true, rtp: 0.967, max_win: 10000 },
 		super: { cost: 250.0, feature: false, buyBonus: true, rtp: 0.967, max_win: 10000 },
-		epic: { cost: 500.0, feature: false, buyBonus: true, rtp: 0.967, max_win: 10000 },
-		mystery: { cost: 250.0, feature: false, buyBonus: true, rtp: 0.967, max_win: 10000 },
+		// THE EPIC BUY (500x) AND THE MYSTERY BUY (250x) ARE GONE (Corey 2026-11-21: "I'd also consider removing Epic buy,
+		// and Mystery Buy from Manticore Mayhem. Leaving Epic Spins as spun into only.", then "yes"). The published set is
+		// the five modes above (math-sdk library/publish_files_5modes_2026-11-21, every file byte-identical to
+		// publish_files). Epic Free Spins stay as a feature: 6 or more scatters in base / ante / super_ante, or a bought
+		// Free Spins or Super round whose trigger spin lands them (freeSpins.epic, tileCap.epic below are its numbers)
 	},
 	// Cluster-size bands, in base-bet multiples (game_config.py `bands`). A cluster's pay is the
 	// band value for its size, multiplied by the SUM of the multiplier tiles under it (x1 with none).
@@ -63,15 +66,13 @@ export default {
 	// actual rows ride on the `swipe` event; nothing here fixes them.
 	swipeBandRows: 3,
 	swipeBandStarts: [0, 1, 2, 3, 4, 5],
-	// Mystery split, Corey's 50 / 40 / 10 (MYSTERY_SPLIT)
-	mystery: { nothing: 0.5, super: 0.4, epic: 0.1 },
+	// (the Mystery split, MYSTERY_SPLIT 50 / 40 / 10, and the Mystery Epic's floor left with the Mystery buy, 2026-11-21)
 	// FEATURE FLOORS on the FREE SPINS total, in base-bet multiples (game_config.py BONUS_MIN_WIN, SUPER_MIN_WIN,
-	// EPIC_MIN_WIN; FEATURE_MIN_WIN). The books are re-drawn to meet them (natural, bought and Mystery rounds alike);
-	// the frontend only states them. The Mystery Epic's own floor (mysteryEpicMinWin) is stated nowhere
+	// EPIC_MIN_WIN; FEATURE_MIN_WIN). The books are re-drawn to meet them (natural and bought rounds alike);
+	// the frontend only states them
 	freeSpinsMinWin: 10,
 	superMinWin: 25,
 	epicMinWin: 200,
-	mysteryEpicMinWin: 500,
 	paddingReels: {
 		basegame: '',
 		freegame: '',

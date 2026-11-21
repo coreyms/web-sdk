@@ -2,7 +2,7 @@
 	// THE FEATURE BUTTON (Drop 6, the second hero): an ember pill on the big screens, an ember circle on the landscape
 	// phone (34 px, icon only) and, on the portrait phone (round 6), a small wide pill with its icon over its word. Its
 	// press is controls.bonusPress, unchanged (it opens THE ARMOURY; with a mode on, on that mode). With a mode ON it turns gold and says the mode's name, never changing size:
-	//   Ante, an armed buy (BONUS, SUPER, EPIC, MYSTERY)  gold rim and glow, the name
+	//   Ante, an armed buy (BONUS, SUPER)                 gold rim and glow, the name
 	//   Super Ante                                         a step hotter: a double rim, SUPER over ANTE
 	// Disabled whenever controls.bonusDisabled() says (a spin, free spins, a held round).
 	import { stateBet } from 'state-shared';
