@@ -789,16 +789,18 @@ export const SUPER_WHEEL = {
 	 *  push's speed (its flick), never past maxSwing degrees either way. The disc's turn is walked in pieces of at most
 	 *  subDeg degrees and springStepMs of time, so it is the same at any frame rate. `size` scales the whole peg (bracket and
 	 *  flapper, about its tip) on the layout's pegScale (his 1.11). It never pushes the wheel.
-	 *  THE NUMBERS (the builder's sweep, 2026-11-20, flapper 1.22 long, tools/wheel_peg_check.mjs): stiffness 600 and
-	 *  damping 6 (about 0.12 of critical: a swing rings two or three times and is straight within about 2 s) with a flick
-	 *  of 0.94 kick the pin on every stud through a spin: a chatter at speed (every stud meets it), one flick a stud as it
-	 *  slows (about 23 degrees), the largest swing of a spin about 30 degrees (up to about 43; the tip of this long flapper
-	 *  then travels further than the page's 0.65 one at its 37). A flick of 0.95 and up starts to let a stud pass under a
-	 *  flapper still swung out (1 or 2 in 5000); 0.92 swings less. The stud's depth is tools/build_super_wheel.py TIP_BITE
-	 *  (11: every stud lets go before the closest stop, 9 degrees past it, so the pin always comes back straight). The
-	 *  page's own numbers (stiffness 350, damping 8, flick 0.3) were made for its 0.65 flapper. Until the page: stiffness
-	 *  520, damping 36, the tip alone in contact, no flick. */
-	peg: { stiffness: 600, damping: 6, fling: 0.94, maxSwing: 60, tipRadius: 3, size: 1.11, subDeg: 0.5, springStepMs: 8, flingMax: 4000 },
+	 *  THE DEEPER PIN (Corey 2026-11-20: "Go deeper, by dropping lower I was trying to make it move more visibly"): the tip
+	 *  28.5 units into the studs (tools/build_super_wheel.py TIP_BITE), the flapper's DRAWN OUTLINE in contact (its
+	 *  half widths, superWheelSpec pegFit.flap.profile), and a flick of 1.35: a stud throws the flapper off ahead of it
+	 *  (a light flapper struck by a moving stud leaves faster than the stud, as a bounce off a moving wall), it swings
+	 *  out freely and whips back for the next stud. Stiffness 550 and damping 8 (about 0.17 of critical) bring it back
+	 *  fast enough that every stud still meets it at top speed. Measured (tools/wheel_peg_check.mjs, the layouts' pegs):
+	 *  a stud's kick about 38 to 41 degrees, the largest swing of a spin about 51 to 55 (never past maxSwing 65), every
+	 *  stud over 8 degrees. A stop can leave it leaning on a stud's side (about 27 to 29 degrees, in contact, still);
+	 *  one balanced on the stud's top (the stud blocking less than edgeDeg of its swing) slips off and comes back
+	 *  straight. `tipRadius` is the page's line contact's half thickness (used only without an outline).
+	 *  Until then (6a95d3b): the tip 11 units in, stiffness 600, damping 6, flick 0.94, the centre line contact. */
+	peg: { stiffness: 550, damping: 8, fling: 1.35, maxSwing: 65, tipRadius: 3, size: 1.11, subDeg: 0.5, springStepMs: 8, flingMax: 4000, edgeDeg: 5 },
 	/** THE LED STRIP'S WORDS (game/scoreboard/scoreboard.ts wheelLine): plain capitals, no symbol characters */
 	text: { emerge: 'SUPER WHEEL', press: 'PRESS SPIN', auto: 'GET READY', go: 'GO REINDEER', column: 'COLUMN', names: { reindeer: 'REINDEER', santa: 'SANTA', grandma: 'GRANDMA' } },
 	/** ITS SOUNDS: existing sounds only (none was made for the wheel; the moments still wanting their own are listed in
