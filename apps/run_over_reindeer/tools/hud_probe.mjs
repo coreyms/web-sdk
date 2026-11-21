@@ -8,6 +8,7 @@
 // WATCHES: ; .modals, .panel, .sweep, .go, .spin, .cg, .rr, .rw, .rs, .fx, .halo, data-face, data-run
 // WATCHES: apps/run_over_reindeer/src/{ui/hud/HudSpin.svelte,ui/hud/spinRing.ts,ui/hud/ringPlan.ts};
 // WATCHES: ; __reindeer.ringMethod, __reindeer.ringRounds, __reindeer.ringNow, __reindeer.spinSerial
+// WATCHES: apps/run_over_reindeer/src/{game/currency.ts,fixtures/fixtureRgs.ts};
 // THE HUD PROBE (the house glass HUD from Manticore, "Win over Balance, Drop 6" plus round 6, in this game's "Frost"
 // theme; ported from tools/manticore/hud_probe.js in the main repo). The HUD is HTML over the canvas (ui/Chrome*.svelte,
 // ui/hud/*: ui/hud/hudLayout.ts places it in the mockup's own px, scaled by the chrome's fit). At each size:
@@ -70,6 +71,9 @@
 //     never runs the odometer; after the wrap-up the readout is today's plain text
 //   · the words: no character outside printable ASCII in the HUD's and the Autoplay menu's visible text; in social mode
 //     (?social=true) also no restricted word (bet, buy, cash, money, paid, credit, gamble, wager, stake), aria included
+//   · social coins (2026-11-21, Stake's table, game/currency.ts): with &currency=XSC and &currency=XGC at 390 x 844,
+//     844 x 390 and 1440 x 900 the bar's amounts read "1,000.00 SC" / "1,000.00 GC" (the amount first, two decimals, a
+//     space, the code), no "$" in the page's text, each amount whole inside its field
 // With SHOTS=<dir> it saves the idle and the spinning HUD at each size (phones at device pixel ratio 3, the rest at 2).
 // With FLIP=<file.json> it also records the Spin's stop square popping in and out frame by frame at 1440 x 900 (both
 // directions).
@@ -495,6 +499,29 @@ async function runSize(browser, S) {
 	}, READOUTS);
 	check(Object.values(fits).length === 3 && Object.values(fits).every((f) => f.left >= -0.5 && f.right >= -0.5), `${name}: the long values fit their fields at the fixed type size`, fits);
 	console.log(`  INFO ${name}: long values ${Object.entries(fits).map(([k, f]) => `${k} ${f.value} in ${f.field} at ${f.font}`).join(', ')}`);
+	// the social coins' long values (2026-11-21, Stake's table: the amount first, two decimals, the code; three characters
+	// longer than the old "GC 9,999,999"): at the fixed type size, for the record only; a longer string shrinks to fit
+	// (HudReadout's fitFont), and the social section checks the real amounts sit whole in their fields
+	const socFits = await p.evaluate((R) => {
+		const vals = { balance: '9,999,999.99 GC', win: '1,250,000.00 SC', amount: '1,000.00 GC' };
+		const out = {};
+		for (const [k, sel] of Object.entries(R)) {
+			const el = document.querySelector(sel);
+			if (!el) continue;
+			const cl = el.cloneNode(true);
+			cl.style.visibility = 'hidden';
+			el.parentElement.appendChild(cl);
+			const v = cl.querySelector('.value');
+			v.textContent = vals[k];
+			v.style.fontSize = '';
+			const sb = cl.getBoundingClientRect();
+			const vb = v.getBoundingClientRect();
+			out[k] = { text: vals[k], fits: vb.left - sb.left >= -0.5 && sb.right - vb.right >= -0.5, value: Math.round(vb.width * 10) / 10, field: Math.round(sb.width * 10) / 10 };
+			cl.remove();
+		}
+		return out;
+	}, READOUTS);
+	console.log(`  INFO ${name}: social long values at the fixed size ${Object.entries(socFits).map(([k, f]) => `${k} "${f.text}" ${f.value} in ${f.field}${f.fits ? '' : ' (shrinks)'}`).join(', ')}`);
 	// THE ENGRAVED MARK (2026-11-19, Corey: "No text. Only logo"): at rest the feature button has no word, only the
 	// PolyMath mark etched into its glass (and its aria-label names it); with a mode on the word comes back (below)
 	const fr = await p.evaluate(() => {
@@ -705,28 +732,56 @@ async function runSize(browser, S) {
 	await ctx.close();
 }
 
-/** social mode: the words only */
+/** social mode: the words, and the coins as Stake's table writes them (2026-11-21, game/currency.ts; Engine's review item
+ *  [78]: with currency=XSC and currency=XGC the amounts read "10.00 SC" / "10.00 GC" and no "$" appears anywhere). The
+ *  fixture RGS answers ?currency= (fixtures/fixtureRgs.ts). At 1440 x 900 the words of the HUD, the help menu and the
+ *  Autoplay menu; at 390 x 844, 844 x 390 and 1440 x 900 the bar's amounts in each coin (the amount first, two decimals, a
+ *  space, the code), no "$" in the page's text, and each amount whole inside its field. */
 async function socialWords(browser) {
-	const S = SIZES[0];
-	const { ctx, p } = await boot(browser, S, '&social=true');
-	await settle(p, S);
-	const w1 = await hudWords(p);
-	await p.click(CONTROLS.menu);
-	await sleep(500);
-	const w2 = await hudWords(p);
-	await p.click(CONTROLS.menu);
-	await sleep(400);
-	await p.click(CONTROLS.auto);
-	await sleep(700);
-	const w3 = await hudWords(p);
-	const aria = await p.evaluate(() => [...document.querySelectorAll('.hudp [aria-label]')].map((e) => e.getAttribute('aria-label')));
-	const all = [...w1, ...w2, ...w3];
-	const bad = all.filter((w) => BANNED.test(w) || /[^\x20-\x7e]/.test(w));
-	check(bad.length === 0, `social ${S.vp.width}x${S.vp.height}: the HUD, help menu and Autoplay menu words carry no restricted word and no symbol character`, bad);
-	const badAria = aria.filter((w) => BANNED.test(w));
-	check(badAria.length === 0, `social: the HUD's spoken labels (aria) carry no restricted word`, badAria);
-	console.log(`  INFO social: amount word "${await p.evaluate(() => document.querySelector('.hudp [data-hud="amount"] .label')?.textContent)}"`);
-	await ctx.close();
+	const S = SIZES.find((x) => x.name === 'desk1610');
+	for (const [cur, code] of [['XSC', 'SC'], ['XGC', 'GC']]) {
+		for (const Z of [S, SIZES.find((x) => x.name === 'portrait'), SIZES.find((x) => x.name === 'landscape')]) {
+			const { ctx, p } = await boot(browser, Z, `&social=true&currency=${cur}`);
+			await settle(p, Z);
+			const tag = `social ${cur} ${Z.vp.width}x${Z.vp.height}`;
+			const am = await p.evaluate((R) => {
+				const out = {};
+				for (const [k, sel] of Object.entries(R)) {
+					const el = document.querySelector(sel);
+					const v = el?.querySelector('.value');
+					if (!el || !v) continue;
+					const fb = el.getBoundingClientRect();
+					const vb = v.getBoundingClientRect();
+					out[k] = { text: v.textContent.trim(), left: Math.round((vb.left - fb.left) * 10) / 10, right: Math.round((fb.right - vb.right) * 10) / 10 };
+				}
+				return { out, dollar: document.body.innerText.includes('$') };
+			}, READOUTS);
+			const shown = Object.entries(am.out).filter(([, v]) => v.text);
+			const coin = new RegExp(`^[0-9,]+\\.\\d{2,4} ${code}$`);
+			check(shown.length >= 2 && shown.every(([k, v]) => k === 'win' ? v.text === '' || coin.test(v.text) : coin.test(v.text)), `${tag}: the bar's amounts read the amount first, two decimals, then ${code} (${shown.map(([k, v]) => `${k} "${v.text}"`).join(', ')})`, am.out);
+			check(!am.dollar, `${tag}: no "$" anywhere in the page's text`);
+			check(shown.every(([, v]) => v.left >= -0.5 && v.right >= -0.5), `${tag}: each amount whole inside its field`, am.out);
+			if (Z === S && cur === 'XSC') {
+				const w1 = await hudWords(p);
+				await p.click(CONTROLS.menu);
+				await sleep(500);
+				const w2 = await hudWords(p);
+				await p.click(CONTROLS.menu);
+				await sleep(400);
+				await p.click(CONTROLS.auto);
+				await sleep(700);
+				const w3 = await hudWords(p);
+				const aria = await p.evaluate(() => [...document.querySelectorAll('.hudp [aria-label]')].map((e) => e.getAttribute('aria-label')));
+				const all = [...w1, ...w2, ...w3];
+				const bad = all.filter((w) => BANNED.test(w) || /[^\x20-\x7e]/.test(w) || w.includes('$'));
+				check(bad.length === 0, `social ${S.vp.width}x${S.vp.height}: the HUD, help menu and Autoplay menu words carry no restricted word, no symbol character and no "$"`, bad);
+				const badAria = aria.filter((w) => BANNED.test(w));
+				check(badAria.length === 0, `social: the HUD's spoken labels (aria) carry no restricted word`, badAria);
+				console.log(`  INFO social: amount word "${await p.evaluate(() => document.querySelector('.hudp [data-hud="amount"] .label')?.textContent)}"`);
+			}
+			await ctx.close();
+		}
+	}
 }
 
 /** EVERY ROUND TURNS THE RING (2026-11-20, the probe host: rounds that started back to back with no gap missed it). A

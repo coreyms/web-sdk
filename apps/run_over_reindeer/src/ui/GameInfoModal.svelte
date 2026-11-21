@@ -4,7 +4,7 @@
 	// and RTP, the legal block. The copy is game/gameInfoText.ts (a first draft from the spec).
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import { stateBet, stateConfig, stateModal, stateUrlDerived } from 'state-shared';
-	import { numberToCurrencyString } from 'utils-shared/amount';
+	import { numberToCurrencyString } from '../game/currency';
 
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';

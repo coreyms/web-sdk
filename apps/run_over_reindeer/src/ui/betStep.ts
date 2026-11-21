@@ -4,7 +4,7 @@
 // unaffordable option becomes an off-menu amount the next spin posts and the RGS rejects into a
 // reload-only error. DenomModal greys the same options out.
 import { stateBet, stateBetDerived, stateConfig } from 'state-shared';
-import { numberToCurrencyString } from 'utils-shared/amount';
+import { numberToCurrencyString } from '../game/currency';
 
 import { fontPxForCap, measureUiText } from './uiMeasure';
 

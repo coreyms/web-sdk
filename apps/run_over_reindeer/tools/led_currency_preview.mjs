@@ -28,17 +28,20 @@ export const stateBet = { currency: 'USD', wageredBetAmount: 1 };
 export const stateI18n = { i18n };
 export const setLocale = (l) => { i18n.load(l, {}); i18n.activate(l); };`);
 const BET_URL = pathToFileURL(join(SDK, 'packages', 'constants-shared', 'bet.ts')).href;
+const AMOUNT_URL = pathToFileURL(join(SDK, 'packages', 'utils-shared', 'amount.ts')).href;
 register(
 	'data:text/javascript,' +
 		encodeURIComponent(`export async function resolve(s, c, n) {
 	if (s === 'state-shared') return { url: ${JSON.stringify(STATE_URL)}, shortCircuit: true };
 	if (s === 'constants-shared/bet') return { url: ${JSON.stringify(BET_URL)}, shortCircuit: true };
-	if (s.startsWith('./') && !/\\.[a-z]+$/.test(s)) return n(s + '.ts', c);
+	if (s === 'utils-shared/amount') return { url: ${JSON.stringify(AMOUNT_URL)}, shortCircuit: true };
+	if (s.startsWith('.') && !/\\.[a-z]+$/.test(s)) return n(s + '.ts', c);
 	return n(s, c);
 }`),
 );
 const state = await import(STATE_URL);
-const hud = await import(pathToFileURL(join(SDK, 'packages', 'utils-shared', 'amount.ts')).href);
+// (the game's formatter, game/currency.ts, Stake's table since 2026-11-21)
+const hud = await import(pathToFileURL(join(APP, 'src', 'game', 'currency.ts')).href);
 const ledMod = await import(pathToFileURL(join(APP, 'src', 'game', 'scoreboard', 'ledCurrency.ts')).href);
 state.setLocale('en');
 const AMOUNTS = [1234.5, 0.2, 12345678];
@@ -71,7 +74,10 @@ const slice = (src, from, to) => {
 	return src.slice(a, b);
 };
 const signsJs = strip('game/scoreboard/ledSigns.ts');
-const currencyJs = strip('game/scoreboard/ledCurrency.ts').replace("from './ledSigns'", "from 'ledSigns'");
+const currencyJs = strip('game/scoreboard/ledCurrency.ts')
+	.replace("from './ledSigns'", "from 'ledSigns'")
+	.replace("import { CURRENCY_TABLE } from '../currency';", `const CURRENCY_TABLE = ${JSON.stringify(hud.CURRENCY_TABLE)};`);
+if (currencyJs.includes("'../currency'")) throw new Error('ledCurrency.ts: its table import changed; update the preview');
 const screens = strip('game/landing/ledScreens.ts');
 const draw = strip('game/scoreboard/scoreboardDraw.ts');
 const coreJs = [

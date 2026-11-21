@@ -6,13 +6,13 @@
 	//
 	// How that is made to hold: the widest label in the ladder is measured ONCE (game/textFit.ts)
 	// and the column count is derived from it — cols = floor(usable / (widest + padding)), capped
-	// at 8 — so a "GC 1,000,000" ladder simply runs fewer, wider columns instead of shrinking into
+	// at 8, so a "1,000,000.00 GC" ladder simply runs fewer, wider columns instead of shrinking into
 	// an abbreviation. The grid scrolls when the ladder is taller than the card.
 	//
 	// Geometry is in CSS px: ModalShell's frame is the viewport now (FIX 5), not the design master.
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import { stateBet, stateBetDerived, stateModal } from 'state-shared';
-	import { numberToCurrencyString } from 'utils-shared/amount';
+	import { numberToCurrencyString } from '../game/currency';
 
 	import { measureFitText } from '../game/textFit';
 	import { soc } from '../game/social';

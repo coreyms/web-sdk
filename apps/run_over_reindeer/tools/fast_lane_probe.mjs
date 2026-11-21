@@ -408,7 +408,7 @@ async function social(browser) {
 }
 
 // ---- AUTOPLAY NEVER PLAYS A LOADED FEATURE (2026-11-19) ------------------------------------------------------------
-/** the last amount in a text ("SUPER | SC 300.00" -> 300) */
+/** the last amount in a text ("SUPER | 300.00 SC" -> 300) */
 const amountIn = (t) => {
 	const m = String(t ?? '').match(/\d[\d,]*\.\d{2}/g);
 	return m ? Number(m[m.length - 1].replace(/,/g, '')) : Number.NaN;

@@ -88,10 +88,21 @@ const pick = (mode: string): FixtureRound => {
 	return round;
 };
 
+const fixtureCurrency = (): string => {
+	try {
+		const c = new URLSearchParams(location.search).get('currency');
+		return c && /^[A-Za-z]{3,5}$/.test(c) ? c.toUpperCase() : 'USD';
+	} catch {
+		return 'USD';
+	}
+};
+
 const costOf = (mode: string): number => (config.betModes as Record<string, { cost: number }>)[mode.toLowerCase()]?.cost ?? 1;
 
 const handle = (path: string, body: Json): { status: number; data: Json } => {
-	const balance = () => ({ amount: state.balance, currency: 'USD' });
+	// the session's currency: ?currency= when the page names one (a dev check of Stake's currency table, game/currency.ts:
+	// ?currency=XGC&social=true reads "10.00 GC"), USD otherwise
+	const balance = () => ({ amount: state.balance, currency: fixtureCurrency() });
 	if (path === '/wallet/authenticate') {
 		// DEV: a round left open on purpose (fixtures.resume): the session comes back with it, as a real RGS's would
 		// after a reload in the middle of a round, and the game resumes it from the event it had reached

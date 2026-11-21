@@ -16,7 +16,7 @@
 	// now: the place each chrome gives (x, y, and T for the old tail's room on the sideways phone) puts the body where it
 	// was. Its rim: one soft even line, a little brighter along the top, fading round the corners (no hard ended lines).
 	import { stateSound, stateUi, stateBet, stateConfig } from 'state-shared';
-	import { numberToCurrencyString } from 'utils-shared/amount';
+	import { numberToCurrencyString } from '../../game/currency';
 	import config from '../../game/config';
 	import { sound } from '../../game/sound';
 	import type { Controls } from '../controls.svelte';
@@ -57,7 +57,7 @@
 		return () => clearInterval(t);
 	});
 	const net = $derived(stateBet.balanceAmount - stateBet.sessionStartBalanceAmount);
-	const netText = $derived(`${net < 0 ? '-' : net > 0 ? '+' : ''}${numberToCurrencyString(Math.abs(net), { maximumFractionDigits: 2 })}`);
+	const netText = $derived(`${net < 0 ? '-' : net > 0 ? '+' : ''}${numberToCurrencyString(Math.abs(net), { fixed: true })}`);
 	const elapsedText = $derived.by(() => {
 		const s = Math.max(0, Math.floor((now - (stateBet.sessionStartedAt || now)) / 1000));
 		const two = (n: number) => String(n).padStart(2, '0');

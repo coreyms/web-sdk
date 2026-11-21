@@ -33,7 +33,7 @@
 	import { cubicOut } from 'svelte/easing';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import { stateBet, stateConfig, stateModal } from 'state-shared';
-	import { numberToCurrencyString } from 'utils-shared/amount';
+	import { numberToCurrencyString } from '../game/currency';
 
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';

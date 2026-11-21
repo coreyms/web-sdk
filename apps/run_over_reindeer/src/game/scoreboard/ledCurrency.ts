@@ -1,28 +1,22 @@
-// THE LED BOARDS' AMOUNTS (2026-11-17, led_currency_2026-11-17): one rule for the big board and the strip. The amount is
-// the HUD's own text for it (utils-shared/amount numberToCurrencyString: the symbol, its side, the space, the decimals, the
-// locale's grouping and decimal marks, GC and SC on stake.us), turned into what the LED faces draw:
+// THE LED BOARDS' AMOUNTS (2026-11-17, led_currency_2026-11-17; Stake's table 2026-11-21): one rule for the big board and the
+// strip. The amount is the HUD's own text for it (game/currency.ts numberToCurrencyString: Stake's symbol, its side, the
+// space after a trailing symbol, the table's decimals, the locale's grouping and decimal marks, "10.00 GC" and "10.00 SC"
+// on stake.us), turned into what the LED faces draw:
 //   - the number exactly as the HUD writes it; a grouping space of any width becomes the faces' one fixed space (U+00A0),
 //     Arabic and Persian digits and marks (a locale that asks for them) the faces' 0 to 9 and . ,
 //   - the symbol on the HUD's side, with the HUD's space or none, drawn as LED glyphs (game/scoreboard/ledSigns.ts), when
-//     the play currency is one of LED_CURRENCIES and every character of its symbol has a glyph on both faces; a right to
-//     left symbol (Egypt's ج.م) is set in its order on the page; ₨ is written Rs (its own compatibility spelling)
-//   - otherwise (a currency the RGS adds later, a symbol with no glyph) the number alone, as the HUD formats it for that
-//     currency (its default 2 decimals), no box, no error; one console line in a dev build, once per currency
+//     every character of its symbol has a glyph on both faces; a right to left symbol is set in its order on the page;
+//     ₨ is written Rs (its own compatibility spelling)
+//   - otherwise (a currency the RGS adds later, a symbol with no glyph: today ₪ ILS, ₾ GEL and ₴ UAH) the number alone,
+//     as the HUD formats it for that currency, no box, no error; one console line in a dev build, once per currency
 // Count-ups keep their width: the HUD's text pins the decimals to the final amount (fractionDigitsOf), the faces set every
 // digit in one tabular cell, and the symbol keeps its place (before the number: the row's left; after it: the right).
+import { CURRENCY_TABLE } from '../currency';
 import { amountFaceHas, sentenceFaceHas } from './ledSigns';
 
-/** the currencies the LED boards write with their symbol (Stake's table in utils-shared/amount, 2026-11-17), and the symbol
- *  the HUD writes for each (the check script compares this with the HUD's own text for every one) */
-// EGP (ج.م) is left OUT on purpose (2026-11-17): its drawn Arabic letters were not judged by an Arabic reader, so
-// Egypt's pound takes the fallback (the number alone) until someone who reads it approves the sign in ledSigns.ts.
-export const LED_CURRENCIES: Record<string, string> = {
-	USD: '$', CAD: 'CA$', JPY: '¥', EUR: '€', RUB: '₽', CNY: 'CN¥', PHP: '₱', INR: '₹', IDR: 'Rp', KRW: '₩', BRL: 'R$',
-	MXN: 'MX$', DKK: 'KR', PLN: 'zł', VND: '₫', TRY: '₺', CLP: 'CLP', ARS: 'ARS', PEN: 'S/', NGN: '₦', SAR: 'SAR', ILS: 'ILS',
-	AED: 'AED', TWD: 'NT$', NOK: 'kr', KWD: 'KD', JOD: 'JD', CRC: '₡', TND: 'TND', SGD: 'SG$', MYR: 'RM', OMR: 'OMR', QAR: 'QAR',
-	BHD: 'BD', PKR: '₨', NZD: 'NZ$', BOB: 'Bs', GHS: 'GH₵', KES: 'KSh', MAD: 'MAD', BAM: 'KM', ISK: 'kr', TZS: 'TSh',
-	UGX: 'USh', XOF: 'CFA', XGC: 'GC', XSC: 'SC', XEC: 'SC',
-};
+/** the currencies the LED boards write with their symbol, and the symbol the HUD writes for each: Stake's whole table
+ *  (game/currency.ts). A symbol the faces have no glyph for still takes the fallback (drawable, below). */
+export const LED_CURRENCIES: Record<string, string> = Object.fromEntries(Object.entries(CURRENCY_TABLE).map(([code, m]) => [code, m.symbol]));
 
 // the digits of other numbering systems (Arabic-Indic, Persian) and their marks, as the faces' own
 const DIGIT = /[٠-٩۰-۹]/g;

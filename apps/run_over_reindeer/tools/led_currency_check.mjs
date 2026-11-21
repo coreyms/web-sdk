@@ -1,7 +1,10 @@
 // @ts-nocheck: a node check script, not app code (svelte-check picks up .mjs files)
-// THE LED CURRENCY CHECK (2026-11-17, led_currency_2026-11-17): node only, no browser. It runs the HUD's own formatter
-// (packages/utils-shared/amount.ts, with the real @lingui/core and a stand-in for the Svelte state) beside the LED rule
-// (src/game/scoreboard/ledCurrency.ts) and the LED glyphs (src/game/scoreboard/ledSigns.ts), and checks:
+// THE LED CURRENCY CHECK (2026-11-17, led_currency_2026-11-17; Stake's table 2026-11-21): node only, no browser. It runs
+// the HUD's own formatter (src/game/currency.ts, with the real @lingui/core and a stand-in for the Svelte state) beside the
+// LED rule (src/game/scoreboard/ledCurrency.ts) and the LED glyphs (src/game/scoreboard/ledSigns.ts), and checks:
+//   0. STAKE'S TABLE: 10 in every currency of Stake's table reads exactly its Example column ("$10.00", "¥10",
+//      "KD10.000", "10.000000 BTC", "10.00 USDT", "10.00 GC", "10.00 SC"), a code outside it "10.00 XQZ", no "$" in a
+//      social coin's text, and the formatter never passes a code to Intl's currency style
 //   1. THE TABLE: every currency of the HUD's table is one of LED_CURRENCIES with the same symbol, and back
 //   2. THE SAME AMOUNT: for every currency, 16 locales and a spread of amounts, the LED number is the HUD's number (its
 //      grouping and decimal marks, its decimals, a grouping space as the faces' one space), the symbol is the HUD's on the
@@ -10,7 +13,7 @@
 //      has lit dots at every cap from 5 to 80 and none cut off by its canvas
 //   4. THE COUNT: the count-up's row keeps its width (the faces' tabular cells) and the symbol its place, frame to frame
 //   5. THE FALLBACK: a made-up code (XQZ) and a symbol without glyphs give the number alone, the HUD's decimals, no throw
-//   6. SOCIAL: GC and SC as the HUD writes them (en, a space after the marker; GC whole, SC two decimals)
+//   6. SOCIAL: GC and SC as Stake's table writes them (en, the amount first, two decimals, a space, the code)
 //   7. THE FIT: the longest amount at the smallest cap (5) fits the narrowest face less the tag title (200 dots)
 //   node --experimental-strip-types --no-warnings tools/led_currency_check.mjs      (from apps/run_over_reindeer)
 // Pass: every line PASS, "0 fail" and exit 0.
@@ -29,18 +32,21 @@ export const stateI18n = { i18n };
 export const setLocale = (l) => { i18n.load(l, {}); i18n.activate(l); };`;
 const STATE_URL = 'data:text/javascript,' + encodeURIComponent(STATE);
 const BET_URL = pathToFileURL(join(SDK, 'packages', 'constants-shared', 'bet.ts')).href;
+// (the shared file only for the book amount helpers the game's formatter re-exports; its text is not used)
+const AMOUNT_URL = pathToFileURL(join(SDK, 'packages', 'utils-shared', 'amount.ts')).href;
 register(
 	'data:text/javascript,' +
 		encodeURIComponent(`export async function resolve(s, c, n) {
 	if (s === 'state-shared') return { url: ${JSON.stringify(STATE_URL)}, shortCircuit: true };
 	if (s === 'constants-shared/bet') return { url: ${JSON.stringify(BET_URL)}, shortCircuit: true };
-	if (s.startsWith('./') && !/\\.[a-z]+$/.test(s)) return n(s + '.ts', c);
+	if (s === 'utils-shared/amount') return { url: ${JSON.stringify(AMOUNT_URL)}, shortCircuit: true };
+	if (s.startsWith('.') && !/\\.[a-z]+$/.test(s)) return n(s + '.ts', c);
 	return n(s, c);
 }`),
 );
 
 const state = await import(STATE_URL);
-const hud = await import(pathToFileURL(join(SDK, 'packages', 'utils-shared', 'amount.ts')).href);
+const hud = await import(pathToFileURL(join(APP, 'src', 'game', 'currency.ts')).href);
 const led = await import(pathToFileURL(join(APP, 'src', 'game', 'scoreboard', 'ledCurrency.ts')).href);
 const signs = await import(pathToFileURL(join(APP, 'src', 'game', 'scoreboard', 'ledSigns.ts')).href);
 
@@ -52,21 +58,87 @@ const check = (ok, msg, detail) => {
 	console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}${!ok && detail !== undefined ? ' ' + JSON.stringify(detail).slice(0, 900) : ''}`);
 };
 
-// the HUD's table, read from its source (it is not exported)
-const src = readFileSync(join(SDK, 'packages', 'utils-shared', 'amount.ts'), 'utf8');
-const META = {};
-for (const m of src.matchAll(/^\t([A-Z]{3}): \{ symbol: '([^']*)', decimals: (\d)(, after: true)? \}/gm)) META[m[1]] = { symbol: m[2], decimals: +m[3], after: !!m[4] };
-const SPACED = new Set(['XGC', 'XSC', 'XEC']);
-// left out of LED_CURRENCIES on purpose (ledCurrency.ts): they take the fallback, the number alone
-const UNSIGNED = new Set(['EGP']);
+// the HUD's table (game/currency.ts CURRENCY_TABLE)
+const META = Object.fromEntries(Object.entries(hud.CURRENCY_TABLE).map(([c, m]) => [c, { symbol: m.symbol, decimals: m.decimals, after: !!m.symbolAfter }]));
+// symbols the LED faces have no glyph for yet (ledSigns.ts): they take the fallback, the number alone
+const UNSIGNED = new Set(['ILS', 'GEL', 'UAH']);
+
+// 0. STAKE'S TABLE. COPY OF Stake's docs, rgs page "Supported currencies", its Example column (fetched 2026-11-21): 10 in
+// every currency. A change to Stake's table is a change here and in game/currency.ts CURRENCY_TABLE.
+const STAKE_EXAMPLES = {
+	USD: '$10.00', CAD: 'CA$10.00', JPY: '¥10', EUR: '€10.00', RUB: '₽10.00', CNY: 'CN¥10.00', PHP: '₱10.00', INR: '₹10.00',
+	IDR: 'Rp10', KRW: '₩10', BRL: 'R$10.00', MXN: 'MX$10.00', DKK: '10.00 kr', PLN: '10.00 zł', VND: '10 ₫', TRY: '₺10.00',
+	CLP: '10 CLP', ARS: '10.00 ARS', PEN: 'S/10.00', NGN: '₦10.00', SAR: '10.00 SAR', ILS: '₪10.00', AED: '10.00 AED',
+	TWD: 'NT$10.00', NOK: '10.00 kr', KWD: 'KD10.000', JOD: 'JD10.000', CRC: '₡10.00', TND: '10.000 TND', SGD: 'SG$10.00',
+	MYR: 'RM10.00', OMR: '10.000 OMR', QAR: '10.00 QAR', BHD: 'BD10.000', PKR: '₨10.00', EGP: '10.00 EGP', NZD: 'NZ$10.00',
+	BOB: 'Bs10.00', GHS: 'GH₵10.00', KES: 'KSh10.00', MAD: '10.00 MAD', BAM: 'KM10.00', ISK: '10 kr', TZS: 'TSh10.00',
+	UGX: 'USh10', XOF: '10 CFA', AUD: 'A$10.00', BWP: 'P10.00', GEL: '₾10.00', HNL: 'L10.00', JMD: 'J$10.00', KGS: '10.00 KGS',
+	MZN: '10.00 MZN', PGK: 'K10.00', TMT: '10.00 TMT', TTD: 'TT$10.00', UAH: '₴10.00', XCD: 'EC$10.00', APE: '10.0000 APE',
+	BCH: '10.000000 BCH', BNB: '10.000000 BNB', BTC: '10.000000 BTC', BUSD: '10.00 BUSD', CRO: '10.0000 CRO', DAI: '10.00 DAI',
+	DOGE: '10.0000 DOGE', EOS: '10.0000 EOS', ETH: '10.000000 ETH', LINK: '10.0000 LINK', LTC: '10.000000 LTC', POL: '10.0000 POL',
+	SAND: '10.0000 SAND', SHIB: '10 SHIB', SOL: '10.000000 SOL', TRUMP: '10.0000 TRUMP', TRX: '10.0000 TRX', UNI: '10.0000 UNI',
+	USDC: '10.00 USDC', USDT: '10.00 USDT', XRP: '10.0000 XRP', XGC: '10.00 GC', XSC: '10.00 SC', XEC: '10.00 SC', XRC: '10.00 SC',
+	WRW: '10.00 SC',
+};
+state.setLocale('en');
+const offTable = [];
+for (const [code, want] of Object.entries(STAKE_EXAMPLES)) {
+	state.stateBet.currency = code;
+	for (const opts of [undefined, { fixed: true }, { fractionDigitsOf: 10 }]) {
+		const got = hud.numberToCurrencyString(10, opts);
+		if (got !== want) offTable.push({ code, opts, got, want });
+	}
+}
+check(offTable.length === 0, `10 in each of Stake's ${Object.keys(STAKE_EXAMPLES).length} currencies reads its table example (free, fixed and pinned)`, offTable.slice(0, 6));
+check(Object.keys(STAKE_EXAMPLES).length === Object.keys(hud.CURRENCY_TABLE).length && Object.keys(STAKE_EXAMPLES).every((c) => c in hud.CURRENCY_TABLE), "the game's table has exactly Stake's currencies", { game: Object.keys(hud.CURRENCY_TABLE).length });
+const table = (code, v, want, opts) => {
+	state.setLocale('en');
+	state.stateBet.currency = code;
+	const got = hud.numberToCurrencyString(v, opts);
+	check(got === want, `HUD ${code} ${v}${opts ? ' ' + JSON.stringify(opts) : ''}: "${got}"`, { want });
+};
+// the social coins ([78]: "10.00 SC" / "10.00 GC", no "$"); the reviewers' list ([219]: USD EUR CAD MXN JPY USDT BTC)
+table('XGC', 10, '10.00 GC');
+table('XSC', 10, '10.00 SC');
+table('XGC', 1, '1.00 GC');
+table('XGC', 1.4, '1.40 GC');
+table('XGC', 1234567, '1,234,567.00 GC');
+table('XSC', 0.0025, '0.0025 SC');
+table('XSC', 1234.5, '1,234.50 SC', { fixed: true });
+table('USD', 10, '$10.00');
+table('USD', 0.0025, '$0.0025');
+table('USD', 10069.789, '$10,069.79', { fixed: true });
+table('EUR', 10, '€10.00');
+table('CAD', 10, 'CA$10.00');
+table('MXN', 10, 'MX$10.00');
+table('JPY', 10, '¥10');
+table('JPY', 1234, '¥1,234', { fixed: true });
+table('USDT', 10, '10.00 USDT');
+table('BTC', 10, '10.000000 BTC');
+table('BTC', 0.00012, '0.000120 BTC');
+table('BTC', 0.0000005, '0.000001 BTC');
+table('BTC', 0.5, '0.500000 BTC', { fixed: true });
+table('KWD', 10, 'KD10.000');
+table('XQZ', 10, '10.00 XQZ');
+table('USD', 0.03000000000000000444, '$0.03');
+for (const code of ['XGC', 'XSC', 'XEC', 'XRC', 'WRW']) {
+	state.stateBet.currency = code;
+	const texts = [0, 0.2, 1, 12.5, 1234.5, 5e9].map((v) => hud.numberToCurrencyString(v));
+	check(texts.every((t) => !t.includes('$') && /^[0-9,]+\.\d{2,4} (GC|SC)$/.test(t)), `${code}: the amount first, two decimals, then the code, never a "$" (${texts.join(', ')})`, texts);
+}
+const curSrc = readFileSync(join(APP, 'src', 'game', 'currency.ts'), 'utf8');
+check(!/style:\s*'currency'/.test(curSrc) && !/Intl\.NumberFormat/.test(curSrc), "the formatter never hands a code to Intl's currency style (it throws on USDT, XGC)");
+state.stateBet.currency = 'USD';
 const LOCALES = ['ar', 'de', 'en', 'es', 'fr', 'id', 'ja', 'ko', 'pl', 'pt', 'ru', 'tr', 'vi', 'zh', 'fi', 'hi'];
 const AMOUNTS = [0, 0.2, 0.0025, 1, 9.99, 12.5, 1234.5, 99999.99, 100000, 12345678, 987654321.12];
 
 // 1. THE TABLE
 const codes = Object.keys(META);
-check(codes.length >= 45, `the HUD's table read from amount.ts (${codes.length} currencies)`);
-const tableDiff = codes.filter((c) => (UNSIGNED.has(c) ? c in led.LED_CURRENCIES : led.LED_CURRENCIES[c] !== META[c].symbol)).concat(Object.keys(led.LED_CURRENCIES).filter((c) => !META[c]));
+check(codes.length >= 45, `the HUD's table read from game/currency.ts (${codes.length} currencies)`);
+const tableDiff = codes.filter((c) => led.LED_CURRENCIES[c] !== META[c].symbol).concat(Object.keys(led.LED_CURRENCIES).filter((c) => !META[c]));
 check(tableDiff.length === 0, 'every HUD currency is an LED currency with the same symbol, and every LED currency is in the HUD table', tableDiff);
+const undrawn = codes.filter((c) => ![...META[c].symbol.replace(/₨/g, 'Rs')].every((ch) => signs.amountFaceHas(ch) && signs.sentenceFaceHas(ch)));
+check(undrawn.join() === [...UNSIGNED].join(), `the symbols with no LED glyph are exactly ${[...UNSIGNED].join(', ')} (${undrawn.map((c) => META[c].symbol).join(' ')})`, undrawn);
 
 // 2. THE SAME AMOUNT
 const BIDI = /[‎‏؜]/g;
@@ -84,7 +156,7 @@ for (const loc of LOCALES) {
 		state.stateBet.currency = code;
 		const M = META[code];
 		for (const v of AMOUNTS) {
-			for (const opts of [undefined, { fractionDigitsOf: v }, { maximumFractionDigits: 2 }]) {
+			for (const opts of [undefined, { fractionDigitsOf: v }, { fixed: true }]) {
 				const text = hud.numberToCurrencyString(v, opts);
 				const p = led.ledAmountParts(text, code);
 				// the HUD's number: its text without its symbol and marks, independently of the LED's own parsing
@@ -94,7 +166,7 @@ for (const loc of LOCALES) {
 					if (p.text !== norm(bare) || p.number !== norm(bare)) wrong.push({ loc, code, v, opts, text, led: p.text, want: norm(bare) });
 					continue;
 				}
-				const want = M.after ? `${norm(bare)} ${ledSym(M.symbol)}` : SPACED.has(code) ? `${ledSym(M.symbol)} ${norm(bare)}` : `${ledSym(M.symbol)}${norm(bare)}`;
+				const want = M.after ? `${norm(bare)} ${ledSym(M.symbol)}` : `${ledSym(M.symbol)}${norm(bare)}`;
 				compared++;
 				if (p.text !== want || p.number !== norm(bare) || p.before === M.after) wrong.push({ loc, code, v, opts, text, led: p.text, want });
 				for (const ch of p.text) emitted.add(ch);
@@ -123,10 +195,15 @@ spot('INR', 12345678, '₹1,23,45,678.00', 'hi');
 spot('PLN', 1234.5, '1234,50 zł', 'pl');
 spot('VND', 12345678, '12.345.678 ₫', 'vi');
 spot('PKR', 1234.5, 'Rs1,234.50');
-spot('EGP', 1234.5, '1,234.50'); // no sign on purpose (ledCurrency.ts: left out of LED_CURRENCIES until an Arabic reader approves the drawn letters)
+spot('EGP', 1234.5, '1,234.50 EGP'); // Stake's table writes EGP after the number (2026-11-21), in letters the faces have
+spot('ILS', 1234.5, '1,234.50'); // ₪ has no LED glyph yet (ledSigns.ts): the number alone; the HUD still writes ₪1,234.50
+spot('KWD', 1234.5, 'KD1,234.500');
+spot('BTC', 0.00012, '0.000120 BTC');
+spot('USDT', 1234.5, '1,234.50 USDT');
+spot('ISK', 1234, '1,234 kr');
 spot('CAD', 0.2, 'CA$0.20');
 spot('TND', 1.5, '1.500 TND');
-spot('DKK', 1234.5, '1,234.50 KR');
+spot('DKK', 1234.5, '1,234.50 kr');
 
 // 3. THE GLYPHS
 const noAmount = [...emitted].filter((ch) => !signs.amountFaceHas(ch));
@@ -223,14 +300,18 @@ check(kz.text === '1,234.50' && kz.symbol === null, `a listed currency whose sym
 check(led.ledAmountText('1,234.50 ₸', 'USD') === '1,234.50', 'a symbol with no glyph after the number: the number alone');
 
 // 6. SOCIAL
-spot('XGC', 1234, 'GC 1,234');
-spot('XGC', 5000000000, 'GC 5,000,000,000');
-spot('XSC', 1234.5, 'SC 1,234.50');
-spot('XSC', 0.2, 'SC 0.20');
-spot('XEC', 12.5, 'SC 12.50');
+spot('XGC', 10, '10.00 GC');
+spot('XSC', 10, '10.00 SC');
+spot('XGC', 1234, '1,234.00 GC');
+spot('XGC', 5000000000, '5,000,000,000.00 GC');
+spot('XSC', 1234.5, '1,234.50 SC');
+spot('XSC', 0.2, '0.20 SC');
+spot('XEC', 12.5, '12.50 SC');
+spot('XRC', 12.5, '12.50 SC');
+spot('WRW', 12.5, '12.50 SC');
 
 // 7. THE FIT
-const longest = ['GC 999,999,999,999', '999,999,999.000 TND', 'ج.م999,999,999.99'.replace('ج.م', 'م.ج'), 'CA$999,999,999.9999', '₹99,99,99,999.99'];
+const longest = ['999,999,999,999.00 GC', '999,999,999.000 TND', '9,999,999.000000 BTC', '999,999,999.0000 TRUMP', 'CA$999,999,999.9999', '₹99,99,99,999.99'];
 const over = longest.map((s) => ({ s, w: rowOf(s, 5).w })).filter((r) => r.w > 200);
 check(over.length === 0, `the longest amounts fit 200 dots at cap 5 (${longest.map((s) => rowOf(s, 5).w).join(', ')} dots)`, over);
 
