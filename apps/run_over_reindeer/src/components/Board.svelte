@@ -62,7 +62,7 @@
 
 	import { getContext } from '../game/context';
 	import { layoutKind, roadPlacement, boardRect, MASTER, isPhoneSizeType, landscapeExtraY, logoBox, logoClass, TITLE } from '../game/layoutSpec';
-	import { LANE_FLOW, LED_BOARD, LED_SIGN, LINE_WIN, LOGO_SIGN, ROAD_MOTION, ROUND, STRIKE, SUPER_WHEEL, TUNE, motionFor } from '../game/constants';
+	import { GPU_MEMORY, LANE_FLOW, LED_BOARD, LED_SIGN, LINE_WIN, LOGO_SIGN, ROAD_MOTION, ROUND, STRIKE, SUPER_WHEEL, TUNE, motionFor } from '../game/constants';
 	import { SuperWheel, setWheelMipmapper, wheelMemory, type WheelGeo } from '../game/road/superWheel';
 	import { buildWheelPlan } from '../game/superWheelPlan';
 	import { sceneHooks, setSceneChoice, stateScene } from '../game/stateScene.svelte';
@@ -92,7 +92,8 @@
 	import { loadWildMult, setWildMultMipmapper, wildMultMemory } from '../game/road/wildMult';
 	import { garlandMemory, loadGarland, setGarlandMipmapper } from '../game/road/garland';
 	import { brawlForBook, brawlRoundEnd } from '../game/road/brawlCloud';
-	import { clipMemory, setClipRebatch, setClipUploader, setClipView } from '../game/road/columnClips';
+	import { bonusSheetReleaseLog, clipMemory, setClipRebatch, setClipUploader, setClipView } from '../game/road/columnClips';
+	import { decodedReport, holdDecoded, unloadForGood } from '../game/gpuMemory';
 	import { loadRunViews, runMemory, setRunMipmapper } from '../game/road/reindeerRun';
 	import { loadRoamFrames, roamMemory, setRoamMipmapper } from '../game/road/roamFrames';
 	import { roamDev, type RoamZone } from '../game/road/roam';
@@ -121,6 +122,11 @@
 
 	const loaded = context.stateApp.loadedAssets as Record<string, PIXI.Texture | undefined>;
 	const tex = (frame: string) => loaded[frame];
+	// THE PICTURES READ PIXEL BY PIXEL keep their decoded copy (game/gpuMemory.ts, constants GPU_MEMORY.releaseDecoded): the
+	// LED scoreboard's art (its 2D drawer), the press screen's LED art and Wild pictures (never on the GPU)
+	holdDecoded(loaded.scoreboardArt?.source);
+	holdDecoded(loaded.ledArt?.source);
+	holdDecoded(loaded.ledWilds?.source);
 	const road = new RoadBoard(tex);
 	// THE SPIN KEY'S RING (ui/hud/spinRing.ts) brakes as the board comes to rest: the road says when (real ms)
 	boardPace.live = () => road.spinLive;
@@ -250,7 +256,8 @@
 		if (!LED_SIGN.on) road.setLandingDim(true);
 	}
 	// once the first board's columns have left (the first spin's press), their sheet leaves the GPU
-	road.features.onLandingGone = () => landingSheet?.source.unload();
+	// (for good: its decoded copy, released once it was on the GPU, is not fetched back: game/gpuMemory.ts)
+	road.features.onLandingGone = () => unloadForGood(landingSheet?.source);
 
 	// THE LED BILLBOARD PRESS SCREEN (constants LED_SIGN, game/landing/ledSign.ts): over the dimmed first board, from the
 	// moment the board is up; its ticker says PRESS ANYWHERE once the press gate is open (boot.pressReady). Unloaded once
@@ -1108,11 +1115,53 @@
 				for (const c of [road.scene.field, road.scene.picture, road.scene.bands, road.scene.forest, road.scene.cover, road.scene.tunnels, road.scene.ends]) walk(c);
 				return { shown, missing };
 			},
+			/** every texture the renderer manages (count, mb: as before 2026-11-21, an unloaded source still counted), and since
+			 *  2026-11-21 (the graphics memory moves, constants GPU_MEMORY): `bytes` the same sum in bytes (w x h x 4, a mip
+			 *  chain x 4/3), `onGpu` only the sources whose GL texture exists now (no unloaded one), `decoded` the decoded
+			 *  copies released (game/gpuMemory.ts), `knobs` the three switches, `context` the WebGL context as made, `clips`
+			 *  and `bonusRelease` the column sheets loaded and the round end lets go (game/road/columnClips.ts) */
 			gpuTextures: () => {
-				const list = (context.stateApp.pixiApplication?.renderer as unknown as { texture?: { managedTextures?: PIXI.TextureSource[] } } | undefined)?.texture?.managedTextures ?? [];
+				const tsys = (context.stateApp.pixiApplication?.renderer as unknown as { texture?: { managedTextures?: PIXI.TextureSource[]; _glTextures?: Record<number, unknown> } } | undefined)?.texture;
+				const list = tsys?.managedTextures ?? [];
+				const glt = tsys?._glTextures;
 				let bytes = 0;
-				for (const src of list) bytes += src.pixelWidth * src.pixelHeight * 4 * (src.autoGenerateMipmaps ? 4 / 3 : 1);
-				return { count: list.length, mb: Math.round((bytes / 1048576) * 100) / 100 };
+				let onGpuBytes = 0;
+				let onGpu = 0;
+				for (const src of list) {
+					const b = src.pixelWidth * src.pixelHeight * 4 * (src.autoGenerateMipmaps ? 4 / 3 : 1);
+					bytes += b;
+					if (glt?.[src.uid]) {
+						onGpu += 1;
+						onGpuBytes += b;
+					}
+				}
+				const d = decodedReport();
+				return {
+					count: list.length,
+					mb: Math.round((bytes / 1048576) * 100) / 100,
+					bytes: Math.round(bytes),
+					onGpu: { count: onGpu, bytes: Math.round(onGpuBytes), mb: Math.round((onGpuBytes / 1048576) * 100) / 100 },
+					...d,
+					clips: clipMemory().totalMb,
+					bonusRelease: bonusSheetReleaseLog(),
+				};
+			},
+			/** MOVE 2 (constants GPU_MEMORY.releaseBonusSheets, off by default): the round end lets go of the column win and
+			 *  entrance sheets and the brawl win sheet. bonusSheetRelease(true) or (false) flips it from the next round's end;
+			 *  no argument only reads it. Returns the switch and the last round ends' releases. */
+			/** a WebGL context loss through the browser's own WEBGL_lose_context, restored `ms` later (null: not restored; the
+			 *  probe restores it itself). Resolves with the extension found or not. The game's restore path is game/gpuMemory.ts. */
+			glLoseContext: (ms: number | null = 500) => {
+				const gl = (context.stateApp.pixiApplication?.renderer as unknown as { gl?: WebGLRenderingContext } | undefined)?.gl;
+				const x = gl?.getExtension('WEBGL_lose_context');
+				if (!x) return false;
+				x.loseContext();
+				if (ms !== null) setTimeout(() => x.restoreContext(), ms);
+				return true;
+			},
+			bonusSheetRelease: (on?: boolean) => {
+				if (typeof on === 'boolean') GPU_MEMORY.releaseBonusSheets = on;
+				return { on: GPU_MEMORY.releaseBonusSheets, log: bonusSheetReleaseLog() };
 			},
 			logoHold: (ms: number | null) => {
 				if (logo) logo.hold = ms;

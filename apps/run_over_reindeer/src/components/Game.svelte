@@ -14,7 +14,8 @@
 	import { applyRgsBetModes, betModeMeta } from '../game/betModeMeta';
 	import { markAssetsLoaded } from '../game/assetGate';
 	import { renderResolutionCap, renderResolutionFor } from '../game/deviceTier';
-	import { RENDER_RESIZE } from '../game/constants';
+	import { GPU_MEMORY, RENDER_RESIZE } from '../game/constants';
+	import { installGpuMemory } from '../game/gpuMemory';
 	import { boot, reportPreload } from '../game/boot.svelte';
 	import { releaseMusicSideTracks, sound, startSoundPreload } from '../game/sound';
 	import EnableSound from './EnableSound.svelte';
@@ -102,6 +103,9 @@
 				// textures stay resident about 30 min from the start (game/gpuWarm.ts): a texture sent up while the player
 				// waits on the press screen is never unloaded by the GC's one minute idle limit and sent up again after it
 				app.renderer.textureGC.maxIdle = GPU_WARM.gcMaxIdle;
+				// THE DECODED COPIES (game/gpuMemory.ts, constants GPU_MEMORY.releaseDecoded): released once each picture is on
+				// the GPU, fetched again on a context loss
+				installGpuMemory(app);
 			}
 			if (!app.renderer.renderableGC.enabled) {
 				if (framesWaited++ < 600) requestAnimationFrame(clamp);
@@ -168,7 +172,8 @@
 <!-- LANDING FIRST: <App> is what starts pixi-svelte's AssetsLoader. Holding it unmounted until
      game/boot.svelte.ts has the landing screen's own fonts is the gate. -->
 {#if boot.landingReady}
-	<App>
+	<!-- (constants GPU_MEMORY.noDepthStencil: the WebGL context without depth and stencil buffers; the game draws no mask) -->
+	<App depthStencil={!GPU_MEMORY.noDepthStencil}>
 		<EnableSound />
 		<EnableHotkey />
 		<EnableGameActor />

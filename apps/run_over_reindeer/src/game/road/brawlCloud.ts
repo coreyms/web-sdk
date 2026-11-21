@@ -30,11 +30,11 @@
 import * as PIXI from 'pixi.js';
 
 import { BRAWL_CLIPS } from '../brawlClipSpec';
-import { GRANDMA_BRAWL, ROAD, TUNE } from '../constants';
+import { GPU_MEMORY, GRANDMA_BRAWL, ROAD, TUNE } from '../constants';
 import { stamp } from '../assets';
 import { PHONE_TIER } from '../deviceTier';
 import { STAGING_TOOLS, perfMark } from '../staging';
-import { queuePresentUpload, rebatchBeforeUnload } from './columnClips';
+import { logRoundEndRelease, queuePresentUpload, rebatchBeforeUnload } from './columnClips';
 import { WildWord, loadWildWord, wildWordMemory } from './wildWord';
 
 // the tune panel lists the block (staging and the dev server only; the panel is compiled out of production)
@@ -169,6 +169,7 @@ let road: Brawl | null = null;
 /** a book arrives: one with a Grandma Wild starts its still, landing and loop now (the column clips' warm up); one
  *  without lets the sets go once no Grandma Wild stands */
 export const brawlForBook = (events: readonly { type: string }[]) => {
+	bookSerial += 1;
 	if (!B.on) return;
 	wanted = events.some((e) => e.type === 'grandmaWild');
 	if (wanted) {
@@ -184,6 +185,28 @@ export const brawlForBook = (events: readonly { type: string }[]) => {
 export const brawlRoundEnd = () => {
 	wanted = false;
 	road?.releaseIfIdle();
+};
+
+/** books seen (a round end's let-go stops when the next book has arrived: its own scan decides) */
+let bookSerial = 0;
+/** THE ROUND'S END LETS GO OF THE WIN SHEET (constants GPU_MEMORY.releaseBonusSheets, move 2; OFF by default): a Grandma
+ *  Wild left standing on the final board keeps her loop and still (drawn at rest) until the next press, but her win's
+ *  frames are drawn by nothing before the next round: once no Wild is in its win beat (at most GPU_MEMORY.restWaitMs),
+ *  they go. The next Grandma Wild to land loads them again (BrawlCell made: loadBrawl('win')), as the first one did. */
+export const brawlRoundEndRelease = async (): Promise<void> => {
+	if (!GPU_MEMORY.releaseBonusSheets || !B.on || !road || !entries.has('win')) return;
+	const serial = bookSerial;
+	const t0 = performance.now();
+	while (road && road.winBusy() && performance.now() - t0 < GPU_MEMORY.restWaitMs && typeof requestAnimationFrame !== 'undefined') {
+		await new Promise<void>((r) => requestAnimationFrame(() => r()));
+		if (serial !== bookSerial) return;
+	}
+	if (serial !== bookSerial || !road || !entries.has('win')) return;
+	// (a Wild's over sprite shows only the landing or the win, and is hidden every frame otherwise: BrawlCell update; the
+	// let-go's rebuild of every batch and its two frames come first, rebatchBeforeUnload)
+	const cut = road.winBusy();
+	if (!cut) releaseBrawl('win');
+	logRoundEndRelease({ at: Math.round(performance.now()), released: cut ? [] : ['brawl:win'], kept: cut ? ['brawl:win'] : [], waitedMs: Math.round(performance.now() - t0), cut });
 };
 
 // ---- THE MATH OF THE LANDING (landing_preview.html, option C) ---------------------------------------------------------
@@ -709,6 +732,11 @@ export class Brawl {
 		const i = this.cells.indexOf(c);
 		if (i >= 0) this.cells.splice(i, 1);
 		this.releaseIfIdle();
+	}
+
+	/** a Wild is in its win beat, or has one due (the round end's let-go waits for it) */
+	winBusy(): boolean {
+		return this.cells.some((c) => c.mode === 'win' || c.winDue !== null);
 	}
 
 	/** no Grandma Wild stands and the book wants none: every set goes */

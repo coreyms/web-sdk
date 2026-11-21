@@ -10,6 +10,7 @@
 import * as PIXI from 'pixi.js';
 
 import { LOGO_SIGN } from '../constants';
+import { holdDecoded } from '../gpuMemory';
 import { SCENE_ART } from '../sceneArtSpec';
 
 const ART = SCENE_ART.logoSign;
@@ -58,8 +59,12 @@ export class LogoSign {
 	hold: number | null = null;
 	/** the box it was last placed in, road px (the dev hook) */
 	box = { x: 0, y: 0, width: 0, height: 0 };
+	/** footShares reads the sheet's own pixels (its decoded copy): the copy is kept until that read is done
+	 *  (game/gpuMemory.ts; on a layout that never asks, for the session, as before) */
+	private readonly letGoDecoded: () => void;
 
 	constructor(sheet: PIXI.Texture, tier: 'full' | 'phone') {
+		this.letGoDecoded = holdDecoded(sheet.source);
 		this.root.eventMode = 'none';
 		this.root.addChild(this.body);
 		const T = ART.tiers[tier];
@@ -159,6 +164,7 @@ export class LogoSign {
 			}
 			c.width = c.height = 1;
 			this.footCache = out;
+			this.letGoDecoded();
 			return out;
 		} catch {
 			return null;

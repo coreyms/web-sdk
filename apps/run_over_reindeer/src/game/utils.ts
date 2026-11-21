@@ -4,9 +4,9 @@ import { eventEmitter } from './eventEmitter';
 import type { Bet, BookEventOfType } from './typesBookEvent';
 import { bookEventHandlerMap } from './bookEventHandlerMap';
 import { hudWinRoundStart } from './hudWin.svelte';
-import { preloadForEvents } from './road/columnClips';
+import { preloadForEvents, roundEndRelease } from './road/columnClips';
 import { presentsForBook } from './road/present';
-import { brawlForBook, brawlRoundEnd } from './road/brawlCloud';
+import { brawlForBook, brawlRoundEnd, brawlRoundEndRelease } from './road/brawlCloud';
 import { openingOf, planWheel } from './superWheelPlan';
 import { loadWheelArt, releaseWheelArt } from './road/superWheel';
 import { SUPER_WHEEL } from './constants';
@@ -93,6 +93,10 @@ export const playBet = async (bet: Bet) => {
 	void releaseWheelArt();
 	// BRAWL: the round is over; the brawl cloud's frames go once no Grandma Wild stands
 	brawlRoundEnd();
+	// THE BONUS SHEETS AT THE ROUND'S END (constants GPU_MEMORY.releaseBonusSheets, OFF by default): the column win and
+	// entrance sheets and the brawl win sheet go once the board is at rest; never waited for here
+	void roundEndRelease();
+	void brawlRoundEndRelease();
 	// THE LED COUNT LANDS BEFORE THE ROUND SETTLES (2026-11-18, the probe host: the end-round went with the strip's small
 	// count at $9.72 of $10.00): the round's presentation is over once the board's count is too. Not in autoplay, where the
 	// next spin's press cuts the small message anyway and waiting would slow every winning round (by up to its count's

@@ -48,7 +48,7 @@ import { ROAD as ROAD_C, GRANDMA_BRAWL } from '../constants';
 import { Brawl, type BrawlCell, type StrikeEnd } from './brawlCloud';
 import type { LayoutKind } from '../layoutSpec';
 import type { ColumnTier, HeldColumn } from '../typesBookEvent';
-import { getBackdrop, getClip, isWanted, loadBackdrop, loadClip, releaseClip, setStandingProbe, setUploadGate, type Clip } from './columnClips';
+import { getBackdrop, getClip, isWanted, loadBackdrop, loadClip, releaseClip, setClipInUse, setStandingProbe, setUploadGate, type Clip } from './columnClips';
 import { COLUMN_CLIPS } from '../columnClipSpec';
 import { REINDEER_RUN } from '../reindeerRunSpec';
 import { awaitRunViews, runBox, runFrame, type RunView } from './reindeerRun';
@@ -747,6 +747,11 @@ export class RoadFeatures {
 		this.charge.look = () => grounds[this.groundPreset()]?.look ?? 'light';
 		this.charge.cssPerRoad = () => roamDev.view?.()?.k ?? 1;
 		setStandingProbe((tier) => this.columns.some((c) => c.tier === tier));
+		// the round end's let-go (constants GPU_MEMORY.releaseBonusSheets) never takes a clip a column is drawing or about to:
+		// an entrance on its way (or its cloud crop not dropped yet), a win playing, a column leaving (it lets its own go)
+		setClipInUse((tier, name) =>
+			this.columns.some((c) => c.tier === tier && (c.phase === 'leave' || (name === 'win' ? c.phase === 'win' : name === 'reveal' ? c.phase === 'wait' || c.phase === 'impact' || c.phase === 'grow' || c.phase === 'enter' || c.dropReveal : true))),
+		);
 		// the column pictures' upload queue (game/road/columnClips.ts) keeps out of an impact's frames, and goes at once
 		// for a picture a column is waiting on
 		setUploadGate({

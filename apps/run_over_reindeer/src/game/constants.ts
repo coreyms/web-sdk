@@ -2310,6 +2310,31 @@ export const PHONE_3X_ALLOW = { on: false, minShort: 420 } as const;
 export const RENDER_MAX_PIXELS = 8_300_000;
 export const RENDER_RESIZE = { settleMs: 250, band: 0.04 } as const;
 
+// ---- GRAPHICS MEMORY (2026-11-21; Desktop/Run Over Reindeer/gpu_memory_research_2026-11-20, game/gpuMemory.ts) ----------
+// Three moves that free memory and change no drawn pixel, no frame rate and no timing (Corey: "Lowering game quality to
+// save memory doesn't work for me"). Each is one switch here.
+export const GPU_MEMORY = {
+	/** MOVE 1, THE DECODED COPY: once a picture is on the GPU its decoded copy in the browser (an ImageBitmap) is closed,
+	 *  so each picture is held once, not twice. The GPU texture is the same upload. On a WebGL context loss every such
+	 *  picture is fetched again by its own URL (the HTTP cache), decoded and sent up before the next frame is drawn
+	 *  (game/gpuMemory.ts). false: every decoded copy is kept, as before 2026-11-21. */
+	releaseDecoded: true,
+	/** how long the drawing waits for those pictures after a context restore at most (ms): past it, drawing goes on and a
+	 *  picture still on its way stays clear until it lands */
+	restoreGateMaxMs: 5000,
+	/** MOVE 2, THE BONUS SHEETS AT THE ROUND'S END (OFF until the probe host has measured hitch and memory with it on): the
+	 *  column Wilds' win and entrance sheets and the brawl cloud's win sheet go off the GPU once the round that used them
+	 *  is over and the board is at rest (a standing column keeps its idle, a standing Grandma Wild her loop and still), and
+	 *  come back through the upload queue when the next book names them (game/road/columnClips.ts preloadForEvents, as a
+	 *  first load does). The dev hook flips it at run time: __reindeer.bonusSheetRelease(true | false). */
+	releaseBonusSheets: false,
+	/** the round's end waits at most this long (real ms) for a column's win or entrance to finish before it lets go */
+	restWaitMs: 4000,
+	/** MOVE 3, NO DEPTH OR STENCIL BUFFER: the WebGL context is made without them (pixi-svelte App `depthStencil`). The game
+	 *  draws no mask and no depth test, so no pixel reads either buffer. Read once, when the renderer starts. */
+	noDepthStencil: true,
+};
+
 // ---- loading ------------------------------------------------------------------------------------------------------------
 /** PRESS ANYWHERE waits for the audio; if the sprite never lands it shows anyway after this long (a hung request) */
 export const LOAD_GATE = { stallMs: 30_000 } as const;

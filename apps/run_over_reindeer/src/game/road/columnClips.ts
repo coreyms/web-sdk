@@ -10,7 +10,7 @@
 // column is waiting on that very picture. Never a blob: URL and never a worker (the platform's policy has no blob:).
 import * as PIXI from 'pixi.js';
 
-import { COLUMN } from '../constants';
+import { COLUMN, GPU_MEMORY } from '../constants';
 import { COLUMN_CLIPS } from '../columnClipSpec';
 import { stamp } from '../assets';
 import { PHONE_TIER, forcedResolutionCap } from '../deviceTier';
@@ -360,6 +360,62 @@ export const setStandingProbe = (fn: typeof standing) => {
 	standing = fn;
 };
 
+/** set by the road's features: is a column of this tier drawing this clip now, or about to (an entrance on its way, a
+ *  win playing, a column leaving)? */
+let inUse: (tier: ColumnTier, name: ClipName) => boolean = () => false;
+export const setClipInUse = (fn: typeof inUse) => {
+	inUse = fn;
+};
+
+// ---- THE ROUND'S END LETS GO (constants GPU_MEMORY.releaseBonusSheets, move 2; OFF by default) -------------------------
+// FACT (the research's 1c): `wanted` stays as the last book set it until the next book arrives, so a round that named a
+// character keeps its win sheets (and the leave path keeps its idle) on the GPU through the whole wait for the next
+// press: up to 139 MB of win sheets on a 2x desktop, drawn again by nothing before the next round. With the switch on,
+// once the round's events are over (game/utils.ts playBet) and the board is at rest (no column entering, winning or
+// leaving: at most GPU_MEMORY.restWaitMs), nothing is wanted any more: every clip of a tier with no column standing goes,
+// and a standing column keeps only its idle (drawn at rest). They come back the way a first load comes: the next book's
+// scan (preloadForEvents) fetches them (the HTTP cache) and the upload queue above sends them up one at a time, out of an
+// impact's frames, before the strike reaches its target.
+let bookSerial = 0;
+const roundEndLog: { at: number; released: string[]; kept: string[]; waitedMs: number; cut: boolean }[] = [];
+/** DEV / probes (__reindeer.bonusSheetRelease, __reindeer.gpuTextures): the last round ends' let-goes */
+export const bonusSheetReleaseLog = () => roundEndLog.map((e) => ({ ...e, released: [...e.released], kept: [...e.kept] }));
+/** the brawl cloud's own round end writes its line here too (game/road/brawlCloud.ts) */
+export const logRoundEndRelease = (row: (typeof roundEndLog)[number]) => {
+	roundEndLog.push(row);
+	if (roundEndLog.length > 20) roundEndLog.shift();
+};
+const anyInUse = () => [...entries.keys()].some((k) => {
+	const [tier, name] = k.split(':') as [ColumnTier, ClipName];
+	return name !== 'idle' && inUse(tier, name);
+});
+
+/** the round is over (game/utils.ts playBet, after its last event): with the switch on, its sheets go once the board is
+ *  at rest; a new book arriving meanwhile takes over (its own scan decides) */
+export const roundEndRelease = async (): Promise<void> => {
+	if (!GPU_MEMORY.releaseBonusSheets) return;
+	const serial = bookSerial;
+	const t0 = performance.now();
+	wanted = new Set();
+	while (anyInUse() && performance.now() - t0 < GPU_MEMORY.restWaitMs && typeof requestAnimationFrame !== 'undefined') {
+		await nextFrame();
+		if (serial !== bookSerial) return;
+	}
+	if (serial !== bookSerial) return;
+	const released: string[] = [];
+	const kept: string[] = [];
+	for (const k of [...entries.keys()]) {
+		const [tier, name] = k.split(':') as [ColumnTier, ClipName];
+		if (standing(tier) && (name === 'idle' || inUse(tier, name))) {
+			kept.push(k);
+			continue;
+		}
+		releaseClip(tier, name);
+		released.push(k);
+	}
+	logRoundEndRelease({ at: Math.round(performance.now()), released, kept, waitedMs: Math.round(performance.now() - t0), cut: anyInUse() });
+};
+
 /** what is loaded now and what it weighs on the GPU, MB (dev hook and the memory numbers in the docs) */
 export const clipMemory = () => {
 	const rows: { clip: string; mb: number }[] = [];
@@ -399,6 +455,7 @@ export const clipMemory = () => {
 /** every tier a book's events call for (scanned when the book arrives): its pictures start loading now, and the
  *  tiers the book before wanted that this one does not, and that no column still stands in, are let go */
 export const preloadForEvents = (events: readonly { type: string }[]) => {
+	bookSerial += 1;
 	const tiers = new Set<ColumnTier>();
 	for (const event of events as readonly { type: string; tier?: ColumnTier; held?: { tier: ColumnTier }[] }[]) {
 		if (event.type === 'columnWild' && event.tier) tiers.add(event.tier);
