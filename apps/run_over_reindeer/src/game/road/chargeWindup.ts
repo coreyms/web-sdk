@@ -25,6 +25,7 @@
 import * as PIXI from 'pixi.js';
 
 import { ROAM } from '../constants';
+import type { ChargeFxName } from './roamFrames';
 import { REINDEER_ROAM } from '../reindeerRoamSpec';
 import { seeded } from './crosshair';
 import { chargeFx, type ChargeClip } from './roamFrames';
@@ -77,7 +78,20 @@ export const windupFrame = (plan: WindupPlan, clock: number): number => {
 };
 
 type Kind = 'puff' | 'snow';
-type Particle = { sprite: PIXI.Sprite; kind: Kind; on: boolean; t: number; life: number; x: number; y: number; vx: number; vy: number; g: number; r0: number; r1: number; a0: number; kf: number; cx: number; cy: number; tau: number; ds: number };
+type Particle = { sprite: PIXI.Sprite; kind: Kind; on: boolean; t: number; life: number; x: number; y: number; vx: number; vy: number; g: number; r0: number; r1: number; a0: number; kf: number; cx: number; cy: number; tau: number; ds: number; look: Look; legacy: boolean; flip: 1 | -1 };
+/** the effects' look (ROUND 2): `light` (white, a cool falloff) on dark ground, `dark` (slate with a darker rim) on light */
+export type Look = 'light' | 'dark';
+/** the picture of an effect in a look: on light ground ('dark') the candidate ROAM.charge.lightGroundLook picks */
+const texName = (kind: Kind, look: Look): ChargeFxName => {
+	if (look !== 'dark') return kind;
+	const c = ROAM.charge.lightGroundLook;
+	return (c === 'ring' ? `${kind}Dark` : `${kind}${c}`) as ChargeFxName;
+};
+/** the opacity over a life: the look's start opacity held to `hold` of it, then faded (smoothstep) to none */
+const fade = (u: number, hold: number) => {
+	const t = Math.max(0, Math.min(1, (u - hold) / Math.max(1e-6, 1 - hold)));
+	return 1 - t * t * (3 - 2 * t);
+};
 
 const SNOW_MAX = FX.snow.drag.frames.length * FX.snow.drag.per_frame + FX.snow.kick.count;
 const PUFF_MAX = FX.puff.count;
@@ -89,6 +103,13 @@ export type Pose = { x: number; y: number; kf: number; facing: 1 | -1 };
 export class ChargeFx {
 	readonly root = new PIXI.Container();
 	private readonly pool: Particle[] = [];
+	/** ROUND 2 (roadFeatures sets them): the look for the ground he stands on now, and CSS px per road px (the minimum
+	 *  on-screen sizes, REINDEER_ROAM.fx.*.minCss) */
+	look: () => Look = () => 'light';
+	cssPerRoad: () => number = () => 1;
+	/** DEV / probes and captures: draw them as round 1 did (the light look, drawScale only, the plain fade), for the
+	 *  before and after */
+	round1 = false;
 	/** the strike's own schedule (snow, from the plan) is spawned while his wind-up shows */
 	private live = 0;
 	/** DEV / probes: what was spawned, per strike (cleared at each begin) */
@@ -102,8 +123,10 @@ export class ChargeFx {
 			sprite.anchor.set(0.5);
 			sprite.visible = false;
 			this.root.addChild(sprite);
-			this.pool.push({ sprite, kind: i < SNOW_MAX ? 'snow' : 'puff', on: false, t: 0, life: 1, x: 0, y: 0, vx: 0, vy: 0, g: 0, r0: 0, r1: 0, a0: 1, kf: 1, cx: 0, cy: 0, tau: 1, ds: 1 });
+			this.pool.push({ sprite, kind: i < SNOW_MAX ? 'snow' : 'puff', on: false, t: 0, life: 1, x: 0, y: 0, vx: 0, vy: 0, g: 0, r0: 0, r1: 0, a0: 1, kf: 1, cx: 0, cy: 0, tau: 1, ds: 1, look: 'light', legacy: false, flip: 1 });
 		}
+		// (the puffs drawn the oldest on top: the first puff out, the largest, keeps its rim over the ones after it)
+		for (const p of this.pool.filter((q) => q.kind === 'puff').reverse()) this.root.addChild(p.sprite);
 	}
 
 	/** HIS STRIKE STARTS (standing at `pose`): the kicked snow of the slow drag, each frame's specks from its time (only
@@ -112,8 +135,10 @@ export class ChargeFx {
 		this.clear();
 		this.log.snow.length = 0;
 		this.log.puff = null;
-		const tex = chargeFx('snow');
+		const look: Look = this.round1 ? 'light' : this.look();
+		const tex = chargeFx(texName('snow', look));
 		if (plan.clip !== 'charge' || !tex) return;
+		const css = Math.max(1e-6, this.cssPerRoad());
 		const rnd = seeded(seed);
 		const S = FX.snow;
 		const hoof = C.charge.hoof;
@@ -138,12 +163,16 @@ export class ChargeFx {
 				const r = lerp(S.radius_frame_px[0], S.radius_frame_px[1], rnd());
 				p.r0 = r;
 				p.r1 = r;
-				p.a0 = S.alpha[0];
+				p.a0 = this.round1 ? S.alpha[0] : S.alphaByLook[look];
 				p.kf = pose.kf;
 				p.cx = 0;
 				p.cy = 0;
 				p.tau = 1;
-				p.ds = S.drawScale;
+				// (never under minCss CSS px across, whatever the screen: a speck of radius r at drawScale, or larger)
+				p.ds = this.round1 ? S.drawScale : Math.max(S.drawScale, S.minCss / (2 * r * pose.kf * css));
+				p.look = look;
+				p.legacy = this.round1;
+				p.flip = 1;
 				p.sprite.texture = tex.texture;
 			}
 			this.log.snow.push({ t, frame, n: made });
@@ -156,8 +185,10 @@ export class ChargeFx {
 	/** THE LOCK (the crosshair's lock frame, `now`): four puffs from the nose at `nose` (frame px from his feet, the way he
 	 *  faces), carried at `vx`, `vy` road px per board ms (his ground speed; 0 standing) */
 	puff(now: number, pose: Pose, nose: readonly number[], vx: number, vy: number, seed: number, what: { running: boolean; stride: number | null; frame: number | null; clip: string | null }) {
-		const tex = chargeFx('puff');
+		const look: Look = this.round1 ? 'light' : this.look();
+		const tex = chargeFx(texName('puff', look));
 		if (!tex) return;
+		const css = Math.max(1e-6, this.cssPerRoad());
 		const rnd = seeded(seed ^ 0x9e3779b9);
 		const P = FX.puff;
 		const range = what.running ? P.vx_frame_px_per_ms.running : P.vx_frame_px_per_ms.standing;
@@ -177,12 +208,17 @@ export class ChargeFx {
 			p.g = 0;
 			p.r0 = P.radius_frame_px[0];
 			p.r1 = P.radius_frame_px[1];
-			p.a0 = P.alpha[0];
+			p.a0 = this.round1 ? P.alpha[0] : P.alphaByLook[look];
 			p.kf = pose.kf;
 			p.cx = vx;
 			p.cy = vy;
 			p.tau = P.carry_tau_ms;
-			p.ds = P.drawScale;
+			// (its largest, the export's end radius, never under minCss CSS px across)
+			p.ds = this.round1 ? P.drawScale : Math.max(P.drawScale, P.minCss / (2 * P.radius_frame_px[1] * pose.kf * css));
+			p.look = look;
+			p.legacy = this.round1;
+			// (candidate C's huff stroke bows forward: mirrored with him)
+			p.flip = look === 'dark' && ROAM.charge.lightGroundLook === 'C' ? pose.facing : 1;
 			p.sprite.texture = tex.texture;
 			i++;
 		}
@@ -219,7 +255,8 @@ export class ChargeFx {
 			const d = 2 * lerp(p.r0, p.r1, u) * p.kf * p.ds;
 			s.width = d;
 			s.height = d;
-			s.alpha = p.a0 * (1 - u);
+			if (p.flip < 0) s.scale.x = -Math.abs(s.scale.x);
+			s.alpha = p.a0 * (p.legacy ? 1 - u : fade(u, p.kind === 'puff' ? FX.puff.hold : FX.snow.hold));
 			s.visible = true;
 		}
 		this.root.visible = any;
@@ -256,7 +293,9 @@ export class ChargeFx {
 		const shown = this.pool.filter((p) => p.sprite.visible).length;
 		const widest = (k: Kind) => Math.round(Math.max(0, ...this.pool.filter((p) => p.kind === k && p.sprite.visible).map((p) => p.sprite.width)) * 100) / 100;
 		const texW = (k: Kind) => this.pool.find((p) => p.kind === k)?.sprite.texture.width ?? 0;
-		return { snow, puff, pending, shown, visible: this.root.visible, pool: this.pool.length, puffW: widest('puff'), snowW: widest('snow'), puffTexW: texW('puff'), snowTexW: texW('snow') };
+		const r2 = (v: number) => Math.round(v * 100) / 100;
+		const up = this.pool.filter((p) => p.sprite.visible).map((p) => ({ kind: p.kind, look: p.look, x: r2(p.sprite.x), y: r2(p.sprite.y), w: r2(p.sprite.width), alpha: r2(p.sprite.alpha), u: r2((clock - p.t) / p.life) }));
+		return { snow, puff, pending, shown, visible: this.root.visible, pool: this.pool.length, puffW: widest('puff'), snowW: widest('snow'), puffTexW: texW('puff'), snowTexW: texW('snow'), up };
 	}
 
 	destroy() {

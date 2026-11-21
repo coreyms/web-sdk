@@ -1157,18 +1157,82 @@ export const REINDEER_ROAM = {
 					"h": 115,
 					"diameterFramePx": 300.0
 				},
-				"snow": {
+				"puffA": {
 					"sheet": 4,
 					"x": 564,
 					"y": 870,
-					"w": 15,
-					"h": 15,
+					"w": 115,
+					"h": 115,
+					"diameterFramePx": 300.0
+				},
+				"puffB": {
+					"sheet": 4,
+					"x": 681,
+					"y": 870,
+					"w": 115,
+					"h": 115,
+					"diameterFramePx": 300.0
+				},
+				"puffC": {
+					"sheet": 4,
+					"x": 798,
+					"y": 870,
+					"w": 115,
+					"h": 115,
+					"diameterFramePx": 300.0
+				},
+				"puffDark": {
+					"sheet": 4,
+					"x": 915,
+					"y": 870,
+					"w": 115,
+					"h": 115,
+					"diameterFramePx": 300.0
+				},
+				"snow": {
+					"sheet": 4,
+					"x": 1032,
+					"y": 870,
+					"w": 18,
+					"h": 18,
+					"diameterFramePx": 38.0
+				},
+				"snowA": {
+					"sheet": 4,
+					"x": 1052,
+					"y": 870,
+					"w": 18,
+					"h": 18,
+					"diameterFramePx": 38.0
+				},
+				"snowB": {
+					"sheet": 4,
+					"x": 1072,
+					"y": 870,
+					"w": 18,
+					"h": 18,
+					"diameterFramePx": 38.0
+				},
+				"snowC": {
+					"sheet": 4,
+					"x": 1092,
+					"y": 870,
+					"w": 18,
+					"h": 18,
+					"diameterFramePx": 38.0
+				},
+				"snowDark": {
+					"sheet": 4,
+					"x": 1112,
+					"y": 870,
+					"w": 18,
+					"h": 18,
 					"diameterFramePx": 38.0
 				}
 			},
 			"gpuMb": 31.5,
 			"chargeGpuMb": 20.2,
-			"chargeKb": 899
+			"chargeKb": 917
 		},
 		"phone": {
 			"density": 0.1728,
@@ -1861,22 +1925,86 @@ export const REINDEER_ROAM = {
 					"sheet": 1,
 					"x": 1026,
 					"y": 401,
-					"w": 52,
-					"h": 52,
+					"w": 90,
+					"h": 90,
+					"diameterFramePx": 300.0
+				},
+				"puffA": {
+					"sheet": 1,
+					"x": 1118,
+					"y": 401,
+					"w": 90,
+					"h": 90,
+					"diameterFramePx": 300.0
+				},
+				"puffB": {
+					"sheet": 1,
+					"x": 1210,
+					"y": 401,
+					"w": 90,
+					"h": 90,
+					"diameterFramePx": 300.0
+				},
+				"puffC": {
+					"sheet": 1,
+					"x": 1302,
+					"y": 401,
+					"w": 90,
+					"h": 90,
+					"diameterFramePx": 300.0
+				},
+				"puffDark": {
+					"sheet": 1,
+					"x": 1394,
+					"y": 401,
+					"w": 90,
+					"h": 90,
 					"diameterFramePx": 300.0
 				},
 				"snow": {
 					"sheet": 1,
-					"x": 1080,
+					"x": 1486,
 					"y": 401,
-					"w": 7,
-					"h": 7,
+					"w": 18,
+					"h": 18,
+					"diameterFramePx": 38.0
+				},
+				"snowA": {
+					"sheet": 1,
+					"x": 1506,
+					"y": 401,
+					"w": 18,
+					"h": 18,
+					"diameterFramePx": 38.0
+				},
+				"snowB": {
+					"sheet": 1,
+					"x": 1526,
+					"y": 401,
+					"w": 18,
+					"h": 18,
+					"diameterFramePx": 38.0
+				},
+				"snowC": {
+					"sheet": 1,
+					"x": 1546,
+					"y": 401,
+					"w": 18,
+					"h": 18,
+					"diameterFramePx": 38.0
+				},
+				"snowDark": {
+					"sheet": 1,
+					"x": 1566,
+					"y": 401,
+					"w": 18,
+					"h": 18,
 					"diameterFramePx": 38.0
 				}
 			},
 			"gpuMb": 6.9,
 			"chargeGpuMb": 4.4,
-			"chargeKb": 320
+			"chargeKb": 362
 		}
 	},
 	"fx": {
@@ -1915,6 +2043,12 @@ export const REINDEER_ROAM = {
 			],
 			"carry_tau_ms": 110.0,
 			"drawScale": 2.0,
+			"alphaByLook": {
+				"light": 0.8,
+				"dark": 0.95
+			},
+			"minCss": 22,
+			"hold": 0.6,
 			"offset_frame_px": [
 				12.0,
 				5.0
@@ -1960,7 +2094,13 @@ export const REINDEER_ROAM = {
 				-0.57,
 				-0.14
 			],
-			"drawScale": 2.0
+			"drawScale": 2.0,
+			"alphaByLook": {
+				"light": 1.0,
+				"dark": 1.0
+			},
+			"minCss": 5,
+			"hold": 0.6
 		},
 		"runNose": [
 			[
@@ -2027,6 +2167,38 @@ export const REINDEER_ROAM = {
 				453.5,
 				-627.2
 			]
-		]
+		],
+		"grounds": {
+			"snowDay": {
+				"lum": 0.868,
+				"look": "dark",
+				"contrast": 8.2
+			},
+			"snowNight": {
+				"lum": 0.3573,
+				"look": "dark",
+				"contrast": 4.72
+			},
+			"snowSuper": {
+				"lum": 0.1498,
+				"look": "light",
+				"contrast": 4.3
+			},
+			"grassDay": {
+				"lum": 0.0776,
+				"look": "light",
+				"contrast": 6.62
+			},
+			"grassNight": {
+				"lum": 0.0363,
+				"look": "light",
+				"contrast": 9.7
+			},
+			"grassSuper": {
+				"lum": 0.0183,
+				"look": "light",
+				"contrast": 12.2
+			}
+		}
 	}
 } as const;

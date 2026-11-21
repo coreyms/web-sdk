@@ -11,6 +11,7 @@
 // WATCHES: ; __reindeer.roamAway, __reindeer.roamBack, __reindeer.roadSounds
 // WATCHES: apps/run_over_reindeer/src/game/road/{chargeWindup.ts,roadFeatures.ts,roadSounds.ts}; ROAM.charge, REINDEER_SOUND.snort
 // WATCHES: ; __reindeer.crosshairStrike, __reindeer.hurry, roam().windup, roam().box, snapshot().charge, lockSnort, snortAt
+// WATCHES: ; charge.round1, charge.look, REINDEER_ROAM.fx.grounds, __reindeer.sceneWant, __reindeer.sceneSwap
 // THE ROAM PROBE (the roaming reindeer, 2026-11-17; game/road/roam.ts, constants STRIKE.roam and ROAM, game/roamPaths.ts).
 // Since round 3 (Corey: "an allowed to walk area where it randomly chooses where to go") he roams an AREA. Per size
 // (1440x900 desktop, 844x390 phone held sideways, 390x844 upright phone; 1920x1080 desktop for the area checks only):
@@ -54,6 +55,8 @@
 //      at Turbo 2 and in a slam stop's hurry, the snort once within 140 ms before the lock, the puff on the lock's frame,
 //      the snow only on drag frames before the set off, nothing left after he sets off or the board's cut, his picture
 //      inside his keep-out reach. ONLY=timing TIMING=<file> [SPOTS=<file>] writes the strike timing rows of any build.
+//      ROUND 2 of the effects (contrastSize below): on all six grounds at 1440x900, 390x844 and 360x560, the puff and a
+//      speck measured on screenshots against the ground around them, 3 to 1 at least (ONLY=contrast alone, CROPS, BEFORE).
 //   a hidden tab: nothing moves; no page errors anywhere
 //
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3015 [ONLY=desktop|sideways|upright]
@@ -61,6 +64,7 @@
 // Uses the dev server that is already running. One headless browser (muted). Wrap each run in tools/browser_lock.sh.
 import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import zlib from 'node:zlib';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -72,6 +76,9 @@ const OUT = process.env.OUT || '';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
 const TIMING = process.env.TIMING || '';
 const SPOTS = process.env.SPOTS || '';
+const CROPS = process.env.CROPS || '';
+const BEFORE = process.env.BEFORE === '1';
+const CONTRAST = process.env.CONTRAST !== '0';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const SIZES = [
@@ -1527,11 +1534,12 @@ async function chargeSize(browser, S, spotsFrom) {
 				const sw = Math.max(0, ...A.rows.map((r) => (r.fx ? r.fx.snowW : 0)));
 				const ptw = Math.max(0, ...A.rows.map((r) => (r.fx ? r.fx.puffTexW : 0)));
 				const stw = Math.max(0, ...A.rows.map((r) => (r.fx ? r.fx.snowTexW : 0)));
-				const pMax = 2 * 75 * kf * 2;
-				const sMax = 2 * 9.5 * kf * 2;
+				// (round 2: never under 22 and 5 CSS px at their largest, whatever the screen)
+				const pMax = Math.max(2 * 75 * kf * 2, 22 / A.view.k);
+				const sMax = Math.max(2 * 9.5 * kf * 2, 5 / A.view.k);
 				const cssK = A.view.k * (S.dpr || 1);
 				check(pw <= pMax + 0.5 && pw >= pMax * 0.75 && ptw >= Math.floor(pMax * A.view.k * 3) - 1, `${tag}: the puff drawn up to ${r1(pw)} road px (2 x the export's, ${r1(pMax)} at most), its picture ${ptw} px for ${r1(pMax * A.view.k)} CSS px (3 a CSS px)`, { pw, pMax, ptw, cssK });
-				if (!quick) check(sw <= sMax + 0.5 && sw >= 2 * 3.8 * kf * 2 - 0.5 && stw >= Math.floor(sMax * A.view.k * 3) - 1, `${tag}: the specks drawn up to ${r1(sw)} road px (2 x the export's, ${r1(sMax)} at most), their picture ${stw} px for ${r1(sMax * A.view.k)} CSS px`, { sw, sMax, stw });
+				if (!quick) check(sw <= sMax + 0.5 && sw >= Math.min(2 * 3.8 * kf * 2, 5 / A.view.k) - 0.5 && stw >= Math.floor(sMax * A.view.k * 3) - 1, `${tag}: the specks drawn up to ${r1(sw)} road px (2 x the export's, ${r1(sMax)} at most), their picture ${stw} px for ${r1(sMax * A.view.k)} CSS px`, { sw, sMax, stw });
 			}
 			// nothing left
 			const last = A.rows[A.rows.length - 1];
@@ -1574,6 +1582,318 @@ async function chargeSize(browser, S, spotsFrom) {
 	await ctx.close();
 }
 
+// ---- THE EFFECTS' CONTRAST (2026-11-20, round 2 of "Make them read"): on every ground he can stand on (the six scene
+// presets; his spots are on their snow or grass, never the road) and at each size, the breath puff at its largest while
+// still at its full opacity (the oldest puff, past the hold: u >= hold + 0.06) and a kicked speck in mid flight (u 0.45
+// to 0.6), measured on a screenshot: the WCAG contrast of the sprite's body (its middle) and of its rim (the outer band)
+// against the ground right around it (a ring 1.15 to 1.7 of its radius, on the same frame with the effects hidden).
+// Target: 3 to 1 or more for the body or the rim. `ONLY=contrast` runs it alone; CROPS=<dir> also saves the crops (real
+// size, device px) and BEFORE=1 measures round 1's look too (the dev knob charge.round1). CONTRAST=0 skips it in the
+// charge section.
+const CONTRAST_TARGET = 3;
+const CONTRAST_PRESETS = ['snowDay', 'snowNight', 'snowSuper', 'grassDay', 'grassNight', 'grassSuper'];
+const CONTRAST_SIZES = [
+	{ name: 'desktop', vp: { width: 1440, height: 900 }, dpr: 1, q: '', touch: false },
+	{ name: 'upright', vp: { width: 390, height: 844 }, dpr: 2, q: '&tier=phone', touch: true },
+	{ name: 'small', vp: { width: 360, height: 560 }, dpr: 2, q: '&tier=phone', touch: true },
+];
+const readPng = (buf) => {
+	let o = 8;
+	let w = 0;
+	let h = 0;
+	let ct = 0;
+	const idat = [];
+	while (o < buf.length) {
+		const len = buf.readUInt32BE(o);
+		const type = buf.toString('ascii', o + 4, o + 8);
+		const data = buf.subarray(o + 8, o + 8 + len);
+		if (type === 'IHDR') {
+			w = data.readUInt32BE(0);
+			h = data.readUInt32BE(4);
+			ct = data[9];
+		} else if (type === 'IDAT') idat.push(data);
+		else if (type === 'IEND') break;
+		o += 12 + len;
+	}
+	const bpp = ct === 6 ? 4 : 3;
+	const raw = zlib.inflateSync(Buffer.concat(idat));
+	const stride = w * bpp;
+	const px = Buffer.alloc(h * stride);
+	for (let y = 0; y < h; y++) {
+		const f = raw[y * (stride + 1)];
+		const line = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
+		for (let x = 0; x < stride; x++) {
+			const a = x >= bpp ? px[y * stride + x - bpp] : 0;
+			const b = y > 0 ? px[(y - 1) * stride + x] : 0;
+			const c = x >= bpp && y > 0 ? px[(y - 1) * stride + x - bpp] : 0;
+			let v = line[x];
+			if (f === 1) v += a;
+			else if (f === 2) v += b;
+			else if (f === 3) v += (a + b) >> 1;
+			else if (f === 4) {
+				const p0 = a + b - c;
+				const pa = Math.abs(p0 - a);
+				const pb = Math.abs(p0 - b);
+				const pc = Math.abs(p0 - c);
+				v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+			}
+			px[y * stride + x] = v & 255;
+		}
+	}
+	return { w, h, bpp, px };
+};
+const linC = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+const lumAt = (img, x, y) => {
+	const i = (y * img.w + x) * img.bpp;
+	return 0.2126 * linC(img.px[i]) + 0.7152 * linC(img.px[i + 1]) + 0.0722 * linC(img.px[i + 2]);
+};
+const median = (a) => {
+	if (!a.length) return NaN;
+	const s = [...a].sort((p, q) => p - q);
+	return s[Math.floor(s.length / 2)];
+};
+const wcag = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+/** the luminances in a band of a crop (its centre at cx, cy device px; radii in device px) */
+const band = (img, cx, cy, r0, r1) => {
+	const out = [];
+	for (let y = Math.max(0, Math.floor(cy - r1)); y <= Math.min(img.h - 1, Math.ceil(cy + r1)); y++)
+		for (let x = Math.max(0, Math.floor(cx - r1)); x <= Math.min(img.w - 1, Math.ceil(cx + r1)); x++) {
+			const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+			if (d >= r0 && d <= r1) out.push(lumAt(img, x, y));
+		}
+	return out;
+};
+
+/** one strike on `preset` from `spot`: the puff and a speck, each measured; crops saved when `crops` */
+/** ROUND 3 (2026-11-20, candidates for Corey): the look drawn on light ground (ROAM.charge.lightGroundLook: ring, A, B,
+ *  C) and `before` (round 1's, the staging look: charge.round1). Each is held to the measure it reads by, honestly:
+ *  the ring by its rim or body at 3 to 1, A by its outline and C by its stroke at 2 to 1 (`edge`: the most standing out
+ *  tenth of its pixels), B by its tone at 1.5 to 1 (`tone`: its middle's median), the white look on dark ground by its body or rim; `before`
+ *  is reported only. LOOKS=before,ring,A,B,C measures each on day and night snow (night grass: before and the white
+ *  look); LIFE=1 saves the puff at four moments of its life per look (day snow, the first size). */
+const CONTRAST_RULE = {
+	ring: { key: 'best', min: 3, what: 'rim or body' },
+	// (A's and C's lines are about 1 CSS px on the desktop and soften there: held to 2 to 1, what a 1 px dark line on
+	// snow can honestly give; B reads by tone alone: 1.5 to 1)
+	A: { key: 'edge', min: 2, what: 'outline' },
+	B: { key: 'tone', min: 1.5, what: 'tone' },
+	C: { key: 'edge', min: 2, what: 'stroke' },
+	light: { key: 'best', min: 3, what: 'rim or body' },
+};
+const LOOKS = (process.env.LOOKS || '').split(',').filter(Boolean);
+const LIFE = process.env.LIFE === '1';
+
+async function setScene(p, preset) {
+	await p.evaluate(async (preset) => {
+		const h = window.__reindeer;
+		h.sceneWant(preset);
+		for (let i = 0; i < 100; i++) {
+			const s = h.sceneSwap();
+			if (s && s.shown === preset && (!s.fade || s.fade.done !== false)) break;
+			await new Promise((r) => setTimeout(r, 100));
+		}
+		await new Promise((r) => setTimeout(r, 900));
+	}, preset);
+}
+
+/** start his single target strike from `spot` with `variant` drawn ('before', a candidate, or null: as shipped) */
+async function startVariantStrike(p, spot, variant) {
+	return p.evaluate(
+		async ({ spot, variant }) => {
+			const h = window.__reindeer;
+			const F = h.roadBoard().features;
+			const C = h.tune.roam.charge;
+			window.__lookShipped ??= C.lightGroundLook;
+			C.lightGroundLook = variant && variant !== 'before' && variant !== 'shipped' ? variant : window.__lookShipped;
+			h.clock(0);
+			h.turbo(0);
+			F.charge.round1 = variant === 'before';
+			await h.crosshairStrike({ cells: [9], target: 9, poseOnly: true });
+			h.roamStandAt(spot.x, spot.y);
+			h.step(0.001, 1);
+			h.roamStrike(9, { first: true, last: false });
+			for (let i = 0; i < 100 && !F['runner']; i++) await new Promise((r) => setTimeout(r, 10));
+			return { look: F.charge.look(), roam: F['runner'] ? F['runner'].roam : false, shipped: window.__lookShipped };
+		},
+		{ spot, variant },
+	);
+}
+
+async function resetVariant(p) {
+	await p.evaluate(() => {
+		const h = window.__reindeer;
+		h.roadBoard().features.charge.round1 = false;
+		if (window.__lookShipped) h.tune.roam.charge.lightGroundLook = window.__lookShipped;
+	});
+}
+
+/** the puff at four moments of its life (u 0.05, 0.4, 0.75, 0.97: spawn, grown, fading, gone), the window held on the
+ *  first puff's spawn point */
+async function lifeStrip(p, S, spot, variant, crops) {
+	await startVariantStrike(p, spot, variant);
+	let first = null;
+	for (const [k, target] of [[1, 0.05], [2, 0.4], [3, 0.75], [4, 0.97]]) {
+		const got = await p.evaluate(
+			async ({ target }) => {
+				const h = window.__reindeer;
+				const F = h.roadBoard().features;
+				for (let i = 0; i < 240; i++) {
+					const up = F.charge.state(F['clock']).up.filter((q) => q.kind === 'puff').sort((a, b) => b.u - a.u);
+					if (up.length && up[0].u >= target) {
+						await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+						return { pick: up[0], view: h.roamView(), log: F.charge.log.puff };
+					}
+					h.step(1000 / 60, 1);
+				}
+				return null;
+			},
+			{ target },
+		);
+		if (!got) break;
+		first ??= got;
+		const v = got.view;
+		const cx = v.ox + (first.log ? first.log.x : got.pick.x) * v.k;
+		const cy = v.oy + (first.log ? first.log.y : got.pick.y) * v.k;
+		const half = 34;
+		const clip = { x: Math.max(0, cx - half), y: Math.max(0, cy - half * 1.2), width: 2 * half, height: 2 * half };
+		mkdirSync(crops, { recursive: true });
+		writeFileSync(join(crops, `life_${S.name}_${variant}_${k}.png`), await p.screenshot({ clip }));
+		writeFileSync(join(crops, `life_${S.name}_${variant}_${k}.json`), JSON.stringify({ u: got.pick.u, alpha: got.pick.alpha, css: (got.pick.w * v.k).toFixed(1), dpr: S.dpr }));
+	}
+	await resetVariant(p);
+}
+
+async function contrastOne(p, S, preset, spot, round1, crops, variant = null) {
+	await setScene(p, preset);
+	if (round1) variant = 'before';
+	const start = await startVariantStrike(p, spot, variant);
+	// the drawn variant: round 1's, or on light ground the candidate in force, or the white look on dark ground
+	const drawn = variant === 'before' ? 'before' : start.look === 'dark' ? variant || start.shipped : 'light';
+	const out = { preset, look: drawn, his: start.roam };
+	for (const which of ['puff', 'snow']) {
+		const got = await p.evaluate(
+			async ({ which }) => {
+				const h = window.__reindeer;
+				const F = h.roadBoard().features;
+				for (let i = 0; i < 240; i++) {
+					h.step(1000 / 60, 1);
+					const up = F.charge.state(F['clock']).up.filter((q) => q.kind === which);
+					const pick = which === 'puff' ? up.filter((q) => q.u >= 0.66 && q.u <= 0.8).sort((a, b) => b.w - a.w)[0] : up.filter((q) => q.u >= 0.45 && q.u <= 0.6).sort((a, b) => b.w - a.w)[0];
+					if (pick) {
+						await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+						return { pick, view: h.roamView() };
+					}
+				}
+				return null;
+			},
+			{ which },
+		);
+		if (!got) {
+			out[which] = null;
+			continue;
+		}
+		const { pick, view } = got;
+		const cx = view.ox + pick.x * view.k;
+		const cy = view.oy + pick.y * view.k;
+		const rc = (pick.w * view.k) / 2;
+		const half = Math.max(rc * 2.2, which === 'puff' ? 40 : 18);
+		const clip = { x: Math.max(0, cx - half), y: Math.max(0, cy - half), width: 2 * half, height: 2 * half };
+		const shot = await p.screenshot({ clip });
+		await p.evaluate(async () => {
+			window.__reindeer.roadBoard().features.charge.root.alpha = 0;
+			await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+		});
+		const bare = await p.screenshot({ clip });
+		await p.evaluate(() => (window.__reindeer.roadBoard().features.charge.root.alpha = 1));
+		const A = readPng(shot);
+		const B = readPng(bare);
+		const dpr = A.w / clip.width;
+		const px = (cx - clip.x) * dpr;
+		const py = (cy - clip.y) * dpr;
+		const r = rc * dpr;
+		const ground = median(band(B, px, py, r * 1.15, r * 1.7));
+		// (each band's value: its pixel that stands 80 % of the way out from the ground in its own order: most of the band
+		// is at least that far from the ground; a 5 CSS px speck is only a few device px, a plain median of its middle
+		// caught its own edge)
+		const away = (list) => {
+			const s = [...list].sort((p, q) => Math.abs(p - ground) - Math.abs(q - ground));
+			return s.length ? s[Math.floor(s.length * 0.2)] : NaN;
+		};
+		const body = away(band(A, px, py, 0, r * 0.4));
+		const rim = away(band(A, px, py, r * (which === 'puff' ? 0.62 : 0.66), r * (which === 'puff' ? 0.78 : 0.9)));
+		// (round 3: shapes that are not discs; `edge` the most standing out tenth of the sprite's box, `tone` its middle's
+		// median)
+		const inBox = band(A, px, py, 0, r * 0.95).sort((p0, q0) => Math.abs(p0 - ground) - Math.abs(q0 - ground));
+		const edge = inBox.length ? inBox[Math.floor(inBox.length * 0.9)] : NaN;
+		const tone = median(band(A, px, py, 0, r * 0.6));
+		const r2c = (v) => Math.round(wcag(v, ground) * 100) / 100;
+		const c = { css: Math.round(rc * 2 * 10) / 10, alpha: pick.alpha, u: pick.u, ground: Math.round(ground * 1000) / 1000, body: r2c(body), rim: r2c(rim), edge: r2c(edge), tone: r2c(tone) };
+		c.best = Math.max(c.body, c.rim);
+		out[which] = c;
+		if (crops) {
+			mkdirSync(crops, { recursive: true });
+			const tag = `${S.name}_${preset}_${which}_${out.look === 'before' ? 'before' : variant ? out.look : 'after'}`;
+			writeFileSync(join(crops, `${tag}.png`), shot);
+			writeFileSync(join(crops, `${tag}.json`), JSON.stringify({ ...c, dpr, look: out.look }));
+		}
+	}
+	await resetVariant(p);
+	await p.evaluate(() => window.__reindeer.sceneWant('snowDay'));
+	return out;
+}
+
+async function contrastSize(browser, S) {
+	const name = `contrast ${S.name} ${S.vp.width}x${S.vp.height}`;
+	const { ctx, p, errs, ready } = await boot(browser, S);
+	check(ready, `${name}: the game is ready`);
+	if (!ready) return void (await ctx.close());
+	const rows = [];
+	try {
+		for (let i = 0; i < 60; i++) {
+			const mem = await p.evaluate(() => window.__reindeer.roamMemory());
+			if (mem.charge?.loaded) break;
+			await sleep(250);
+		}
+		for (let i = 0; i < 60; i++) {
+			const st = await p.evaluate(() => window.__reindeer.roam().state);
+			if (st !== 'enter' && st !== 'none') break;
+			await sleep(500);
+		}
+		const picks = await p.evaluate(() => window.__reindeer.roamPicks(40, 20, 5151));
+		const spots = picks.filter((q) => q.pass >= 0);
+		let si = 0;
+		// (LOOKS: the candidates on the light grounds, night grass for the white look; else every ground as shipped)
+		const plan = LOOKS.length
+			? [['snowDay', LOOKS], ['snowNight', LOOKS], ['grassNight', LOOKS.filter((v) => v === 'before').concat([null])]]
+			: CONTRAST_PRESETS.map((pr) => [pr, BEFORE ? ['before', null] : [null]]);
+		for (const [preset, variants] of plan) {
+			for (const variant of variants) {
+				const R = await contrastOne(p, S, preset, spots[si++ % spots.length], false, CROPS, variant);
+				rows.push({ size: S.name, ...R });
+				if (R.look === 'before') continue;
+				const rule = CONTRAST_RULE[R.look] ?? CONTRAST_RULE.ring;
+				const tag = `${name} ${preset} (${R.look} look, held to its ${rule.what} at ${rule.min} to 1)`;
+				const v = (q) => (q ? q[rule.key] : null);
+				check(R.his && !!R.puff && v(R.puff) >= rule.min, `${tag}: the puff at its largest at full opacity (${R.puff?.css} CSS px) stands out ${v(R.puff)}:1 (body ${R.puff?.body}, rim ${R.puff?.rim}, edge ${R.puff?.edge}, tone ${R.puff?.tone}; ground ${R.puff?.ground})`, R.puff);
+				check(R.his && !!R.snow && v(R.snow) >= rule.min, `${tag}: a speck in mid flight (${R.snow?.css} CSS px) stands out ${v(R.snow)}:1 (body ${R.snow?.body}, rim ${R.snow?.rim}, edge ${R.snow?.edge}, tone ${R.snow?.tone}; ground ${R.snow?.ground})`, R.snow);
+				check(!!R.puff && R.puff.css >= 0.74 * 22 - 0.5 && !!R.snow && R.snow.css >= 4.5, `${tag}: their size on the screen: the puff ${R.puff?.css} CSS px here (22 at its largest at least), the speck ${R.snow?.css}`);
+			}
+		}
+		if (LIFE && CROPS && S === CONTRAST_SIZES[0]) {
+			await setScene(p, 'snowDay');
+			for (const variant of LOOKS.length ? LOOKS : [null]) await lifeStrip(p, S, spots[si++ % spots.length], variant || 'shipped', CROPS);
+			await p.evaluate(() => window.__reindeer.sceneWant('snowDay'));
+		}
+	} catch (e) {
+		check(false, `${name}: ran without throwing`, String(e && e.stack ? e.stack : e).slice(0, 600));
+	}
+	(report.contrast ??= []).push(...rows);
+	const f = (q) => (q ? `rim/body ${q.best} edge ${q.edge} tone ${q.tone} (${q.css} css)` : '-');
+	for (const R of rows) console.log(`  CONTRAST ${R.size.padEnd(8)} ${R.preset.padEnd(11)} ${String(R.look).padEnd(7)} puff ${f(R.puff)}  speck ${f(R.snow)}`);
+	check(errs.length === 0, `${name}: no page errors`, errs.slice(0, 5));
+	await ctx.close();
+}
+
 const ROAM_BACK_WAIT = 7000;
 
 const main = async () => {
@@ -1595,6 +1915,10 @@ const main = async () => {
 			const want = !ONLY.length || ONLY.includes('charge') || ONLY.includes(`charge:${S.name}`) || ONLY.includes('timing') || ONLY.includes(`timing:${S.name}`);
 			if (want) await chargeSize(browser, S, spotsFrom);
 		}
+		// THE EFFECTS' CONTRAST (round 2): with the charge section (CONTRAST=0 skips it), or alone (ONLY=contrast)
+		const contrast = ONLY.includes('contrast') || (CONTRAST && (!ONLY.length || ONLY.includes('charge')));
+		const csizes = (process.env.CSIZES || '').split(',').filter(Boolean);
+		if (contrast) for (const S of CONTRAST_SIZES) if (!csizes.length || csizes.includes(S.name)) await contrastSize(browser, S);
 	} finally {
 		await browser.close();
 	}
