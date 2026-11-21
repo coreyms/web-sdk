@@ -120,6 +120,8 @@ export class ChargeFx {
 			this.root.addChild(sprite);
 			this.pool.push({ sprite, kind: i < SNOW_MAX ? 'snow' : 'puff', on: false, t: 0, life: 1, x: 0, y: 0, vx: 0, vy: 0, g: 0, r0: 0, r1: 0, a0: 1, kf: 1, cx: 0, cy: 0, tau: 1, ds: 1, look: 'light', legacy: false });
 		}
+		// (the puffs drawn the oldest on top: the first puff out, the largest, keeps its rim over the ones after it)
+		for (const p of this.pool.filter((q) => q.kind === 'puff').reverse()) this.root.addChild(p.sprite);
 	}
 
 	/** HIS STRIKE STARTS (standing at `pose`): the kicked snow of the slow drag, each frame's specks from its time (only

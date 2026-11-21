@@ -111,15 +111,17 @@ def readable_fx(name, im):
         alpha = np.clip(a * 2.0, 0, 1) ** 0.8
         edge = (1 - _smooth(a, 0.03, 0.75)) * (alpha > 0.01)
     else:
-        # the speck: the export's disc already has a cool grey rim; it only gets the shaded underside, the rim a touch
-        # firmer
+        # the speck: white through (round 2, measured: its cool rim and shade greyed a cluster of 5 CSS px specks on
+        # Super snow), the export's own soft edge kept in its alpha
         alpha = a
-        d = np.hypot(xx - cx, yy - cy) / r
-        edge = _smooth(d, 0.55, 0.95) * a
+        arr = arr.copy()
+        arr[..., :3] = 1.0
+        edge = np.zeros_like(a)
     # (from the export's own colors: the speck's rim is already a cool grey)
     rgb = arr[..., :3].copy()
     shade = np.array(FX_SHADE, np.float32) / 255
-    rgb = rgb * (1 - 0.8 * under[..., None]) + shade * (0.8 * under[..., None])
+    sh = FX_LIGHT_SHADE[name]
+    rgb = rgb * (1 - sh * under[..., None]) + shade * (sh * under[..., None])
     e = np.array(FX_EDGE, np.float32) / 255
     k = (edge * FX_EDGE_ALPHA[name])[..., None]
     rgb = rgb * (1 - k) + e * k
@@ -132,9 +134,15 @@ def readable_fx(name, im):
 # slate blue-grey body with a clear darker rim, the same shape) for light ground. Which ground is light is read from the
 # scene's own art (ground_looks: the field and top band's median luminance) and the look with the higher contrast there
 # is the one used. The alpha numbers (FX_ALPHA) are each look's start opacity; the fade holds it to FX_HOLD of the life.
-FX_DARK_BODY = (92, 106, 130)
+# (round 2, measured: his ground is not one tone. On the snow grounds the puff can sit on lit snow (0.87 by day, 0.36 by
+# night), on his own shadow or the dark tree line behind his head (0.12 to 0.23), and the specks on snow or its blue
+# shade, so the `dark` look is a LIGHT body inside a clear dark rim: the rim stands out on the light ground, the body
+# on the dark)
+FX_DARK_BODY = {"puff": (226, 233, 244), "snow": (58, 70, 94)}
 FX_DARK_RIM = (30, 38, 56)
-FX_DARK_SHADE = (78, 90, 112)
+FX_DARK_SHADE = {"puff": (196, 208, 226), "snow": (40, 50, 70)}
+# the light look's underside shade, per effect (the speck kept near white: on Super snow its shade lost the contrast)
+FX_LIGHT_SHADE = {"puff": 0.8, "snow": 0.15}
 FX_ALPHA = {"puff": {"light": 0.8, "dark": 0.95}, "snow": {"light": 1.0, "dark": 1.0}}
 FX_HOLD = 0.6
 # the smallest each may be drawn at its largest, CSS px (the smallest phone, 360 x 560), and its picture's floor at 3
@@ -157,13 +165,13 @@ def readable_fx_dark(name, im):
     under = _smooth(((xx - cx) * 0.45 + (yy - cy) * 0.9) / r, -0.2, 0.9)
     if name == "puff":
         alpha = np.clip(a * 2.0, 0, 1) ** 0.8
-        ring = _smooth(d, 0.6, 0.67) * (1 - _smooth(d, 0.74, 0.8))
+        ring = _smooth(d, 0.48, 0.56) * (1 - _smooth(d, 0.86, 0.92))
     else:
         alpha = a
-        ring = _smooth(d, 0.76, 0.86) * (a > 0.02)
+        ring = _smooth(d, 0.6, 0.85) * (a > 0.02)
     alpha = np.maximum(alpha, ring)
-    body = np.array(FX_DARK_BODY, np.float32) / 255
-    shade = np.array(FX_DARK_SHADE, np.float32) / 255
+    body = np.array(FX_DARK_BODY[name], np.float32) / 255
+    shade = np.array(FX_DARK_SHADE[name], np.float32) / 255
     rim = np.array(FX_DARK_RIM, np.float32) / 255
     rgb = body * (1 - 0.7 * under[..., None]) + shade * (0.7 * under[..., None])
     rgb = rgb * (1 - ring[..., None]) + rim * ring[..., None]

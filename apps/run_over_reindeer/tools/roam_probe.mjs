@@ -1735,8 +1735,15 @@ async function contrastOne(p, S, preset, spot, round1, crops) {
 		const py = (cy - clip.y) * dpr;
 		const r = rc * dpr;
 		const ground = median(band(B, px, py, r * 1.15, r * 1.7));
-		const body = median(band(A, px, py, 0, r * 0.4));
-		const rim = median(band(A, px, py, r * (which === 'puff' ? 0.62 : 0.8), r * (which === 'puff' ? 0.78 : 0.95)));
+		// (each band's value: its pixel that stands 80 % of the way out from the ground in its own order: most of the band
+		// is at least that far from the ground; a 5 CSS px speck is only a few device px, a plain median of its middle
+		// caught its own edge)
+		const away = (list) => {
+			const s = [...list].sort((p, q) => Math.abs(p - ground) - Math.abs(q - ground));
+			return s.length ? s[Math.floor(s.length * 0.2)] : NaN;
+		};
+		const body = away(band(A, px, py, 0, r * 0.4));
+		const rim = away(band(A, px, py, r * (which === 'puff' ? 0.62 : 0.66), r * (which === 'puff' ? 0.78 : 0.9)));
 		const c = { css: Math.round(rc * 2 * 10) / 10, alpha: pick.alpha, u: pick.u, ground: Math.round(ground * 1000) / 1000, body: Math.round(wcag(body, ground) * 100) / 100, rim: Math.round(wcag(rim, ground) * 100) / 100 };
 		c.best = Math.max(c.body, c.rim);
 		out[which] = c;

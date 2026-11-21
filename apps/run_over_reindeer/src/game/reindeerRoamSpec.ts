@@ -1184,7 +1184,7 @@ export const REINDEER_ROAM = {
 			},
 			"gpuMb": 31.5,
 			"chargeGpuMb": 20.2,
-			"chargeKb": 906
+			"chargeKb": 905
 		},
 		"phone": {
 			"density": 0.1728,
