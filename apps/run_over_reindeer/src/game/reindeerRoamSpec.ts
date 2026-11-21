@@ -1153,22 +1153,22 @@ export const REINDEER_ROAM = {
 					"sheet": 4,
 					"x": 447,
 					"y": 870,
-					"w": 57,
-					"h": 57,
-					"diameterFramePx": 150
+					"w": 115,
+					"h": 115,
+					"diameterFramePx": 300.0
 				},
 				"snow": {
 					"sheet": 4,
-					"x": 506,
+					"x": 564,
 					"y": 870,
-					"w": 7,
-					"h": 7,
-					"diameterFramePx": 19
+					"w": 15,
+					"h": 15,
+					"diameterFramePx": 38.0
 				}
 			},
 			"gpuMb": 31.5,
 			"chargeGpuMb": 20.2,
-			"chargeKb": 895
+			"chargeKb": 899
 		},
 		"phone": {
 			"density": 0.1728,
@@ -1861,22 +1861,22 @@ export const REINDEER_ROAM = {
 					"sheet": 1,
 					"x": 1026,
 					"y": 401,
-					"w": 26,
-					"h": 26,
-					"diameterFramePx": 150
+					"w": 52,
+					"h": 52,
+					"diameterFramePx": 300.0
 				},
 				"snow": {
 					"sheet": 1,
-					"x": 1054,
+					"x": 1080,
 					"y": 401,
-					"w": 3,
-					"h": 3,
-					"diameterFramePx": 19
+					"w": 7,
+					"h": 7,
+					"diameterFramePx": 38.0
 				}
 			},
 			"gpuMb": 6.9,
 			"chargeGpuMb": 4.4,
-			"chargeKb": 319
+			"chargeKb": 320
 		}
 	},
 	"fx": {
@@ -1914,6 +1914,7 @@ export const REINDEER_ROAM = {
 				-0.05
 			],
 			"carry_tau_ms": 110.0,
+			"drawScale": 2.0,
 			"offset_frame_px": [
 				12.0,
 				5.0
@@ -1958,7 +1959,8 @@ export const REINDEER_ROAM = {
 			"vy_frame_px_per_ms": [
 				-0.57,
 				-0.14
-			]
+			],
+			"drawScale": 2.0
 		},
 		"runNose": [
 			[

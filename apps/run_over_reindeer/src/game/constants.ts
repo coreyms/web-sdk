@@ -1297,8 +1297,9 @@ export const REINDEER_SOUND = {
 		/** THE SNORT AT THE LOCK (Corey 2026-11-20, "B Snort at lock"; constants ROAM.charge): the roaming reindeer's own
 		 *  strike plays the same clip, retimed so its loudest point (lockPeakMs real ms into the file) lands on the
 		 *  crosshair's lock: cued on the first frame within lockPeakMs of the lock (the dart's pattern), or on the strike's
-		 *  first frame when the lock is there (one target). Once per strike; minGapMs from any other snort, as the idle
-		 *  ones (a strike within it is silent; its breath puff still shows); the idle snort's quiet rules are unchanged.
+		 *  first frame when the lock is there (one target). Once per strike, on EVERY strike of his: exempt from minGapMs
+		 *  (Corey 2026-11-20, "yes"); a snort still sounding then is stopped first (one copy of the key at a time). The
+		 *  idle snort keeps its quiet rules and waits minGapMs after any snort, this one included.
 		 *  sfx_target_lock still plays at the lock. */
 		lockPeakMs: 140,
 	},
