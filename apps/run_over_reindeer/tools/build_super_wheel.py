@@ -59,21 +59,37 @@ SS = 3  # supersampling of every drawn shape
 # edge stays at RIM; the gold trim, its studs and the string lights move out by what the band gives up, and the wedges
 # (their busts and numbers) grow into it about the hub. RIM_SHARE in the environment overrides it (the build's captures of
 # the other widths).
-RIM_SHARE = float(os.environ.get("RIM_SHARE", "0.5"))
+# THE LAYOUT PAGE'S ROUND 3 (Corey 2026-11-20, wheel_layout_r3_2026-11-20: "Can we go with tihs for small screens ... and
+# this for tablet/desktop?"): rim 0.46 (it was 0.5).
+RIM_SHARE = float(os.environ.get("RIM_SHARE", "0.46"))
 CANDY_W0 = 453.5 - 398.2  # round 5's candy band
 GROW = CANDY_W0 * (1.0 - RIM_SHARE)  # how far everything inside the candy band moves out
 RIM = 460.0  # the rim's outer edge: the reindeer runs on it
 R_HUB = 94.0
 R_WEDGE = 392.0 + GROW  # the wedges run out under the gold trim
 WEDGE_K = (R_WEDGE - R_HUB) / (392.0 - R_HUB)  # the wedges' growth about the hub
-STUD_R = 385.4 + GROW
-STUD_OUT = 17.5  # the stud's outer (ink) radius
+# THE STUDS (layout page round 3: studs 1.09, radialOffset 6.5): every radius of the stud (its ink 17.5, its gold 12.5, its
+# highlight 4.5 and that highlight's offset) times STUD_SIZE, its centre STUD_SHIFT units further out than the trim's rule
+STUD_SIZE = 1.09
+STUD_SHIFT = 6.5
+STUD_INK0, STUD_GOLD0, STUD_HL0 = 17.5, 12.5, 4.5  # round 5's stud radii (its highlight's radius is also its offset)
+STUD_R = 385.4 + GROW + STUD_SHIFT
+STUD_OUT = STUD_INK0 * STUD_SIZE  # the stud's outer (ink) radius
 # THE PEG MEETS THE STUDS (Corey 2026-11-20: "pay attention to the circles the pin is supposed to come in contact with,
-# the pin moves way too early"): round 5's flapper tip hung at radius 404, outside the studs' outer edge (402.9), so no
-# stud ever reached it. Its tip now reaches TIP_BITE units into each stud's circle (the bolt moves with it; the flapper's
-# length is its art's)
-TIP_BITE = 7.0
-PEG_TIP = 165.0  # the flapper's tip below its bolt as round 3 placed it (the art measures 164.85: pegFit)
+# the pin moves way too early"): its tip (the flapper's centre line; the flapper's own half thickness is SUPER_WHEEL.peg
+# tipRadius) reaches TIP_BITE units inside the studs' outer edge; the bolt sits above it by the flapper's length (scaled
+# with the peg about its tip, game/road/superWheel.ts). 7 until the layout page; his round 2 settings asked 20 with the
+# pin lowered 8.5 (28.5) on a flapper 1.22 long. AT 1.22 THE DEPTH IS SET BY THE STOP (2026-11-20, the builder's
+# sweep, NOTES wheel_layout_built_2026-11-20): a stop lands at least 9 degrees past a stud (game/superWheelPlan.ts: within
+# 30% of its wedge's middle), and a long flapper lets a stud go late. At 28.5 the stud still held it at about 23 to 29
+# degrees in such a stop (the page's "rests on a stud"); 12 still held it on the largest peg (pegScale 1); 11 lets every
+# stud go before 9 degrees on every layout, so the pin always comes back straight. The bounce comes from the spring and
+# the flick on release (constants SUPER_WHEEL.peg), not the depth.
+TIP_BITE = 11.0
+# THE FLAPPER'S LENGTH (Corey 2026-11-20, his round 2 value, kept: "I actually did not mean to change the size of the
+# flapper"): 1.22 times its art, REDRAWN at that length (make_long_flap: one more turn of its stripe, never a stretch)
+FLAP_LENGTH = 1.22
+PEG_TIP = 165.0 * FLAP_LENGTH  # the flapper's tip below its bolt as round 3 placed it (the art measures 164.85: pegFit)
 TIP_R = STUD_R + STUD_OUT - TIP_BITE
 RING = (100.0, 168.0)  # P2's inner ring
 HUB_K = 0.8
@@ -89,11 +105,40 @@ TWIST = 6.75  # degrees a stripe leans across the candy band
 # the bust on a wedge (MC): the character's nose at radius rf, the bust (0.6 of the picture's height) `units` tall; fx, fy
 # the nose in the trimmed picture (faces5.js ART, FACE_UP and MC's + 18 / - 14)
 BUST0 = {"reindeer": {"w": 564, "h": 1471, "fx": 0.62, "fy": 0.31, "rf": 270 + 18, "units": 236 - 14}, "santa": {"w": 712, "h": 1471, "fx": 0.55, "fy": 0.245, "rf": 274 + 18, "units": 244 - 14}}
-# (grown with the wedge about the hub: the nose's radius and the bust's height; the shipped art itself, never redrawn)
-BUST = {t: {**b, "rf": R_HUB + (b["rf"] - R_HUB) * WEDGE_K, "units": b["units"] * WEDGE_K} for t, b in BUST0.items()}
+# THE BUSTS (layout page round 3): each bust's size (times its grown height), its nose moved in or out (wheel units, + is
+# out toward the rim), sideways (+ is clockwise) and turned about the nose (degrees, + is clockwise); still cut to its
+# wedge, the number over it
+BUST_SIZE = {"reindeer": 2.37, "santa": 2.36}
+BUST_SHIFT_R = {"reindeer": -29.0, "santa": -90.5}
+BUST_X = {"reindeer": 30.5, "santa": 9.5}
+BUST_ROT = {"reindeer": 1.0, "santa": 0.5}
+# (grown with the wedge about the hub, then the page's settings; the shipped art itself, never redrawn)
+BUST = {t: {**b, "rf": R_HUB + (b["rf"] - R_HUB) * WEDGE_K + BUST_SHIFT_R[t], "units": b["units"] * WEDGE_K * BUST_SIZE[t], "x": BUST_X[t], "rot": BUST_ROT[t]} for t, b in BUST0.items()}
+# THE BUSTS' SOURCE (2026-11-20): at 2.36 the bust is about 995 wheel units tall, 1990 sheet px at the desktop sheet's
+# density, more than the d215 idle frame's 1471. The keyed source frame that frame 0 was cut from (1920 x 3408,
+# tools/build_columns.py SOURCES idle, frame 1) is read instead, through the SAME crop (the clip's box, then the frame's
+# own ink across), so the placement above is unchanged; the d215 frame is only the check (load_bust)
+BUST_SRC = {"reindeer": "column_idle/v6_keyed_v2", "santa": "santa_idle/v1_keyed"}
+BUST_SRC_ROOT = os.path.expanduser("~/Desktop/Run Over Reindeer/animation")
+BUST_SRC_FRAME = (1920, 3408)
+BUST_CHECK_MAX = 4.0  # the keyed source brought down to the d215 frame may differ from it by at most this (mean, 0 to 255)
 # THE WEDGE'S NUMBER (2026-11-20: Corey's Wild multipliers, game/road/wildMult.ts, in place of the yellow): its centre's
-# radius, round 5's number's middle (baseline 166, the digits 66 above it and 10 below) grown with the wedge
-MULT_R = R_HUB + (166.0 + (66.0 - 10.0) / 2 - R_HUB) * WEDGE_K
+# radius, round 5's number's middle (baseline 166, the digits 66 above it and 10 below) grown with the wedge, then the
+# layout page's round 3 radialOffset (+149.5: out under the string lights)
+MULT_SHIFT_R = 149.5
+MULT_R = R_HUB + (166.0 + (66.0 - 10.0) / 2 - R_HUB) * WEDGE_K + MULT_SHIFT_R
+# THE NUMBERS' OUTLINE (layout page round 3, outline type "even"): each letter's SOLID shape (the Wild multiplier atlas's
+# letter where its alpha is over OUTLINE_SOLID: its fill and its ink edge, never its soft baked shade) grown by one
+# thickness all round, in wheel units: OUTLINE_UNITS.phone on the game's phone layouts (layoutSpec isPhoneSizeType:
+# the window's short side 480 CSS px or less), .wide on tablets and desktops. Baked here, one black silhouette per
+# letter, drawn behind each letter (game/road/wildMult.ts setOutlineArt). The letters stand WHEEL_CAP tall on every wedge
+# (constants WILD_MULT.place.wheel caps: one height for every value, never squeezed)
+OUTLINE_UNITS = {"phone": 6.1, "wide": 2.8}
+OUTLINE_SOLID = 200
+WHEEL_CAP = 58.24
+OUTLINE_COLORS = {"reindeer": "red", "santa": "green"}  # constants WILD_MULT.colors
+WHEEL_VALUES = {"reindeer": [4, 5, 6, 8], "santa": [10, 12, 15, 30]}  # game/superWheelPlan.ts WHEEL_SHARES
+WILD_SPEC = os.path.join(APP, "src", "game", "wildMultSpec.ts")
 MULTS = [4, 5, 6, 8, 10, 12, 15, 30]
 MULT_SIZE = 80.0  # font size, wheel units (MC); its baseline sits at radius 166
 MULT_BASE = 166.0
@@ -102,6 +147,20 @@ BULB_COLORS = {"r": ((0xFF, 0x3B, 0x30), (0x6E, 0x17, 0x12)), "y": ((0xFF, 0xD2,
 # the mock's placement of its hub and peg layers (assets2/data2.js look l1), wheel units
 HUB_SRC = {"x": -144.75166508087537, "y": -163.3244529019981, "w": 291.12844909609896}
 PEG_SRC = {"x": -79.10958904109589, "y": -66.45205479452055, "w": 154.3013698630137, "h": 231.45205479452054, "boltY": -569.0, "tip": 165.0}
+# the flapper redrawn at FLAP_LENGTH (make_long_flap), in the art's own px (1024 x 1536, its bolt at row 441): the edges
+# smoothed over FLAP_SMOOTH rows, the stripe pitch measured on columns FLAP_PITCH_COLS over rows FLAP_BODY, the stripes'
+# slant measured out to FLAP_SLANT_U of the width either side of the middle (stripe_slant), the taper drawn out over rows
+# FLAP_ZONE (below the cap, above the rounded tip), one pitch of stripe phase doubled at FLAP_SEAM: the middle of the white
+# stripe from row 900 to 1042 at the middle column (one pitch above, 692, is the middle of the one from 621 to 755), so
+# the seam runs through white at every place across the body and never through a red stripe's highlight; the row each
+# pixel is read from is solved FLAP_SOLVE times (its slant depends on that row)
+FLAP_SMOOTH = 15
+FLAP_PITCH_COLS = (480, 568)
+FLAP_BODY = (500, 1450)
+FLAP_SLANT_U = 0.42
+FLAP_ZONE = (640, 1470)
+FLAP_SEAM = 971
+FLAP_SOLVE = 4
 
 # ---- the reindeer on the rim -------------------------------------------------------------------------------------------
 RUN = {
@@ -160,27 +219,75 @@ def wedge_dist(X, Y, r, a, half, r0, r1):
     return np.maximum(np.maximum(side, r - r1), r0 - r)
 
 
-def load_bust(tier):
-    """the shipped column Wild art: the d215 idle sheet's frame 0, trimmed to its ink across (tools/build_columns.py made it)"""
+def load_bust_d215(tier):
+    """the shipped column Wild art: the d215 idle sheet's frame 0, trimmed to its ink across (tools/build_columns.py made
+    it); also where that frame sits in its keyed source frame (the clip's box, source px)"""
     src = open(os.path.join(APP, "src", "game", "columnClipSpec.ts")).read()
     spec = json.loads(src[src.index("{") : src.rindex("}") + 1])
-    t = spec["clips"][tier]["idle"]["tiers"]["d215"]
+    clip = spec["clips"][tier]["idle"]
+    t = clip["tiers"]["d215"]
     sheet = Image.open(os.path.join(ASSETS, t["sheets"][0]["file"])).convert("RGBA")
     frame = sheet.crop((0, 0, t["frameWidth"], t["frameHeight"]))
     box = frame.getchannel("A").getbbox()  # every pixel with any ink, as the mock cut it
     cut = frame.crop((box[0], 0, box[2], frame.height))
     B = BUST[tier]
     assert cut.size == (B["w"], B["h"]), f"{tier}: the idle frame is {cut.size}, the mock's placement was made for {(B['w'], B['h'])}"
-    return cut
+    # tools/build_columns.py: the frame is the source cropped to the clip's box (x from the column's left edge, road px; the
+    # source fitted by its height to the column's 684 road px) and scaled to frameWidth x frameHeight
+    fw, fh = BUST_SRC_FRAME
+    road_per_src = spec["column"]["height"] / fh
+    bx0 = (clip["x"] + (fw * road_per_src - spec["column"]["width"]) / 2) / road_per_src
+    bw = clip["width"] / road_per_src
+    bh = clip["height"] / road_per_src
+    sx, sy = bw / t["frameWidth"], bh / t["frameHeight"]
+    rect = (bx0 + box[0] * sx, clip["y"] / road_per_src, bx0 + box[2] * sx, clip["y"] / road_per_src + frame.height * sy)
+    return cut, rect
 
 
-def place_image(src, w, h, d, x0, y0, ix, iy, iw, ih):
-    """`src` drawn into a (w, h) supersampled canvas whose corner is (x0, y0) wheel units, at (ix, iy) with size (iw, ih) units; float RGBA"""
+def load_bust(tier):
+    """THE BUST'S PICTURE: the keyed source frame (BUST_SRC) and the rectangle of it (source px, floats) that IS the d215
+    cut the placement (BUST0) was made for. Checked here: that rectangle brought down to the cut's size matches the cut."""
+    cut, rect = load_bust_d215(tier)
+    folder = os.path.join(BUST_SRC_ROOT, BUST_SRC[tier])
+    files = sorted(f for f in os.listdir(folder) if f.endswith(".png"))
+    src = Image.open(os.path.join(folder, files[0]))
+    src.load()
+    src = src.convert("RGBA")
+    assert src.size == BUST_SRC_FRAME, f"{tier}: the keyed source frame is {src.size}"
+    # the check: the source through the rectangle at the cut's size, against the cut (premultiplied colour, and alpha)
+    x0, y0, x1, y1 = rect
+    w, h = cut.size
+    a = (x1 - x0) / w
+    e = (y1 - y0) / h
+    small = src.convert("RGBa").transform((w, h), Image.AFFINE, (a, 0, x0, 0, e, y0), resample=Image.BICUBIC)
+    small = np.asarray(small.resize((w, h)), np.float64)
+    ref = np.asarray(cut.convert("RGBa"), np.float64)
+    diff = float(np.abs(small - ref).mean())
+    print(f"  {tier} bust: keyed source {files[0]} through ({x0:.1f}, {y0:.1f}) to ({x1:.1f}, {y1:.1f}) source px ({x1 - x0:.0f} x {y1 - y0:.0f}); against the d215 cut ({w} x {h}): mean difference {diff:.2f} of 255")
+    assert diff <= BUST_CHECK_MAX, f"{tier}: the keyed source does not match the d215 frame ({diff:.2f})"
+    return {"src": src, "rect": rect, "w": w, "h": h, "check": round(diff, 2), "srcPx": [round(x1 - x0, 1), round(y1 - y0, 1)]}
+
+
+def place_image(bust, w, h, d, x0, y0, ix, iy, iw, ih, nose=(0.0, 0.0), rot=0.0):
+    """the bust picture (load_bust) drawn into a (w, h) supersampled canvas whose corner is (x0, y0) wheel units, its top
+    left at (ix, iy) with size (iw, ih) units, then turned `rot` degrees clockwise about `nose` (wheel units); float RGBA.
+    Sampled straight from the keyed source through its rectangle (one resampling, premultiplied)."""
     k = d * SS
-    tw, th = max(1, int(round(iw * k))), max(1, int(round(ih * k)))
-    im = src.convert("RGBa").resize((tw, th), Image.LANCZOS).convert("RGBA")
-    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    out.paste(im, (int(round((ix - x0) * k)), int(round((iy - y0) * k))))
+    rx0, ry0, rx1, ry1 = bust["rect"]
+    su = (rx1 - rx0) / iw  # source px per wheel unit, across and down the picture
+    sv = (ry1 - ry0) / ih
+    c, s = math.cos(math.radians(rot)), math.sin(math.radians(rot))
+    nx, ny = nose
+    # canvas px (X, Y) -> wheel units (x0 + X / k, y0 + Y / k) -> about the nose, turned back by rot -> the picture's own
+    # units (lx - ix, ly - iy) -> source px
+    # local = R(-rot) (p - nose) + nose;  R(-rot) = [[c, s], [-s, c]]
+    A = c / k * su
+    B = s / k * su
+    C = (c * (x0 - nx) + s * (y0 - ny) + nx - ix) * su + rx0
+    D = -s / k * sv
+    E = c / k * sv
+    F = (-s * (x0 - nx) + c * (y0 - ny) + ny - iy) * sv + ry0
+    out = bust["src"].convert("RGBa").transform((w, h), Image.AFFINE, (A, B, C, D, E, F), resample=Image.BICUBIC).convert("RGBA")
     return np.asarray(out, np.float64) / 255.0
 
 
@@ -208,7 +315,8 @@ def make_wedge(tier, d, bust):
     B = BUST[tier]
     s = B["units"] / (0.6 * B["h"])
     bw, bh = B["w"] * s, B["h"] * s
-    top = place_image(bust, w, h, d, x0, y0, -B["fx"] * bw, -B["rf"] - B["fy"] * bh, bw, bh)
+    # its nose at (x, -rf), the picture turned about the nose (the page: translate, rotate, then draw)
+    top = place_image(bust, w, h, d, x0, y0, B["x"] - B["fx"] * bw, -B["rf"] - B["fy"] * bh, bw, bh, nose=(B["x"], -B["rf"]), rot=B["rot"])
     top[..., 3] *= inside
     over(img, top)
     # half of the dark divider on each side (two neighbours make the mock's 8 unit line)
@@ -270,12 +378,14 @@ def make_disc(d, radius):
 
 
 def make_stud(d):
-    X, Y, r, a, w, h = canvas(-19, -19, 19, 19, d)
+    e = math.ceil(STUD_OUT + 1.5)  # the canvas's half size, units (19 at round 5's 17.5; 21 at 1.09)
+    X, Y, r, a, w, h = canvas(-e, -e, e, e, d)
     img = blank(w, h)
-    paint(img, r <= 17.5, INK)
-    paint(img, r <= 12.5, (0xF2, 0xC2, 0x1B))
-    paint(img, np.hypot(X + 4.5, Y + 4.5) <= 4.5, (255, 255, 255), 0.85)
-    return down(img), (19 * d, 19 * d)
+    paint(img, r <= STUD_INK0 * STUD_SIZE, INK)
+    paint(img, r <= STUD_GOLD0 * STUD_SIZE, (0xF2, 0xC2, 0x1B))
+    hl = STUD_HL0 * STUD_SIZE
+    paint(img, np.hypot(X + hl, Y + hl) <= hl, (255, 255, 255), 0.85)
+    return down(img), (e * d, e * d)
 
 
 def make_bulb(d, colour, on):
@@ -417,9 +527,160 @@ def make_hub(d):
     return out, ((cx - box[0]) * k, (cy - box[1]) * k), info
 
 
-def make_peg(d, name):
+def flap_edges(al):
+    """the flapper art's left and right ink edge per row (art px, -1 where the row is empty), smoothed over FLAP_SMOOTH rows"""
+    n = al.shape[0]
+    left = np.full(n, -1.0)
+    right = np.full(n, -1.0)
+    for y in range(n):
+        xs = np.where(al[y])[0]
+        if len(xs):
+            left[y], right[y] = xs[0], xs[-1] + 1.0
+    k = np.ones(FLAP_SMOOTH) / FLAP_SMOOTH
+    ok = left >= 0
+    ls, rs = left.copy(), right.copy()
+    ls[ok] = np.convolve(np.pad(left[ok], FLAP_SMOOTH // 2, mode="edge"), k, mode="valid")[: ok.sum()]
+    rs[ok] = np.convolve(np.pad(right[ok], FLAP_SMOOTH // 2, mode="edge"), k, mode="valid")[: ok.sum()]
+    return ls, rs
+
+
+def stripe_pitch(px):
+    """the candy stripe's repeat down the flapper (art px): the rows where a white stripe starts, along columns about the
+    middle of the body, their spacing averaged"""
+    rgb = px[..., :3]
+    al = px[..., 3] > 128
+    steps = []
+    for xc in range(FLAP_PITCH_COLS[0], FLAP_PITCH_COLS[1], 8):
+        white = (rgb[:, xc].min(axis=1) > 200) & al[:, xc]
+        starts = [y for y in range(FLAP_BODY[0], FLAP_BODY[1]) if white[y] and not white[y - 1]]
+        steps += list(np.diff(starts))
+    steps = [s for s in steps if s > 100]
+    return float(np.median(steps)), len(steps)
+
+
+def stripe_slant(px, left, right):
+    """THE STRIPES' SLANT across the flapper: for each stripe edge crossing the middle column (art rows), how far above
+    (+) or below it the same edge lies at each place across the body (u, -0.5 left edge to 0.5 right edge, in the row's
+    own width), followed out from the middle. Returns the edges' middle rows, the u grid and the offsets (art px)."""
+    al = px[..., 3] > 128
+    red = (px[..., 0] > 150) & (px[..., 1] < 90) & al
+    c, w = (left + right) / 2, right - left
+
+    def at(u, y):
+        return red[y, int(round(c[y] + u * w[y]))]
+
+    edges = [(y, at(0, y - 1)) for y in range(FLAP_BODY[0], FLAP_BODY[1] + 1) if at(0, y) != at(0, y - 1)]
+    us = np.round(np.arange(-FLAP_SLANT_U, FLAP_SLANT_U + 1e-9, 0.02), 2)
+    table = np.zeros((len(edges), len(us)))
+    for i, (yb, from_red) in enumerate(edges):
+        off = {0.0: 0.0}
+        for side in (1, -1):
+            prev = 0.0
+            for u in sorted((v for v in us if side * v > 0), key=abs):
+                best = None
+                for dy in range(-25, 26):
+                    y = int(round(yb + prev + dy))
+                    a0, a1 = at(u, y - 1), at(u, y)
+                    if a0 != a1 and a0 == from_red and (best is None or abs(dy) < abs(best)):
+                        best = dy
+                if best is None:
+                    break
+                prev += best
+                off[u] = prev
+        ks = np.array(sorted(off))
+        table[i] = np.interp(us, ks, [off[k] for k in ks])  # (past the last edge found: held)
+    return np.array([e[0] for e in edges], np.float64), us, table
+
+
+def make_long_flap():
+    """THE FLAPPER AT FLAP_LENGTH, REDRAWN (Corey 2026-11-20: his round 2 length 1.22; the layout page stretched the art to
+    get it, and a stretch draws its stripes 22% longer). The mock's flapper art (super_wheel_src/peg_flap.webp) gets ONE
+    MORE TURN OF ITS STRIPE, drawn in the stripes' own frame:
+      - each art pixel's STRIPE PHASE is its row less the stripe's slant at its place across the body (stripe_slant:
+        measured from the art's own stripe edges, larger where the body is wider), so in that frame every stripe edge is
+        level and one pitch of phase is one turn of the stripe;
+      - the new flapper's rows are the art's rows with one pitch of phase doubled at FLAP_SEAM (the middle of a white
+        stripe at every place across the body; the red stripes' highlights are never cut), its taper drawn out smoothly
+        over FLAP_ZONE so the outline stays one clean curve, each row's slant that of the art's row of the same width;
+      - one pitch is a little longer than the 22% asked, so the stripes over FLAP_ZONE are drawn about 3.6% closer
+        together (their slant and width as drawn); the cap at the bolt and the rounded tip are the art's own rows.
+    Returns the art (same canvas width, taller) and what it did."""
+    from scipy.ndimage import map_coordinates
+
+    src = Image.open(os.path.join(SRC, "peg_flap.webp")).convert("RGBA")
+    px8 = np.asarray(src)
+    px = px8.astype(np.float64) / 255.0
+    H, W = px.shape[:2]
+    al = px[..., 3] > 0.5
+    upp = PEG_SRC["w"] / W
+    bolt_y = -PEG_SRC["y"] / upp
+    tip_row = np.where(al.any(axis=1))[0][-1] + 1.0
+    L0 = tip_row - bolt_y
+    dL = L0 * (FLAP_LENGTH - 1.0)  # what the flapper grows by, art px
+    P, nP = stripe_pitch(px8)
+    a, b = FLAP_ZONE
+    j = FLAP_SEAM
+    left, right = flap_edges(al)
+    ey, us, table = stripe_slant(px8.astype(int), left, right)
+    rows = np.arange(H, dtype=np.float64)
+    okr = left >= 0
+    Ho = int(math.ceil(H + dL)) + 2
+    Y = np.arange(Ho, dtype=np.float64) + 0.5  # output row centres
+    span = (b + dL) - a  # the zone's length in the new art
+
+    def smooth(t):
+        t = np.clip(t, 0.0, 1.0)
+        return t * t * (3 - 2 * t)
+
+    uz = (Y - a) / span
+    g = Y + (P - dL) * smooth(uz)  # the row of the long texture (its phase before the slant)
+    p = Y - dL * smooth(uz)  # the art's row whose silhouette (and slant) this row takes (the taper drawn out)
+    li = lambda arr, q: np.interp(q - 0.5, rows[okr], arr[okr])  # noqa: E731
+    lt, rt = li(left, p), li(right, p)
+    ct, wt = (lt + rt) / 2, rt - lt
+    X = np.arange(W, dtype=np.float64) + 0.5
+    XX, YY = np.meshgrid(X, Y)
+    U = (XX - ct[:, None]) / wt[:, None]
+    Uc = np.clip(U, us[0], us[-1])
+
+    def slant(u, y):
+        """the stripes' slant (art px) at place u across the body, art row y (between the measured edges: linear)"""
+        iu = np.interp(u, us, np.arange(len(us)))
+        i0 = np.clip(np.floor(iu).astype(int), 0, len(us) - 2)
+        fu = iu - i0
+        per_edge = table[:, i0] * (1 - fu) + table[:, i0 + 1] * fu  # (edges, ...)
+        iy = np.interp(y, ey, np.arange(len(ey)))
+        k0 = np.clip(np.floor(iy).astype(int), 0, len(ey) - 2)
+        fy = iy - k0
+        pe = np.take_along_axis(per_edge, k0[None], axis=0)[0]
+        pe1 = np.take_along_axis(per_edge, (k0 + 1)[None], axis=0)[0]
+        return pe * (1 - fy) + pe1 * fy
+
+    phase = g[:, None] - slant(Uc, np.broadcast_to(p[:, None], Uc.shape))
+    phase = np.where(phase >= j, phase - P, phase)  # the doubled pitch
+    ys = phase + slant(Uc, phase)
+    for _ in range(FLAP_SOLVE):
+        ys = phase + slant(Uc, ys)
+    xs = li(left, ys) + (U + 0.5) * (li(right, ys) - li(left, ys))
+    inside = ((Y >= a) & (Y <= b + dL))[:, None]
+    xs = np.where(inside, xs, XX)
+    yy = np.where(inside, ys, np.where(YY > b, YY - dL, YY))
+    pm = np.concatenate([px[..., :3] * px[..., 3:4], px[..., 3:4]], axis=2)
+    out = np.zeros((Ho, W, 4))
+    for ch in range(4):
+        out[..., ch] = map_coordinates(pm[..., ch], [yy - 0.5, xs - 0.5], order=1, mode="constant", cval=0.0)
+    a_ = out[..., 3:4]
+    rgb = np.where(a_ > 1e-6, out[..., :3] / np.maximum(a_, 1e-6), 0)
+    img = Image.fromarray(np.clip(np.round(np.concatenate([rgb, a_], axis=2) * 255), 0, 255).astype(np.uint8), "RGBA")
+    new_tip = np.where(np.asarray(img.getchannel("A")) > 128)[0].max() + 1.0
+    info = {"pitchPx": round(P, 1), "pitchSamples": nP, "seamPx": j, "zonePx": [a, b], "stripeEdges": [int(v) for v in ey], "lengthArtPx": [round(float(L0), 1), round(float(new_tip - bolt_y), 1)], "length": round(float((new_tip - bolt_y) / L0), 4), "zoneTexture": round((b - a + P) / span, 4)}
+    return img, info
+
+
+def make_peg(d, name, src=None):
     """a peg layer at the mock's place about its bolt (the flapper turns about it)"""
-    src = Image.open(os.path.join(SRC, name)).convert("RGBA")
+    if src is None:
+        src = Image.open(os.path.join(SRC, name)).convert("RGBA")
     upp = PEG_SRC["w"] / src.width
     box = src.getchannel("A").point(lambda v: 255 if v > 8 else 0).getbbox()
     cut = src.crop(box)
@@ -431,6 +692,45 @@ def make_peg(d, name):
     tip_row = np.where(al.any(axis=1))[0][-1]
     tip_x = np.where(al[max(0, tip_row - 6)])[0].mean() + box[0]
     return out, ((bolt[0] - box[0]) * k, (bolt[1] - box[1]) * k), {"tipOffsetUnits": round((tip_x - bolt[0]) * upp, 2), "tipBelowBoltUnits": round((tip_row + box[1] - bolt[1]) * upp, 2)}
+
+
+def load_wild_letters():
+    """the Wild multiplier atlas (tools/build_wild_mult.py, its desktop sheet): each wheel letter's untrimmed frame as an
+    alpha array, the set's density (sheet px per design unit) and its letter height (design units)"""
+    src = open(WILD_SPEC).read()
+    spec = json.loads(src[src.index("{") : src.rindex("}") + 1])
+    sheet = spec["sheets"]["full"]
+    pages = [np.asarray(Image.open(os.path.join(ASSETS, p["file"])).convert("RGBA").getchannel("A"), np.float64) for p in sheet["pages"]]
+    letters = {}
+    for tier, color in OUTLINE_COLORS.items():
+        dens = spec["sets"][color]["full"]
+        for ch in sorted({c for m in WHEEL_VALUES[tier] for c in f"{m}x"}):
+            page, x, y, w, h, ox, oy, fw, fh = sheet["frames"][f"{color}_{ch}"]
+            a = np.zeros((fh, fw))
+            a[oy : oy + h, ox : ox + w] = pages[page][y : y + h, x : x + w]
+            letters[(color, ch)] = (a, dens)
+    return letters, spec["cap"]
+
+
+def make_outline_letter(d, alpha, dens, art_cap, t):
+    """ONE LETTER'S EVEN OUTLINE: its solid shape (alpha over OUTLINE_SOLID) grown by t wheel units, black, at the letters'
+    wheel size (WHEEL_CAP tall); its origin the letter frame's centre (where the game anchors the letter)"""
+    from scipy.ndimage import distance_transform_edt, map_coordinates
+
+    upd = WHEEL_CAP / art_cap  # wheel units per design unit
+    fh, fw = alpha.shape
+    hw, hh = fw / dens * upd / 2 + t + 2, fh / dens * upd / 2 + t + 2  # half the canvas, units
+    hw, hh = math.ceil(hw * d) / d, math.ceil(hh * d) / d
+    X, Y, r, a, w, h = canvas(-hw, -hh, hw, hh, d)
+    # the letter's frame px under each supersampled pixel (its centre at the frame's centre)
+    fx = X / upd * dens + fw / 2 - 0.5
+    fy = Y / upd * dens + fh / 2 - 0.5
+    solid = map_coordinates(alpha, [fy, fx], order=1, mode="constant", cval=0.0) > OUTLINE_SOLID
+    k = d * SS
+    dist = distance_transform_edt(~solid) / k
+    img = blank(w, h)
+    paint(img, dist <= t, (0, 0, 0))
+    return down(img), (hw * d, hh * d)
 
 
 def pack(items, pad=2):
@@ -467,7 +767,7 @@ def pack(items, pad=2):
     return sheet, frames
 
 
-def build_tier(tier, busts):
+def build_tier(tier, busts, flap, letters):
     d = DENSITY[tier]
     items = []
     info = {}
@@ -492,8 +792,14 @@ def build_tier(tier, busts):
     im, o, info["hub"] = make_hub(d)
     items.append(("hub", im, o))
     for key, name in (("peg_bracket", "peg_bracket.webp"), ("peg_flap", "peg_flap.webp")):
-        im, o, info[key] = make_peg(d, name)
+        im, o, info[key] = make_peg(d, name, flap if key == "peg_flap" else None)
         items.append((key, im, o))
+    # the numbers' even outline, one black silhouette per wheel letter and screen class: mo_<phone|wide>_<color>_<letter>
+    art, art_cap = letters
+    for cls, t in OUTLINE_UNITS.items():
+        for (color, ch), (alpha, dens) in sorted(art.items()):
+            im, o = make_outline_letter(d, alpha, dens, art_cap, t)
+            items.append((f"mo_{cls}_{color}_{ch}", im, o))
     sheet, frames = pack(items)
     name = "super-wheel.webp" if tier == "full" else f"super-wheel-{tier}.webp"
     os.makedirs(OUT, exist_ok=True)
@@ -557,10 +863,13 @@ def run_contact():
 
 def main():
     busts = {t: load_bust(t) for t in ("reindeer", "santa")}
+    flap, flap_info = make_long_flap()
+    print("  flapper redrawn:", flap_info)
+    letters = load_wild_letters()
     tiers = {}
     notes = {}
     for tier in DENSITY:
-        tiers[tier], info, size = build_tier(tier, busts)
+        tiers[tier], info, size = build_tier(tier, busts, flap, letters)
         notes[tier] = info
         print(f"{tier}: {tiers[tier]['width']} x {tiers[tier]['height']} px, {size / 1024:.0f} KB, {tiers[tier]['width'] * tiers[tier]['height'] * 4 / 1048576:.1f} MB on the GPU")
         print("  hub", info["hub"], "peg", info["peg_bracket"], info["peg_flap"])
@@ -572,6 +881,10 @@ def main():
         "mults": MULTS,
         "hubFit": notes["full"]["hub"],
         "pegFit": {"bracket": notes["full"]["peg_bracket"], "flap": notes["full"]["peg_flap"]},
+        "flap": {"length": FLAP_LENGTH, **flap_info},
+        "studs": {"size": STUD_SIZE, "shift": STUD_SHIFT},
+        "busts": {t: {"rf": round(b["rf"], 3), "units": round(b["units"], 3), "x": b["x"], "rot": b["rot"], "size": BUST_SIZE[t], "srcPx": busts[t]["srcPx"], "check": busts[t]["check"]} for t, b in BUST.items()},
+        "numbers": {"cap": WHEEL_CAP, "outline": OUTLINE_UNITS, "solidAlpha": OUTLINE_SOLID, "colors": OUTLINE_COLORS, "values": WHEEL_VALUES, "multShift": MULT_SHIFT_R},
         "run": run,
         "tiers": tiers,
     }

@@ -203,6 +203,14 @@ export class WildMult {
 	private drawn = { value: 0, mode: 'hidden' as Mode, scale: 1, text: '', sheen: 0, sparkles: 0, glow: 0 };
 	private si = 0;
 	private pi = 0;
+	/** THE WHEEL'S EVEN OUTLINE (2026-11-20, the layout page round 3): a picture per letter from its owner's sheet (the
+	 *  Super wheel's baked silhouettes, tools/build_super_wheel.py), drawn behind each letter at `outlineScale`; null: the
+	 *  place's own `outline` step (or none) */
+	private outlineArt: ((ch: string) => PIXI.Texture | null) | null = null;
+	private outlineScale = 1;
+	/** THE LETTERS ON AN ARC (the wheel's wedges): each letter turned about a centre this far below the root (the wheel's
+	 *  centre, the number's radius), its place along the line laid along the arc; 0: a straight line */
+	private arcR = 0;
 
 	constructor(
 		private readonly place: MultPlace,
@@ -232,6 +240,17 @@ export class WildMult {
 		for (let i = 0; i < MAX_STARS; i++) sprite(true, this.stars);
 		for (let i = 0; i < MAX_PUFFS; i++) sprite(false, this.puffs);
 		this.root.visible = false;
+	}
+
+	/** the even outline's pictures (a letter's silhouette, its origin the letter frame's centre) and their scale, or null */
+	setOutlineArt(art: ((ch: string) => PIXI.Texture | null) | null, scale = 1) {
+		this.outlineArt = art;
+		this.outlineScale = scale;
+	}
+
+	/** set the letters along an arc of radius `r` about a centre r below the root (0: a straight line) */
+	setArc(r: number) {
+		this.arcR = r;
 	}
 
 	/** the value it stands at (what it counts to) */
@@ -287,7 +306,7 @@ export class WildMult {
 
 	/** what it draws now (probes) */
 	state() {
-		return { ...this.drawn, target: this.value, place: this.place, color: this.color, band: this.band, cap: this.cap, width: this.width, max: this.max, top: this.top, maxW: WILD_MULT.place[this.place].maxW, rulesMax: rulesMax(), loaded: !!textures };
+		return { ...this.drawn, target: this.value, place: this.place, color: this.color, band: this.band, cap: this.cap, width: this.width, max: this.max, top: this.top, maxW: WILD_MULT.place[this.place].maxW, rulesMax: rulesMax(), loaded: !!textures, outlineArt: this.outlineArt !== null, outlineScale: this.outlineScale, arc: this.arcR };
 	}
 
 	/** the letters' bounds as drawn, CSS px on the stage (probes: the number fits its cell or column) */
@@ -485,15 +504,31 @@ export class WildMult {
 				continue;
 			}
 			g.texture = gt;
-			g.position.set(this.xs[i], dy);
+			// on an arc: the letter turned about the arc's centre by its place along the line (the layout page's curved text)
+			const ar = this.arcR;
+			const turn = ar > 0 ? this.xs[i] / ar : 0;
+			const lx = ar > 0 ? Math.sin(turn) * ar : this.xs[i];
+			const ly = ar > 0 ? ar - Math.cos(turn) * ar : 0;
+			g.position.set(lx, ly + dy);
+			g.rotation = turn;
 			g.scale.set(k * sx, k * sy);
 			g.alpha = alpha;
 			const back = this.backs[i];
-			if (outline > 0) {
+			const ot = this.outlineArt?.(this.text[i]) ?? null;
+			if (ot) {
+				back.texture = ot;
+				back.visible = true;
+				back.tint = 0xffffff;
+				back.position.set(lx, ly + dy);
+				back.rotation = turn;
+				back.scale.set(this.outlineScale * sx, this.outlineScale * sy);
+				back.alpha = alpha;
+			} else if (outline > 0) {
 				back.texture = gt;
 				back.visible = true;
 				back.tint = 0x000000;
-				back.position.set(this.xs[i], dy);
+				back.position.set(lx, ly + dy);
+				back.rotation = turn;
 				back.scale.set(k * sx * outline, k * sy * outline);
 				back.alpha = alpha;
 			} else back.visible = false;
@@ -510,7 +545,8 @@ export class WildMult {
 				sh.texture = st;
 				sh.visible = true;
 				sh.tint = GD.sheenTint;
-				sh.position.set(this.xs[i], dy);
+				sh.position.set(lx, ly + dy);
+				sh.rotation = turn;
 				sh.scale.set(ks * sx, ks * sy);
 				sh.alpha = Math.min(1, a);
 			} else sh.visible = false;
