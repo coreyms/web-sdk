@@ -35,7 +35,7 @@
 //   pin        (2026-11-20, Corey: "the pin moves way too early"; the layout page round 3: "the pin ... should be bouncing
 //              most of the spins") one forced Super round, its top peg recorded frame by frame from the press to well after
 //              the stop (wheelPegTrace): the WHOLE FLAPPER (game/road/wheelPeg.ts) never inside a stud's circle (PIN_TOL wheel
-//              units); it never starts to turn from rest without a stud on it (a stud met inside a frame counts); every stud
+//              units); it never starts to turn from rest (still a whole ring of its spring) without a stud on it (a stud met inside a frame counts); every stud
 //              that crossed the top met it; at least KICK_SHARE of them kick it over KICK_DEG degrees, a stud's median kick
 //              at least KICK_MEDIAN and the spin's largest swing from LARGEST_MIN to SUPER_WHEEL.peg.maxSwing (Corey: "Go
 //              deeper, by dropping lower I was trying to make it move more visibly"); every tick is a stud's first contact,
@@ -997,15 +997,29 @@ async function pinSection(browser) {
 		check(inside.length === 0, `pin: the flapper (its drawn outline, its whole length) is never inside a stud (deepest ${Math.min(...tr.map((f) => f.gap)).toFixed(2)} wheel units; tolerance ${PIN_TOL})`, inside.slice(0, 3));
 		// a frame "in contact": a stud on the flapper at the frame's end, or met inside the frame
 		const touching = (f) => f.stud !== null || (f.met && f.met.length > 0);
+		// AT REST means the flapper stayed within EPS (each frame's largest swing inside it, maxAbs, so a peak between two
+		// frames counts) for at least one whole ring of its spring (2 pi over the damped spring's speed, from
+		// SUPER_WHEEL.peg's stiffness and damping: 272 ms at 550 and 8). Until 2026-11-21 it was 3 frames (50 ms). With the
+		// deeper pin (908119c) the free ring after the last stud is lightly damped (0.17 of critical) and its tail crosses
+		// the EPS band in 4 or 5 frames: a ring of 0.068 degrees (0.2 wheel units at the tip, about a tenth of a device
+		// pixel) was read as a start from rest, though its swings only shrank (the probe host, 2026-11-20: -0.056 degrees,
+		// gap 98, no stud). A swing over EPS cannot stay inside EPS for a whole ring, so a pin quiet that long is truly
+		// still, and a turn after it with no stud near is a real untouched start (tools/wheel_peg_check.mjs proves the
+		// same rule in node: no free ring trips it, a kick given with no stud does).
+		const zeta = K.damping / (2 * Math.sqrt(K.stiffness));
+		const RING_MS = (2 * Math.PI * 1000) / (Math.sqrt(K.stiffness) * Math.sqrt(Math.max(1e-6, 1 - zeta * zeta)));
+		const quiet = (f) => (f.maxAbs ?? Math.abs(f.phi)) <= EPS;
 		const early = [];
-		const SETTLED = 3;
-		let still = SETTLED;
+		let quietSince = null;
 		for (let i = 1; i < tr.length; i++) {
 			const f = tr[i];
-			if (Math.abs(f.phi) > EPS && still >= SETTLED && !touching(f) && f.gap > PIN_TOL) early.push(f);
-			still = Math.abs(f.phi) <= EPS ? still + 1 : 0;
+			// (quiet up to this frame's start, the frame before's clock: a long frame's own time is not rest; a stud on it at
+			// the frame before's end, the frame's start, that let go inside it is a touch)
+			if (!quiet(f) && quietSince !== null && tr[i - 1].clock - quietSince >= RING_MS && tr[i - 1].stud === null && !touching(f) && f.gap > PIN_TOL) early.push(f);
+			if (!quiet(f)) quietSince = null;
+			else if (quietSince === null) quietSince = tr[i - 1].clock;
 		}
-		check(early.length === 0, `pin: from rest it never starts to turn without a stud on it (${early.length} frames)`, early.slice(0, 3));
+		check(early.length === 0, `pin: from rest (within ${EPS} degrees for a whole ring of its spring, ${RING_MS.toFixed(0)} board ms) it never starts to turn without a stud on it (${early.length} frames)`, early.slice(0, 3));
 		const over = tr.filter((f) => Math.abs(f.phi) > K.maxSwing + 1e-6);
 		check(over.length === 0, `pin: it never swings past ${K.maxSwing} degrees (largest ${Math.max(...tr.map((f) => f.maxAbs ?? Math.abs(f.phi))).toFixed(1)})`, over.slice(0, 3));
 		// no stud passes the flapper without meeting it: every stud that crossed the top between two frames is in a contact
@@ -1179,7 +1193,29 @@ async function numbersSection(browser) {
 		// (a device pixel in wheel units; the dark divider's half on each side of a side line, tools/build_super_wheel.py
 		// make_wedge: 4 units of ink, so a spread of up to that, or two device pixels, lies on the neighbor's own divider)
 		const devPx = 1 / (DPR * u);
-		const sideAllow = Math.max(DIVIDER_HALF, 2 * devPx);
+		// THE RENDERED PIXEL (2026-11-21): the game draws at its own resolution (RENDER_RESOLUTION_CAP: 2 on the desktop
+		// tier), which the browser scales to the screenshot's DPR, so a rendered pixel can be wider than a device pixel (the
+		// pop-out at DPR 3: 2.91 wheel units against 1.94). Read off the page: the largest canvas's pixels over its CSS width
+		// (falls back to DPR, the stricter).
+		const renderRes = (await p.evaluate(() => {
+			const c = [...document.querySelectorAll('canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0];
+			const cssW = c?.getBoundingClientRect().width ?? 0;
+			return c && cssW > 0 ? c.width / cssW : 0;
+		})) || DPR;
+		const renderPx = 1 / (Math.min(DPR, renderRes) * u);
+		// THE ALLOWANCE (2026-11-21, the probe host at the pop-out: 4.21 against 4.00, zero bright pixels): the sheet's
+		// wedge is cut exact, its divider the 4 units INSIDE its side line (tools/build_super_wheel.py make_wedge paints
+		// bust and divider only inside the outline; on the shipped sheets no wedge pixel's centre lies more than half a
+		// sheet pixel past the line, 0.22 units on the desktop sheet, 0.35 on the phone's). Its dark ink then reaches past
+		// the line only by the drawing's filtering: the mip level the sheet is read at (at the pop-out a rendered pixel
+		// spans about 5.8 sheet pixels, between mip levels 2 and 3, texels of 2 and 4 units), the bilinear read, and the
+		// browser's scaling of the canvas onto the screenshot. A spread up to DIVIDER_HALF lies on the neighbor's own
+		// divider (the same ink); one rendered pixel more lies in the pixel that already straddles the neighbor divider's
+		// inner edge, which shows divider ink when all eight draw. So the allowance is the divider's half plus one rendered
+		// pixel (or two device pixels on a small wheel, as before). The bright test below is unchanged: any pixel past the
+		// line by more than a device pixel that is lighter than the picture under it (the bust's own art, not the
+		// divider's ink) fails.
+		const sideAllow = Math.max(DIVIDER_HALF + renderPx, 2 * devPx);
 		for (const k of [0, 1]) {
 			await set({ numsOnly: false, only: ['wedges'], theta, wedgeOnly: k });
 			await sleep(150);
@@ -1234,7 +1270,7 @@ async function numbersSection(browser) {
 		const innerOver = Math.max(...edges.map((e) => e.inner));
 		note(`BUSTS ${L.name}: past the side lines ${sideOver.toFixed(2)}, past the outer arc ${outerOver.toFixed(2)} (to radius ${(U.wedge + outerOver).toFixed(2)}), past the inner arc ${innerOver.toFixed(2)} (to radius ${(U.hub - innerOver).toFixed(2)}) wheel units; a device pixel ${(1 / (DPR * u)).toFixed(2)} units`);
 		const brightPast = edges.reduce((n, e) => n + e.bright, 0);
-		check(sideOver <= sideAllow && brightPast === 0, `numbers ${L.name}: a Reindeer and a Santa wedge's picture drawn alone reach past their side lines only by the filtering's spread of their own dark divider (${sideOver.toFixed(2)} wheel units at most, allowed ${sideAllow.toFixed(2)}: the divider's half ${DIVIDER_HALF} or two device pixels; ${brightPast} pixels past a device pixel lighter than the picture under them)`, edges.map((e) => ({ tier: e.tier, side: e.side, bright: e.bright, at: e.worstSide })));
+		check(sideOver <= sideAllow && brightPast === 0, `numbers ${L.name}: a Reindeer and a Santa wedge's picture drawn alone reach past their side lines only by the filtering's spread of their own dark divider (${sideOver.toFixed(2)} wheel units at most, allowed ${sideAllow.toFixed(2)}: the divider's half ${DIVIDER_HALF} plus one rendered pixel ${renderPx.toFixed(2)}, or two device pixels; ${brightPast} pixels past a device pixel lighter than the picture under them)`, edges.map((e) => ({ tier: e.tier, side: e.side, bright: e.bright, at: e.worstSide })));
 		check(U.wedge + outerOver <= U.trim.inkIn[1] && U.hub - innerOver >= 0 && hubDisc >= U.hub, `numbers ${L.name}: past their arcs only under the trim and the hub (outer edge drawn to radius ${(U.wedge + outerOver).toFixed(2)}, the trim's opaque bands to ${U.trim.inkIn[1]}; inner to ${(U.hub - innerOver).toFixed(2)}, the hub's disc to ${hubDisc})`, edges.map((e) => ({ tier: e.tier, outer: e.outer, inner: e.inner, at: [e.worstOuter, e.worstInner] })));
 		note(`NUMBERS ${L.name}: class ${cls}, letter height ${[...caps].join(', ')}, the closest number pixel ${worstSide.toFixed(1)} wheel units from a side line, the outermost at radius ${worstR.toFixed(1)}, the innermost at ${worstIn.toFixed(1)}`);
 		await p.evaluate(() => {

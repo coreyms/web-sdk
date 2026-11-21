@@ -17,6 +17,9 @@
 //      units: not hovering, not drawn into it), and still (no jitter, no creep: over its last REST_STILL_S it moves less
 //      than STILL_DEG); from rest it never turns before a stud touches it (the stop's extremes, +-0.3 of a wedge, are run
 //      on purpose every other spin)
+//      (2026-11-21) and the browser probe's rest rule: once inside REST_DEG for a whole ring of the spring, it never
+//      turns over REST_DEG without a stud on it, the free ring after the last stud included; a kick given with no stud
+//      near is caught (the rule's own test)
 //   5. NO JAM: a stud never fails to push the flapper out
 //   6. FRAME RATE: the same spins at every frame step give the same picture (reported: the largest swing's spread against
 //      the 8 ms run)
@@ -109,8 +112,18 @@ const geomOf = (cfg, ps) => {
 	return G;
 };
 
-/** one spin: returns the studs passed, met and kicked, the ticks, the rest */
-const spin = (cfg, ps, frames, rnd, offForce) => {
+/** ONE RING of the spring (ms): 2 pi over the damped spring's speed (272 ms at stiffness 550, damping 8). A free swing over
+ *  REST_DEG cannot stay inside REST_DEG that long, so a flapper quiet for a whole ring is truly at rest (the browser
+ *  probe's rest rule, tools/wheel_probe.mjs pin) */
+const ringMs = (P) => {
+	const zeta = P.damping / (2 * Math.sqrt(P.stiffness));
+	return (2 * Math.PI * 1000) / (Math.sqrt(P.stiffness) * Math.sqrt(Math.max(1e-6, 1 - zeta * zeta)));
+};
+/** one spin: returns the studs passed, met and kicked, the ticks, the rest. kickAtS (the rule's own test only): that many
+ *  seconds after the stop the flapper is given KICK_TEST degrees a second with no stud near, the untouched start the
+ *  rest rule must catch */
+const KICK_TEST = 30;
+const spin = (cfg, ps, frames, rnd, offForce, kickAtS) => {
 	const G = geomOf(cfg, ps);
 	// the wheel rests near a wedge's middle (it drifts there while it waits), then the book's stop
 	const from = -WHEEL_STEP / 2 - Math.floor(rnd() * 8) * WHEEL_STEP - rnd() * 8;
@@ -140,15 +153,40 @@ const spin = (cfg, ps, frames, rnd, offForce) => {
 	let fi = 0;
 	let at60 = 1 / 60;
 	const still = [];
+	// THE UNTOUCHED START over the whole spin and its rest: a frame turning over REST_DEG (its largest swing, maxAbs) with
+	// no stud on it, none met in it and none within LEAN_GAP, after a whole ring of the spring inside REST_DEG
+	const RING = ringMs(cfg.params);
+	let quietSince = null;
+	let untouched = 0;
+	let kickGiven = false;
 	while (t < len + REST_AFTER_S) {
 		const dtMs = frames[fi++ % frames.length];
 		const t0 = t;
 		t += dtMs / 1000;
+		if (kickAtS !== undefined && !kickGiven && t0 >= len + kickAtS) {
+			F.v += KICK_TEST;
+			kickGiven = true;
+		}
 		const path = (u) => c.from - curveAt(c, Math.min(len, t0 + u * (t - t0)));
+		const onBefore = F.onStud;
 		const r = stepPeg(F, path, dtMs / 1000, G, cfg.params, (th, phi) => {
 			const near = Math.round(-th / WHEEL_STEP);
 			kick.set(near, Math.max(kick.get(near) ?? 0, Math.abs(phi)));
 		});
+		{
+			let gap = Infinity;
+			const k0 = Math.round(-F.theta / WHEEL_STEP);
+			for (let k = k0 - 1; k <= k0 + 1; k++) {
+				const [sx, sy] = studAt(k, F.theta, G);
+				gap = Math.min(gap, flapGap(F.phi, sx, sy, G));
+			}
+			// (quiet up to this frame's start: a long frame's own time is not rest; a stud on it at the frame's start that
+			// let go inside the frame is a touch)
+			const quiet = r.maxAbs <= REST_DEG;
+			if (!quiet && quietSince !== null && t0 * 1000 - quietSince >= RING && onBefore === null && r.on === null && r.contacts.length === 0 && gap > LEAN_GAP) untouched++;
+			if (!quiet) quietSince = null;
+			else if (quietSince === null) quietSince = t0 * 1000;
+		}
 		jams += r.jams;
 		edge += r.edgeRelease;
 		// the studs that pass while the wheel is fast (over 60% of its top speed)
@@ -206,15 +244,16 @@ const spin = (cfg, ps, frames, rnd, offForce) => {
 		jams,
 		edge,
 		quietTurn,
+		untouched,
 		off: plan.off,
 	};
 };
 
-const run = (cfg, ps, frames, seed, n = SPINS, even = false) => {
+const run = (cfg, ps, frames, seed, n = SPINS, even = false, kickAtS) => {
 	const rnd = mulberry(seed);
 	const out = [];
 	// (an even spread of stops over the wedge's whole range, or the extremes every other spin)
-	for (let i = 0; i < n; i++) out.push(spin(cfg, ps, frames, rnd, even ? -0.3 + (0.6 * (i + 0.5)) / n : i % 4 === 0 ? 0.3 : i % 4 === 1 ? -0.3 : undefined));
+	for (let i = 0; i < n; i++) out.push(spin(cfg, ps, frames, rnd, even ? -0.3 + (0.6 * (i + 0.5)) / n : i % 4 === 0 ? 0.3 : i % 4 === 1 ? -0.3 : undefined, kickAtS));
 	return out;
 };
 const sum = (a, f) => a.reduce((n, x) => n + f(x), 0);
@@ -253,6 +292,15 @@ for (const ps of PEG_SCALES) {
 		const leaning = res.filter((r) => r.restOn !== null);
 		check(bad.length === 0, `${tag}: ${REST_AFTER_S} s after every stop straight (largest ${Math.max(0, ...res.filter((r) => r.restOn === null).map((r) => Math.abs(r.rest))).toFixed(3)} degrees) or leaning on a stud in contact and still (${leaning.length} leaning, ${leaning.length ? `${r1(Math.min(...leaning.map((r) => Math.abs(r.rest))))} to ${r1(Math.max(...leaning.map((r) => Math.abs(r.rest))))} degrees, gap within ${Math.max(...leaning.map((r) => Math.abs(r.restGap))).toFixed(4)} units, moving ${Math.max(...leaning.map((r) => r.restMove)).toFixed(5)} degrees in its last ${REST_STILL_S} s` : '-'}; ${sum(res, (r) => r.edge)} let go from a stud's top)`, bad.slice(0, 3).map((r) => ({ off: r.off, rest: r.rest, on: r.restOn, gap: r.restGap, move: r.restMove })));
 		check(sum(res, (r) => r.jams) === 0 && Math.max(...res.map((r) => r.quietTurn)) === 0, `${tag}: no stud ever held at the largest swing, and no turn from rest before a contact`);
+		check(sum(res, (r) => r.untouched) === 0, `${tag}: from rest (inside ${REST_DEG} degrees for a whole ring of the spring, ${r1(ringMs(BUILT.params))} ms) it never turns without a stud on it, the free ring after the last stud included (${sum(res, (r) => r.untouched)} frames)`);
+		// the rule's own test: the same spins, each given a kick with no stud near 2.5 s after its stop; every one that
+		// stopped straight (a lean is in contact) must be caught
+		if (layout && (fr[0] === 16.7 || fr === 'mixed')) {
+			const kicked2 = run(BUILT, ps, frames, SEED0 + Math.round(ps * 1000), SPINS, false, 2.5);
+			const straight = kicked2.filter((r) => r.restOn === null);
+			const caught = straight.filter((r) => r.untouched > 0).length;
+			check(straight.length > 0 && caught === straight.length, `${tag}: the rest rule catches an untouched start (${KICK_TEST} degrees a second given 2.5 s after the stop, no stud near): ${caught} of ${straight.length} straight stops`);
+		}
 		const spread = r1(Math.max(...res.map((r, i) => Math.abs(r.largest - base[i].largest))));
 		check(Math.max(...big) <= BUILT.params.maxSwing + 1e-6, `${tag}: the largest swing per spin at most ${r1(Math.max(...big))} degrees (limit ${BUILT.params.maxSwing}); against 8 ms frames it differs by up to ${spread}`);
 		if (fr[0] === 16.7) summary[ps] = { kickMedian: r1(median(kicks)), fastKickMedian: r1(median(res.flatMap((r) => r.fastKicks))), over8Pct: r1((100 * kicked) / passed), over30Pct: r1((100 * sum(res, (r) => r.over30)) / passed), drawnOver8Pct: r1((100 * sum(res, (r) => r.drawnKicked)) / passed), largestMedian: r1(median(big)), largestMax: r1(Math.max(...big)) };
