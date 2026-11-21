@@ -5,7 +5,9 @@ Svelte 5 runes + Pixi 8, shared packages from `web-sdk/packages`.
 
 - Spec: `docs/run-over-reindeer-spec.md` (parent repo)
 - Math and the event contract: `math-sdk/games/run_over_reindeer/` (`EVENT_SCHEMA.md` is the contract)
-- House rules: `.claude/skills/angry-mantis-house-rules/SKILL.md` and the slot-game-recipe skill
+- House rules: `HOUSE_RULES.md` and `CLAUDE.md` in this folder (this game's numbers, files and dev hook) and the
+  `slot-house-rules` skill (the rendering, Svelte, layout and iOS traps every game shares); start-of-game decisions
+  are in the slot-game-recipe skill
 - Every decision taken, one line each: `docs/FIRST_PASS_DECISIONS.md` (board, spin, HUD, stoplights) and
   `docs/SECOND_PASS_DECISIONS.md` (strikes, Wilds, bonus rounds, memory, what was and was not verified)
 - Screenshots: `docs/first_pass/`, `docs/second_pass/`
