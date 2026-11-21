@@ -1157,7 +1157,7 @@ export const REINDEER_ROAM = {
 					"h": 115,
 					"diameterFramePx": 300.0
 				},
-				"puffDark": {
+				"puffA": {
 					"sheet": 4,
 					"x": 564,
 					"y": 870,
@@ -1165,9 +1165,57 @@ export const REINDEER_ROAM = {
 					"h": 115,
 					"diameterFramePx": 300.0
 				},
-				"snow": {
+				"puffB": {
 					"sheet": 4,
 					"x": 681,
+					"y": 870,
+					"w": 115,
+					"h": 115,
+					"diameterFramePx": 300.0
+				},
+				"puffC": {
+					"sheet": 4,
+					"x": 798,
+					"y": 870,
+					"w": 115,
+					"h": 115,
+					"diameterFramePx": 300.0
+				},
+				"puffDark": {
+					"sheet": 4,
+					"x": 915,
+					"y": 870,
+					"w": 115,
+					"h": 115,
+					"diameterFramePx": 300.0
+				},
+				"snow": {
+					"sheet": 4,
+					"x": 1032,
+					"y": 870,
+					"w": 18,
+					"h": 18,
+					"diameterFramePx": 38.0
+				},
+				"snowA": {
+					"sheet": 4,
+					"x": 1052,
+					"y": 870,
+					"w": 18,
+					"h": 18,
+					"diameterFramePx": 38.0
+				},
+				"snowB": {
+					"sheet": 4,
+					"x": 1072,
+					"y": 870,
+					"w": 18,
+					"h": 18,
+					"diameterFramePx": 38.0
+				},
+				"snowC": {
+					"sheet": 4,
+					"x": 1092,
 					"y": 870,
 					"w": 18,
 					"h": 18,
@@ -1175,7 +1223,7 @@ export const REINDEER_ROAM = {
 				},
 				"snowDark": {
 					"sheet": 4,
-					"x": 701,
+					"x": 1112,
 					"y": 870,
 					"w": 18,
 					"h": 18,
@@ -1184,7 +1232,7 @@ export const REINDEER_ROAM = {
 			},
 			"gpuMb": 31.5,
 			"chargeGpuMb": 20.2,
-			"chargeKb": 905
+			"chargeKb": 917
 		},
 		"phone": {
 			"density": 0.1728,
@@ -1881,7 +1929,7 @@ export const REINDEER_ROAM = {
 					"h": 90,
 					"diameterFramePx": 300.0
 				},
-				"puffDark": {
+				"puffA": {
 					"sheet": 1,
 					"x": 1118,
 					"y": 401,
@@ -1889,9 +1937,57 @@ export const REINDEER_ROAM = {
 					"h": 90,
 					"diameterFramePx": 300.0
 				},
-				"snow": {
+				"puffB": {
 					"sheet": 1,
 					"x": 1210,
+					"y": 401,
+					"w": 90,
+					"h": 90,
+					"diameterFramePx": 300.0
+				},
+				"puffC": {
+					"sheet": 1,
+					"x": 1302,
+					"y": 401,
+					"w": 90,
+					"h": 90,
+					"diameterFramePx": 300.0
+				},
+				"puffDark": {
+					"sheet": 1,
+					"x": 1394,
+					"y": 401,
+					"w": 90,
+					"h": 90,
+					"diameterFramePx": 300.0
+				},
+				"snow": {
+					"sheet": 1,
+					"x": 1486,
+					"y": 401,
+					"w": 18,
+					"h": 18,
+					"diameterFramePx": 38.0
+				},
+				"snowA": {
+					"sheet": 1,
+					"x": 1506,
+					"y": 401,
+					"w": 18,
+					"h": 18,
+					"diameterFramePx": 38.0
+				},
+				"snowB": {
+					"sheet": 1,
+					"x": 1526,
+					"y": 401,
+					"w": 18,
+					"h": 18,
+					"diameterFramePx": 38.0
+				},
+				"snowC": {
+					"sheet": 1,
+					"x": 1546,
 					"y": 401,
 					"w": 18,
 					"h": 18,
@@ -1899,7 +1995,7 @@ export const REINDEER_ROAM = {
 				},
 				"snowDark": {
 					"sheet": 1,
-					"x": 1230,
+					"x": 1566,
 					"y": 401,
 					"w": 18,
 					"h": 18,
@@ -1908,7 +2004,7 @@ export const REINDEER_ROAM = {
 			},
 			"gpuMb": 6.9,
 			"chargeGpuMb": 4.4,
-			"chargeKb": 329
+			"chargeKb": 362
 		}
 	},
 	"fx": {

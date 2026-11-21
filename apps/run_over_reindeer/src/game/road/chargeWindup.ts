@@ -78,10 +78,15 @@ export const windupFrame = (plan: WindupPlan, clock: number): number => {
 };
 
 type Kind = 'puff' | 'snow';
-type Particle = { sprite: PIXI.Sprite; kind: Kind; on: boolean; t: number; life: number; x: number; y: number; vx: number; vy: number; g: number; r0: number; r1: number; a0: number; kf: number; cx: number; cy: number; tau: number; ds: number; look: Look; legacy: boolean };
+type Particle = { sprite: PIXI.Sprite; kind: Kind; on: boolean; t: number; life: number; x: number; y: number; vx: number; vy: number; g: number; r0: number; r1: number; a0: number; kf: number; cx: number; cy: number; tau: number; ds: number; look: Look; legacy: boolean; flip: 1 | -1 };
 /** the effects' look (ROUND 2): `light` (white, a cool falloff) on dark ground, `dark` (slate with a darker rim) on light */
 export type Look = 'light' | 'dark';
-const texName = (kind: Kind, look: Look): ChargeFxName => (look === 'dark' ? (kind === 'puff' ? 'puffDark' : 'snowDark') : kind);
+/** the picture of an effect in a look: on light ground ('dark') the candidate ROAM.charge.lightGroundLook picks */
+const texName = (kind: Kind, look: Look): ChargeFxName => {
+	if (look !== 'dark') return kind;
+	const c = ROAM.charge.lightGroundLook;
+	return (c === 'ring' ? `${kind}Dark` : `${kind}${c}`) as ChargeFxName;
+};
 /** the opacity over a life: the look's start opacity held to `hold` of it, then faded (smoothstep) to none */
 const fade = (u: number, hold: number) => {
 	const t = Math.max(0, Math.min(1, (u - hold) / Math.max(1e-6, 1 - hold)));
@@ -118,7 +123,7 @@ export class ChargeFx {
 			sprite.anchor.set(0.5);
 			sprite.visible = false;
 			this.root.addChild(sprite);
-			this.pool.push({ sprite, kind: i < SNOW_MAX ? 'snow' : 'puff', on: false, t: 0, life: 1, x: 0, y: 0, vx: 0, vy: 0, g: 0, r0: 0, r1: 0, a0: 1, kf: 1, cx: 0, cy: 0, tau: 1, ds: 1, look: 'light', legacy: false });
+			this.pool.push({ sprite, kind: i < SNOW_MAX ? 'snow' : 'puff', on: false, t: 0, life: 1, x: 0, y: 0, vx: 0, vy: 0, g: 0, r0: 0, r1: 0, a0: 1, kf: 1, cx: 0, cy: 0, tau: 1, ds: 1, look: 'light', legacy: false, flip: 1 });
 		}
 		// (the puffs drawn the oldest on top: the first puff out, the largest, keeps its rim over the ones after it)
 		for (const p of this.pool.filter((q) => q.kind === 'puff').reverse()) this.root.addChild(p.sprite);
@@ -167,6 +172,7 @@ export class ChargeFx {
 				p.ds = this.round1 ? S.drawScale : Math.max(S.drawScale, S.minCss / (2 * r * pose.kf * css));
 				p.look = look;
 				p.legacy = this.round1;
+				p.flip = 1;
 				p.sprite.texture = tex.texture;
 			}
 			this.log.snow.push({ t, frame, n: made });
@@ -211,6 +217,8 @@ export class ChargeFx {
 			p.ds = this.round1 ? P.drawScale : Math.max(P.drawScale, P.minCss / (2 * P.radius_frame_px[1] * pose.kf * css));
 			p.look = look;
 			p.legacy = this.round1;
+			// (candidate C's huff stroke bows forward: mirrored with him)
+			p.flip = look === 'dark' && ROAM.charge.lightGroundLook === 'C' ? pose.facing : 1;
 			p.sprite.texture = tex.texture;
 			i++;
 		}
@@ -247,6 +255,7 @@ export class ChargeFx {
 			const d = 2 * lerp(p.r0, p.r1, u) * p.kf * p.ds;
 			s.width = d;
 			s.height = d;
+			if (p.flip < 0) s.scale.x = -Math.abs(s.scale.x);
 			s.alpha = p.a0 * (p.legacy ? 1 - u : fade(u, p.kind === 'puff' ? FX.puff.hold : FX.snow.hold));
 			s.visible = true;
 		}

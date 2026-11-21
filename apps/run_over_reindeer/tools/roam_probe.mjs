@@ -1665,7 +1665,25 @@ const band = (img, cx, cy, r0, r1) => {
 };
 
 /** one strike on `preset` from `spot`: the puff and a speck, each measured; crops saved when `crops` */
-async function contrastOne(p, S, preset, spot, round1, crops) {
+/** ROUND 3 (2026-11-20, candidates for Corey): the look drawn on light ground (ROAM.charge.lightGroundLook: ring, A, B,
+ *  C) and `before` (round 1's, the staging look: charge.round1). Each is held to the measure it reads by, honestly:
+ *  the ring by its rim or body at 3 to 1, A by its outline and C by its stroke at 2 to 1 (`edge`: the most standing out
+ *  tenth of its pixels), B by its tone at 1.5 to 1 (`tone`: its middle's median), the white look on dark ground by its body or rim; `before`
+ *  is reported only. LOOKS=before,ring,A,B,C measures each on day and night snow (night grass: before and the white
+ *  look); LIFE=1 saves the puff at four moments of its life per look (day snow, the first size). */
+const CONTRAST_RULE = {
+	ring: { key: 'best', min: 3, what: 'rim or body' },
+	// (A's and C's lines are about 1 CSS px on the desktop and soften there: held to 2 to 1, what a 1 px dark line on
+	// snow can honestly give; B reads by tone alone: 1.5 to 1)
+	A: { key: 'edge', min: 2, what: 'outline' },
+	B: { key: 'tone', min: 1.5, what: 'tone' },
+	C: { key: 'edge', min: 2, what: 'stroke' },
+	light: { key: 'best', min: 3, what: 'rim or body' },
+};
+const LOOKS = (process.env.LOOKS || '').split(',').filter(Boolean);
+const LIFE = process.env.LIFE === '1';
+
+async function setScene(p, preset) {
 	await p.evaluate(async (preset) => {
 		const h = window.__reindeer;
 		h.sceneWant(preset);
@@ -1676,23 +1694,82 @@ async function contrastOne(p, S, preset, spot, round1, crops) {
 		}
 		await new Promise((r) => setTimeout(r, 900));
 	}, preset);
-	const start = await p.evaluate(
-		async ({ spot, round1 }) => {
+}
+
+/** start his single target strike from `spot` with `variant` drawn ('before', a candidate, or null: as shipped) */
+async function startVariantStrike(p, spot, variant) {
+	return p.evaluate(
+		async ({ spot, variant }) => {
 			const h = window.__reindeer;
 			const F = h.roadBoard().features;
+			const C = h.tune.roam.charge;
+			window.__lookShipped ??= C.lightGroundLook;
+			C.lightGroundLook = variant && variant !== 'before' && variant !== 'shipped' ? variant : window.__lookShipped;
 			h.clock(0);
 			h.turbo(0);
-			F.charge.round1 = round1;
+			F.charge.round1 = variant === 'before';
 			await h.crosshairStrike({ cells: [9], target: 9, poseOnly: true });
 			h.roamStandAt(spot.x, spot.y);
 			h.step(0.001, 1);
 			h.roamStrike(9, { first: true, last: false });
 			for (let i = 0; i < 100 && !F['runner']; i++) await new Promise((r) => setTimeout(r, 10));
-			return { look: F.charge.look(), roam: F['runner'] ? F['runner'].roam : false };
+			return { look: F.charge.look(), roam: F['runner'] ? F['runner'].roam : false, shipped: window.__lookShipped };
 		},
-		{ spot, round1 },
+		{ spot, variant },
 	);
-	const out = { preset, look: round1 ? 'round1' : start.look, his: start.roam };
+}
+
+async function resetVariant(p) {
+	await p.evaluate(() => {
+		const h = window.__reindeer;
+		h.roadBoard().features.charge.round1 = false;
+		if (window.__lookShipped) h.tune.roam.charge.lightGroundLook = window.__lookShipped;
+	});
+}
+
+/** the puff at four moments of its life (u 0.05, 0.4, 0.75, 0.97: spawn, grown, fading, gone), the window held on the
+ *  first puff's spawn point */
+async function lifeStrip(p, S, spot, variant, crops) {
+	await startVariantStrike(p, spot, variant);
+	let first = null;
+	for (const [k, target] of [[1, 0.05], [2, 0.4], [3, 0.75], [4, 0.97]]) {
+		const got = await p.evaluate(
+			async ({ target }) => {
+				const h = window.__reindeer;
+				const F = h.roadBoard().features;
+				for (let i = 0; i < 240; i++) {
+					const up = F.charge.state(F['clock']).up.filter((q) => q.kind === 'puff').sort((a, b) => b.u - a.u);
+					if (up.length && up[0].u >= target) {
+						await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+						return { pick: up[0], view: h.roamView(), log: F.charge.log.puff };
+					}
+					h.step(1000 / 60, 1);
+				}
+				return null;
+			},
+			{ target },
+		);
+		if (!got) break;
+		first ??= got;
+		const v = got.view;
+		const cx = v.ox + (first.log ? first.log.x : got.pick.x) * v.k;
+		const cy = v.oy + (first.log ? first.log.y : got.pick.y) * v.k;
+		const half = 34;
+		const clip = { x: Math.max(0, cx - half), y: Math.max(0, cy - half * 1.2), width: 2 * half, height: 2 * half };
+		mkdirSync(crops, { recursive: true });
+		writeFileSync(join(crops, `life_${S.name}_${variant}_${k}.png`), await p.screenshot({ clip }));
+		writeFileSync(join(crops, `life_${S.name}_${variant}_${k}.json`), JSON.stringify({ u: got.pick.u, alpha: got.pick.alpha, css: (got.pick.w * v.k).toFixed(1), dpr: S.dpr }));
+	}
+	await resetVariant(p);
+}
+
+async function contrastOne(p, S, preset, spot, round1, crops, variant = null) {
+	await setScene(p, preset);
+	if (round1) variant = 'before';
+	const start = await startVariantStrike(p, spot, variant);
+	// the drawn variant: round 1's, or on light ground the candidate in force, or the white look on dark ground
+	const drawn = variant === 'before' ? 'before' : start.look === 'dark' ? variant || start.shipped : 'light';
+	const out = { preset, look: drawn, his: start.roam };
 	for (const which of ['puff', 'snow']) {
 		const got = await p.evaluate(
 			async ({ which }) => {
@@ -1744,20 +1821,24 @@ async function contrastOne(p, S, preset, spot, round1, crops) {
 		};
 		const body = away(band(A, px, py, 0, r * 0.4));
 		const rim = away(band(A, px, py, r * (which === 'puff' ? 0.62 : 0.66), r * (which === 'puff' ? 0.78 : 0.9)));
-		const c = { css: Math.round(rc * 2 * 10) / 10, alpha: pick.alpha, u: pick.u, ground: Math.round(ground * 1000) / 1000, body: Math.round(wcag(body, ground) * 100) / 100, rim: Math.round(wcag(rim, ground) * 100) / 100 };
+		// (round 3: shapes that are not discs; `edge` the most standing out tenth of the sprite's box, `tone` its middle's
+		// median)
+		const inBox = band(A, px, py, 0, r * 0.95).sort((p0, q0) => Math.abs(p0 - ground) - Math.abs(q0 - ground));
+		const edge = inBox.length ? inBox[Math.floor(inBox.length * 0.9)] : NaN;
+		const tone = median(band(A, px, py, 0, r * 0.6));
+		const r2c = (v) => Math.round(wcag(v, ground) * 100) / 100;
+		const c = { css: Math.round(rc * 2 * 10) / 10, alpha: pick.alpha, u: pick.u, ground: Math.round(ground * 1000) / 1000, body: r2c(body), rim: r2c(rim), edge: r2c(edge), tone: r2c(tone) };
 		c.best = Math.max(c.body, c.rim);
 		out[which] = c;
 		if (crops) {
 			mkdirSync(crops, { recursive: true });
-			const tag = `${S.name}_${preset}_${which}_${round1 ? 'before' : 'after'}`;
+			const tag = `${S.name}_${preset}_${which}_${out.look === 'before' ? 'before' : variant ? out.look : 'after'}`;
 			writeFileSync(join(crops, `${tag}.png`), shot);
 			writeFileSync(join(crops, `${tag}.json`), JSON.stringify({ ...c, dpr, look: out.look }));
 		}
 	}
-	await p.evaluate(() => {
-		window.__reindeer.roadBoard().features.charge.round1 = false;
-		window.__reindeer.sceneWant('snowDay');
-	});
+	await resetVariant(p);
+	await p.evaluate(() => window.__reindeer.sceneWant('snowDay'));
 	return out;
 }
 
@@ -1781,22 +1862,34 @@ async function contrastSize(browser, S) {
 		const picks = await p.evaluate(() => window.__reindeer.roamPicks(40, 20, 5151));
 		const spots = picks.filter((q) => q.pass >= 0);
 		let si = 0;
-		for (const preset of CONTRAST_PRESETS) {
-			for (const round1 of BEFORE ? [true, false] : [false]) {
-				const R = await contrastOne(p, S, preset, spots[si++ % spots.length], round1, CROPS);
+		// (LOOKS: the candidates on the light grounds, night grass for the white look; else every ground as shipped)
+		const plan = LOOKS.length
+			? [['snowDay', LOOKS], ['snowNight', LOOKS], ['grassNight', LOOKS.filter((v) => v === 'before').concat([null])]]
+			: CONTRAST_PRESETS.map((pr) => [pr, BEFORE ? ['before', null] : [null]]);
+		for (const [preset, variants] of plan) {
+			for (const variant of variants) {
+				const R = await contrastOne(p, S, preset, spots[si++ % spots.length], false, CROPS, variant);
 				rows.push({ size: S.name, ...R });
-				if (round1) continue;
-				const tag = `${name} ${preset} (${R.look} look)`;
-				check(R.his && !!R.puff && R.puff.best >= CONTRAST_TARGET, `${tag}: the puff at its largest at full opacity (${R.puff?.css} CSS px) stands out ${R.puff?.best}:1 (body ${R.puff?.body}, rim ${R.puff?.rim}; ground ${R.puff?.ground})`, R.puff);
-				check(R.his && !!R.snow && R.snow.best >= CONTRAST_TARGET, `${tag}: a speck in mid flight (${R.snow?.css} CSS px) stands out ${R.snow?.best}:1 (body ${R.snow?.body}, rim ${R.snow?.rim}; ground ${R.snow?.ground})`, R.snow);
+				if (R.look === 'before') continue;
+				const rule = CONTRAST_RULE[R.look] ?? CONTRAST_RULE.ring;
+				const tag = `${name} ${preset} (${R.look} look, held to its ${rule.what} at ${rule.min} to 1)`;
+				const v = (q) => (q ? q[rule.key] : null);
+				check(R.his && !!R.puff && v(R.puff) >= rule.min, `${tag}: the puff at its largest at full opacity (${R.puff?.css} CSS px) stands out ${v(R.puff)}:1 (body ${R.puff?.body}, rim ${R.puff?.rim}, edge ${R.puff?.edge}, tone ${R.puff?.tone}; ground ${R.puff?.ground})`, R.puff);
+				check(R.his && !!R.snow && v(R.snow) >= rule.min, `${tag}: a speck in mid flight (${R.snow?.css} CSS px) stands out ${v(R.snow)}:1 (body ${R.snow?.body}, rim ${R.snow?.rim}, edge ${R.snow?.edge}, tone ${R.snow?.tone}; ground ${R.snow?.ground})`, R.snow);
 				check(!!R.puff && R.puff.css >= 0.74 * 22 - 0.5 && !!R.snow && R.snow.css >= 4.5, `${tag}: their size on the screen: the puff ${R.puff?.css} CSS px here (22 at its largest at least), the speck ${R.snow?.css}`);
 			}
+		}
+		if (LIFE && CROPS && S === CONTRAST_SIZES[0]) {
+			await setScene(p, 'snowDay');
+			for (const variant of LOOKS.length ? LOOKS : [null]) await lifeStrip(p, S, spots[si++ % spots.length], variant || 'shipped', CROPS);
+			await p.evaluate(() => window.__reindeer.sceneWant('snowDay'));
 		}
 	} catch (e) {
 		check(false, `${name}: ran without throwing`, String(e && e.stack ? e.stack : e).slice(0, 600));
 	}
 	(report.contrast ??= []).push(...rows);
-	for (const R of rows) console.log(`  CONTRAST ${R.size.padEnd(8)} ${R.preset.padEnd(11)} ${String(R.look).padEnd(7)} puff ${R.puff ? `${R.puff.best}:1 (${R.puff.css} css)` : '-'}  speck ${R.snow ? `${R.snow.best}:1 (${R.snow.css} css)` : '-'}`);
+	const f = (q) => (q ? `rim/body ${q.best} edge ${q.edge} tone ${q.tone} (${q.css} css)` : '-');
+	for (const R of rows) console.log(`  CONTRAST ${R.size.padEnd(8)} ${R.preset.padEnd(11)} ${String(R.look).padEnd(7)} puff ${f(R.puff)}  speck ${f(R.snow)}`);
 	check(errs.length === 0, `${name}: no page errors`, errs.slice(0, 5));
 	await ctx.close();
 }
@@ -1824,7 +1917,8 @@ const main = async () => {
 		}
 		// THE EFFECTS' CONTRAST (round 2): with the charge section (CONTRAST=0 skips it), or alone (ONLY=contrast)
 		const contrast = ONLY.includes('contrast') || (CONTRAST && (!ONLY.length || ONLY.includes('charge')));
-		if (contrast) for (const S of CONTRAST_SIZES) await contrastSize(browser, S);
+		const csizes = (process.env.CSIZES || '').split(',').filter(Boolean);
+		if (contrast) for (const S of CONTRAST_SIZES) if (!csizes.length || csizes.includes(S.name)) await contrastSize(browser, S);
 	} finally {
 		await browser.close();
 	}

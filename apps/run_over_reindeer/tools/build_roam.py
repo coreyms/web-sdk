@@ -31,7 +31,7 @@ import re
 import sys
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
@@ -176,6 +176,98 @@ def readable_fx_dark(name, im):
     rgb = body * (1 - 0.7 * under[..., None]) + shade * (0.7 * under[..., None])
     rgb = rgb * (1 - ring[..., None]) + rim * ring[..., None]
     return Image.fromarray((np.dstack([rgb, alpha]) * 255).round().astype(np.uint8), "RGBA")
+
+
+# ROUND 3 (2026-11-20, the coordinator: the r2 ring "reads, but ... a donut or a bubble, not breath"; candidates for
+# Corey): three more looks for LIGHT ground, each a puff and its specks, all built here from the rig's own sprites (the
+# lobes are copies of the rig's soft puff, the clumps copies of its speck; nothing is redrawn by hand). No circle:
+#   A  a cartoon breath cloud: four lobes, a thin even dark outline (the reindeer's own black ink, about 5 % of the
+#      puff's size, his 7 frame px line scaled to the puff), a light blue-white fill shaded on the underside
+#   B  a soft slate breath: the same lobed shape with no line, a mid slate blue-grey body with a lighter core, soft edge
+#   C  comic huff marks: each puff a short curved stroke bowing forward (the game mirrors it with him), slate with a
+#      light top edge; four of them drift apart as the puffs do
+# and their specks: small clumps of three of the rig's specks, a light top and a slate underside (A's with the outline).
+FX_INK = (22, 24, 32)
+CANDIDATES = ("A", "B", "C")
+LOBES = [(0.34, 0.6, 0.38), (0.56, 0.42, 0.42), (0.72, 0.6, 0.34), (0.5, 0.7, 0.32)]
+CLUMP = [(0.4, 0.56, 0.3), (0.6, 0.5, 0.27), (0.5, 0.38, 0.24)]
+
+
+def _union(src_alpha, n, parts):
+    """the union (max) of copies of a soft sprite's alpha, each resized to its part's diameter at its centre (n x n)"""
+    out = np.zeros((n, n), np.float32)
+    base = Image.fromarray((src_alpha * 255).astype(np.uint8))
+    for cx, cy, r in parts:
+        dpx = max(2, int(round(2 * r * n)))
+        a = np.asarray(base.resize((dpx, dpx), Image.LANCZOS)).astype(np.float32) / 255
+        x0, y0 = int(round(cx * n - dpx / 2)), int(round(cy * n - dpx / 2))
+        xs0, ys0 = max(0, -x0), max(0, -y0)
+        xe, ye = min(dpx, n - x0), min(dpx, n - y0)
+        out[y0 + ys0:y0 + ye, x0 + xs0:x0 + xe] = np.maximum(out[y0 + ys0:y0 + ye, x0 + xs0:x0 + xe], a[ys0:ye, xs0:xe])
+    return out
+
+
+def _grow(mask, px):
+    m = Image.fromarray((mask * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(int(px) | 1))
+    return np.asarray(m).astype(np.float32) / 255
+
+
+def candidate_fx(name, look, im):
+    """a round 3 candidate look (A, B or C) of the effect `name`, from the rig's sprite `im`, at its own size x 4
+    supersampled, then down to its size"""
+    S = 4
+    n = im.width * S
+    src = np.asarray(im.convert("RGBA")).astype(np.float32)[..., 3] / 255
+    yy, xx = np.mgrid[0:n, 0:n].astype(np.float32) / n
+    # lit from the top left: 0 on the lit side, 1 on the underside
+    under = np.clip((yy - 0.42) * 2.4 + (xx - 0.5) * 0.6, 0, 1)
+    if name == "puff" and look == "C":
+        # one curved stroke bowing forward (to the right; mirrored with him), round ends, slate with a light top edge
+        d = np.hypot(xx - 0.18, yy - 0.5)
+        ang = np.arctan2(yy - 0.5, xx - 0.18)
+        on_arc = np.abs(d - 0.5) < 0.055
+        span = np.abs(ang) < np.radians(38)
+        ends = []
+        for sgn in (-1, 1):
+            ex, ey = 0.18 + 0.5 * np.cos(np.radians(38) * sgn), 0.5 + 0.5 * np.sin(np.radians(38) * sgn)
+            ends.append(np.hypot(xx - ex, yy - ey) < 0.055)
+        shape = ((on_arc & span) | ends[0] | ends[1]).astype(np.float32)
+        top = np.clip((0.5 - (d - 0.5) / 0.055 * 0.5), 0, 1)  # the stroke's inner side lighter
+        body = np.array((70, 84, 112), np.float32) / 255
+        light = np.array((150, 166, 194), np.float32) / 255
+        rgb = body[None, None] * (1 - 0.6 * top[..., None]) + light[None, None] * (0.6 * top[..., None])
+        alpha = shape
+    else:
+        parts = LOBES if name == "puff" else CLUMP
+        soft = _union(src, n, parts)
+        if look == "B":
+            alpha = np.clip(soft * 1.7, 0, 1) ** 0.9
+            core = np.clip(1 - np.hypot(xx - 0.54, yy - 0.55) / 0.36, 0, 1) ** 0.8
+            body = np.array((112, 128, 156) if name == "puff" else (120, 136, 164), np.float32) / 255
+            light = np.array((176, 190, 212) if name == "puff" else (236, 242, 250), np.float32) / 255
+            if name == "snow":
+                # a clump: light top, slate underside
+                core = 1 - under
+            rgb = body[None, None] * (1 - core[..., None]) + light[None, None] * core[..., None]
+        else:
+            shape = np.clip((soft - 0.3) / 0.12, 0, 1)
+            fill_top = np.array((240, 245, 252), np.float32) / 255
+            fill_under = np.array((196, 210, 230) if name == "puff" else (128, 144, 172), np.float32) / 255
+            sh = under if name == "snow" else under * 0.8
+            rgb = fill_top[None, None] * (1 - sh[..., None]) + fill_under[None, None] * sh[..., None]
+            if look == "A":
+                line = (0.05 if name == "puff" else 0.1) * n
+                outer = _grow(shape, line)
+                ink = np.clip(outer - shape, 0, 1)
+                rgb = rgb * (1 - ink[..., None]) + (np.array(FX_INK, np.float32) / 255)[None, None] * ink[..., None]
+                alpha = np.maximum(shape, outer)
+            else:
+                # C's clump: no ink, its edge a darker slate
+                edge = np.clip(_grow(shape, 0.08 * n) - shape, 0, 1)
+                rgb = rgb * (1 - edge[..., None]) + (np.array((84, 98, 126), np.float32) / 255)[None, None] * edge[..., None]
+                alpha = np.maximum(shape, edge)
+    img = Image.fromarray((np.dstack([np.clip(rgb, 0, 1), np.clip(alpha, 0, 1)]) * 255).round().astype(np.uint8), "RGBA")
+    return img.resize((im.width, im.height), Image.LANCZOS)
 
 
 def _lum(rgb):
@@ -346,6 +438,8 @@ def main():
                     side = max(2, round(diameter * FX_DRAW[name] * d), FX_MIN_TEX[name])
                     for look, make in (("light", readable_fx), ("dark", readable_fx_dark)):
                         pictures[("fx", name if look == "light" else name + "Dark")] = (resize_box(make(name, src_im), side, side), 0, 0)
+                    for c in CANDIDATES:
+                        pictures[("fx", name + c)] = (resize_box(candidate_fx(name, c, src_im), side, side), 0, 0)
             n0 = len(files)
             sheets = pack(pictures)
             for n, sh in enumerate(sheets):
@@ -355,7 +449,7 @@ def main():
                     page.paste(im, (px, py))
                     name, f = key
                     if name == "fx":
-                        base = f[:-4] if f.endswith("Dark") else f
+                        base = "puff" if f.startswith("puff") else "snow"
                         fx_out[f] = {"sheet": n0 + n, "x": px, "y": py, "w": im.width, "h": im.height, "diameterFramePx": FX[base][1] * FX_DRAW[base]}
                         continue
                     frames_out.setdefault(name, {})[str(f)] = {"sheet": n0 + n, "x": px, "y": py, "w": im.width, "h": im.height, "ox": ox, "oy": oy}

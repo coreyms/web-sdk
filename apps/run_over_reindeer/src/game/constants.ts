@@ -268,7 +268,15 @@ export const ROAM = {
 	 *  hitWindow[0] and hitWindow[1] times the hit's own time (8 frames, 266.7 ms; no such hop or one target: its own
 	 *  pace); the rest at the rig's 30 fps. NOTHING here moves the strike: no wait, no later lock, no slower hop. Off: he
 	 *  stands as before (the stand, frame 1), no effect sprite, no snort at the lock. */
-	charge: { on: true, hitWindow: [0.85, 1.45] as [number, number] },
+	charge: {
+		on: true,
+		hitWindow: [0.85, 1.45] as [number, number],
+		/** ROUND 3 of "Make them read" (2026-11-20, candidates for Corey): the puff and specks drawn on LIGHT ground (day and
+		 *  night snow; the dark grounds keep the white look): 'ring' (round 2: a light disc inside a dark rim), 'A' (a
+		 *  cartoon breath cloud with a thin dark outline), 'B' (a soft slate breath, no line), 'C' (comic huff strokes,
+		 *  slate clumps); tools/build_roam.py candidate_fx */
+		lightGroundLook: 'A' as 'ring' | 'A' | 'B' | 'C',
+	},
 };
 
 // ---- THE GRANDMA WILD: the crash cloud in one cell, for one spin (Corey 2026-11-04 and 2026-11-09) ---------------------
