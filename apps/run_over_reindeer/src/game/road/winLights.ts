@@ -155,9 +155,53 @@ const mixColor = (a: number, b: number, u: number) => {
 	return (m(16) << 16) | (m(8) << 8) | m(0);
 };
 
+/** the area two circles of radii a and b, d apart, share */
+const lens = (a: number, b: number, d: number) => {
+	if (a <= 0 || b <= 0 || d >= a + b) return 0;
+	if (d <= Math.abs(a - b)) return Math.PI * Math.min(a, b) ** 2;
+	const x = (d * d + a * a - b * b) / (2 * d * a);
+	const y = (d * d + b * b - a * a) / (2 * d * b);
+	const k = (-d + a + b) * (d + a - b) * (d - a + b) * (d + a + b);
+	return a * a * Math.acos(Math.max(-1, Math.min(1, x))) + b * b * Math.acos(Math.max(-1, Math.min(1, y))) - 0.5 * Math.sqrt(Math.max(0, k));
+};
+let wrapMemo: { key: string; v: { outer: number; inner: number; drop: number } } | null = null;
+/** THE END WRAP (round 2, constants LINE_WIN lights strand ends; tools/build_win_lights.py wrap_geo, the same sum): its
+ *  outer radius (wrapRadiusShare of the head's), its inner (the outer less the cord, or none) and how far it drops below
+ *  the head's centre for the head (with its ink) to cover wrapCover of its area */
+export function wrapGeometry(headR: number, ink: number, W: number, share: number, cover: number) {
+	const key = `${headR}|${ink}|${W}|${share}|${cover}`;
+	if (wrapMemo && wrapMemo.key === key) return wrapMemo.v;
+	const ro = share * headR;
+	const ri = Math.max(0, ro - W - 2 * ink);
+	const hb = headR + ink;
+	const area = Math.PI * (ro * ro - ri * ri);
+	const covered = (d: number) => (lens(ro, hb, d) - lens(ri, hb, d)) / area;
+	let drop = 0;
+	if (covered(0) > cover) {
+		let lo = 0;
+		let hi = ro + hb;
+		for (let i = 0; i < 60; i++) {
+			const mid = (lo + hi) / 2;
+			if (covered(mid) > cover) lo = mid;
+			else hi = mid;
+		}
+		drop = (lo + hi) / 2;
+	}
+	const v = { outer: ro, inner: ri, drop };
+	wrapMemo = { key, v };
+	return v;
+}
+/** the share of the wrap the head covers at its drop (the probes) */
+export const wrapCovered = (headR: number, ink: number, w: { outer: number; inner: number; drop: number }) => {
+	const hb = headR + ink;
+	return (lens(w.outer, hb, w.drop) - lens(w.inner, hb, w.drop)) / (Math.PI * (w.outer * w.outer - w.inner * w.inner));
+};
+
 /** THE STRAND'S RADII (road px, from the live numbers, constants LINE_WIN lights strand): the head and its ink, the
- *  shank, a middle nail's drape (the cord's centerline resting on the shank), the end wrap's centerline and outer edge,
- *  the cord's full thickness now and as baked (the strip is drawn wider or narrower in proportion) */
+ *  shank, a middle nail's drape (the cord's centerline resting on the shank, also the circle the cord comes over at an
+ *  end nail since round 2), the end wrap (outer, inner, drop) and the end nail's whole reach (`ringOuter`: its head or
+ *  its wrap's lowest edge, whichever reaches further), the cord's full thickness now and as baked (the strip is drawn
+ *  wider or narrower in proportion). wrapR: the first ring's centerline (not drawn since round 2). */
 export function strandGeometry() {
 	const S = L.strand;
 	const W = S.cord.width;
@@ -165,8 +209,9 @@ export function strandGeometry() {
 	const headR = S.nail.headRoadPx * S.nail.size;
 	const shank = S.nail.shankShare * headR;
 	const wrapR = shank + W / 2 + ink * 0.6 + S.ends.wrapSize * W * 0.9;
+	const wrap = wrapGeometry(headR, ink, W, S.ends.wrapRadiusShare, S.ends.wrapCover);
 	const bk = WIN_LIGHTS_ART.strand.bakedFor;
-	return { headR, headOuter: headR + ink, shank, drapeR: shank + W / 2 + ink, wrapR, ringOuter: wrapR + W / 2 + ink, thickness: W + 2 * ink, bakedThickness: bk.wire + 2 * bk.ink };
+	return { headR, headOuter: headR + ink, shank, drapeR: shank + W / 2 + ink, wrapR, wrap, ringOuter: Math.max(headR + ink, wrap.drop + wrap.outer), thickness: W + 2 * ink, bakedThickness: bk.wire + 2 * bk.ink };
 }
 
 export type LightsPlan = {
@@ -297,6 +342,7 @@ export class WinLights {
 	private readonly bodyTex: PIXI.Texture | null;
 	private readonly overTex: PIXI.Texture | null;
 	private readonly headTex: PIXI.Texture | null;
+	/** the end wrap (round 2: under the head, dropped; the first ring's frame stays on the sheet, not drawn) */
 	private readonly ringTex: PIXI.Texture | null;
 	private readonly shadowTex: PIXI.Texture | null;
 	private readonly cordTex: PIXI.Texture | null;
@@ -330,7 +376,7 @@ export class WinLights {
 		this.bodyTex = cut(t.frames.c7Body);
 		this.overTex = cut(t.frames.c7Over);
 		this.headTex = cut(t.frames.head);
-		this.ringTex = cut(t.frames.ring);
+		this.ringTex = cut(t.frames.wrap);
 		this.shadowTex = cut(t.frames.shadow);
 		this.cordTex = cut(t.frames.cord);
 		this.ppr = t.ppr;
@@ -354,8 +400,9 @@ export class WinLights {
 			hang: S.hangPoints,
 			bendRad: S.bendRad,
 			drapeR: g.drapeR,
-			wrapR: g.wrapR,
+			wrapR: g.drapeR,
 			ringOuter: g.ringOuter,
+			endOver: S.ends.overRad,
 			ends: L.tips.on && !!this.headTex,
 			endGap: L.tips.end === 'edge' ? g.ringOuter - S.ends.ringOverlap : null,
 			hookRad: S.ends.hookRad,
@@ -760,7 +807,14 @@ export class WinLights {
 		return {
 			on: L.tips.on,
 			end: L.tips.end,
-			ring: r3(g.wrapR),
+			/** the circle the cord comes over at an end nail (the drape's), the wrap's outer radius, its drop below the head's
+			 *  centre, the share of it the head covers, and the end nail's whole reach */
+			over: r3(g.drapeR),
+			ring: r3(g.wrap.outer),
+			wrapInner: r3(g.wrap.inner),
+			wrapDrop: r3(g.wrap.drop),
+			wrapCovered: r3(wrapCovered(g.headR, L.strand.cord.ink, g.wrap)),
+			wrapUnderHead: this.root.getChildIndex(this.ringLayer) < this.root.getChildIndex(this.nailLayer),
 			ringOuter: r3(g.ringOuter),
 			head: r3(g.headOuter),
 			drape: r3(g.drapeR),

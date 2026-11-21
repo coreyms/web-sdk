@@ -62,7 +62,7 @@ export const WIN_LIGHTS_ART = {
 					"height": 181
 				},
 				"nail": {
-					"x": 157,
+					"x": 310,
 					"y": 410,
 					"width": 132,
 					"height": 132
@@ -80,7 +80,7 @@ export const WIN_LIGHTS_ART = {
 					"height": 280
 				},
 				"head": {
-					"x": 421,
+					"x": 574,
 					"y": 410,
 					"width": 106,
 					"height": 106
@@ -91,14 +91,20 @@ export const WIN_LIGHTS_ART = {
 					"width": 155,
 					"height": 155
 				},
+				"wrap": {
+					"x": 157,
+					"y": 410,
+					"width": 151,
+					"height": 151
+				},
 				"shadow": {
-					"x": 291,
+					"x": 444,
 					"y": 410,
 					"width": 128,
 					"height": 128
 				},
 				"cord": {
-					"x": 531,
+					"x": 684,
 					"y": 410,
 					"width": 4,
 					"height": 67
@@ -108,7 +114,7 @@ export const WIN_LIGHTS_ART = {
 		"phone": {
 			"file": "road/win-lights-phone.webp",
 			"width": 398,
-			"height": 205,
+			"height": 212,
 			"density": 1.2,
 			"ppr": 1.416,
 			"c7Anchor": [
@@ -130,7 +136,7 @@ export const WIN_LIGHTS_ART = {
 					"height": 68
 				},
 				"nail": {
-					"x": 0,
+					"x": 59,
 					"y": 155,
 					"width": 50,
 					"height": 50
@@ -148,7 +154,7 @@ export const WIN_LIGHTS_ART = {
 					"height": 105
 				},
 				"head": {
-					"x": 102,
+					"x": 161,
 					"y": 155,
 					"width": 40,
 					"height": 40
@@ -159,14 +165,20 @@ export const WIN_LIGHTS_ART = {
 					"width": 58,
 					"height": 58
 				},
+				"wrap": {
+					"x": 0,
+					"y": 155,
+					"width": 57,
+					"height": 57
+				},
 				"shadow": {
-					"x": 52,
+					"x": 111,
 					"y": 155,
 					"width": 48,
 					"height": 48
 				},
 				"cord": {
-					"x": 146,
+					"x": 205,
 					"y": 155,
 					"width": 4,
 					"height": 25
@@ -190,6 +202,8 @@ export const WIN_LIGHTS_ART = {
 			"shankShare": 0.36,
 			"nailColor": "silver",
 			"wrapSize": 0.15,
+			"wrapRadiusShare": 1.45,
+			"wrapCover": 0.7,
 			"shadow": [
 				2.6,
 				4.0,
@@ -204,6 +218,11 @@ export const WIN_LIGHTS_ART = {
 		"ring": {
 			"radius": 11.6828,
 			"outer": 19.4328
+		},
+		"wrap": {
+			"outer": 14.8335,
+			"inner": 0.0,
+			"drop": 4.132247402388556
 		},
 		"c7": {
 			"center": 37.800000000000004,
