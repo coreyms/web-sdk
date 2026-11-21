@@ -526,6 +526,9 @@ export const LED_SIGN = {
 		carBody: 'HER CAR TURNS WILD WITH A MULTIPLIER',
 		carMult: '5X',
 		ticker: 'PRESS ANYWHERE TO CONTINUE',
+		// (the face screen's line, LED_SIGN.face: each sentence lands on its own beat)
+		faceHead: 'ONE REINDEER.',
+		faceBody: 'TWO GRUDGES.',
 	},
 	layout: {
 		landscape: { unit: 'master', faceW: 800, faceH: 316.44, pitch: 2.7556, frame: 19.56, ol: 4.44, pole: 26.67, drift: 48, cap: 30.2, margin: 0, boardShare: 1, faceHTall: 0, driftTall: 0 } as LedLayout,
@@ -552,6 +555,48 @@ export const LED_SIGN = {
 	 *  from the edge, shares of the picture), and the picture between them shows where it stands in the finished column, so
 	 *  the grown column is the whole picture with nothing swapped in. */
 	wilds: { look: 'stripes' as 'stripes' | 'solid' | 'today', grow: { cap: 0.042, corner: { w: 0.14, h: 0.052 } } },
+	/** THE FACE SCREEN (Corey 2026-11-21, led_intro_face_screen_r2_2026-11-21, his pick verbatim: candidate A, animation
+	 *  "1 scripted", blink, glances, ear twitch, puffs, sentences land, glance hold 0.45, puff size 1, pictures, Santa left,
+	 *  bust, cutout, size cap 0.23, position first, face scale 1, offset 0, text scale auto). The reindeer's face across the
+	 *  board (the approved face_2_no_smoke.png), ONE REINDEER. TWO GRUDGES. under it (text faceHead, faceBody), Santa and
+	 *  Grandma small beside the line (the press screen's own led-art pictures, cropped), and the face alive on a script:
+	 *  ONE REINDEER. lands with a snort and an ear flick; TWO GRUDGES. lands, then he glances at Santa, then at Grandma,
+	 *  blinks and glares. Every moving piece is a pre-drawn picture on the Wild sheet (tools/build_led_wilds.py,
+	 *  game/ledWildsSpec.ts face): eye and ear PATCHES (a rectangle of a whole face frame, baked as the face is and copied
+	 *  over its LEDs) and the breath PUFFS drawn over it. game/landing/ledScreens.ts screenFace.
+	 *  `position`: its place in the cycle ('first'; 'beforeSanta': after the max win; 'last').
+	 *  `art`: the two fixes after the mock (2026-11-21, tools/build_led_face_art.py) or the mock's own pictures, both on
+	 *  the sheet: lids 'fur' (the brow's fur, a soft crease, the lash line only at the bottom) or 'mock' (the flat fill in
+	 *  the whole outline); puffs 'nostril' (out of the nostrils, never over the nose's rim) or 'mock' (beside the nose).
+	 *  `script` (s of the screen): each sentence lands (dropping `dropDots` into place over `dropS`), the snort's puffs and
+	 *  the ears' flick, the glance at Santa from glanceAt held glanceHoldS, `between` of glare, the glance at Grandma held
+	 *  as long, then the blink blinkAfter later. `blink`: half, closed, half over totalS (closed from halfS to openS);
+	 *  `flick`: the ears at 5, 12 and 5 degrees over totalS (12 from upS to downS); `puff`: frames 0 to 3 to the ends in
+	 *  `frames`, the last fading out from fadeFromS to fadeToS (the draw's alpha).
+	 *  `pics`: Santa and Grandma beside the line: the biggest box of their shape in each bottom corner up to sizeCap of the
+	 *  board's height (at least minDots), `clearDots` clear of the line, the face's drawn dots and the puffs' reach, under
+	 *  the light string, `edgeDots` inside the board's edge and above the strip's snow; a box low beside the line scores
+	 *  over a bigger one higher up (`raisePenalty` of a dot per dot raised).
+	 *  `layout`: the face fills the room over the line (its top may lose up to trimMax of its height under the board's
+	 *  edge), scaled by `scale` and moved `offsetDots` down; `textScale` 'auto' (2 on one row where it fits, 2 on two rows
+	 *  where the face keeps 60% of the board, else 1) or '3', '2', '1' (that size where it fits). */
+	face: {
+		position: 'first' as 'first' | 'beforeSanta' | 'last',
+		art: { lids: 'fur' as 'fur' | 'mock', puffs: 'nostril' as 'nostril' | 'mock' },
+		blink: true,
+		glance: true,
+		earTwitch: true,
+		puffs: true,
+		land: true,
+		glanceHoldS: 0.45,
+		puffSize: 1,
+		script: { land1: 0.5, land2: 1.2, dropDots: 2, dropS: 0.1, snort: 0.62, flick: 0.66, glanceAt: 1.42, between: 0.18, blinkAfter: 0.3 },
+		blinkTiming: { halfS: 0.04, openS: 0.11, totalS: 0.16 },
+		flickTiming: { upS: 0.04, downS: 0.15, totalS: 0.22 },
+		puffTiming: { frames: [0.07, 0.16, 0.27], fadeFromS: 0.33, fadeToS: 0.51 },
+		pics: { on: true, santaSide: 'left' as 'left' | 'right', crop: 'bust' as 'bust' | 'head', santa: 'cutout' as 'cutout' | 'tile', sizeCap: 0.23, minDots: 10, clearDots: 2, edgeDots: 3, raisePenalty: 0.25 },
+		layout: { scale: 1, offsetDots: 0, textScale: 'auto' as 'auto' | '3' | '2' | '1', trimMax: 0.015 },
+	},
 };
 
 // ---- THE SCATTER PRESENT (game/road/present.ts, tools/build_present.py; the 3D present Corey approved 2026-11-15) -------

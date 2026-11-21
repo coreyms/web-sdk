@@ -8,6 +8,7 @@
 // WATCHES: ; __reindeer.gpuWarm, GPU_WARM, LED_BOARD.density, __reindeer.scoreboard, __reindeer.scoreboardFace
 // WATCHES: apps/run_over_reindeer/src/game/scenePrefetch.ts; prefetchOtherSceneSet
 // WATCHES: ; __reindeer.ledFreeze, __reindeer.road, __reindeer.scene, __reindeer.tune, LED_SIGN, SCENE_ART, SCREENS, data-title-sign, .landing
+// WATCHES: ; SCREEN_NAMES, LED_SIGN.face, LED_SIGN.text
 // WATCHES: ; .pressText, .title, .am-ui, .hidden, .hudp, .spin
 // THE LANDING PROBE. Pass 7 (Corey 2026-11-16): the press screen after the studio splash is the LED BILLBOARD
 // (led_billboard_r2_2026-11-16; constants LED_SIGN, game/landing/ledSign.ts), and the posed board (the landing mock V2, game/
@@ -225,18 +226,20 @@ async function boardPress(p, S, tag, errs) {
 	const wantK = !!dn && DR.on && (s.pitch * dn.ratio) / DR.k >= DR.minDevicePx ? DR.k : 1;
 	const sf = s0.face;
 	check(!!dn && Math.abs(dn.ratio - S.dpr) < 0.01 && dn.k === wantK && (S.ledK === undefined || dn.k === S.ledK) && dn.strip === dn.k && dn.back === dn.k && dn.faceRoots.strip === 1 && dn.faceRoots.back === 1 && sf.k === dn.k && sf.ledW === Math.round(sf.W * dn.k) && sf.ledH === Math.round(sf.H * dn.k), `${tag}: the board's grid: ${dn?.k} LEDs per dot (the rule: pitch ${s.pitch} x ${dn?.ratio} / ${DR.k} = ${dn ? Math.round(((s.pitch * dn.ratio) / DR.k) * 100) / 100 : '-'} device px against ${DR.minDevicePx}${S.ledK !== undefined ? `; want ${S.ledK}` : ''}), the strip ${sf.W} x ${sf.H} dots in ${sf.ledW} x ${sf.ledH} LEDs, the back board ${dn?.backLeds}, both faces at one density`, { dn, sf: { W: sf.W, H: sf.H, k: sf.k, ledW: sf.ledW, ledH: sf.ledH } });
-	// the screens advance (driven by hand 100 ms at a time: 3 screens of LED_SIGN holdS + transS)
+	// the screens advance (driven by hand 100 ms at a time: 4 screens of LED_SIGN holdS + transS since the face screen,
+	// 2026-11-21, the face first: ledScreens.ts SCREEN_NAMES)
 	const seen = await p.evaluate(() => {
 		window.__reindeer.scoreboardManual(true);
 		const out = [];
-		for (let i = 0; i < 130; i++) {
+		for (let i = 0; i < 170; i++) {
 			const x = window.__reindeer.scoreboardStep(100);
-			if (out[out.length - 1] !== x.press?.screen) out.push(x.press?.screen);
+			if (out[out.length - 1] !== x.press?.name) out.push(x.press?.name);
 		}
 		window.__reindeer.scoreboardManual(false);
 		return out;
 	});
-	check(seen.length >= 3 && new Set(seen).size === 3, `${tag}: the explainer screens cycle on the expanded board (${seen.join(' > ')})`);
+	const cycle = ['face', 'win', 'sleigh', 'car'];
+	check(seen.length >= 4 && new Set(seen).size === 4 && seen.every((n, i) => !i || cycle.indexOf(n) === (cycle.indexOf(seen[i - 1]) + 1) % 4), `${tag}: the explainer screens cycle on the expanded board in order, the face first (${seen.join(' > ')})`);
 	// THE GPU WARM-UP (game/gpuWarm.ts, 2026-11-17): while the press screen waits, every texture on the stage is sent to the
 	// GPU, a source a frame; it has finished before the press (the probe waits for it, as a player who reads the screens does)
 	let warm0 = [];
@@ -389,13 +392,13 @@ async function crop4x(file, box, dpr, out) {
 				}
 				check(g.housing.bottom <= S.vp.height - 8 && g.housing.x >= 0 && g.housing.x + g.housing.w <= S.vp.width, `${tag}: the housing stands inside the screen, its foot ${g.housing.bottom} above the drift (${S.vp.height})`);
 				check(g.signAlpha === 1 && Math.abs(g.dimAlpha - 0.66) < 0.01 && g.mode === 'live', `${tag}: the sign lit over the 0.66 dim`);
-				// THE THREE SCREENS (each frozen mid hold), the ticker, the words
+				// THE FOUR SCREENS (each frozen mid hold; the face first since 2026-11-21), the ticker, the words
 				const shots = [];
-				for (const [i, t] of [[0, 1.6], [1, 3.9 + 2.6], [2, 7.8 + 2.6]]) {
+				for (const [i, t, name] of [[0, 1.6, 'face'], [1, 3.9 + 1.6, 'win'], [2, 7.8 + 2.6, 'sleigh'], [3, 11.7 + 2.6, 'car']]) {
 					await p.evaluate((t) => window.__reindeer.ledFreeze(t), t);
 					await sleep(400);
 					const sn = await p.evaluate(() => window.__reindeer.led());
-					check(sn.screen === i, `${tag}: screen ${i + 1} shows at ${t} s`, sn.screen);
+					check(sn.screen === i && sn.name === name, `${tag}: screen ${i + 1} (${name}) shows at ${t} s`, { screen: sn.screen, name: sn.name });
 					if (OUT) {
 						const file = join(OUT, `screen${i + 1}_${S.name}_${S.vp.width}x${S.vp.height}.png`);
 						await p.screenshot({ path: file });
@@ -409,8 +412,8 @@ async function crop4x(file, box, dpr, out) {
 				const words = srcOf('game/constants.ts');
 				const textBlock = words.slice(words.indexOf('text: {', words.indexOf('export const LED_SIGN')), words.indexOf('layout: {', words.indexOf('export const LED_SIGN')));
 				const strs = [...textBlock.matchAll(/'([^']*)'|"([^"]*)"/g)].map((m) => m[1] ?? m[2]);
-				check(strs.length === 8 && strs.every((x) => /^[A-Z0-9 ,'X.]+$/.test(x)) && !strs.some((x) => /\b(BET|BUY|CASH|MONEY|PAID|CREDIT|GAMBLE|WAGER|STAKE)\b/.test(x)), `${tag}: the sign's words are plain capitals, none of the restricted words (${strs.join(' / ')})`, strs);
-				check(MAX === '7,777X', `${tag}: screen 1's figure is the max win from game/config.ts (${MAX})`);
+				check(strs.length === 10 && strs.every((x) => /^[A-Z0-9 ,'X.]+$/.test(x)) && !strs.some((x) => /\b(BET|BUY|CASH|MONEY|PAID|CREDIT|GAMBLE|WAGER|STAKE)\b/.test(x)), `${tag}: the sign's words are plain capitals, none of the restricted words (${strs.join(' / ')})`, strs);
+				check(MAX === '7,777X', `${tag}: screen 2's figure is the max win from game/config.ts (${MAX})`);
 				// THE COST on the phone profile, the CPU throttled 4x
 				if (S.throttle) {
 					const cdp = await ctx.newCDPSession(p);

@@ -26,10 +26,30 @@ phone boards (sideways 844 x 390: 243 x 126 dots at 1.56; upright 390 x 844: 259
 ledScreens.ts screenStrike's layout (the column four rows of the cell height, the cell 1.45 times as wide, the frame
 th dots outside it).
 
+THE FACE SCREEN (Corey 2026-11-21, led_intro_face_screen_r2_2026-11-21, his pick: candidate A first in the cycle, the
+face alive; constants LED_SIGN.face, ledScreens.ts screenFace) rides on the same sheets, in its own column to the right
+of the Wild pictures (the Wild pictures keep their places, so their bakes do not move by a level):
+  face      the approved face (led_intro_reindeer_face_r4_2026-11-21/face_2_no_smoke.png, unedited) cut to its drawn
+            width (x 77 to 1595, full height), at its own 1518 px on the desktop tier (the source's whole width: no upscale;
+            the board shows it 233 dots across on the 1440 x 900 desktop, 350 LEDs at 1.5 LEDs per dot) and 922 px on the
+            phone tier (3 px per CSS px of the 390 x 844 board's 205 dots)
+  patches   eye_<l|r>_<gaze_l|gaze_r|half|closed> and ear_<l|r>_<5|12>: each a rectangle of a whole face frame that differs
+            from the face only inside it (its changed pixels' box plus MARGIN px), cut from that frame scaled whole to the
+            tier, so it registers with the face exactly; the eyes split at the face's middle (x 836). The glances and the
+            ears are the mock's layers (led_intro_face_screen_r2_2026-11-21/layers); the half and closed lids are the
+            furred ones (tools/build_led_face_art.py, led_intro_face_built_2026-11-21/layers), the mock's flat lids kept as
+            eye_<l|r>_<half|closed>_mock (LED_SIGN.face.art.lids 'mock')
+  puffs     puff_n0 to puff_n3: the breath out of the nostrils (tools/build_led_face_art.py); the mock's puff_0 to puff_3
+            kept (LED_SIGN.face.art.puffs 'mock')
+The spec's `face` holds the patches' rectangles and the puffs' boxes as shares of the face, the face's drawn extent per 1%
+band of its height (every ear frame with it: the pictures beside it keep clear), the nostril and the nostrils' middle, the
+nose's rim as boxes (the probes: no puff over it), and each tier's `places` (each patch's corner in the face frame, px).
+
 Writes static/assets/landing/led-wilds-full.webp and led-wilds-phone.webp (quality 90, alpha lossless: the LED punch keys
 on alpha) and src/game/ledWildsSpec.ts (generated).
 
 Run with the math env's Python (Pillow, numpy, scipy):
+    nice -n 19 math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_led_face_art.py   (the face's two fixes)
     nice -n 19 math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_led_wilds.py
 Then `node scripts/stamp-assets.mjs` (pnpm dev and pnpm build run it for you).
 """
@@ -64,6 +84,24 @@ BOARDS = {
     "full": [{"W": 362, "H": 203, "pitch": 2.4835}],
     "phone": [{"W": 243, "H": 126, "pitch": 1.56}, {"W": 259, "H": 189, "pitch": 1.297, "lay": 0.37}],
 }
+# THE FACE SCREEN's sources (see above)
+FACE_SRC = os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_reindeer_face_r4_2026-11-21/face_2_no_smoke.png")
+FACE_MOCK = os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_face_screen_r2_2026-11-21/layers")
+FACE_BUILT = os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_face_built_2026-11-21/layers")
+FACE_CROP = (77, 0, 1595, 941)  # the face's drawn width (alpha x 85 to 1587) with 8 px either side; full height
+FACE_TIER_W = {"full": 1518, "phone": 922}
+FACE_MID = 836  # the eye patches: the left eye's from x under it, the right eye's from x at or over it
+FACE_MARGIN = 6  # px of the picture round each patch's changed pixels (the downscale's reach: the rest bakes the same)
+# (name, frame file, folder, half)
+FACE_PATCHES = []
+for _st in ("gaze_l", "gaze_r"):
+    FACE_PATCHES += [(f"eye_l_{_st}", f"eyes_{_st}.png", FACE_MOCK, "l"), (f"eye_r_{_st}", f"eyes_{_st}.png", FACE_MOCK, "r")]
+for _st in ("half", "closed"):
+    FACE_PATCHES += [(f"eye_l_{_st}", f"eyes_{_st}_fur.png", FACE_BUILT, "l"), (f"eye_r_{_st}", f"eyes_{_st}_fur.png", FACE_BUILT, "r")]
+    FACE_PATCHES += [(f"eye_l_{_st}_mock", f"eyes_{_st}.png", FACE_MOCK, "l"), (f"eye_r_{_st}_mock", f"eyes_{_st}.png", FACE_MOCK, "r")]
+for _side in "lr":
+    for _deg in (5, 12):
+        FACE_PATCHES.append((f"ear_{_side}_{_deg}", f"ears_{_side}_{_deg}.png", FACE_MOCK, None))
 # the frame colors the screens draw the growing box in (constants WILD_FRAME.plain: the garland's plain box)
 PLAIN = {"santa": "#b3192b", "grandma": "#238c3c"}
 MULT_SET = {"santa": "green", "grandma": "gold"}
@@ -235,6 +273,146 @@ def pack(pieces):
     return frames, (x0 + right, max(first[1].height, y + row_h))
 
 
+# ---- THE FACE SCREEN'S PICTURES ---------------------------------------------------------------------------------------------
+def face_parts():
+    """the face, its patches' rectangles (crop px, full size), the whole variant frames, the puffs and the spec"""
+    orig = Image.open(FACE_SRC).convert("RGBA")
+    O = np.array(orig).astype(np.int16)
+    face = orig.crop(FACE_CROP)
+    fw, fh = face.size
+    rects, variants = {}, {}
+    for name, fn, folder, half in FACE_PATCHES:
+        V = Image.open(os.path.join(folder, fn)).convert("RGBA")
+        assert V.size == orig.size, (fn, V.size)
+        variants[name] = V
+        d = np.abs(np.array(V).astype(np.int16) - O).max(2) > 0
+        if half == "l":
+            d[:, FACE_MID:] = False
+        elif half == "r":
+            d[:, :FACE_MID] = False
+        ys, xs = np.nonzero(d)
+        x0, y0 = xs.min() - FACE_MARGIN - FACE_CROP[0], ys.min() - FACE_MARGIN
+        x1, y1 = xs.max() + 1 + FACE_MARGIN - FACE_CROP[0], ys.max() + 1 + FACE_MARGIN
+        rects[name] = (max(0, x0), max(0, y0), min(fw, x1), min(fh, y1))
+    # the face's drawn rows (alpha at or over the LED punch's 70) per 1% band of its height, [left, right] shares, the face
+    # and every ear frame together
+    A = np.array(face)[..., 3] >= 70
+    for name, V in variants.items():
+        if name.startswith("ear"):
+            A |= np.array(V.crop(FACE_CROP))[..., 3] >= 70
+    prof = []
+    for i in range(100):
+        a, b = int(i * fh / 100), max(int(i * fh / 100) + 1, int((i + 1) * fh / 100))
+        cols = np.nonzero(A[a:b].any(0))[0]
+        prof.append([round(cols.min() / fw, 4), round((cols.max() + 1) / fw, 4)] if len(cols) else None)
+    nose = json.load(open(os.path.join(FACE_BUILT, "nose.json")))
+    axis = nose["axis"] - FACE_CROP[0]
+    nostril = nose["nostrils"][0]["c"]
+    sets = {
+        "nostril": (json.load(open(os.path.join(FACE_BUILT, "puffs_nostril.json"))), FACE_BUILT),
+        "mock": (json.load(open(os.path.join(FACE_MOCK, "puffs_info.json"))), FACE_MOCK),
+    }
+    puffs, puff_ims = {}, {}
+    for key, (lst, folder) in sets.items():
+        puffs[key] = [{"frame": p["frame"], "x": round((p["x"] - FACE_CROP[0]) / fw, 5), "y": round(p["y"] / fh, 5), "w": round(p["w"] / fw, 5), "h": round(p["h"] / fh, 5)} for p in lst]
+        for p in lst:
+            puff_ims[p["frame"]] = Image.open(os.path.join(folder, p["frame"] + ".png")).convert("RGBA")
+    # the puffs' reach, both nostrils, both sets (the pictures beside the face keep clear of it)
+    allp = [q for v in puffs.values() for q in v]
+    ax = axis / fw
+    spec = {
+        "frame": "face",
+        "source": "led_intro_reindeer_face_r4_2026-11-21/face_2_no_smoke.png x %d to %d" % (FACE_CROP[0], FACE_CROP[2]),
+        "nose": round(ax, 5),
+        "nostril": [round((nostril[0] - FACE_CROP[0]) / fw, 5), round(nostril[1] / fh, 5)],
+        "profile": prof,
+        "puffBox": [round(min(q["x"] for q in allp), 4), round(min(q["y"] for q in allp), 4), round(max(2 * ax - q["x"] for q in allp), 4), round(min(1, max(q["y"] + q["h"] for q in allp)), 4)],
+        "patches": {n: [round(r[0] / fw, 5), round(r[1] / fh, 5), round(r[2] / fw, 5), round(r[3] / fh, 5)] for n, r in rects.items()},
+        "puffs": puffs,
+        "rim": [[round((b[0] - FACE_CROP[0]) / fw, 5), round(b[1] / fh, 5), round((b[2] - FACE_CROP[0]) / fw, 5), round(b[3] / fh, 5)] for b in nose["rimBoxes"]],
+    }
+    return face, rects, variants, puff_ims, spec
+
+
+def face_tier(tier, parts):
+    """the tier's face, its patches and puffs as pictures, and each patch's corner in the tier's face frame"""
+    face, rects, variants, puff_ims, _ = parts
+    w = FACE_TIER_W[tier]
+    k = w / face.width
+    th = round(face.height * k)
+    F = face if k == 1 else face.resize((w, th), Image.LANCZOS)
+    pieces, places = {}, {}
+    for name, V in variants.items():
+        V = V.crop(FACE_CROP)
+        if k != 1:
+            V = V.resize((w, th), Image.LANCZOS)
+        x0, y0, x1, y1 = rects[name]
+        r = (int(np.floor(x0 * k)), int(np.floor(y0 * k)), int(np.ceil(x1 * k)), int(np.ceil(y1 * k)))
+        pieces[name] = V.crop(r)
+        places[name] = [r[0], r[1]]
+    for name, im in puff_ims.items():
+        pieces[name] = im if k == 1 else im.resize((max(1, round(im.width * k)), max(1, round(im.height * k))), Image.LANCZOS)
+    return F, pieces, places
+
+
+def pack_more(frames, size, face, pieces):
+    """the face in its own column right of the sheet as it was, its pieces packed into the room left (MaxRects, best short
+    side fit), the sheet growing down only when nothing fits; the frames already placed do not move"""
+    W0, H0 = size
+    fx = W0 + GAP
+    W = fx + face.width
+    H = max(H0, face.height)
+    used = [(f["x"], f["y"], f["w"] + GAP, f["h"] + GAP) for f in frames.values()] + [(fx, 0, face.width, face.height + GAP)]
+    out = dict(frames)
+    out["face"] = {"x": fx, "y": 0, "w": face.width, "h": face.height}
+
+    def split(free, u):
+        ux, uy, uw, uh = u
+        res = []
+        for (x, y, w, h) in free:
+            if ux >= x + w or ux + uw <= x or uy >= y + h or uy + uh <= y:
+                res.append((x, y, w, h))
+                continue
+            if ux > x:
+                res.append((x, y, ux - x, h))
+            if ux + uw < x + w:
+                res.append((ux + uw, y, x + w - ux - uw, h))
+            if uy > y:
+                res.append((x, y, w, uy - y))
+            if uy + uh < y + h:
+                res.append((x, uy + uh, w, y + h - uy - uh))
+        res = [r for r in res if r[2] > 0 and r[3] > 0]
+        return [a for i, a in enumerate(res) if not any(j != i and b[0] <= a[0] and b[1] <= a[1] and b[0] + b[2] >= a[0] + a[2] and b[1] + b[3] >= a[1] + a[3] and (b != a or j < i) for j, b in enumerate(res))]
+
+    def free_of(H):
+        free = [(0, 0, W, H + GAP)]
+        for u in used:
+            free = split(free, u)
+        return free
+
+    free = free_of(H)
+    for name, im in sorted(pieces.items(), key=lambda kv: (-max(kv[1].width, kv[1].height), -kv[1].width * kv[1].height, kv[0])):
+        pw, ph = im.width + GAP, im.height + GAP
+        while True:
+            best = None
+            for (x, y, w, h) in free:
+                if pw <= w and ph <= h:
+                    sc = (min(w - pw, h - ph), max(w - pw, h - ph), y, x)
+                    if best is None or sc < best[0]:
+                        best = (sc, x, y)
+            if best:
+                break
+            H += ph
+            free = free_of(H)
+        _, x, y = best
+        used.append((x, y, pw, ph))
+        free = split(free, (x, y, pw, ph))
+        out[name] = {"x": x, "y": y, "w": im.width, "h": im.height}
+        H = max(H, y + im.height)
+    H = max(H0, max(f["y"] + f["h"] for f in out.values()))
+    return out, (W, H)
+
+
 def main():
     meta = json.load(open(os.path.join(SRC, "src.json")))
     texts = led_text()
@@ -244,6 +422,8 @@ def main():
     for k in pics:
         spec["pictures"][k] = {"frame": k, "plain": PLAIN[k], "set": MULT_SET[k], "text": texts[k], **({"wordLook": "candy"} if k == "grandma" else {}), **{p: {q: round(v, 4) for q, v in s.items()} for p, s in where[k].items()}}
     shares = {}
+    parts = face_parts()
+    spec["face"] = parts[4]
     for tier in ("full", "phone"):
         size = target_px(tier)
         pieces = {}
@@ -273,13 +453,18 @@ def main():
                         piece = piece.resize((max(1, round(sw * tw)), max(1, round(sh * th))), Image.LANCZOS)
                     pieces[name] = piece
         frames, (W, H) = pack(pieces)
+        # THE FACE SCREEN's pictures beside them
+        face, fpieces, fplaces = face_tier(tier, parts)
+        frames, (W, H) = pack_more(frames, (W, H), face, fpieces)
+        pieces.update(fpieces)
+        pieces["face"] = face
         sheet = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         for name, f in frames.items():
             sheet.paste(pieces[name], (f["x"], f["y"]))
         file = f"landing/led-wilds-{tier}.webp"
         path = os.path.join(APP, "static", "assets", file)
         sheet.save(path, "WEBP", **WEBP)
-        spec["tiers"][tier] = {"file": file, "width": W, "height": H, "kb": round(os.path.getsize(path) / 1024, 1), "frames": frames}
+        spec["tiers"][tier] = {"file": file, "width": W, "height": H, "kb": round(os.path.getsize(path) / 1024, 1), "frames": frames, "facePlaces": fplaces}
         print(tier, (W, H), spec["tiers"][tier]["kb"], "KB", {k: v for k, v in size.items()})
     # each part's box: its measured centre, the piece's own size (both looks share the stripes' box)
     for k in pics:
@@ -292,7 +477,8 @@ def main():
         f.write("// AUTO-GENERATED by tools/build_led_wilds.py (the press screen's Wild pictures: the game's own Santa column and\n")
         f.write("// Grandma Wild, their numbers and the WILD word; constants LED_SIGN.wilds, game/landing/ledScreens.ts). Do not\n")
         f.write("// edit: run the tool again. pictures: each part's box as shares of its picture (centre, width, height), `plain` the\n")
-        f.write("// growing box's color, `text` the number baked; tiers: each picture's place on its sheet in px.\n")
+        f.write("// growing box's color, `text` the number baked; tiers: each picture's place on its sheet in px. face: the face\n")
+        f.write("// screen's patches and puffs as shares of the face (tools/build_led_face_art.py), each tier's facePlaces in px.\n")
         f.write("export const LED_WILDS = " + json.dumps(spec, indent="\t") + " as const;\n")
 
 

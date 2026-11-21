@@ -75,7 +75,7 @@
 	import { boot } from '../game/boot.svelte';
 	import { LedSign, capTopProfile, ledGeometry } from '../game/landing/ledSign';
 	import { resumeCardWanted } from '../game/resumeRound.svelte';
-	import { setLedArt, setLedWildArt, type LedText } from '../game/landing/ledScreens';
+	import { SCREEN_NAMES, setFaceAudit, setLedArt, setLedWildArt, type LedText, type ScreenName } from '../game/landing/ledScreens';
 	import { LED_ART } from '../game/ledArtSpec';
 	import { LED_WILDS } from '../game/ledWildsSpec';
 	import { seatClipMemory, setSeatUploader } from '../game/road/seatedClips';
@@ -261,6 +261,7 @@
 			win: { top: T.winTop, num: `${config.maxWin.toLocaleString('en-US')}X` },
 			sleigh: { head: T.sleighHead, body: T.sleighBody, mult: T.sleighMult },
 			car: { head: T.carHead, body: T.carBody, mult: T.carMult, bodyScales: [2, 1] },
+			face: { head: T.faceHead, body: T.faceBody },
 			ticker: T.ticker,
 		};
 	};
@@ -268,7 +269,7 @@
 	const ledWildArt = (on: boolean) => {
 		if (on) {
 			const image = loaded.ledWilds?.source?.resource as CanvasImageSource | undefined;
-			setLedWildArt(image ? { image, frames: LED_WILDS.tiers[PHONE_TIER ? 'phone' : 'full'].frames } : null);
+			setLedWildArt(image ? { image, frames: LED_WILDS.tiers[PHONE_TIER ? 'phone' : 'full'].frames } : null, PHONE_TIER ? 'phone' : 'full');
 			return;
 		}
 		setLedWildArt(null);
@@ -1234,6 +1235,27 @@
 				return scoreboard?.snapshot() ?? null;
 			},
 			scoreboardRaise: (x?: number) => scoreboard?.raise(x),
+			/** THE PRESS SCREEN'S CYCLE (ledScreens.ts SCREEN_NAMES: face, win, sleigh, car), and a jump to the start of a
+			 *  screen: the board driven by hand `stepMs` at a time until `name` is the screen and its first step is drawn
+			 *  (the board is left in manual: scoreboardManual(false) runs it again); null when the press screen is not up */
+			pressScreens: () => [...SCREEN_NAMES],
+			pressScreenJump: (name: ScreenName, stepMs = 20) => {
+				if (!scoreboard?.snapshot()?.press?.up) return null;
+				scoreboard.manual = true;
+				let x = scoreboard.snapshot();
+				for (let i = 0; i < 400 && x?.press?.name === name; i++) {
+					scoreboard.step(stepMs);
+					x = scoreboard.snapshot();
+				}
+				for (let i = 0; i < 1200 && x?.press?.name !== name; i++) {
+					scoreboard.step(stepMs);
+					x = scoreboard.snapshot();
+				}
+				return x;
+			},
+			/** THE FACE SCREEN (LED_SIGN.face): what its last frame drew is scoreboard().press.face; audit on: each puff's lit
+			 *  LEDs on the nose's rim are counted (the probes) */
+			ledFaceAudit: (on: boolean) => setFaceAudit(!!on),
 			/** PART B: a bonus round card's scene by hand (kind fs, sfs or total; no HTML card: press or end it by hand) */
 			// (2026-11-19) `play`: the play amount the multiple is of (the bet by default), `capped` (default: a MAX WIN title),
 			// `auto`: as Autoplay Bonuses raises it, `presents`: the trigger's scatter count (0: the tune panel's fallback)

@@ -356,8 +356,8 @@ export default {
 	"fonts/ui/OutfitText-Variable.woff2": "e1523f3a",
 	"fonts/ui/Sora-Variable.woff2": "b2871dff",
 	"landing/led-art.webp": "8a131a68",
-	"landing/led-wilds-full.webp": "a4ff3c43",
-	"landing/led-wilds-phone.webp": "75b14c66",
+	"landing/led-wilds-full.webp": "fbc8939b",
+	"landing/led-wilds-phone.webp": "9a7e9611",
 	"present/present-full-open-0-red.webp": "fdc80593",
 	"present/present-full-open-0.webp": "85588170",
 	"present/present-full-open-1-red.webp": "c885e9dd",
@@ -875,8 +875,8 @@ export const fileBytes = {
 	"fonts/ui/OutfitText-Variable.woff2": 45164,
 	"fonts/ui/Sora-Variable.woff2": 14980,
 	"landing/led-art.webp": 97664,
-	"landing/led-wilds-full.webp": 334178,
-	"landing/led-wilds-phone.webp": 103428,
+	"landing/led-wilds-full.webp": 606594,
+	"landing/led-wilds-phone.webp": 263214,
 	"present/present-full-open-0-red.webp": 127510,
 	"present/present-full-open-0.webp": 128524,
 	"present/present-full-open-1-red.webp": 134696,
@@ -1044,4 +1044,4 @@ export const landingSizes = {
 	"fonts/overpass/Overpass-bold.woff2": 34436
 } as const;
 
-export const bootSizes = {"landing":98520,"preload":7578625,"audio":1223703} as const;
+export const bootSizes = {"landing":98520,"preload":7851041,"audio":1223703} as const;
