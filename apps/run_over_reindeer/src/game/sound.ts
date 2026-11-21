@@ -89,11 +89,16 @@ export type SoundEffectName =
 	| 'sfx_card_in'
 	| 'sfx_card_out'
 	| 'amb_road'
-	// THE BONUS ENTRANCE (Corey 2026-11-21, S10 for both entries; game/bonusEntrance.ts, constants REINDEER_SOUND.entrance):
-	// the hit as the entry card lands, the build loop under it, the drop on its dismissal with the bonus music
+	// THE BONUS ENTRANCE (Corey 2026-11-21; game/bonusEntrance.ts, constants REINDEER_SOUND.entrance). Round 2: Free Spins
+	// plays draft 10 (fs_cut, fs_hit, fs_build), Super S10 (hit, super_build); both crash on the drop. The 12 s build loop
+	// (sfx_bonus_entrance_build, round 1) is no longer played and stays in the sprite.
 	| 'sfx_bonus_entrance_hit'
 	| 'sfx_bonus_entrance_build'
-	| 'sfx_bonus_entrance_drop';
+	| 'sfx_bonus_entrance_drop'
+	| 'sfx_bonus_entrance_fs_cut'
+	| 'sfx_bonus_entrance_fs_hit'
+	| 'sfx_bonus_entrance_fs_build'
+	| 'sfx_bonus_entrance_super_build';
 
 export type SoundName = MusicName | SoundEffectName;
 

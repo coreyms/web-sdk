@@ -24,7 +24,7 @@ import { presentWheelDone } from './road/present';
 import type { Board } from './types';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 import { bonusEntered, bonusLeft } from './bonusStockRules';
-import { entranceCard, entranceCut, entranceDrop } from './bonusEntrance';
+import { entranceCard, entranceCut, entranceDismiss } from './bonusEntrance';
 
 const ROWS = 4;
 
@@ -71,6 +71,8 @@ const showCard = async (card: RoundCard) => {
 };
 /** ui/RoundCard.svelte: the card was pressed, or its time ran out */
 export const dismissRoundCard = () => {
+	// (the sound probe: the moment the card was dismissed, against the bonus entrance's crash)
+	if (cardDone) devMark('cardDismissed', stateGame.roundCard?.kind ?? '');
 	const done = cardDone;
 	cardDone = null;
 	done?.();
@@ -91,7 +93,7 @@ const spinPays = (bookEvents: BookEvent[], from: number): boolean => {
 };
 
 /** the feature trigger's own state, with nothing shown (a live trigger, and a resumed round's rebuild). `music` false: the
- *  bonus music is left to the entrance's drop (a live trigger with its entry card, game/bonusEntrance.ts); a resumed
+ *  bonus music is left to the entrance's crash (a live trigger with its entry card, game/bonusEntrance.ts); a resumed
  *  round that skips the card swaps it here at once, as before */
 const enterBonus = (bookEvent: BookEventOfType<'freeSpinTrigger'>, music = true) => {
 	stateGame.bonusMode = bookEvent.bonusType === 'super' ? 'super' : 'bonus';
@@ -268,18 +270,20 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		openingLanded = false;
 		// the marimba family's success (2026-11-17), one sound for Free Spins and Super Free Spins, where the tier fanfares played
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_scatter_success' });
-		// THE BONUS ENTRANCE (2026-11-21, constants REINDEER_SOUND.entrance, game/bonusEntrance.ts): with the success the base
-		// music cuts to near silence; the hit lands with the entry card, the build waits under it, and the card's dismissal
-		// brings the drop and the bonus music. Off: the music swaps here, as before.
+		// THE BONUS ENTRANCE (2026-11-21, round 2: constants REINDEER_SOUND.entrance, game/bonusEntrance.ts): with the success
+		// the base music cuts to near silence; the entry card brings ONE sequence, played once (Free Spins draft 10, Super
+		// S10): the hit as the card lands, the build, then the crash and the bonus music at the sequence's own time, the card
+		// still up. A press that continues before that brings the crash at once; a later one only dismisses the card.
+		// Off: the music swaps here, as before.
 		const entrance = REINDEER_SOUND.entrance.on;
-		if (entrance) entranceCut();
+		if (entrance) entranceCut(bookEvent.bonusType === 'super' ? 'super' : 'bonus');
 		await eventEmitter.broadcastAsync({ type: 'boardPulse', cells: bookEvent.cells, ms: ROUND.triggerPulseMs });
 		enterBonus(bookEvent, !entrance);
 		if (entrance) entranceCard(stateGame.autoPlayBonuses && stateBet.autoSpinsCounter > 0);
 		// (2026-11-20, Corey: "Real trigger count": the presents the LED entry pops are the scatters this round triggered with,
 		// the book's own cells; the math gives Free Spins 3, Super 4 or 5)
 		await showCard({ kind: 'intro', bonus: stateGame.bonusMode ?? 'bonus', spins: bookEvent.totalFs, presents: bookEvent.cells.length });
-		if (entrance) entranceDrop(stateGame.bonusMode === 'super' ? 'bgm_super' : 'bgm_bonus');
+		if (entrance) entranceDismiss();
 	},
 	freeSpinRetrigger: async (bookEvent: BookEventOfType<'freeSpinRetrigger'>) => {
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_scatter_success' });

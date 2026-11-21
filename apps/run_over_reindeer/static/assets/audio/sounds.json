@@ -281,6 +281,22 @@
 		"sfx_bonus_entrance_drop": [
 			142540,
 			1466
+		],
+		"sfx_bonus_entrance_fs_cut": [
+			145006,
+			609
+		],
+		"sfx_bonus_entrance_fs_hit": [
+			146615,
+			2981
+		],
+		"sfx_bonus_entrance_fs_build": [
+			150596,
+			4000
+		],
+		"sfx_bonus_entrance_super_build": [
+			155596,
+			4000
 		]
 	},
 	"config": {
@@ -490,10 +506,22 @@
 		},
 		"sfx_bonus_entrance_drop": {
 			"volume": 1
+		},
+		"sfx_bonus_entrance_fs_cut": {
+			"volume": 1
+		},
+		"sfx_bonus_entrance_fs_hit": {
+			"volume": 1
+		},
+		"sfx_bonus_entrance_fs_build": {
+			"volume": 1
+		},
+		"sfx_bonus_entrance_super_build": {
+			"volume": 1
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=ff4269cf",
-		"./assets/audio/sounds.m4a?v=64f15754"
+		"./assets/audio/sounds.ogg?v=2f9a5385",
+		"./assets/audio/sounds.m4a?v=312c2e8d"
 	]
 }

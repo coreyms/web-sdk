@@ -7,9 +7,9 @@ export default {
 	"audio/music/bgm_super.m4a": "562ef093",
 	"audio/music/bgm_super.ogg": "6b97f0a3",
 	"audio/music.json": "198c9795",
-	"audio/sounds.json": "19071f32",
-	"audio/sounds.m4a": "64f15754",
-	"audio/sounds.ogg": "ff4269cf",
+	"audio/sounds.json": "50838231",
+	"audio/sounds.m4a": "312c2e8d",
+	"audio/sounds.ogg": "2f9a5385",
 	"brawl/land-0.webp": "901e6bf1",
 	"brawl/land-phone-0.webp": "adb802ea",
 	"brawl/loop-0.webp": "5406c78d",
@@ -526,9 +526,9 @@ export const fileBytes = {
 	"audio/music/bgm_super.m4a": 152928,
 	"audio/music/bgm_super.ogg": 190990,
 	"audio/music.json": 778,
-	"audio/sounds.json": 6428,
-	"audio/sounds.m4a": 1189867,
-	"audio/sounds.ogg": 842801,
+	"audio/sounds.json": 6881,
+	"audio/sounds.m4a": 1318009,
+	"audio/sounds.ogg": 970285,
 	"brawl/land-0.webp": 142084,
 	"brawl/land-phone-0.webp": 63392,
 	"brawl/loop-0.webp": 479098,
@@ -1044,4 +1044,4 @@ export const landingSizes = {
 	"fonts/overpass/Overpass-bold.woff2": 34436
 } as const;
 
-export const bootSizes = {"landing":98520,"preload":7578172,"audio":1096219} as const;
+export const bootSizes = {"landing":98520,"preload":7578625,"audio":1223703} as const;

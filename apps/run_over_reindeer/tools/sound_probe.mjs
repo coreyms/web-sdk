@@ -16,6 +16,8 @@
 // WATCHES: apps/run_over_reindeer/src/{game/bonusEntrance.ts,game/bookEventHandlerMap.ts,ui/RoundCard.svelte}, tools/round_card_press.mjs;
 // WATCHES: ; __reindeer.musicTap, __reindeer.scoreboard, REINDEER_SOUND.entrance, LED_BOARD.rise, bgm_bonus, bgm_super
 // WATCHES: ; sfx_bonus_entrance_hit, sfx_bonus_entrance_build, sfx_bonus_entrance_drop
+// WATCHES: ; sfx_bonus_entrance_fs_cut, sfx_bonus_entrance_fs_hit, sfx_bonus_entrance_fs_build, sfx_bonus_entrance_super_build
+// WATCHES: ; cardDismissed, ROUND.autoplayMs, ROUND.armMs, __reindeer.stockRules, autoPlayBonuses
 // THE SOUND PROBE (the reindeer's own sounds, wired 2026-11-15; constants REINDEER_SOUND, game/road/roadSounds.ts):
 // plays real fixture rounds in the running game with the board clock running in real time, and records two logs side
 // by side: the road's own (every animation moment and every sound it asked for, with the board's frame number:
@@ -83,6 +85,18 @@
 // build runs), supersmall 15.5 s (the hold), smallfs presses at once (an early press: the hit is cut, the build may not
 // have started). The road's ambience fades out on the frame the feature is entered (the bonusMode moment), no longer on
 // the bonus music's start, which is the drop's.
+// PASS 11 (2026-11-21, the bonus entrance's round 2, judgeEntrance; Corey: "10 for Free Spins, and S10 for Super", and no
+// loop, "like the preview"): per freeSpinTrigger, the right entrance's pieces (Free Spins: fs_cut with the success, fs_hit,
+// fs_build; Super: hit, super_build; both crash on the drop), each piece played exactly once and none of them a sprite
+// loop (the retired 12 s build never plays), the hit timed to the card's landing, the build buildAfterMs after the hit,
+// and then one of three paths, each asserted by its case: LEFT ALONE (trigger, supersmall: the card waits entryWaitMs,
+// real time) the crash and the bonus track from the music player crashAfterMs after the hit on one frame, the card still
+// up then (its dismissal later), and the late press plays no second crash and starts no music; EARLY (smallfs,
+// superearly: the probe's quick presses) the crash on the dismissal within two frames, every piece still sounding faded
+// out over pressOutMs and stopped, no piece after it; AUTOPLAY BONUSES (autofs, autosuper: an autoplay run with the option
+// on, stopped in the pause after the wrap-up) the card goes by itself about ROUND.autoplayMs after it came up, no build,
+// the crash on that dismissal. Every path: exactly one crash and one bonus track start per entry, no bonus music before
+// the crash, the base music's level back after the swap, nothing of the entrance sounding at the round's end.
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 OUT=<dir> [ONLY=idle,slam] \
 //     [SIZES=desk,phone] node tools/sound_probe.mjs
 // The browser runs with --mute-audio: the game plays its sounds, nothing reaches the speakers.
@@ -123,9 +137,12 @@ const ENTRANCE = { reindeer: 'sfx_column_reindeer_in', santa: 'sfx_column_santa_
 const COLUMN_WIN = { reindeer: 'sfx_column_win_reindeer', santa: 'sfx_column_win_santa', grandma: 'sfx_column_win_grandma' };
 const CARDS = ['sfx_card_in', 'sfx_card_out', 'sfx_topup'];
 const OURS3 = ['sfx_column_grow', ENTRANCE.santa, ENTRANCE.grandma, ...Object.values(COLUMN_WIN), 'sfx_sticky_set', ...CARDS, 'amb_road'];
-// PASS 10's (2026-11-21): the bonus entrance's three pieces (constants REINDEER_SOUND.entrance)
+// PASS 10's (2026-11-21): the bonus entrance's three pieces (constants REINDEER_SOUND.entrance); PASS 11's four after them
+// (round 2: Free Spins' own draft 10, and Super's build as a 4 s one-shot). The 12 s loop (build) is no longer played.
 const ENTRY = { hit: 'sfx_bonus_entrance_hit', build: 'sfx_bonus_entrance_build', drop: 'sfx_bonus_entrance_drop' };
-const OURS = [...OURS1, ...OURS2, ...OURS3, ...Object.values(ENTRY)];
+const ENTRY2 = { fsCut: 'sfx_bonus_entrance_fs_cut', fsHit: 'sfx_bonus_entrance_fs_hit', fsBuild: 'sfx_bonus_entrance_fs_build', superBuild: 'sfx_bonus_entrance_super_build' };
+const ENTRY_ALL = [...Object.values(ENTRY), ...Object.values(ENTRY2)];
+const OURS = [...OURS1, ...OURS2, ...OURS3, ...ENTRY_ALL];
 // the borrowed Manticore sounds whose moments have this game's own now: none of them may play (since 2026-11-19 none of
 // them is in the sprite either: LEFT_OUT below)
 const REPLACED = ['sfx_reel_stop', 'sfx_reel_spin', 'sfx_cluster_remove', 'sfx_swipe', 'sfx_sting_hit'];
@@ -162,7 +179,7 @@ const CASES = [
 	{ id: 'slam', book: 'base_one_column', turbo: 0, snort: 'always', slam: true },
 	{ id: 'santa', book: 'tier_santa', turbo: 0, snort: 'never' },
 	{ id: 'grandmacol', book: 'tier_grandma', turbo: 2, snort: 'never' },
-	{ id: 'trigger', book: 'natural_free_spins', turbo: 0, snort: 'never', maxMs: 300000, entryWaitMs: 5000 },
+	{ id: 'trigger', book: 'natural_free_spins', turbo: 0, snort: 'never', maxMs: 300000, entryWaitMs: 7500, entry: 'late' },
 	// round 3's
 	{ id: 'santa1', book: 'tier_santa', turbo: 1, snort: 'never' },
 	{ id: 'santa2', book: 'tier_santa', turbo: 2, snort: 'never' },
@@ -173,13 +190,18 @@ const CASES = [
 	{ id: 'three0', book: 'base_three_columns', turbo: 0, snort: 'never' },
 	{ id: 'three2', book: 'base_three_columns', turbo: 2, snort: 'never' },
 	{ id: 'threeslam', book: 'base_three_columns', turbo: 0, snort: 'never', slam: true },
-	{ id: 'smallfs', book: 'natural_small_free_spins', turbo: 1, snort: 'never', maxMs: 300000 },
-	{ id: 'supersmall', book: 'super_small', turbo: 2, snort: 'never', maxMs: 300000, entryWaitMs: 15500 },
+	{ id: 'smallfs', book: 'natural_small_free_spins', turbo: 1, snort: 'never', maxMs: 300000, entry: 'early' },
+	{ id: 'supersmall', book: 'super_small', turbo: 2, snort: 'never', maxMs: 300000, entryWaitMs: 7500, entry: 'late' },
+	// PASS 11 (2026-11-21): Super's early press, and the Autoplay Bonuses path for both (an autoplay run, stopped in the pause
+	// after the wrap-up; last, so no other case meets the run)
+	{ id: 'superearly', book: 'super_small', turbo: 0, snort: 'never', maxMs: 300000, entry: 'early' },
 	// PASS 8 (2026-11-16): the house scatter landings on posed boards (presentation only), judged by judgeScatter alone
 	{ id: 'scat0', posed: SCAT_BOOK(SCAT.five), turbo: 0, snort: 'never', scatter: true },
 	{ id: 'scat1', posed: SCAT_BOOK(SCAT.sup), turbo: 1, snort: 'never', scatter: true },
 	{ id: 'scat2', posed: SCAT_BOOK(SCAT.sup), turbo: 2, snort: 'never', scatter: true },
 	{ id: 'scatslam', posed: SCAT_BOOK(SCAT.sup), turbo: 0, snort: 'never', scatter: true, slam: true, slamOn: 'teaseStart' },
+	{ id: 'autofs', book: 'natural_small_free_spins', turbo: 0, snort: 'never', maxMs: 300000, entry: 'auto', auto: true, sizes: ['desk'] },
+	{ id: 'autosuper', book: 'natural_small_super', turbo: 0, snort: 'never', maxMs: 300000, entry: 'auto', auto: true, sizes: ['desk'] },
 ].filter((c) => !ONLY.length || ONLY.includes(c.id));
 const SIZES = [
 	{ name: 'desk1440x900', key: 'desk', vp: { width: 1440, height: 900 }, dpr: 1, phone: false },
@@ -194,13 +216,16 @@ const check = (ok, msg, detail) => {
 	console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}${!ok && detail !== undefined ? ' ' + (typeof detail === 'string' ? detail : JSON.stringify(detail).slice(0, 400)) : ''}`);
 };
 // THE SPRITE ITSELF (2026-11-19): 66 clips, none of Manticore's left-out ones (sounds.json, before any browser); 69 since
-// 2026-11-21 (the bonus entrance's hit, build and drop, appended last: every clip before them keeps its place)
+// 2026-11-21 (the bonus entrance's hit, build and drop, appended last: every clip before them keeps its place); 73 since
+// its round 2 the same day (fs_cut, fs_hit, fs_build, super_build after them, none a loop; the three before keep theirs)
 {
 	const back = LEFT_OUT.filter((k) => k in SPRITE);
 	check(back.length === 0, `the sprite carries none of the ${LEFT_OUT.length} left-out Manticore clips`, back);
-	check(Object.keys(SPRITE).length === 69, `the sprite has 69 clips (${Object.keys(SPRITE).length})`);
+	check(Object.keys(SPRITE).length === 73, `the sprite has 73 clips (${Object.keys(SPRITE).length})`);
 	const keys = Object.keys(SPRITE);
-	check(keys.slice(-3).join() === Object.values(ENTRY).join() && SPRITE[ENTRY.build][2] === true && SPRITE[ENTRY.build][1] === 12000 && !SPRITE[ENTRY.hit][2] && !SPRITE[ENTRY.drop][2], `the entrance's hit, build (a 12.000 s loop) and drop are the sprite's last three clips`, keys.slice(-3).map((k) => [k, SPRITE[k]]));
+	check(keys.slice(-7, -4).join() === Object.values(ENTRY).join() && JSON.stringify([SPRITE[ENTRY.hit], SPRITE[ENTRY.build], SPRITE[ENTRY.drop]]) === JSON.stringify([[124820, 3711], [129540, 12000, true], [142540, 1466]]), `round 1's hit, build (a 12.000 s loop) and drop keep their places`, keys.slice(-7, -4).map((k) => [k, SPRITE[k]]));
+	const lens = { [ENTRY2.fsCut]: 609, [ENTRY2.fsHit]: 2981, [ENTRY2.fsBuild]: 4000, [ENTRY2.superBuild]: 4000 };
+	check(keys.slice(-4).join() === Object.values(ENTRY2).join() && keys.slice(-4).every((k) => SPRITE[k].length === 2 && SPRITE[k][1] === lens[k]), `round 2's fs_cut, fs_hit, fs_build and super_build are the last four clips, one-shots of 609, 2981, 4000 and 4000 ms`, keys.slice(-4).map((k) => [k, SPRITE[k]]));
 }
 
 async function boot(browser, S) {
@@ -245,9 +270,12 @@ async function boot(browser, S) {
 // turbo: a case's level kept inside a bonus round. Since the stock rules (game/bonusStockRules.ts, 2026-11-18) every bonus
 // round starts at regular speed; the case's level is put back in the round, as a player's Turbo press there would
 // (that choice lasts the round only), so a turbo case still hears its free spins at its own level
-async function settle(p, S, maxMs = 90000, opens = null, turbo = 0, entryWaitMs = 0) {
+// (PASS 11: entryWaitMs is real time since the entry card was first seen, never the board's show clock, which a turbo
+// level set in the round runs faster; noEntryPress: an Autoplay Bonuses case, whose entry card goes by itself)
+async function settle(p, S, maxMs = 90000, opens = null, turbo = 0, entryWaitMs = 0, noEntryPress = false) {
 	const t0 = Date.now();
 	let traced = Date.now();
+	const entrySeen = new Map();
 	for (;;) {
 		// the presents' open rows (game/road/present.ts trace, kept to 4000 rows, a few hundred a second at most): taken
 		// every 2 s, so none is lost (and the page is not asked more often than that: a busier page fires its timers late)
@@ -256,10 +284,16 @@ async function settle(p, S, maxMs = 90000, opens = null, turbo = 0, entryWaitMs 
 			opens.push(...((await p.evaluate(() => window.__reindeer.presentTrace(true).filter((r) => r.kind === 'open')).catch(() => [])) ?? []));
 		}
 		// (PASS 10: `entry` is how long the Free Spins or Super entry card has been up, ms, null with none)
-		const st = await p.evaluate(() => ({ g: window.__reindeer.hud.gates(), idle: window.__reindeer.hud.idle(), rest: window.__reindeer.atRest(), live: window.__reindeer.stockRules?.() ?? null, entry: (() => { const s = window.__reindeer.scoreboard?.()?.show; return s && (s.kind === 'fs' || s.kind === 'sfs') ? s.t : null; })() })).catch(() => null);
+		const st = await p.evaluate(() => ({ g: window.__reindeer.hud.gates(), idle: window.__reindeer.hud.idle(), rest: window.__reindeer.atRest(), live: window.__reindeer.stockRules?.() ?? null, entry: (() => { const s = window.__reindeer.scoreboard?.()?.show; return s && (s.kind === 'fs' || s.kind === 'sfs') ? s.t : null; })(), entryId: (() => { const s = window.__reindeer.scoreboard?.()?.show; return s && (s.kind === 'fs' || s.kind === 'sfs') ? s.id : null; })() })).catch(() => null);
 		if (turbo && st?.live && st.live.gameType === 'freegame' && st.live.turbo !== turbo) await p.evaluate((t) => window.__reindeer.turbo(t), turbo).catch(() => {});
-		// PASS 10: a case that waits on the entry card (its build and hold) presses it only after entryWaitMs
-		if (st && st.g > 0 && entryWaitMs && st.entry !== null && st.entry < entryWaitMs) {
+		if (st && st.entryId !== null && st.entryId !== undefined && !entrySeen.has(st.entryId)) entrySeen.set(st.entryId, Date.now());
+		const entryAge = st && st.entryId !== null && st.entryId !== undefined ? Date.now() - entrySeen.get(st.entryId) : null;
+		// PASS 10 / 11: a case that waits on the entry card (the whole sequence, to its crash) presses it only after entryWaitMs
+		if (st && st.g > 0 && entryWaitMs && entryAge !== null && entryAge < entryWaitMs) {
+			await sleep(100);
+			continue;
+		}
+		if (st && st.g > 0 && noEntryPress && st.entry !== null) {
 			await sleep(100);
 			continue;
 		}
@@ -273,6 +307,50 @@ async function settle(p, S, maxMs = 90000, opens = null, turbo = 0, entryWaitMs 
 		await sleep(100);
 	}
 }
+
+/** PASS 11 (from tools/stock_rules_probe.mjs): an autoplay run of 25 from the Autoplay menu, Autoplay Bonuses set as asked
+ *  (Stop on Free Games off), started with Spin */
+async function startAuto(p, { autoBonuses = false } = {}) {
+	await p.click('.hudp button[aria-label="Autoplay"]');
+	await sleep(600);
+	const open = await p.evaluate(() => document.querySelector('.am-ui.layer.modals .fold-row')?.getAttribute('aria-expanded') === 'true');
+	if (!open) await p.click('.am-ui.layer.modals .fold-row');
+	await sleep(300);
+	// (the menu keeps its switches between openings: each is set to the state asked for, by its aria-checked)
+	const set = async (name, on) => {
+		const t = p.locator(`.am-ui.layer.modals button.toggle:has-text("${name}")`);
+		if (((await t.getAttribute('aria-checked')) === 'true') !== on) await t.click();
+	};
+	await set('Stop on Free Games', false);
+	await set('Autoplay Bonuses', autoBonuses);
+	await sleep(200);
+	await p.click('.am-ui.layer.modals .go');
+	await sleep(600);
+	await p.click('.hudp button.spin');
+}
+/** PASS 11 (from tools/stock_rules_probe.mjs): press `sel` in the page `at` ms into the pause after wrap-up number x0 (an
+ *  autoplay run's own), so the run stops there; the result lands in window.__pausePress */
+const armPausePress = (p, sel, x0, at) =>
+	p.evaluate(
+		([sel, x0, at]) => {
+			window.__pausePress = null;
+			const poll = setInterval(() => {
+				const ex = window.__reindeer.stockRules().exits[x0];
+				if (!ex) return;
+				if (!ex.auto) return clearInterval(poll);
+				const since = performance.now() - ex.at;
+				if (since < at) return;
+				clearInterval(poll);
+				const k = document.querySelector(sel);
+				const b = k.getBoundingClientRect();
+				const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+				const live = !k.disabled && (hit === k || k.contains(hit)) && getComputedStyle(k).pointerEvents !== 'none';
+				k.click();
+				window.__pausePress = { since: Math.round(since), live, counter: window.__reindeer.stockRules().counter };
+			}, 5);
+		},
+		[sel, x0, at],
+	);
 
 /** one case: returns both logs, with times in ms from the case's start */
 async function runCase(p, S, C) {
@@ -293,7 +371,13 @@ async function runCase(p, S, C) {
 		window.__caseT0 = performance.now();
 	}, [C, PRESENT_WAIT_MS]);
 	const opens = [];
-	await p.click('.hudp button.spin');
+	// PASS 11: an Autoplay Bonuses case starts an autoplay run with the option on, and its stop is armed for the pause after
+	// the round's wrap-up (in the page, armPausePress), so the run plays this one round
+	if (C.auto) {
+		const x0 = await p.evaluate(() => window.__reindeer.stockRules().exits.length);
+		await armPausePress(p, '.hudp button[aria-label="Autoplay"]', x0, 300);
+		await startAuto(p, { autoBonuses: true });
+	} else await p.click('.hudp button.spin');
 	let slammed = null;
 	if (C.slam) {
 		for (let i = 0; i < 400 && !slammed; i++) {
@@ -305,7 +389,17 @@ async function runCase(p, S, C) {
 			} else await sleep(15);
 		}
 	}
-	const settled = await settle(p, S, C.maxMs, opens, C.turbo, C.entryWaitMs ?? 0);
+	let settled = await settle(p, S, C.maxMs, opens, C.turbo, C.entryWaitMs ?? 0, !!C.auto);
+	if (C.auto) {
+		// the armed stop in the pause; a run still live after it (the stop missed) is stopped here and settled again
+		for (let i = 0; i < 30 && !(await p.evaluate(() => window.__pausePress)); i++) await sleep(100);
+		const pressed = await p.evaluate(() => window.__pausePress);
+		check(!!pressed && pressed.live, `${S.name} ${C.id}: the autoplay run was stopped in the pause after the wrap-up`, pressed);
+		if ((await p.evaluate(() => window.__reindeer.stockRules().counter)) > 0) {
+			await p.click('.hudp button[aria-label="Autoplay"]').catch(() => {});
+			settled = (await settle(p, S, C.maxMs, opens, 0, 0, true)) && settled;
+		}
+	}
 	opens.push(...((await p.evaluate(() => window.__reindeer.presentTrace(true).filter((r) => r.kind === 'open'))) ?? []));
 	await sleep(700); // the cloud loop's round end fade (300 ms) and its stop
 	const roundEnd = await p.evaluate(() => ({ t: performance.now(), frame: window.__reindeer.frame(), playing: window.__reindeer.soundTap().playing, state: window.__reindeer.roadSoundState(), ambience: window.__reindeer.ambience?.() ?? null }));
@@ -328,6 +422,7 @@ async function runCase(p, S, C) {
 	out.entranceTune = await p.evaluate(() => window.__reindeer.tune.sound.entrance ?? null);
 	out.riseTune = await p.evaluate(() => window.__reindeer.tune.ledBoard?.rise ?? null);
 	out.armMs = await p.evaluate(() => window.__reindeer.tune.round?.armMs ?? null);
+	out.autoplayMs = await p.evaluate(() => window.__reindeer.tune.round?.autoplayMs ?? null);
 	await p.evaluate(() => (window.__entryPressAfterMs = null));
 	// (2026-11-21) the lock's snort on every strike: the wind-up on and REINDEER_SOUND.snort.lockEveryStrike not off
 	const snortEvery = await p.evaluate(() => !!window.__reindeer.tune.roam?.charge?.on && window.__reindeer.tune.sound.snort?.lockEveryStrike !== false);
@@ -1018,10 +1113,12 @@ function judge3(tag, C, R) {
 	return rows;
 }
 
-/** PASS 10 (2026-11-21): THE BONUS ENTRANCE (constants REINDEER_SOUND.entrance, game/bonusEntrance.ts), once per
- *  freeSpinTrigger (a retrigger has none), against the game's own table (tune.sound.entrance) and its moments (the road's
- *  `entrance` marks: cut, card, hit, build, hold, drop), the effects sprite's Howl (the tap) and the music player's own
- *  log (the music tap). Rows for the case's table. */
+/** PASS 10 (2026-11-21), REWRITTEN FOR ROUND 2 (PASS 11, the same day): THE BONUS ENTRANCE (constants REINDEER_SOUND.entrance,
+ *  game/bonusEntrance.ts), once per freeSpinTrigger (a retrigger has none), against the game's own table
+ *  (tune.sound.entrance) and its moments (the road's `entrance` marks: cut, cut whoop, card, hit, build, crash, dismiss
+ *  after the crash; `cardDismissed`; `music`), the effects sprite's Howl (the tap) and the music player's own log (the
+ *  music tap). The case says which path it plays (C.entry: late, early or auto) and the path is asserted. Rows for the
+ *  case's table. */
 function judgeEntrance(tag, C, R) {
 	const t0 = R.t0;
 	const E = R.entranceTune;
@@ -1035,20 +1132,16 @@ function judgeEntrance(tag, C, R) {
 	const at = (e) => r1(e.t - t0);
 	// (a timer's moment on a busy headless page: three frames and 10 ms)
 	const SLACK = 3 * FRAME + 10;
-	const pieces = Object.values(ENTRY);
 	const triggers = book.filter((e) => e.type === 'freeSpinTrigger');
 	const ent = M.filter((e) => e.what === 'entrance');
 	const of = (k) => ent.filter((e) => (e.detail ?? '').startsWith(k));
-	const cuts = of('cut');
-	const cards = of('card');
-	const drops = of('drop');
 	const named = (name) => plays.filter((e) => e.name === name);
 	if (!triggers.length) {
-		check(ent.length === 0 && plays.every((e) => !pieces.includes(e.name)), `${tag}: no trigger, no entrance (no moment, no piece played)`);
+		check(ent.length === 0 && plays.every((e) => !ENTRY_ALL.includes(e.name)), `${tag}: no trigger, no entrance (no moment, no piece played)`);
 		return rows;
 	}
-	if (!E || !L) {
-		check(false, `${tag}: the game's entrance table and the back board's rise read (tune.sound.entrance, tune.ledBoard.rise)`);
+	if (!E || !L || !E.bonus || !E.super) {
+		check(false, `${tag}: the game's entrance table (round 2: bonus and super) and the back board's rise read (tune.sound.entrance, tune.ledBoard.rise)`);
 		return rows;
 	}
 	if (!E.on) {
@@ -1056,77 +1149,132 @@ function judgeEntrance(tag, C, R) {
 		return rows;
 	}
 	check(!!R.mtap, `${tag}: the music tap was in (__reindeer.musicTap)`);
-	check(cuts.length === triggers.length && cards.length === triggers.length && drops.length === triggers.length, `${tag}: one cut, one card and one drop per trigger (${cuts.length}, ${cards.length}, ${drops.length} for ${triggers.length})`);
-	check(named(ENTRY.hit).length === triggers.length && named(ENTRY.drop).length === triggers.length, `${tag}: one hit and one drop per trigger (${named(ENTRY.hit).length} and ${named(ENTRY.drop).length})`);
-	check(named(ENTRY.build).length === of('build').length && of('build').length <= triggers.length, `${tag}: one build loop per build moment, at most one per trigger (${named(ENTRY.build).length})`);
+	// NOTHING LOOPS: no piece of either entrance is a sprite loop, and round 1's 12 s loop is never played
+	const used = [E.bonus.cut, E.bonus.hit, E.bonus.build, E.bonus.crash, E.super.hit, E.super.build, E.super.crash].filter(Boolean);
+	check(used.every((k) => SPRITE[k] && SPRITE[k][2] !== true), `${tag}: no entrance piece is a sprite loop (${used.join(', ')})`, used.map((k) => [k, SPRITE[k]]));
+	check(named(ENTRY.build).length === 0, `${tag}: round 1's build loop (${ENTRY.build}) never plays`);
+	const cuts = ent.filter((e) => /^cut (bonus|super) /.test(e.detail ?? ''));
+	const cards = of('card ');
+	const crashes = of('crash ');
+	check(cuts.length === triggers.length && cards.length === triggers.length && crashes.length === triggers.length, `${tag}: one cut, one card and one crash per trigger (${cuts.length}, ${cards.length}, ${crashes.length} for ${triggers.length})`);
 	const success = named(SUCCESS);
+	const dismissals = M.filter((e) => e.what === 'cardDismissed' && e.detail === 'intro');
+	const wraps = M.filter((e) => e.what === 'music' && e.detail === 'bgm_base');
 	triggers.forEach((trig, i) => {
 		const cut = cuts[i];
 		const card = cards[i];
-		const drop = drops[i];
-		if (!cut || !card || !drop) return;
-		const n = `${tag}: entry ${i + 1} (${trig.bonusType ?? 'free'})`;
-		const want = trig.bonusType === 'super' ? 'bgm_super' : 'bgm_bonus';
-		// THE CUT: on the scatter success's frame, the base music's duck asked of the music player itself
+		const cr = crashes[i];
+		if (!cut || !card || !cr) return;
+		const k = trig.bonusType === 'super' ? 'super' : 'bonus';
+		const P = E[k];
+		const other = E[k === 'super' ? 'bonus' : 'super'];
+		const n = `${tag}: entry ${i + 1} (${k === 'super' ? 'Super, S10' : 'Free Spins, draft 10'})`;
+		const want = k === 'super' ? 'bgm_super' : 'bgm_bonus';
+		// this entry's window: its cut to the next entry's cut (or the case's end)
+		const end = cuts[i + 1]?.t ?? Infinity;
+		const inWin = (e) => e.t >= cut.t - 1 && e.t < end - 1;
+		const mine = (name) => plays.filter((e) => e.name === name && inWin(e));
+		check(cut.detail.startsWith(`cut ${k} `) && card.detail.startsWith(`card ${k} `) && cr.detail.startsWith(`crash ${k} `), `${n}: the cut, the card and the crash are this entrance's (${cut.detail}; ${card.detail}; ${cr.detail})`);
+		// THE RIGHT ENTRANCE: the other one's own pieces (those it does not share) never play in this entry
+		const foreign = [other.cut, other.hit, other.build].filter((x) => x && ![P.cut, P.hit, P.build, P.crash].includes(x));
+		check(foreign.every((x) => mine(x).length === 0), `${n}: none of the other entrance's pieces plays (${foreign.join(', ')})`, foreign.map((x) => [x, mine(x).length]));
+		// THE CUT: on the scatter success's frame, the base music's duck asked of the music player itself, and Free Spins' whoop
 		const succ = success.find((e) => e.frame === cut.frame);
 		check(!!succ, `${n}: the cut on the scatter success's frame (${cut.frame})`);
 		const duck = mt.find((e) => e.what === 'fade' && e.name === 'bgm_base' && e.frame === cut.frame);
 		check(!!duck && duck.detail === `1.00>${E.duck.to.toFixed(2)} ${E.duck.ms}ms`, `${n}: the base music ducks to ${E.duck.to} of its level over ${E.duck.ms} ms on that frame (${duck?.detail ?? 'no fade'})`);
-		const early = mt.filter((e) => e.what === 'play' && e.name !== 'bgm_base' && e.t > cut.t && e.t < drop.t - 1);
-		check(early.length === 0 && card.t > cut.t && drop.t > card.t, `${n}: no bonus music from the cut until the drop; the card between them`, early.map((e) => `${e.name} @${at(e)}`));
 		rows.push({ sound: 'bgm_base duck', start: duck ? at(duck) : 'MISSING', stop: '', event: `cut with ${SUCCESS} (frame ${cut.frame})`, offset: duck ? r1(duck.t - cut.t) : '', frames: duck ? duck.frame - cut.frame : '' });
-		// THE HIT: its band hit (hitImpactMs into the file) lands as the card does
+		const whoop = P.cut ? mine(P.cut) : [];
+		if (P.cut) {
+			check(whoop.length === 1 && whoop[0].frame === cut.frame, `${n}: ${P.cut} once, on the cut's frame (${whoop.length}, frame ${whoop[0]?.frame})`);
+			if (whoop[0]) rows.push({ sound: P.cut, start: at(whoop[0]), stop: '', event: `cut (frame ${cut.frame})`, offset: r1(whoop[0].t - cut.t), frames: whoop[0].frame - cut.frame });
+		} else check(of('cut whoop').filter(inWin).length === 0, `${n}: no cut piece of its own (the Super draft has none)`);
+		// THE HIT: its band or brass hit (hitImpactMs into the file) lands as the card does
 		const board = /\bboard\b/.test(card.detail);
 		const landMs = board ? L.backAtMs + L.riseMs : E.cardPopMs;
-		const delay = Math.max(0, landMs - E.hitImpactMs);
+		const delay = Math.max(0, landMs - P.hitImpactMs);
 		check(Number(/lands (\d+)ms/.exec(card.detail)?.[1]) === landMs && Number(/hit in (\d+)ms/.exec(card.detail)?.[1]) === delay, `${n}: the ${board ? 'back board' : 'HTML card'} lands ${landMs} ms after the card comes up, the hit is due ${delay} ms after it (${card.detail})`);
-		const hit = plays.find((e) => e.name === ENTRY.hit && e.t >= card.t - 1 && e.t <= drop.t + 1);
-		check(!!hit && Math.abs(hit.t - (card.t + delay)) <= SLACK, `${n}: the hit ${hit ? r1(hit.t - card.t) : 'missing'} ms after the card comes up (due ${delay}): its band hit ${hit ? r1(hit.t + E.hitImpactMs - card.t - landMs) : '?'} ms from the landing`);
-		if (hit) rows.push({ sound: ENTRY.hit, start: at(hit), stop: '', event: `entry card up (frame ${card.frame}), lands at +${landMs}`, offset: r1(hit.t - card.t), frames: hit.frame - card.frame });
-		// THE BUILD: buildAfterMs after the hit, faded in; a card left up a whole pass eases it to the hold level
-		const build = hit ? plays.find((e) => e.name === ENTRY.build && e.t >= hit.t && e.t <= drop.t + 1) : null;
-		const due = hit ? hit.t + E.buildAfterMs : Infinity;
-		if (hit && drop.t >= due + SLACK) {
-			check(!!build && Math.abs(build.t - due) <= SLACK, `${n}: the build loop ${build ? r1(build.t - hit.t) : 'missing'} ms after the hit (due ${E.buildAfterMs})`);
-			const fin = build ? tap.find((e) => e.what === 'fade' && e.id === build.id && e.frame === build.frame) : null;
-			check(!!fin && /^0\.00>/.test(fin.detail) && fin.detail.endsWith(` ${E.buildInMs}ms`), `${n}: the build fades in over ${E.buildInMs} ms from its first frame (${fin?.detail ?? 'no fade'})`);
-			if (build) rows.push({ sound: ENTRY.build, start: at(build), stop: '', event: `the hit + ${E.buildAfterMs} (frame ${hit.frame})`, offset: r1(build.t - hit.t), frames: build.frame - hit.frame });
-		} else if (hit && drop.t < due - SLACK) check(!build, `${n}: the card went ${r1(drop.t - hit.t)} ms into the hit, before the build was due: no build`, build ? at(build) : undefined);
-		if (build) {
-			const holdDue = build.t + E.holdAfterMs;
-			const holds = tap.filter((e) => e.what === 'fade' && e.id === build.id && e.t > build.t + 1 && e.t < drop.t - 1);
-			if (drop.t > holdDue + SLACK) {
-				const hold = holds[0];
-				check(holds.length === 1 && Math.abs(hold.t - holdDue) <= SLACK && hold.detail.endsWith(` ${E.holdFadeMs}ms`) && !/>0\.00 /.test(hold.detail), `${n}: up a whole pass, the build eases to its hold level over ${E.holdFadeMs} ms (${hold ? r1(hold.t - build.t) : 'none'} ms after it started; ${hold?.detail ?? ''})`);
-				if (hold) rows.push({ sound: `${ENTRY.build} hold`, start: at(hold), stop: '', event: `the build + ${E.holdAfterMs}`, offset: r1(hold.t - build.t), frames: '' });
-			} else if (drop.t < holdDue - SLACK) check(holds.length === 0, `${n}: pressed within a pass: no hold fade`, holds.map((e) => e.detail));
+		const hits = mine(P.hit);
+		const hit = hits[0] ?? null;
+		check(hits.length === 1, `${n}: ${P.hit} plays exactly once (${hits.length})`);
+		check(!!hit && Math.abs(hit.t - (card.t + delay)) <= SLACK, `${n}: the hit ${hit ? r1(hit.t - card.t) : 'missing'} ms after the card comes up (due ${delay}): its hit ${hit ? r1(hit.t + P.hitImpactMs - card.t - landMs) : '?'} ms from the landing`);
+		if (hit) rows.push({ sound: P.hit, start: at(hit), stop: '', event: `entry card up (frame ${card.frame}), lands at +${landMs}`, offset: r1(hit.t - card.t), frames: hit.frame - card.frame });
+		// THE CRASH: exactly one, and one start of the bonus track, in the entry
+		const crashPlays = mine(P.crash);
+		const cp = crashPlays[0] ?? null;
+		const musicPlays = mt.filter((e) => e.what === 'play' && e.name === want && inWin(e) && (!wraps.find((w) => w.t > cut.t) || e.t < wraps.find((w) => w.t > cut.t).t));
+		check(crashPlays.length === 1, `${n}: exactly one crash (${P.crash}: ${crashPlays.length})`, crashPlays.map((e) => at(e)));
+		check(musicPlays.length === 1, `${n}: ${want} starts exactly once (${musicPlays.length})`, musicPlays.map((e) => at(e)));
+		const into = musicPlays[0] ?? null;
+		check(!!cp && cp.frame === cr.frame && !!into && into.frame === cr.frame, `${n}: the crash and ${want} on the crash's frame (${cp?.frame}, ${into?.frame} vs ${cr.frame})`);
+		check(M.some((e) => e.what === 'music' && e.detail === want && e.frame === cr.frame), `${n}: and the music moment says ${want} on that frame`);
+		check(new RegExp(` vol ${String(P.crashVolume).replace('.', '\\.')}\\b`).test(cr.detail), `${n}: the crash at its own level ${P.crashVolume} (${cr.detail})`);
+		const early = mt.filter((e) => e.what === 'play' && e.name !== 'bgm_base' && e.t > cut.t && e.t < cr.t - 1);
+		check(early.length === 0, `${n}: no bonus music from the cut until the crash`, early.map((e) => `${e.name} @${at(e)}`));
+		check(!cp || cp.t > card.t + (R.armMs ?? 450) - 1, `${n}: the crash ${cp ? r1(cp.t - card.t) : '?'} ms after the card came up (never inside its first ${R.armMs ?? 450} ms)`);
+		if (cp) rows.push({ sound: P.crash, start: at(cp), stop: '', event: `${cr.detail} (frame ${cr.frame})`, offset: hit ? r1(cp.t - hit.t) : '', frames: hit ? cp.frame - hit.frame : '' });
+		if (into) rows.push({ sound: `${want} (music)`, start: at(into), stop: '', event: `the crash (frame ${cr.frame})`, offset: r1(into.t - cr.t), frames: into.frame - cr.frame });
+		// THE BUILD: buildAfterMs after the hit, once, a one-shot; never after the crash
+		const builds = mine(P.build);
+		const build = builds[0] ?? null;
+		check(builds.length <= 1, `${n}: ${P.build} at most once (${builds.length})`);
+		check(!build || !cp || build.t < cp.t, `${n}: no build after the crash`);
+		if (build && hit) {
+			check(Math.abs(build.t - (hit.t + E.buildAfterMs)) <= SLACK, `${n}: the build ${r1(build.t - hit.t)} ms after the hit (due ${E.buildAfterMs})`);
+			rows.push({ sound: P.build, start: at(build), stop: '', event: `the hit + ${E.buildAfterMs} (frame ${hit.frame})`, offset: r1(build.t - hit.t), frames: build.frame - hit.frame });
 		}
-		// THE DROP: on the dismissal's frame, with the bonus track from the music player on that frame
-		const dp = plays.find((e) => e.name === ENTRY.drop && e.frame === drop.frame);
-		check(!!dp, `${n}: the drop on the dismissal's frame (${drop.frame})`);
-		check(!!dp && dp.t > card.t + (R.armMs ?? 450) - 1, `${n}: the drop ${dp ? r1(dp.t - card.t) : '?'} ms after the card came up (never inside its first ${R.armMs ?? 450} ms)`);
-		const into = mt.find((e) => e.what === 'play' && e.name === want && e.frame === drop.frame);
-		check(!!into, `${n}: ${want} starts from the music player on the drop's frame`, mt.filter((e) => e.what === 'play').map((e) => [e.name, e.frame]));
-		check(M.some((e) => e.what === 'music' && e.detail === want && e.frame === drop.frame), `${n}: and the music moment says ${want} on that frame`);
-		if (dp) rows.push({ sound: ENTRY.drop, start: at(dp), stop: '', event: `the card's dismissal (frame ${drop.frame}), ${drop.detail}`, offset: r1(dp.t - drop.t), frames: dp.frame - drop.frame });
-		if (into) rows.push({ sound: `${want} (music)`, start: at(into), stop: '', event: `the drop (frame ${drop.frame})`, offset: r1(into.t - drop.t), frames: into.frame - drop.frame });
-		if (build) {
-			const out = tap.find((e) => e.what === 'fade' && e.id === build.id && e.frame === drop.frame && />0\.00 /.test(e.detail));
-			const stop = tap.find((e) => e.what === 'stop' && e.id === build.id && e.t >= drop.t - 1);
-			check(!!out && out.detail.endsWith(` ${E.buildOutMs}ms`), `${n}: the build fades out over ${E.buildOutMs} ms from the drop's frame (${out?.detail ?? 'no fade'})`);
-			check(!!stop && stop.t - drop.t <= E.buildOutMs + 10 + SLACK, `${n}: and stops ${stop ? r1(stop.t - drop.t) : '?'} ms after the drop`);
-		}
-		if (hit) {
-			const left = E.hitMs - (drop.t - hit.t);
-			const hout = tap.find((e) => e.what === 'fade' && e.id === hit.id && e.frame === drop.frame);
-			if (left > SLACK) check(!!hout && />0\.00 /.test(hout.detail), `${n}: the card went ${r1(drop.t - hit.t)} ms into the hit: it fades out under the drop (${hout?.detail ?? 'no fade'})`);
-			else if (left < -SLACK) check(!hout, `${n}: the hit had ended before the drop: no fade on it`);
+		// THE DISMISSAL: the entry card's own (cardDismissed) in this entry
+		const dis = dismissals.find((e) => e.t >= card.t - 1 && inWin(e)) ?? null;
+		check(!!dis, `${n}: the entry card's dismissal seen (cardDismissed)`);
+		const path = /crash \w+ early/.test(cr.detail) ? (/self dismiss/.test(card.detail) ? 'auto' : 'early') : 'late';
+		check(!C.entry || C.entry === path, `${n}: the case's path is ${C.entry} (${path}: ${cr.detail})`);
+		if (path === 'late') {
+			// LEFT ALONE: the whole sequence, the crash at its own time with the card still up, the late press after it
+			check(!!build, `${n}: the card left alone: the build played`);
+			check(!!cp && !!hit && Math.abs(cp.t - (hit.t + E.crashAfterMs)) <= SLACK, `${n}: the crash ${cp && hit ? r1(cp.t - hit.t) : '?'} ms after the hit (due ${E.crashAfterMs}: the build's end)`);
+			check(!!cp && !!build && Math.abs(cp.t - (build.t + E.buildMs)) <= SLACK, `${n}: on the build's end (${cp && build ? r1(cp.t - build.t) : '?'} ms after it started, the build ${E.buildMs} ms long)`);
+			check(!!dis && !!cp && dis.t > cp.t + 1, `${n}: the card still up at the crash (dismissed ${dis && cp ? r1(dis.t - cp.t) : '?'} ms after it)`);
+			check(ent.some((e) => e.detail === 'dismiss after the crash' && dis && Math.abs(e.t - dis.t) <= SLACK), `${n}: the late press only dismissed the card`);
+			const after = dis ? plays.filter((e) => ENTRY_ALL.includes(e.name) && e.t >= dis.t - 1 && inWin(e)) : [];
+			const mAfter = dis ? mt.filter((e) => e.what === 'play' && e.name !== 'bgm_base' && e.t >= dis.t - 1 && inWin(e)) : [];
+			check(after.length === 0 && mAfter.length === 0, `${n}: the late press plays no second crash and starts no music`, { after: after.map((e) => e.name), mAfter: mAfter.map((e) => e.name) });
+			// every piece ran its own length: nothing was faded by the entrance
+			const faded = tap.filter((e) => e.what === 'fade' && [hit, build, whoop[0]].some((x) => x && x.id === e.id));
+			check(faded.length === 0, `${n}: no piece faded (the sequence played through)`, faded.map((e) => e.detail));
+			if (dis) rows.push({ sound: '(late press: card dismissed)', start: at(dis), stop: '', event: `after the crash`, offset: cp ? r1(dis.t - cp.t) : '', frames: cp ? dis.frame - cp.frame : '' });
+		} else {
+			// EARLY (a press, or Autoplay Bonuses' own continue): the crash within two frames of the dismissal, the rest faded
+			check(!!dis && !!cp && cp.t >= dis.t - 1 && cp.t - dis.t <= 2 * FRAME + 10 && cp.frame - dis.frame <= 2, `${n}: the crash ${dis && cp ? r1(cp.t - dis.t) : '?'} ms (${dis && cp ? cp.frame - dis.frame : '?'} frames) after the dismissal`);
+			check(!!cp && !!hit && cp.t < hit.t + E.crashAfterMs - SLACK, `${n}: before the sequence's own crash time (${cp && hit ? r1(cp.t - hit.t) : '?'} ms after the hit, due ${E.crashAfterMs})`);
+			if (path === 'auto') {
+				check(!!dis && Math.abs(dis.t - card.t - (R.autoplayMs ?? 1400)) <= 250, `${n}: Autoplay Bonuses: the card went by itself ${dis ? r1(dis.t - card.t) : '?'} ms after it came up (ROUND.autoplayMs ${R.autoplayMs})`);
+				check(builds.length === 0 && of('no build').filter(inWin).length === 1, `${n}: Autoplay Bonuses: no build at all`);
+			}
+			const lens = [
+				[whoop[0], P.cutMs],
+				[hit, P.hitMs],
+				[build, E.buildMs],
+			];
+			for (const [pl, len] of lens) {
+				if (!pl || !cp) continue;
+				const left = len - (cp.t - pl.t);
+				const out = tap.find((e) => e.what === 'fade' && e.id === pl.id && e.frame === cp.frame && />0\.00 /.test(e.detail));
+				const stop = tap.find((e) => e.what === 'stop' && e.id === pl.id && e.t >= cp.t - 1);
+				if (left > SLACK) {
+					const ms = Number(/ (\d+)ms$/.exec(out?.detail ?? '')?.[1]);
+					check(!!out && ms <= E.pressOutMs && ms > 0, `${n}: ${pl.name} still sounding (${r1(left)} ms left): faded out over ${ms} ms on the crash's frame (${out?.detail ?? 'no fade'})`);
+					check(!!stop && stop.t - cp.t <= E.pressOutMs + 10 + SLACK, `${n}: and stopped ${stop ? r1(stop.t - cp.t) : '?'} ms after the crash`);
+				} else if (left < -SLACK) check(!out, `${n}: ${pl.name} had ended before the crash: no fade on it`);
+			}
+			const later = cp ? plays.filter((e) => [P.cut, P.hit, P.build].includes(e.name) && e.t > cp.t + 1 && inWin(e)) : [];
+			check(later.length === 0, `${n}: no piece starts after the crash`, later.map((e) => e.name));
+			if (dis) rows.push({ sound: `(${path === 'auto' ? 'Autoplay Bonuses continue' : 'early press'}: card dismissed)`, start: at(dis), stop: '', event: `the card up (frame ${card.frame})`, offset: r1(dis.t - card.t), frames: dis.frame - card.frame });
 		}
 		// the base music's own level back once the swap has stopped it (for the wrap-up)
-		const back = mt.find((e) => e.what === 'fade' && e.name === 'bgm_base' && e.t >= drop.t - 1 && (e.detail ?? '').startsWith(`${E.duck.to.toFixed(2)}>1.00`));
-		check(!!back && !!into && back.t >= into.t && back.t - drop.t <= 2 * E.restoreMs + SLACK, `${n}: the base music's level comes back ${back ? r1(back.t - drop.t) : '?'} ms after the drop, after the swap (${back?.detail ?? 'no fade'})`);
+		const back = mt.find((e) => e.what === 'fade' && e.name === 'bgm_base' && cp && e.t >= cp.t - 1 && (e.detail ?? '').startsWith(`${E.duck.to.toFixed(2)}>1.00`));
+		check(!!back && !!into && back.t >= into.t && back.t - cr.t <= 2 * E.restoreMs + SLACK, `${n}: the base music's level comes back ${back ? r1(back.t - cr.t) : '?'} ms after the crash, after the swap (${back?.detail ?? 'no fade'})`);
 	});
-	const sounding = (R.roundEnd.playing ?? []).filter((x) => pieces.includes(x.name));
+	const sounding = (R.roundEnd.playing ?? []).filter((x) => ENTRY_ALL.includes(x.name));
 	check(sounding.length === 0, `${tag}: no entrance piece sounding at the round's end`, sounding);
 	return rows;
 }
@@ -1180,6 +1328,9 @@ const table = (rows) => '| sound | start ms | stop ms | animation event | offset
 		for (const S of SIZES) {
 			const { ctx, p, errs } = await boot(browser, S);
 			for (const C of CASES) {
+				// (PASS 11: the Autoplay Bonuses cases run on the desktop size only, where the Autoplay menu is driven as the stock
+				// rules probe drives it)
+				if (C.sizes && !C.sizes.includes(S.key)) continue;
 				const tag = `${C.id} ${S.name}`;
 				const R0 = await runCase(p, S, C);
 				// THE SUPER WHEEL's own sounds are judged by themselves and taken out of the round's log for every other check

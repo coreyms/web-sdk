@@ -1428,40 +1428,64 @@ export const REINDEER_SOUND = {
 	columnWin: { reindeer: 'sfx_column_win_reindeer', santa: 'sfx_column_win_santa', grandma: 'sfx_column_win_grandma' } as Record<'reindeer' | 'santa' | 'grandma', string>,
 	/** the bonus round cards (ui/RoundCard.svelte) */
 	cards: { in: 'sfx_card_in', out: 'sfx_card_out' },
-	/** THE BONUS ENTRANCE (Corey 2026-11-21, "I like S10 for both": the Super draft 10, police whoop, at the Free Spins AND the
-	 *  Super entry; game/bonusEntrance.ts plays it). His reason: a player not looking must hear that something big is
-	 *  happening, and the music swap alone "almost just sounds like a different loop". The shape, as the draft demo:
-	 *    cut    on the trigger's success (the same frame), the base music ducks to `duck.to` of its level over `duck.ms`
-	 *    hit    sfx_bonus_entrance_hit (3.71 s: sirens whoop, then the big band hit `hitImpactMs` into the file), started so
-	 *           the band hit lands as the entry card does: the LED back board seated (LED_BOARD.rise backAtMs + riseMs,
-	 *           620 ms after the card comes up), or the HTML card's pop at its end (`cardPopMs`)
-	 *    build  sfx_bonus_entrance_build, a 12.000 s seamless loop, `buildAfterMs` after the hit starts (the demo's: the hit
-	 *           has fallen 12 dB from its peak by 1.0 s, the demo's floor 1.2 s), faded in over `buildInMs`. A card left
-	 *           waiting: after one whole pass (`holdAfterMs`) the loop eases to `holdLevel` over `holdFadeMs` and keeps
-	 *           looping there until the press (a quieter tail, never a stop: no dead cut and no restart click)
-	 *    drop   on the card's dismissal (the press, or Autoplay Bonuses' own continue): sfx_bonus_entrance_drop and the
-	 *           bonus music from its start on the same moment; the build fades out over `buildOutMs`; a press while the hit
-	 *           still sounds fades the hit out over `hitOutMs` (the drop takes over); the base music, stopped by the swap,
-	 *           gets its own level back for the wrap-up
-	 *  The entry card's own card in and card out sounds (cards above) do not play: the hit and the drop are its sounds. The
-	 *  wrap-up card keeps them. A resumed round that skips the card (createBonusSnapshot) swaps the music at once, as before.
-	 *  All in real ms: a bonus always enters at regular speed. `on` false: the old entry (the music swaps at the trigger). */
+	/** THE BONUS ENTRANCE, ROUND 2 (Corey 2026-11-21 after staging: "I meant 10 for Free Spins, and S10 for Super", and "It
+	 *  would do the siren sounds to the crash and then change the music, like the preview"; game/bonusEntrance.ts plays it).
+	 *  His reason for the entrance: a player not looking must hear that something big is happening. Each entry is ONE
+	 *  sequence played once, as the listening page's demo strings it (.../bonus_entrance/plans/assemble.py demo()), and
+	 *  nothing loops while the card waits:
+	 *    cut    on the trigger's success (the same frame), the base music ducks to `duck.to` of its level over `duck.ms`;
+	 *           Free Spins also plays its police whoop (`cut`, draft 10's own; the demo plays it with the success). Super's
+	 *           draft has none.
+	 *    hit    started so its band (or brass) hit, `hitImpactMs` into the file, lands as the entry card does: the LED back
+	 *           board seated (LED_BOARD.rise backAtMs + riseMs, 620 ms after the card comes up), or the HTML card's pop at
+	 *           its end (`cardPopMs`)
+	 *    build  `buildAfterMs` after the hit starts (the demo's own spacing), a 4.000 s one-shot (`buildMs`): the demo's
+	 *           4 s of its build with its 250 ms fade in and 30 ms fade out in the file
+	 *    crash  `crashAfterMs` after the hit starts (the build's end, the demo's drop): sfx_bonus_entrance_drop at
+	 *           `crashVolume` and the bonus music (bgm_bonus or bgm_super) from its start on the same moment, the entry card
+	 *           still up and waiting. Its press then only dismisses it: no second crash, the music carries on.
+	 *  A press that continues before the crash (or Autoplay Bonuses' own continue, ROUND.autoplayMs) brings the crash
+	 *  early: whatever piece still sounds fades out over `pressOutMs`, the crash and the music start on the press, and no
+	 *  later piece plays. Exactly one crash per entry. With Autoplay Bonuses the build never starts (the card goes at
+	 *  1.4 s, about when it would). The base music, stopped by the swap, gets its own level back `restoreMs` after it.
+	 *  Super's crash at 0.707 (-3.0 dB): the S10 demo borrowed draft 10's drop by reading the rendered mono file back,
+	 *  which the assembler's loader does at -3 dB (its mono to stereo upmix, measured), so S10 was heard with the crash
+	 *  3 dB under the Free Spins demo's. 1 plays it as Free Spins does.
+	 *  The entry card's own card in and card out sounds (cards above) do not play: the entrance is its sound. The wrap-up
+	 *  card keeps them. A resumed round that skips the card (createBonusSnapshot) swaps the music at once, as before.
+	 *  All in real ms: a bonus always enters at regular speed. `on` false: the old entry (the music swaps at the trigger).
+	 *  (Round 1, the same morning: S10 for both entries, its 12 s build looping under the card until the press: retired.) */
 	entrance: {
 		on: true,
-		hit: 'sfx_bonus_entrance_hit',
-		build: 'sfx_bonus_entrance_build',
-		drop: 'sfx_bonus_entrance_drop',
+		bonus: {
+			cut: 'sfx_bonus_entrance_fs_cut' as string | null,
+			hit: 'sfx_bonus_entrance_fs_hit',
+			build: 'sfx_bonus_entrance_fs_build',
+			crash: 'sfx_bonus_entrance_drop',
+			crashVolume: 1,
+			/** the brass hit, ms into the file (the strongest onset, measured) */
+			hitImpactMs: 485,
+			cutMs: 609,
+			hitMs: 2981,
+		},
+		super: {
+			cut: null as string | null,
+			hit: 'sfx_bonus_entrance_hit',
+			build: 'sfx_bonus_entrance_super_build',
+			crash: 'sfx_bonus_entrance_drop',
+			crashVolume: 0.7071,
+			/** the big band hit, ms into the file */
+			hitImpactMs: 560,
+			cutMs: 0,
+			hitMs: 3711,
+		},
 		duck: { to: 0.05, ms: 40 },
-		hitImpactMs: 560,
-		hitMs: 3711,
 		cardPopMs: 260,
 		buildAfterMs: 1200,
-		buildInMs: 250,
-		holdAfterMs: 12000,
-		holdLevel: 0.4,
-		holdFadeMs: 3000,
-		buildOutMs: 30,
-		hitOutMs: 120,
+		buildMs: 4000,
+		crashAfterMs: 5200,
+		crashMs: 1466,
+		pressOutMs: 40,
 		/** the base music's level back, after the swap has stopped it (ms) */
 		restoreMs: 20,
 	},

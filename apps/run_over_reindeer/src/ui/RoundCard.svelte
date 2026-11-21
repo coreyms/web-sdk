@@ -44,8 +44,8 @@
 	};
 
 	// THE ENTRY CARD'S SOUNDS ARE THE BONUS ENTRANCE'S (2026-11-21, constants REINDEER_SOUND.entrance, game/bonusEntrance.ts):
-	// its hit lands with the card and its drop plays on the dismissal, so the intro plays no card in or card out of its own.
-	// The wrap-up keeps both.
+	// its hit lands with the card and its crash comes at the sequence's own time or on an earlier dismissal, so the intro
+	// plays no card in or card out of its own. The wrap-up keeps both.
 	const ownSounds = !(kind === 'intro' && REINDEER_SOUND.entrance.on);
 
 	onMount(() => {
