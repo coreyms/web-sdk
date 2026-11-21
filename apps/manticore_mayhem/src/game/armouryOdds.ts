@@ -25,7 +25,10 @@ export const ODDS_SOURCE = 'tools/compute_odds.py on math-sdk library/publish_fi
 
 /** one spin of the mode starts the feature about once in this many spins (exact); null = never */
 export const FEATURE_ONE_IN: Record<OddsMode, Record<OddsFeature, number | null>> = {
-	BASE: { bonus: 361.111276, super: 2544.912265, epic: 13891.860608 },
+	// math 2026.11.21 (base game shape B): the feature books keep their weights, the table's total moved by 2,603 in 10^12,
+	// so the exact figures move in the seventh digit and every shown one (~1 in 361 / 2,545 / 13,892) is the same.
+	// Was 361.111276 / 2544.912265 / 13891.860608 (tools/compute_odds.py on the 2026.11.02 tables)
+	BASE: { bonus: 361.111277, super: 2544.912271, epic: 13891.860645 },
 	ANTE: { bonus: 63.311, super: 388.197754, epic: 2383.035913 },
 	SUPER_ANTE: { bonus: null, super: 39.529, epic: 260.606 },
 };

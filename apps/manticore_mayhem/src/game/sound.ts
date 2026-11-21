@@ -62,8 +62,6 @@ export type SoundEffectName =
 	| 'sfx_win_mega'
 	| 'sfx_win_epic'
 	| 'sfx_win_max'
-	| 'sfx_mystery_tease'
-	| 'sfx_mystery_decision'
 	| 'sfx_chain_heavy'
 	| 'sfx_chain_light'
 	| 'sfx_chain_light_logo'

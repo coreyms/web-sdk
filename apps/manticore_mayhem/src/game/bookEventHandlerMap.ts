@@ -408,15 +408,6 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (bookEvent.gameType === 'basegame') stateGameDerived.resetSession();
 		// THE MAX WIN SCREEN'S TYPE (game/maxWin.svelte.ts): a book that ends at the cap fetches it now, a whole round ahead
 		if (bookEvents.some((e) => e.type === 'wincap')) void maxWinPrefetch();
-		// The Mystery marker is event 0 of its book, and a RESUMED round replays only from its last
-		// recorded reveal (utils.ts convertTorResumableBet), so the marker is not in `bookEvents`
-		// then. The round's own bet mode says it just as well: Authenticate / ResumeBet restore it
-		// from round.mode, and a bought Mystery keeps it until finalWin.
-		const mysteryEvent = bookEvents.find((e) => e.type === 'mystery') as BookEventOfType<'mystery'> | undefined;
-		const isMystery = !!mysteryEvent || stateBet.activeBetModeKey === 'MYSTERY';
-		// resetSession cleared the outcome the `mystery` handler had just written (DEV / probe read)
-		if (mysteryEvent) stateGame.mysteryOutcome = mysteryEvent.outcome;
-
 		stateGame.gameType = bookEvent.gameType;
 		stateGame.spinWin = 0;
 		stateGame.busy = true;
@@ -450,16 +441,14 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			}
 		}
 
-		// THE BOOK'S ANTICIPATION ARRAY IS HONOURED IN MYSTERY ONLY (RULE_PASS_2 section D): the
-		// Mystery spin-in always lands 3 War Standards in columns 0-2 and teases columns 3-7, and
-		// the book writes that tease itself. Every other mode ignores the field and plays the DERIVED
-		// tease instead (ANTICIPATION_TEASE: read off this board, presentation only).
-		const anticipation = isMystery && bookEvent.gameType === 'basegame' ? bookEvent.anticipation : undefined;
+		// THE BOOK'S ANTICIPATION ARRAY IS NOT READ: every reveal plays the DERIVED tease (ANTICIPATION_TEASE: read off
+		// this board, presentation only). The array was honoured in Mystery only, whose playback left with the Mystery
+		// mode on 2026-11-21 (Corey 2026-11-21, after the buy left the game: "You can get rid of the Mystery Source.").
 
 		// each scatter's house landing beat plays at its own landing contact, in landing order
 		stateGame.scatterCells = [];
 		if (bookEvent.gameType === 'basegame') triggerSfxPlayed = false;
-		const rec = fxRecord('reveal', { turbo: stateGame.turboLevel, mystery: isMystery });
+		const rec = fxRecord('reveal', { turbo: stateGame.turboLevel });
 		// Corey's reel_spin (2026-10-07): a 1.88 s one-shot as the columns pour in (the Angry Mantis
 		// spin LOOP is replaced in the Manticore sprite by tools/build_audiosprite.py MM_EVENTS)
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_reel_spin', forcePlay: true });
@@ -470,20 +459,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			return revealTease.hit ? SCATTER_STING.triggerMs : after?.type === 'sting' && after.kind === 'scatter' ? 0 : ANTICIPATION_TEASE.missHoldMs;
 		});
 		const id = await revealBoard(bookEvent.board, {
-			anticipation,
-			tease: !isMystery,
+			tease: true,
 			aura: nextCascadeWinners(bookEvent, bookEvents),
 			onScatterLand: (cell) => scatterLand(cell, currentRun()),
 		});
 		fxStamp(rec, 'landed');
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_reel_stop', forcePlay: true });
-		if (isMystery && bookEvent.gameType === 'basegame') eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_mystery_decision', forcePlay: true });
-		// THE MYSTERY MISS (Corey 2026-10-11): the creature growls at a Mystery that awarded nothing, as its board lands
-		if (isMystery && bookEvent.gameType === 'basegame' && stateGame.mysteryOutcome === 'nothing') {
-			eventEmitter.broadcast({ type: 'creatureCue', what: 'growl', inMs: 0 });
-			// the plaque's War Standard flag row (1.0.04): a Mystery that awards nothing is a miss
-			eventEmitter.broadcast({ type: 'plaqueTease', what: 'miss' });
-		}
 
 		// the derived tease's outcome: a hit plays the trigger pulse (and the house bonus-confirm SFX), a
 		// miss rests. A scatter sting run straight after is its own rest (SCATTER_STING.holdMs), so a miss
@@ -853,17 +834,12 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		};
 	},
 
-	// ---- the Mystery spin -------------------------------------------------------------------------
-	// RULE PASS 2 (section D): a Mystery is a REAL SPIN now. The `mystery` event is still the first
-	// event of the book, but it is a marker, not a resolution: the reveal that follows always lands
-	// three War Standards in columns 0-2 and teases 3-7, the tail may sting two more in for a Super
-	// or three for an Epic, and a `nothing` Mystery plays on as a base spin whose clusters pay.
-	// The old instant path — the NO FEATURE plaque, the "THE MYSTERY OPENS" spoiler plaque, and the
-	// early return that assumed the book carried no board — is gone with it.
-	mystery: async (bookEvent: BookEventOfType<'mystery'>) => {
-		stateGame.mysteryOutcome = bookEvent.outcome;
-		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_mystery_tease', forcePlay: true });
-	},
+	// ---- the retired Mystery marker ------------------------------------------------------------------
+	// The Mystery buy left the game and its playback left with it on 2026-11-21 (Corey 2026-11-21, after the buy left the game: "You can get rid of the Mystery Source."). A book that
+	// still carries the marker (an old Mystery round replayed from an RGS that still serves it, such as the local mock)
+	// plays on as an ordinary base spin; the marker itself is ignored here so the shared player does not log it as an
+	// event without a handler.
+	mystery: async () => {},
 
 	// ---- core SDK events -------------------------------------------------------------------------
 	setTotalWin: async (bookEvent: BookEventOfType<'setTotalWin'>, { bookEvents }: BookEventContext) => {

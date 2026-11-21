@@ -1,16 +1,11 @@
 <script lang="ts">
-	// THE MYSTERY SCATTER TEASE (RULE_PASS_2 section D), Angry Mantis's Anticipation.svelte adapted
-	// from five spinning reels to the 8x8 drop.
+	// THE COLUMN TEASE, Angry Mantis's Anticipation.svelte adapted from five spinning reels to the 8x8 drop. It was
+	// built for the Mystery's scatter tease (RULE_PASS_2 section D: the BOOK's array, a searchlight, a rain of loose
+	// symbols and a growing edge spill), whose own look left with the Mystery mode on 2026-11-21 (Corey: "You can get rid
+	// of the Mystery Source."). It reads stateGame.anticipation and decides nothing.
 	//
-	// The board engine (stateGame.revealBoard) holds a teased COLUMN above the board before it falls
-	// and then drops it slower; this component draws what the player sees while it waits: a
-	// searchlight swinging through the empty column over a faint rain of loose symbols, with a warm
-	// light spill growing in from the column's edges as the hold runs out. It reads
-	// stateGame.anticipation and decides nothing — which columns tease comes from the BOOK's array,
-	// and only in Mystery.
-	//
-	// THE DERIVED TEASE (ANTICIPATION_TEASE, every other mode, Corey 2026-10-06 18:52) reuses this same
-	// tree with its own numbers: the rain (rainAlpha, positioned by the engine: its own speed through the
+	// THE DERIVED TEASE (ANTICIPATION_TEASE, every mode, Corey 2026-10-06 18:52) uses this tree with its own
+	// numbers: the rain (rainAlpha, positioned by the engine: its own speed through the
 	// hold, then locked to the incoming stack, fading over the fall) and a faint fixed edge spill. Since
 	// Corey 2026-10-16 17:32 there is NO beam on a regular spin ("the difference is the spotlight, it should
 	// be removed"): ANTICIPATION_TEASE.beam false hides the light, and the rain is one symbol with a single
@@ -29,13 +24,13 @@
 	// PHONE PASS (2026-09-23): raw Pixi, ticked from the app ticker ONLY while a column is teasing.
 	// The pixi-svelte version kept 264 always-mounted <Sprite>s whose y came from a rAF loop that
 	// never stopped, so every frame of the whole session re-ran 240 props-sync effects for a layer
-	// that is invisible outside a Mystery reveal. Same tree, same numbers, no Svelte in the frame.
+	// that is invisible outside a tease. Same tree, same numbers, no Svelte in the frame.
 	import * as PIXI from 'pixi.js';
 	import { onMount } from 'svelte';
 	import { getContextParent } from 'pixi-svelte';
 
 	import { getContext } from '../game/context';
-	import { SYMBOL_SIZE, CELL_FILL, GRID, ANTICIPATION, ANTICIPATION_TEASE, MYSTERY_SUN } from '../game/constants';
+	import { SYMBOL_SIZE, CELL_FILL, GRID, ANTICIPATION, ANTICIPATION_TEASE } from '../game/constants';
 	import { beamTexture, spillTexture } from '../game/beamTexture';
 	import { boardCutSlot } from '../game/boardPlateSlot';
 
@@ -67,11 +62,6 @@
 	if (boardCutSlot.current) boardCutSlot.current.addChild(root);
 	else getContextParent().addToParent(root);
 
-	// the rain's loose symbols are shared by every column (they all read the same `names` / `dist`),
-	// so each column owns its own sprites but they are driven from one set of numbers
-	const names = Array.from({ length: N }, roll);
-	const cycles = Array(N).fill(0);
-
 	type Column = {
 		c: PIXI.Container;
 		rain: PIXI.Container;
@@ -85,7 +75,7 @@
 		/** the derived tease: this column's own roll per loose row (its rain runs on its own clock) */
 		own: string[];
 		ownCycle: number[];
-		/** the beam is sized for the derived tease (else for the Mystery's) */
+		/** the beam is sized for the derived tease */
 		teaseBeam: boolean;
 	};
 	const columns: Column[] = Array.from({ length: GRID }, (_, reel) => {
@@ -122,10 +112,7 @@
 		return { c, rain, loose, light, beam, spill, left, right, names: Array(N).fill(''), own: Array.from({ length: N }, roll), ownCycle: Array(N).fill(0), teaseBeam: false };
 	});
 
-	let dist = 0; // board px the rain has travelled, in style time
-	let styleMs = 0; // ms of style time the tease has run: the beam swings on this
 	let running = false;
-	let last = 0;
 
 	const tick = () => {
 		// cheap early out: nothing is teasing and nothing is still fading
@@ -139,7 +126,6 @@
 			}
 			return;
 		}
-		const now = performance.now();
 		if (!running) {
 			running = true;
 			// the cut layer shows from this frame on (BoardCells keeps it shown while `tease` is set)
@@ -147,22 +133,8 @@
 			if (slot && root.parent !== slot) slot.addChild(root);
 			boardCutSlot.tease = true;
 			if (slot?.parent && !slot.parent.visible) slot.parent.visible = true;
-			last = now; // the clock only runs while the tease shows: no jump on the first frame
-		}
-		const ts = Math.max(0.2, context.stateGameDerived.timeScale());
-		dist += (now - last) * ts * ANTICIPATION.rainSpeed * (SYMBOL_SIZE / 110);
-		styleMs += (now - last) * ts;
-		last = now;
-		for (let k = 0; k < N; k += 1) {
-			const cycle = Math.floor((k * SYMBOL_SIZE + dist) / LOOP);
-			if (cycle !== cycles[k]) {
-				cycles[k] = cycle;
-				names[k] = roll();
-			}
 		}
 		const tex = assets();
-		const strength = ANTICIPATION.strength[stateGame.turboLevel] ?? ANTICIPATION.strength[0];
-		const angle = Math.sin((styleMs / ANTICIPATION.beamPeriodMs) * Math.PI * 2) * ANTICIPATION.beamSwing;
 		for (let reel = 0; reel < GRID; reel += 1) {
 			const a = stateGame.anticipation[reel];
 			const col = columns[reel];
@@ -177,44 +149,8 @@
 				teaseColumn(col, a, tex);
 				continue;
 			}
-			// the Mystery's own look is the War Standard's sun since 1.0.04 (MYSTERY_SUN; on false brings this back)
-			if (MYSTERY_SUN.on) {
-				col.c.visible = false;
-				continue;
-			}
-			if (col.beam.tint !== 0xffffff) col.beam.tint = 0xffffff;
-			if (col.teaseBeam) {
-				col.teaseBeam = false;
-				col.beam.setSize(beamW, beamLen);
-				// the Mystery's own look: its light on, every rain copy at full share (a regular spin's tease changes both)
-				col.light.visible = true;
-				for (const row of col.loose) for (const s of row) s.alpha = 1;
-			}
-			col.spill.visible = true;
-			col.rain.alpha = ANTICIPATION.rainAlpha * a.fade;
-			for (let k = 0; k < N; k += 1) {
-				// column-local y of loose symbol k: enters above the window, leaves below it
-				const y = ((k * SYMBOL_SIZE + dist) % LOOP) - SYMBOL_SIZE / 2;
-				const swap = col.names[k] !== names[k];
-				const t = swap ? tex?.[`${names[k]}.png`] : undefined;
-				if (swap && t) col.names[k] = names[k];
-				const row = col.loose[k];
-				for (let g = 0; g < GHOSTS.length; g += 1) {
-					const s = row[g];
-					if (t) {
-						s.texture = t;
-						s.setSize(tile, tile * ANTICIPATION.rainStretch);
-					}
-					s.y = y + GHOSTS[g] * ANTICIPATION.rainGhostOffset * SYMBOL_SIZE;
-				}
-			}
-			col.light.alpha = strength * a.fade;
-			col.beam.rotation = angle;
-			col.spill.alpha = (ANTICIPATION.spillAlpha + ANTICIPATION.spillAlphaGrow * a.q) * strength * a.fade;
-			const spillW = SYMBOL_SIZE * CELL_FILL * (ANTICIPATION.spillWidth + ANTICIPATION.spillGrow * a.q);
-			col.left.setSize(spillW, COLUMN_H);
-			col.right.setSize(spillW, COLUMN_H);
-			col.right.x = SYMBOL_SIZE - spillW;
+			// not the derived tease: nothing draws it (the Mystery's own column look left on 2026-11-21)
+			col.c.visible = false;
 		}
 	};
 
@@ -231,7 +167,7 @@
 			for (const row of col.loose)
 				for (let g = 0; g < GHOSTS.length; g += 1) row[g].alpha = GHOSTS[g] === 0 ? 1 : GHOSTS[g] < 0 ? T.rainTrailAlpha : 0;
 		}
-		// the Mystery's warm edge strips, faint and fixed (no growth over the hold), fading with the beam's fade
+		// the warm edge strips (the Mystery's, faint and fixed: no growth over the hold), fading with the beam's fade
 		col.spill.visible = T.spillAlpha > 0;
 		if (col.spill.visible) {
 			col.spill.alpha = T.spillAlpha * a.fade;

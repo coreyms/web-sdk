@@ -1,6 +1,6 @@
 import type { BetType } from 'rgs-requests';
 
-import type { SymbolName, GameType, BonusMode, MysteryOutcome, CellIndex } from './types';
+import type { SymbolName, GameType, BonusMode, CellIndex } from './types';
 
 // One-to-one with math-sdk/games/manticore_mayhem/EVENT_SCHEMA.md. Keep them in sync: the schema
 // is the contract, this file is only its TypeScript shadow.
@@ -69,7 +69,7 @@ type BookEventSwipe = {
  *    normal  1 cell        -> W
  *    big     a plus of 5   -> W   (at most one per spin, always the LAST sting, always wins)
  *    super   a 3x3 of 9    -> W   (same, Super / Epic only)
- *    scatter 1 cell        -> S   (a natural trigger presented as a sting, and the Mystery)
+ *    scatter 1 cell        -> S   (a natural trigger presented as a sting)
  *  The frontend applies exactly `cells` -> `symbol` and picks the animation from `kind`. It NEVER
  *  re-derives the shape from `center`, and the old `super: boolean` field is gone. */
 export type StingKind = 'normal' | 'big' | 'super' | 'scatter';
@@ -101,7 +101,7 @@ type BookEventBonusStart = {
 	totalFs: number;
 	/** the ladder this session runs on: 64 (Bonus) or 128 (Super, Epic) */
 	tileCap: number;
-	/** triggering scatter cells; [] for a Mystery award (there is no scatter board) */
+	/** triggering scatter cells */
 	scatters: CellIndex[];
 };
 
@@ -113,9 +113,10 @@ type BookEventBonusEnd = {
 	spinsPlayed: number;
 };
 
-/** the 250x Mystery buy, first event of the book. Never a regular bonus. The buy left the published set on 2026-11-21;
- *  the type and its handler stay so a book that carries it (an old round, replayed) still plays */
-type BookEventMystery = { index: number; type: 'mystery'; outcome: MysteryOutcome };
+/** the retired 250x Mystery buy's marker, first event of its book. The buy left the published set on 2026-11-21 and its
+ *  playback left the game the same day; the type stays so an old Mystery book (replayed from an RGS that still serves
+ *  it) is still a valid book: its marker is ignored and the round plays on as a base spin */
+type BookEventMystery = { index: number; type: 'mystery'; outcome: 'nothing' | 'super' | 'epic' };
 
 // ---- core SDK events kept as-is ----
 type BookEventSetTotalWin = { index: number; type: 'setTotalWin'; amount: number };

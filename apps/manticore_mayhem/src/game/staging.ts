@@ -69,8 +69,8 @@ export const stagingBeams: number | null = teaseKnob('beams');
 // settings") ----------------------------------------------------------------------------------------------------------
 // `?hold=<seconds>` sets every held column's hold to one flat length (held to TEASE_HOLD_RANGE) and `?fall=<n>` the held
 // column's slow fall (held to TEASE_FALL_RANGE), on a staging build or the dev server. They apply to a regular spin's
-// tease and to the Mystery's sun tease alike; without them each keeps its own constants (ANTICIPATION_TEASE, and
-// ANTICIPATION for the Mystery). At turbo the regular tease still runs its hold for turboHoldShare of it, and `?fall=`
+// tease (the Mystery's sun tease left with the Mystery mode on 2026-11-21); without them it keeps its own constants
+// (ANTICIPATION_TEASE). At turbo the regular tease still runs its hold for turboHoldShare of it, and `?fall=`
 // is the normal speed fall only (turbo keeps fallSlowTurbo). Never in a production build.
 export const TEASE_HOLD_RANGE = { min: 0.2, max: 3 } as const;
 export const TEASE_FALL_RANGE = { min: 1, max: 4 } as const;

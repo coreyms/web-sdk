@@ -102,9 +102,9 @@
 		const t = trace;
 		if (!t) return;
 		const t0 = import.meta.env.DEV ? performance.now() : 0;
-		// THE ANTICIPATION: the scatter tease on screen (a regular spin's or a Mystery's), in the base game only
+		// THE ANTICIPATION: the scatter tease on screen, in the base game only
 		// (teaseNow is only asked while a reveal has a tease: with none it fills its shared object from a fresh one)
-		const st = revealTease.teased || revealTease.mystery ? teaseNow() : null;
+		const st = revealTease.teased ? teaseNow() : null;
 		if (sg.skipping) t.release();
 		else if (st && st.active && sg.gameType === 'basegame') {
 			const col = st.phase === 'hold' ? st.holdIndex + 0.5 * st.holdProgress : st.phase === 'fall' ? st.holdIndex + 0.5 + 0.5 * st.fallProgress : st.held;

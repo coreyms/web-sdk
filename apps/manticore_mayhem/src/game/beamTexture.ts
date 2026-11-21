@@ -2,8 +2,8 @@ import * as PIXI from 'pixi.js';
 
 import { SUN_TEASE } from './constants';
 
-// Baked light textures for the Mystery scatter tease (Anticipation.svelte), built once and cached —
-// house rule: no per-frame textures, no filters. Carried over from Angry Mantis unchanged; the
+// Baked light textures for the column tease (Anticipation.svelte; made for the Mystery's, which left on 2026-11-21),
+// built once and cached. House rule: no per-frame textures, no filters. Carried over from Angry Mantis unchanged; the
 // colours are Corey's from the reel-motion artifact.
 
 // Searchlight wedge: apex at the top centre, full width at the bottom, brightest a third of the
