@@ -7,7 +7,8 @@
 //
 // The drawing: one inline SVG in a viewBox of -50 -50 100 100 that covers the key's inside (100 = the key's inner
 // diameter), angles clockwise from 12 o'clock. The ring is ONE turning layer: the SVG under three transform-only wrappers
-// (HudSpin .rh the hover quarter turn and the breath, .rw the idle hop and the wind-up, .rr the loop and the brake), so
+// (HudSpin .rh the breath and the kick, .rw the idle hop and the wind-up, .rr the loop, the brake and the hover's
+// quarter turn and its way back, RingCore.hover; the hover was on .rh before 2026-11-20), so
 // it paints once and the compositor turns it. The stop square, the free-spins fill and the win sparks are still SVGs
 // beside it. Every gradient on the ring is radial about the key's center, so its light never turns with it. Transform
 // and opacity only: no filter, mask, blend mode, clip or stroke animation.
@@ -213,7 +214,8 @@ export class RingDriver {
 		this.draw(now);
 	}
 
-	/** THE HOVER (desktop pointers): on, the quarter turn forward; off, forward home and the bounce (RingCore.hover) */
+	/** THE HOVER (desktop pointers): on, the quarter turn forward; off with no press, back the way it came to home and
+	 *  the soft settle (RingCore.hover, THE WAY BACK) */
 	hover(on: boolean) {
 		const L = this.layer();
 		if (!L) return;

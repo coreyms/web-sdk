@@ -26,7 +26,8 @@
 // (the bounce included). A spin's brake that cannot reach home with a falling speed rushes the same way within today's
 // brake + HOME_EXTRA_MS. ('fixed' alone keeps THE SNAP: the home nearest today's landing, either way.)
 // THE BOUNCE: every arrival runs BOUNCE_DEG past home and comes back in one half cosine (it replaces today's settle).
-// THE HOVER: today's quarter turn forward, then forward home and the bounce on leave (RingCore.hover).
+// THE HOVER: today's quarter turn forward; on leave with no press, back the way it came to home (THE WAY BACK below,
+// RingCore.hover); a press during it goes forward into the spin as before.
 //
 // (Run Over Reindeer's ui/hud/ringPlan.ts, copied: the HUD is copied per app.)
 // Pure: no DOM and no clock of its own (every call takes `now`, performance.now() ms), so the node test runs it as is.
@@ -54,7 +55,7 @@ export const RING_HOME = 0;
  *  slow") */
 export const HOME_EXTRA_MS = 150;
 /** THE BOUNCE (Corey 2026-11-20: "a consistant standing position that it bounces back to"): every arrival at home (a
- *  spin's end, a stop, a hover's leave) runs BOUNCE_DEG past home with its speed falling to nothing, then comes back
+ *  spin's end, a stop; a hover's leave has THE WAY BACK instead) runs BOUNCE_DEG past home with its speed falling to nothing, then comes back
  *  over BOUNCE_MS on one half cosine: one bounce, no wobble after it. Per turbo level (it takes the place of today's
  *  settle, 300 / 176 / 62 ms with 6 / 6 / 3 degrees and an undershoot after). */
 export const BOUNCE_MS = [240, 220, 180] as const;
@@ -73,15 +74,37 @@ export const STOP_BOUNCE_MS = 180;
 const RUSH_PEAK = 3;
 const RUSH_MIN_MS = 60;
 /** THE HOVER (desktop pointers only: "hover over and progress it"): today's quarter turn forward, on the CSS
- *  transition's own curve and length; on leave the ring goes on forward to home (LEAVE_MS0 + LEAVE_MS_PER_DEG per
- *  degree to go) and bounces (the Turbo bounce: 8 degrees, 220 ms). Left within HOVER_BACK_DEG of home (a graze), it
- *  springs straight back instead of a whole turn. */
+ *  transition's own curve and length (a hover that begins while the ring is on its way back turns forward again from
+ *  where it is to the same quarter, over a share of HOVER_MS, at least HOVER_MIN_SHARE of it). LEAVE_MS0,
+ *  LEAVE_MS_PER_DEG and HOVER_BACK_DEG were the forward way home on leave (2026-11-20, a whole turn on round to home),
+ *  no longer used since THE WAY BACK. */
 export const HOVER_DEG = 90;
 export const HOVER_MS = 550;
 const HOVER_EASE: [number, number, number, number] = [0.3, 1.6, 0.45, 1];
-const LEAVE_MS0 = 140;
-const LEAVE_MS_PER_DEG = 0.9;
-const HOVER_BACK_DEG = 20;
+export const LEAVE_MS0 = 140;
+export const LEAVE_MS_PER_DEG = 0.9;
+export const HOVER_BACK_DEG = 20;
+const HOVER_MIN_SHARE = 0.4;
+/** THE WAY BACK (Corey 2026-11-21: "on Hover Over, the arrow rotates a little bit, but if you go off the hover over
+ *  without pressing spin ... it rotates all the way around to get back into position, I would prefer it goes backwards
+ *  in that one scenario"): the pointer leaves with no press and the ring turns BACK the way it came, from wherever it
+ *  is, to the home it left: one Hermite from still to still over BACK_MS0 + BACK_MS_PER_DEG per degree, at most
+ *  BACK_MAX_MS (the whole quarter 255 ms, a part less; the quarter turn's own overshoot to about 100 degrees no
+ *  longer), ending BACK_SETTLE_DEG short of home (at most a tenth of the way back), then forward
+ *  to home on one half cosine over BACK_SETTLE_MS: a soft settle that never goes past home forward. Its angle never
+ *  rises above where it left and its whole travel is the way back plus twice the settle (a full quarter: 345 ms). */
+export const BACK_MS0 = 75;
+export const BACK_MS_PER_DEG = 2;
+export const BACK_MAX_MS = 255;
+export const BACK_SETTLE_DEG = 3;
+export const BACK_SETTLE_MS = 90;
+/** the settle for a way back of `deg`: degrees short of home and the ms forward to it (none for a sliver) */
+export const backSettle = (deg: number) => {
+	const o = Math.min(BACK_SETTLE_DEG, Math.max(0, deg) / 10);
+	return o > 0.05 ? { o, ms: BACK_SETTLE_MS } : { o: 0, ms: 0 };
+};
+/** the way back's own length (before the settle), ms */
+export const backMs = (deg: number) => Math.min(BACK_MAX_MS, BACK_MS0 + BACK_MS_PER_DEG * Math.abs(deg));
 /** the cruise speed stays within this share of the loop's */
 export const STEER_CAP = 0.4;
 /** the cruise speed is eased to its steered value over this long (a smoothstep in speed), or the whole cruise if shorter */
@@ -477,7 +500,11 @@ export type RingRound = {
 	/** how the brake was planned (its last plan): the cruise steered to it, a rest learned late, a stop press, the board
 	 *  home before any rest was known */
 	kind: EndKind | null;
-	shape: 'brake' | 'snap' | 'rush' | null;
+	/** (a hover's way home: 'back', THE WAY BACK; 'snap' and 'rush' were its forward ways before 2026-11-21) */
+	shape: 'brake' | 'snap' | 'rush' | 'back' | null;
+	/** a hover's way home: the degrees past home where the pointer left (the hover angle it turns back from; null
+	 *  for every other round) */
+	from: number | null;
 	plans: number;
 	brakeAt: number | null;
 	restAt: number | null;
@@ -487,7 +514,8 @@ export type RingRound = {
 	/** the longest this brake may be: today's + HOME_EXTRA_MS (a stop press: + STOP_EXTRA_MS); where today's own brake was
 	 *  so short that it and the bounce are longer than that, that (null: a hover's way home) */
 	boundMs: number | null;
-	/** THE BOUNCE planned: degrees past home and the way back's ms */
+	/** THE BOUNCE planned: degrees past home and the way back's ms (a hover's way home: THE WAY BACK's settle, degrees
+	 *  short of home and its ms) */
 	over: number | null;
 	bounceMs: number | null;
 	/** the slowest speed on the way home before the bounce, as a share of the loop's (below 0: it turned back) */
@@ -619,7 +647,7 @@ export class RingCore {
 		this.unmatched = true;
 		this.version++;
 		if (this.record) {
-			this.cur = { n: ++this.n, method: this.method, turbo: t, v, startAt: now, upEnd: this.upEnd, kind: null, shape: null, plans: 0, brakeAt: null, restAt: null, brakeMs: null, todayMs: null, steer: 0, rest: null, err: null, peak: null, low: null, boundMs: null, over: null, bounceMs: null, back: null, ended: null };
+			this.cur = { n: ++this.n, method: this.method, turbo: t, v, startAt: now, upEnd: this.upEnd, kind: null, shape: null, from: null, plans: 0, brakeAt: null, restAt: null, brakeMs: null, todayMs: null, steer: 0, rest: null, err: null, peak: null, low: null, boundMs: null, over: null, bounceMs: null, back: null, ended: null };
 			this.rounds.push(this.cur);
 			if (this.rounds.length > 60) this.rounds.shift();
 		}
@@ -688,7 +716,7 @@ export class RingCore {
 		} else if (!inp.live && (this.sawLive || inp.resting)) this.brakeNow(now, 'now', M.brake, M.settle, inp.turbo);
 	}
 
-	private note(kind: EndKind, brakeAt: number, endAt: number, todayMs: number, shape: 'brake' | 'snap' | 'rush', steer: number, boundMs: number, over: number, bounceMs: number, r: RingRound | null = this.cur) {
+	private note(kind: EndKind, brakeAt: number, endAt: number, todayMs: number, shape: 'brake' | 'snap' | 'rush' | 'back', steer: number, boundMs: number, over: number, bounceMs: number, r: RingRound | null = this.cur) {
 		if (!r) return;
 		r.boundMs = boundMs;
 		r.over = over;
@@ -821,14 +849,21 @@ export class RingCore {
 
 	/** THE HOVER (desktop pointers; HudSpin calls it on the pointer's enter and leave). At rest only: a press during it
 	 *  takes over from the ring's angle and speed (start), a hover during a round does nothing. On: today's quarter turn
-	 *  forward. Off: forward to the next home (the shortest way forward) and THE BOUNCE; a graze (left within
-	 *  HOVER_BACK_DEG past home) springs straight back. `a`: the page's angle (a rebuilt face has no path yet). */
+	 *  forward (from where the ring is, when it is still on its way back: forward again to the same quarter). Off, with
+	 *  no press: THE WAY BACK, from wherever the ring is back to the home it left, and the soft settle. `a`: the page's
+	 *  angle (a rebuilt face has no path yet). */
 	hover(now: number, on: boolean, a: number) {
 		if (on) {
 			if (this.phase !== 'rest' || this.hovering) return;
 			this.hovering = true;
 			const a0 = this.path.segs.length ? this.path.pos(now) : a;
-			this.path.segs = [{ k: 'bez', t0: now, t1: now + HOVER_MS, te: now + HOVER_MS, a0, d: HOVER_DEG, e: HOVER_EASE }];
+			// (the way back cut short by a new hover: it ends here, the next leave records its own)
+			if (this.hoverRound && now < (this.hoverRound.restAt ?? 0)) this.hoverRound.ended = 'next';
+			this.hoverRound = null;
+			// the quarter past the home it is nearest (a hover from rest: from home, the whole quarter over HOVER_MS)
+			const d = HOVER_DEG - wrap180(a0 - RING_HOME);
+			const T = HOVER_MS * Math.min(1, Math.max(HOVER_MIN_SHARE, d / HOVER_DEG));
+			this.path.segs = [{ k: 'bez', t0: now, t1: now + T, te: now + T, a0, d, e: HOVER_EASE }];
 			this.open = false;
 			this.version++;
 			return;
@@ -837,37 +872,23 @@ export class RingCore {
 		this.hovering = false;
 		if (this.phase !== 'rest') return;
 		const p = this.path.segs.length ? this.path.pos(now) : a;
-		const s = this.path.segs.length ? this.path.vel(now) : 0;
-		const s0 = Math.max(0, s);
-		const o = BOUNCE_DEG[1];
-		const Tb = BOUNCE_MS[1];
+		// THE WAY BACK: from where it is to the home it left, from still (the quarter turn's own speed is dropped: carried
+		// on, it would run on past where it left before turning back)
 		const past = wrap180(p - RING_HOME);
 		this.path.cut(now);
 		if (!this.path.segs.length) this.path.segs = [{ k: 'hold', t0: now, t1: now, te: now, a0: p }];
-		let T: number;
-		if (past >= 0 && past < HOVER_BACK_DEG) {
-			// a graze: straight back to home on the bounce's way back (from wherever it is: a short half cosine)
-			T = 0;
-			this.path.push({ k: 'herm', t0: now, t1: now + Tb, m0: s0 * Tb, d: -past, m1: 0 });
-		} else {
-			let D = mod(RING_HOME - p, 360);
-			T = LEAVE_MS0 + LEAVE_MS_PER_DEG * D;
-			// (forward only: a Hermite from speed s0 stays forward while its way is at least s0 T / 3)
-			if (D + o < (s0 * T) / 3) T = (3 * (D + o)) / s0;
-			if (T < RUSH_MIN_MS) {
-				D += 360;
-				T = LEAVE_MS0 + LEAVE_MS_PER_DEG * D;
-			}
-			this.path.push({ k: 'herm', t0: now, t1: now + T, m0: s0 * T, d: D + o, m1: 0 });
-			this.path.push({ k: 'set', t0: now + T, t1: now + T + Tb, o });
-		}
+		const st = backSettle(past);
+		const T = backMs(past);
+		this.path.push({ k: 'herm', t0: now, t1: now + T, m0: 0, d: -past - st.o, m1: 0 });
+		// (the settle forward to home: a 'set' piece with a negative overshoot runs forward by st.o)
+		if (st.ms > 0) this.path.push({ k: 'set', t0: now + T, t1: now + T + st.ms, o: -st.o });
 		this.open = false;
 		this.version++;
 		if (this.record) {
 			const end = this.path.end;
-			const r: RingRound = { n: ++this.n, method: this.method, turbo: this.turbo, v: this.v || 360 / (RING_P * 1000), startAt: now, upEnd: now, kind: 'hover', shape: 'rush', plans: 0, brakeAt: now, restAt: end, brakeMs: end - now, todayMs: null, steer: 0, rest: null, err: null, peak: null, low: null, boundMs: null, over: null, bounceMs: null, back: null, ended: 'rest' };
+			const r: RingRound = { n: ++this.n, method: this.method, turbo: this.turbo, v: this.v || 360 / (RING_P * 1000), startAt: now, upEnd: now, kind: 'hover', shape: 'back', from: past, plans: 0, brakeAt: now, restAt: end, brakeMs: end - now, todayMs: null, steer: 0, rest: null, err: null, peak: null, low: null, boundMs: null, over: null, bounceMs: null, back: null, ended: 'rest' };
 			if (!this.v) this.v = r.v;
-			this.note('hover', now, end, 0, T > 0 ? 'rush' : 'snap', 0, 0, T > 0 ? o : 0, T > 0 ? Tb : 0, r);
+			this.note('hover', now, end, 0, 'back', 0, 0, st.o, st.ms, r);
 			r.todayMs = null;
 			r.boundMs = null;
 			this.rounds.push(r);

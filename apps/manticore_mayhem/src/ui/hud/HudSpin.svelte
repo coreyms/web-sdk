@@ -178,8 +178,9 @@
 		});
 	});
 	// THE HOVER (Corey 2026-11-20: "hover over and progress it"): a desktop pointer over the key turns the ring a quarter
-	// forward; when it leaves (or the key is disabled under it) the ring goes on forward to home and bounces; a press
-	// during it simply starts the spin from where the ring is. Never on touch, never under reduced motion (ui/hud/ringPlan.ts
+	// forward; when it leaves (or the key is disabled under it) with no press, the ring turns back the way it came to
+	// home and settles (Corey 2026-11-21: "I would prefer it goes backwards in that one scenario"); a press during it
+	// simply starts the spin forward from where the ring is. Never on touch, never under reduced motion (ui/hud/ringPlan.ts
 	// RingCore.hover; it took the place of the CSS quarter turn on .rh, which came back the other way)
 	const finePointer = () => typeof matchMedia !== 'undefined' && matchMedia('(hover: hover) and (pointer: fine)').matches;
 	const hoverOn = (e: PointerEvent) => {
