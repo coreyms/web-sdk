@@ -74,8 +74,13 @@ loop, every move book driven).
 
 ## Win presentation
 
-- Tiers in base-bet multiples (`game/winLevelMap.ts` line 36): Big 15x, Super 30x, Mega 60x, Epic 150x, Max 10,000x.
-  Inside a feature a spin's own plaque uses the feature ladder (line 44): 50 / 100 / 400 / 1,500 / 10,000x.
+- Tiers in base-bet multiples, every ladder in one block (`game/winLevelMap.ts`, "THE STINGER LADDERS", Corey
+  2026-11-21): a base game spin (Ante and Super Ante included) Big 25x, Super 100x, Mega 400x, Epic 1,500x, Max
+  10,000x (`WIN_TIER_STAGES`); a free spin's own win, every feature, NO Big: Super 200x (its plaque opens on SUPER;
+  Super is 100x in the base game and 200x in a feature on purpose, Corey "take yours"),
+  Mega 400x, Epic 1,500x, Max 10,000x (`WIN_TIER_STAGES_FEATURE_SPIN`). The end of feature TOTAL WIN's tier is the
+  book's level; `WIN_TIER_STAGES_END_FEATURE` (50 / 100 / 400 / 1,500 / 10,000x) only paces its count.
+  Node test: `tools/stinger_tiers_test.mjs`.
 - The plaque is `components/StingerPlaque.svelte` with data in `game/stinger/`. Its motion runs in REAL time at every
   turbo level; turbo shortens the COUNT only (constants lines 2234 to 2238). House count-up pacing and the "number
   slides when a digit is added" rule are in the recipe (section 1); this game is the first to use the slide.

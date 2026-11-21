@@ -6,7 +6,7 @@ export const winLevelMap = {
 	1: { level: 1, alias: 'zero', type: 'small', text: null, presentDuration: 0, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
 	2: { level: 2, alias: 'standard', type: 'small', text: null, presentDuration: 0, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
 	3: { level: 3, alias: 'small', type: 'small', text: null, presentDuration: 0, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
-	// LEVELS 4 AND 5 (4x to 15x) HAVE NO WIN SCREEN AND NO WORD (Corey 2026-10-09: "no Nice win level"): the board's
+	// LEVELS 4 AND 5 (4x to Big, 25x since 2026-11-21, 15x before) HAVE NO WIN SCREEN AND NO WORD (Corey 2026-10-09: "no Nice win level"): the board's
 	// own run up (cluster labels, the SPIN readout, the HUD win) is all a win under Big gets. Level 5 read
 	// 'BIG WIN' on a plain screen with no plaque until then, which is what "Big wins are not showing the
 	// stinger" was. Their presentDuration is still what the WRAP UP counts over when a feature ends at
@@ -31,16 +31,45 @@ export type WinLevel = keyof WinLevelMap;
 export type WinLevelData = WinLevelMap[WinLevel];
 export type WinLevelAlias = WinLevelData['alias'];
 
-// Staged count-up tiers, in BASE-BET multiples. Manticore's cap is 10,000x (spec B), so the ladder
-// is half Angry Mantis's at the top; the lower bars are the same shape.
+// THE STINGER LADDERS: WHICH WINS GET THE FULL-SCREEN PLAQUE (components/StingerPlaque.svelte), ALL IN ONE PLACE.
+// Corey 2026-11-21 (the Stinger "hurts the fluidity of the games"): "Let's make the base games match the bonus round
+// numbers, off the based spin amount. Let's drop Big win from Bonus games individual spins. Raise Super to 200x and make
+// that the trigger for the stinger." After seeing how rare that made a base game Stinger, the same day, on the
+// coordinator's proposal "Big at 25x and Super at 100x, with Mega 400x and Epic 1,500x as you set them" for the base
+// game, keeping the bonus round numbers: "take yours".
+// SO SUPER WIN IS 100x IN THE BASE GAME AND 200x INSIDE A FEATURE, ON PURPOSE. The two ladders differ by design: do not
+// "fix" one to match the other.
+// Every bar is a multiple of the BASE bet: a book amount / BOOK_AMOUNT_MULTIPLIER, and book amounts are base-bet
+// multiples in every mode (Ante 3x, Super Ante 10x and the bought features debit more, but pay on the base bet; the
+// 10,000x cap is the same in every mode). Nothing here divides by a mode's cost.
+// To change a bar, change its number here: the tier word, the plaque's opening tier, its tier-up steps, the tier
+// sounds (WIN_TIER_SOUND), the creature's win clips (game/creatureLoad.ts) and the count's bars all read these.
+// PRESENTATION ONLY: the tier is picked from the book's own amount and decides nothing.
+//
+// BASE GAME SPIN (Ante and Super Ante included): Big opens the ladder. A win under Big gets no Stinger (the board's
+// own run up only: cluster labels, the bar's WIN, the HUD win). Big 25x, Super 100x, Mega 400x, Epic 1,500x, Max
+// 10,000x since 2026-11-21 (was 15 / 30 / 60 / 150 / 10,000x). The capped feature's MAX WIN wrap up climbs these bars too.
 export const WIN_TIER_STAGES = [
-	{ alias: 'big', title: 'BIG WIN', xBet: 15 },
-	{ alias: 'superwin', title: 'SUPER WIN', xBet: 30 },
-	{ alias: 'mega', title: 'MEGA WIN', xBet: 60 },
-	{ alias: 'epic', title: 'EPIC WIN', xBet: 150 },
+	{ alias: 'big', title: 'BIG WIN', xBet: 25 },
+	{ alias: 'superwin', title: 'SUPER WIN', xBet: 100 },
+	{ alias: 'mega', title: 'MEGA WIN', xBet: 400 },
+	{ alias: 'epic', title: 'EPIC WIN', xBet: 1500 },
 	{ alias: 'max', title: 'MAX WIN', xBet: 10000 },
 ] as const;
 
+// A FREE SPIN'S OWN WIN, in every feature (Free Spins, Super, Epic; bought, triggered or from Mystery alike): there is
+// NO Big tier, the Stinger first appears at SUPER and opens on SUPER WIN. A spin under 200x gets no Stinger, as a base
+// win under Big. (Super here is 200x, the base game's is 100x: see above.) Was per feature until 2026-11-21: Free Spins 25 / 50 / 100 / 250, Super 40 / 80 / 160 / 400, Epic
+// 75 / 150 / 300 / 750 (harsh review 2026-10-15, gameplay finding 6).
+export const WIN_TIER_STAGES_FEATURE_SPIN = [
+	{ alias: 'superwin', title: 'SUPER WIN', xBet: 200 },
+	{ alias: 'mega', title: 'MEGA WIN', xBet: 400 },
+	{ alias: 'epic', title: 'EPIC WIN', xBet: 1500 },
+	{ alias: 'max', title: 'MAX WIN', xBet: 10000 },
+] as const;
+
+// THE TOTAL WIN WRAP UP at the end of a feature (components/FreeSpinOutro.svelte, components/WarBanner.svelte): its tier
+// is the BOOK's freeSpinEnd.winLevel; these bars only pace its count. Not changed on 2026-11-21.
 export const WIN_TIER_STAGES_END_FEATURE = [
 	{ alias: 'big', title: 'BIG WIN', xBet: 50 },
 	{ alias: 'superwin', title: 'SUPER WIN', xBet: 100 },
@@ -51,67 +80,33 @@ export const WIN_TIER_STAGES_END_FEATURE = [
 
 export type WinTierStage = { alias: string; title: string; xBet: number };
 
-// A FREE SPIN'S OWN WIN PLAQUE IS FEATURE RELATIVE (harsh review 2026-10-15, gameplay finding 6; Corey 2026-10-16:
-// "Yes, this is a good idea for this game"). On the base ladder (Big at 15x) the plaque covered the board 1.3 times per
-// Free Spins round, 2.3 per Super and 4.2 per Epic, in exactly the spins where the board was escalating. Inside a
-// feature a spin's own win now gets a plaque only from the bar of the feature it is in (the book's bonusStart.bonus, a
-// bought or a naturally triggered round alike, a BONUS buy that plays a Super or an Epic included); a smaller spin win
-// counts up on the board's own readout only, as an under 15x win always did. Same words, same house pacing (3 to 7 s by
-// final tier, no pause at the bars), same base ladder shape (x1, x2, x4, x10 of Big); Max stays the 10,000x cap.
-// MEASURED on the shipped books (publish_files 2026-10-15, lookup table weighted; the capping spin of a capped round
-// gets none), plaques per round, before (15x) -> after, and the share of rounds with 0 / 1 / 2 / 3+ after:
-//   Free Spins, Big 25x (0.25 of the 100x price): 1.31 -> 0.83 (49 / 30 / 14 / 8 %)
-//   Super,      Big 40x (0.16 of the 250x price): 2.30 -> 1.16 (38 / 30 / 18 / 14 %)
-//   Epic,       Big 75x (0.15 of the 500x price): 4.19 -> 1.55 ( 6 / 53 / 28 / 13 %)
-// RE-MEASURED on the 2026.10.16 books (feedback/math_reshape_r1/data/feature_tiers_new_books.txt), the same bars, the
-// buy's own rounds: Free Spins 1.41 -> 0.83 (53 / 25 / 13 / 9 %), Super 2.75 -> 1.20 (41 / 27 / 16 / 17 %),
-// Epic 5.04 -> 1.45 (14 / 50 / 23 / 14 %)
-// HOW, to re-measure on new books: feedback/feature_tiers_r1/ (walk_books.py, then measure.py for candidate bars and
-// final.py for these ladders) in the Manticore Mayhem working folder. PRESENTATION ONLY: the word is picked from the
-// book's own amount and decides nothing.
-export const WIN_TIER_STAGES_FEATURE_SPIN = {
-	bonus: [
-		{ alias: 'big', title: 'BIG WIN', xBet: 25 },
-		{ alias: 'superwin', title: 'SUPER WIN', xBet: 50 },
-		{ alias: 'mega', title: 'MEGA WIN', xBet: 100 },
-		{ alias: 'epic', title: 'EPIC WIN', xBet: 250 },
-		{ alias: 'max', title: 'MAX WIN', xBet: 10000 },
-	],
-	super: [
-		{ alias: 'big', title: 'BIG WIN', xBet: 40 },
-		{ alias: 'superwin', title: 'SUPER WIN', xBet: 80 },
-		{ alias: 'mega', title: 'MEGA WIN', xBet: 160 },
-		{ alias: 'epic', title: 'EPIC WIN', xBet: 400 },
-		{ alias: 'max', title: 'MAX WIN', xBet: 10000 },
-	],
-	epic: [
-		{ alias: 'big', title: 'BIG WIN', xBet: 75 },
-		{ alias: 'superwin', title: 'SUPER WIN', xBet: 150 },
-		{ alias: 'mega', title: 'MEGA WIN', xBet: 300 },
-		{ alias: 'epic', title: 'EPIC WIN', xBet: 750 },
-		{ alias: 'max', title: 'MAX WIN', xBet: 10000 },
-	],
-} as const satisfies Record<BonusMode, readonly WinTierStage[]>;
+/** every tier in order: the index is the plaque's tier (game/stinger/types STINGER_TIERS), the WIN_TIER_SOUND index and
+ *  winLevelMap level - 6, whichever ladder a win is on */
+export const WIN_TIER_ALIASES = ['big', 'superwin', 'mega', 'epic', 'max'] as const;
+/** the tier index (0 Big .. 4 Max) of a ladder stage or a win level's alias; 0 for anything else */
+export const tierIndexOfAlias = (alias: string): number => Math.max(0, (WIN_TIER_ALIASES as readonly string[]).indexOf(alias));
 
-/** the per spin ladder for a free spin of this feature (the base ladder if the feature is somehow unknown) */
-export const featureSpinStages = (mode: BonusMode | null): readonly WinTierStage[] => (mode ? WIN_TIER_STAGES_FEATURE_SPIN[mode] : WIN_TIER_STAGES);
+/** the ladder a free spin's own win is on (the same for every feature since 2026-11-21; `mode` kept for the callers) */
+export const featureSpinStages = (_mode?: BonusMode | null): readonly WinTierStage[] => WIN_TIER_STAGES_FEATURE_SPIN;
 
-/** a free spin's own win on its feature's ladder: Big (level 6) to Max (level 10), or undefined under Big (no plaque) */
-export const getFeatureSpinWinLevelData = ({ bookEventAmount, mode }: { bookEventAmount: number; mode: BonusMode | null }): WinLevelData | undefined => {
-	const xBet = bookEventAmount / BOOK_AMOUNT_MULTIPLIER;
-	const tier = featureSpinStages(mode).filter((s) => xBet >= s.xBet).length - 1;
-	return tier < 0 ? undefined : winLevelMap[(6 + tier) as WinLevel];
+/** a win's tier on a ladder: the level (6 Big .. 10 Max) of the highest bar it reaches, or undefined under the
+ *  ladder's first bar (no Stinger) */
+export const levelOnStages = (xBet: number, stages: readonly WinTierStage[]): WinLevelData | undefined => {
+	let hit: WinTierStage | undefined;
+	for (const s of stages) if (xBet >= s.xBet) hit = s;
+	return hit ? winLevelMap[(6 + tierIndexOfAlias(hit.alias)) as WinLevel] : undefined;
 };
+
+/** a free spin's own win on the feature spin ladder: Super (level 7) to Max (level 10), or undefined under 200x */
+export const getFeatureSpinWinLevelData = ({ bookEventAmount, mode }: { bookEventAmount: number; mode: BonusMode | null }): WinLevelData | undefined =>
+	levelOnStages(bookEventAmount / BOOK_AMOUNT_MULTIPLIER, featureSpinStages(mode));
 
 // PRESENTATION ONLY. Manticore's schema carries no `setWin` and therefore no per-spin winLevel, so
 // the tier WORD over a base-game count-up is picked from the amount the book already sent. The
 // number itself is always the book's — this decides nothing about the round.
+// Levels 6 to 10 are WIN_TIER_STAGES' bars (above); 4 and 5 have no Stinger.
 const LEVEL_THRESHOLDS: [WinLevel, number][] = [
-	[10, 10000],
-	[9, 150],
-	[8, 60],
-	[7, 30],
-	[6, 15],
+	...WIN_TIER_STAGES.map((s, i) => [(6 + i) as WinLevel, s.xBet] as [WinLevel, number]).reverse(),
 	[5, 8],
 	[4, 4],
 	[3, 1],
