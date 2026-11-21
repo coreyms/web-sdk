@@ -43,6 +43,9 @@ const pace = (ms: number) => waitForTimeout(Math.max(1, ms / boardRate()));
 /** put one of the bonus round's cards up and wait for it to be dismissed (ui/RoundCard.svelte resolves it) */
 let cardDone: (() => void) | null = null;
 const showCard = async (card: RoundCard) => {
+	// THE HUD STAYS ON SCREEN UNDER THE CARD, DISABLED (2026-11-20, Manticore Unleashed's rule: stateGame.hudHeld): until
+	// then the uiHide below faded all of it but the WIN readout, so BALANCE was gone under the entry and the Total Win
+	stateGame.hudHeld = true;
 	eventEmitter.broadcast({ type: 'uiHide' });
 	// THE CARD ON THE LED BACK BOARD (constants LED_BOARD.cards, part B): the Free Spins entry, the Super entry and the Total
 	// Win play as the board's staged scenes, with the press line on the strip; the HTML card keeps the press, its timers and
@@ -61,6 +64,7 @@ const showCard = async (card: RoundCard) => {
 	stateGame.roundCard = null;
 	if (board) eventEmitter.broadcast({ type: 'boardScoreboardCardEnd' });
 	eventEmitter.broadcast({ type: 'uiShow' });
+	stateGame.hudHeld = false;
 };
 /** ui/RoundCard.svelte: the card was pressed, or its time ran out */
 export const dismissRoundCard = () => {
@@ -312,6 +316,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.skipTaken = false;
 		setHudWin(bookEvent.amount);
 		stateGame.capped = false;
+		stateGame.hudHeld = false;
 		stateGame.busy = false;
 	},
 

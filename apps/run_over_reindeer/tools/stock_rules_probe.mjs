@@ -2,7 +2,7 @@
 // WATCHES: apps/run_over_reindeer/src/{game/bonusStockRules.ts,game/actor.ts,ui/controls.svelte.ts,ui/hud/HudKey.svelte}, packages/utils-xstate/src/**;
 // WATCHES: ; data-resume-card, data-resume
 // WATCHES: ; __reindeer.stockRules, __reindeer.fixtures, __reindeer.hud, __reindeer.atRest, AUTOPLAY_RESUME_PAUSE_MS, bonusEntered, bonusLeft, autoSpinPause
-// WATCHES: ; baseTurboLevel, turboLevel, autoStopOnFreeGames, autoPlayBonuses, data-l, data-round-card, .hudp, .fold-row, .go, button.catch
+// WATCHES: ; baseTurboLevel, turboLevel, autoStopOnFreeGames, autoPlayBonuses, data-l, data-round-card, .hudp, .fold-row, .go, button.catch, .hud-held
 // WATCHES: apps/run_over_reindeer/src/{ui/SpinHotkey.svelte,ui/Chrome.svelte}; isSpaceHold
 // WATCHES: apps/run_over_reindeer/src/game/scoreboard/show.ts; LED_BOARD.ideas, motionFor
 // WATCHES: apps/run_over_reindeer/src/ui/RoundCard.svelte; ROUND.introWaitsForPress, ROUND.lineOutroWaitsForPress, ROUND.autoplayMs, ROUND.introAutoMs, ROUND.outroAutoMs, ROUND.wrapAutoHoldMs, __reindeer.scoreboard
@@ -65,8 +65,9 @@ const autoLive = (p) =>
 		let op = 1;
 		for (let e = k; e; e = e.parentElement) op *= Number(getComputedStyle(e).opacity);
 		const pe = getComputedStyle(k).pointerEvents;
-		// hudOff: the HUD steps aside for a card (uiHide; ui/Chrome.svelte): its keys take no press until it is back
-		const hudOff = !!document.querySelector('.am-ui.layer.hud-off');
+		// hudOff: the HUD steps aside for a card (uiHide; ui/Chrome.svelte): its keys take no press until it is back. Since
+		// 2026-11-20 it stays on screen under a card, inert (hud-held, game/stateGame hudHeld): aside all the same
+		const hudOff = !!document.querySelector('.am-ui.layer.hud-off, .am-ui.layer.hud-held');
 		return { ok: !k.disabled && pe !== 'none' && !!at && (at === k || k.contains(at)), disabled: k.disabled, pe, hit: at === k || k.contains(at), op: Math.round(op * 100) / 100, hudOff };
 	});
 
