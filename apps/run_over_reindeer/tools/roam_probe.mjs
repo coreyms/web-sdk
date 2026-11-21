@@ -1999,7 +1999,11 @@ async function contrastSize(browser, S) {
 				const tag = `${name} ${preset} (${R.look} look, held to its ${rule.what} at ${rule.min} to 1)`;
 				const v = (q) => (q ? q[rule.key] : null);
 				check(R.his && !!R.puff && v(R.puff) >= rule.min, `${tag}: the puff at its largest at full opacity (${R.puff?.css} CSS px) stands out ${v(R.puff)}:1 (body ${R.puff?.body}, rim ${R.puff?.rim}, edge ${R.puff?.edge}, tone ${R.puff?.tone}; ground ${R.puff?.ground})`, R.puff);
-				check(R.his && !!R.snow && v(R.snow) >= rule.min, `${tag}: a speck in mid flight (${R.snow?.css} CSS px) stands out ${v(R.snow)}:1 (body ${R.snow?.body}, rim ${R.snow?.rim}, edge ${R.snow?.edge}, tone ${R.snow?.tone}; ground ${R.snow?.ground})`, R.snow);
+				// (Corey 2026-11-21, shown the A look's 5 px specks on night snow reading 1.34 to 1.83 to 1: "Leave it". The
+				// speck there is his accepted look, so on night snow it is held to being there and above 1.2 to 1; the puff's
+				// own line above and every other ground keep the look's full rule.)
+				const speckMin = R.look === 'A' && preset === 'snowNight' ? 1.2 : rule.min;
+				check(R.his && !!R.snow && v(R.snow) >= speckMin, `${tag}${speckMin !== rule.min ? ` (the speck here at ${speckMin} to 1, his accepted look)` : ''}: a speck in mid flight (${R.snow?.css} CSS px) stands out ${v(R.snow)}:1 (body ${R.snow?.body}, rim ${R.snow?.rim}, edge ${R.snow?.edge}, tone ${R.snow?.tone}; ground ${R.snow?.ground})`, R.snow);
 				check(!!R.puff && R.puff.css >= 0.74 * 22 - 0.5 && !!R.snow && R.snow.css >= 4.5, `${tag}: their size on the screen: the puff ${R.puff?.css} CSS px here (22 at its largest at least), the speck ${R.snow?.css}`);
 			}
 		}
