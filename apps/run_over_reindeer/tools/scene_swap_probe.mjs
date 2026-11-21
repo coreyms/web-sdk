@@ -4,7 +4,7 @@
 // WATCHES: ; __reindeer.led, __reindeer.logoHold, __reindeer.roadBoard, __reindeer.scene, __reindeer.sceneChoice, __reindeer.sceneOnly
 // WATCHES: ; __reindeer.sceneSetting, __reindeer.sceneSprites, __reindeer.sceneSwap, __reindeer.sceneSwapHold, __reindeer.sceneSwapStep
 // WATCHES: ; __reindeer.scoreboard, __reindeer.scoreboardManual, __reindeer.seatTime, __reindeer.turbo, ROUND, SCENE, data-top-line
-// WATCHES: ; data-scene-switch, data-scene-choice, data-hud, .landing, .am-ui, .layer, .hud-off, .hudp, .stat, .value, .label, .kl, .fb, .lb
+// WATCHES: ; data-scene-switch, data-scene-choice, data-hud, .landing, .am-ui, .layer, .hud-off, .hud-held, .hudp, .stat, .value, .label, .kl, .fb, .lb
 // WATCHES: ; .spin, .vt, .mp
 // WATCHES: apps/run_over_reindeer/src/{game/scenePrefetch.ts,ui/LandingScreen.svelte}; __reindeer.scenePrefetch, noScenePrefetch
 // THE SCENE SWAP PROBE (2026-11-17; game/scene/sceneSwap.ts, game/scenePresets.ts snowDay / snowNight / snowSuper). At
@@ -237,7 +237,7 @@ const swapNow = (p) =>
 			show: sb.show ? { kind: sb.show.kind, t: sb.show.t, phase: sb.show.phase, seatedAt: sb.show.seatedAt } : null,
 			idle: window.__reindeer.hud.idle(),
 			rest: window.__reindeer.atRest(),
-			hudOff: !!document.querySelector('.am-ui.layer.hud-off'),
+			hudOff: !!document.querySelector('.am-ui.layer.hud-off, .am-ui.layer.hud-held'),
 			log: s.log,
 		};
 	});
@@ -529,7 +529,8 @@ const armQuiet = (p, night) =>
 			if (!r || window.__swapQuiet) return;
 			const s = r.sceneSwap();
 			const sb = r.scoreboard();
-			const hudOff = !!document.querySelector('.am-ui.layer.hud-off');
+			// (the HUD under a card: faded before 2026-11-20, on screen and inert since, hud-held)
+			const hudOff = !!document.querySelector('.am-ui.layer.hud-off, .am-ui.layer.hud-held');
 			if (hudOff || r.gameType() !== 'freegame') hudSince = t;
 			// (no reindeer running, no crosshair, no win lines: the board idle between spins)
 			const rb = r.roadBoard();

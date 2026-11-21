@@ -1,5 +1,6 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
-// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,ui/hud/hudLayout.ts};
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,ui/hud/hudLayout.ts,ui/Chrome.svelte,ui/RoundCard.svelte,game/bookEventHandlerMap.ts};
+// WATCHES: ; hudHeld, .hud-held, button.catch, data-round-card, data-skip, __reindeer.scoreboard
 // WATCHES: ; __reindeer.skipHud, data-skip, __reindeer.atRest, __reindeer.boardLayout, __reindeer.fixtures, __reindeer.gameType, __reindeer.hud, __reindeer.scene
 // WATCHES: ; data-title-sign, data-hud, data-hud-step, data-st, .hudp, .landing, .fb, .lb, .am-ui, .lbw, .value, .mp, .is-open, .mpsh, .layer
 // WATCHES: ; .modals, .panel, .sweep, .go, .spin, .cg, .rr, .rw, .rs, .fx, .halo, data-face, data-run
@@ -39,6 +40,10 @@
 //   · EVERY ROUND TURNS THE RING (section `rounds`, 2026-11-20): an autoplay run of at least 6 rounds back to back (Super
 //     Turbo, the no-win fixture on every round) and a free spins round: at each spin's start (the board's own count,
 //     game/boardPace.ts serial) data-run 1 within 100 ms and the ring 10 degrees on within 400 ms
+//   · THE HUD UNDER THE BONUS ROUND'S CARDS (section `cards`, 2026-11-20): on the entry and the wrap-up, at 390 x 844,
+//     844 x 390 and 1440 x 900, the HUD is held on screen (hud-held, inert, not hud-off), BALANCE and WIN readable, every
+//     key on screen, nothing focusable, the Spin's spot takes the card's press; on the wrap-up WIN holds the round's total
+//     (the card's amount); after it the HUD is live again
 //   · the words: no character outside printable ASCII in the HUD's and the Autoplay menu's visible text; in social mode
 //     (?social=true) also no restricted word (bet, buy, cash, money, paid, credit, gamble, wager, stake), aria included
 // With SHOTS=<dir> it saves the idle and the spinning HUD at each size (phones at device pixel ratio 3, the rest at 2).
@@ -109,8 +114,9 @@ const H = () => window.__reindeer;
 
 async function boot(browser, S, extra = '') {
 	const ctx = await browser.newContext({ viewport: S.vp, deviceScaleFactor: S.phone ? 3 : 2, isMobile: S.touch && S.family !== 'desktop', hasTouch: S.touch, reducedMotion: S.reduced ? 'reduce' : 'no-preference' });
-	// (2026-11-17: the bonus entry waits for the press: round_card_press.mjs presses it on the old card's timing)
-	await pressRoundCards(ctx);
+	// (2026-11-17: the bonus entry waits for the press: round_card_press.mjs presses it on the old card's timing; the
+	// `cards` section presses its cards itself, S.ownPress)
+	if (!S.ownPress) await pressRoundCards(ctx);
 	const p = await ctx.newPage();
 	const errs = [];
 	p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
@@ -798,6 +804,123 @@ async function everyRoundTurns(browser) {
 	await ctx.close();
 }
 
+/** THE HUD UNDER THE BONUS ROUND'S CARDS (section `cards`, 2026-11-20, Manticore Unleashed's rule from its harsh review
+ *  2026-11-17 m8): the entry and the wrap-up (the LED back board's scenes, ui/RoundCard.svelte's catch) keep the HUD on
+ *  screen, disabled: the layer hud-held and inert (not hud-off), BALANCE and WIN readable (text, opacity 1), every key on
+ *  screen, none of them focusable, and the Spin's own spot takes the card's press (button.catch), not the Spin; on the
+ *  wrap-up WIN holds the round's total, the amount the card counts to (stateBet.winBookEventAmount against the board's
+ *  card amount, its digits). Upright phone 390 x 844, sideways phone 844 x 390, desktop 1440 x 900; natural_free_spins, SKIP TO RESULT
+ *  from the first free spin to reach the wrap-up sooner. */
+async function cardsHud(browser) {
+	const SIZES_CARDS = [
+		{ name: 'cards-portrait', vp: { width: 390, height: 844 }, touch: true, phone: true, family: 'portrait', ownPress: true },
+		{ name: 'cards-landscape', vp: { width: 844, height: 390 }, touch: true, phone: true, family: 'landscape', ownPress: true },
+		{ name: 'cards-desktop', vp: { width: 1440, height: 900 }, touch: false, phone: false, family: 'desktop', ownPress: true },
+	];
+	const read = (p) =>
+		p.evaluate((C) => {
+			const layer = document.querySelector('.am-ui.layer:not(.modals)');
+			const op = (e) => {
+				let o = 1;
+				for (let x = e; x && x !== document.body; x = x.parentElement) o *= parseFloat(getComputedStyle(x).opacity);
+				return o;
+			};
+			const rd = (sel) => {
+				const e = document.querySelector(sel);
+				return e ? { text: e.textContent.replace(/\s+/g, ' ').trim(), op: Math.round(op(e) * 100) / 100 } : null;
+			};
+			const keys = Object.entries(C).map(([k, sel]) => {
+				const e = document.querySelector(sel);
+				return { k, there: !!e, op: e ? Math.round(op(e) * 100) / 100 : 0 };
+			});
+			const focusable = [...(layer?.querySelectorAll('button, [tabindex]') ?? [])].filter((e) => {
+				e.focus();
+				return document.activeElement === e;
+			}).length;
+			const spin = document.querySelector(C.spin);
+			const b = spin?.getBoundingClientRect();
+			const hit = b ? document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2) : null;
+			const show = window.__reindeer.scoreboard?.()?.show;
+			return {
+				held: !!layer?.classList.contains('hud-held'),
+				off: !!layer?.classList.contains('hud-off'),
+				inert: !!layer?.inert,
+				balance: rd('.hudp [data-hud="balance"]'),
+				win: rd('.hudp [data-hud="win"]'),
+				keys,
+				focusable,
+				spinHit: hit ? (hit.closest('.hudp') ? 'hud' : hit.matches('button.catch') ? 'catch' : hit.tagName.toLowerCase()) : null,
+				card: document.querySelector('[data-round-card]')?.getAttribute('data-round-card') ?? null,
+				show: show ? { kind: show.kind, phase: show.phase, amount: show.amount ?? null } : null,
+				hudWin: window.__reindeer.hud.win(),
+			};
+		}, CONTROLS);
+	const waitCard = async (p, kind, ms) => {
+		const t0 = Date.now();
+		while (Date.now() - t0 < ms) {
+			const st = await p
+				.evaluate((kind) => {
+					document.querySelector('button[data-wheel-gate]')?.click();
+					if (kind === 'outro' && !document.querySelector('[data-round-card]')) {
+						const yes = document.querySelector('[data-skip="yes"]');
+						if (yes) yes.click();
+						else {
+							const b = document.querySelector('[data-skip="button"]');
+							if (b && !b.disabled && parseFloat(getComputedStyle(b).opacity) > 0.5) b.click();
+						}
+					}
+					const s = window.__reindeer.scoreboard?.()?.show;
+					return !!document.querySelector(`[data-round-card="${kind}"]`) && !!s && s.phase === 'waits';
+				}, kind)
+				.catch(() => false);
+			if (st) return true;
+			await sleep(250);
+		}
+		return false;
+	};
+	const judge = (r, tag) => {
+		check(r.held && !r.off && r.inert, `${tag}: the HUD layer is held (on screen, inert), not faded`, { held: r.held, off: r.off, inert: r.inert });
+		check(!!r.balance?.text && r.balance.op >= 0.99 && !!r.win?.text && r.win.op >= 0.99, `${tag}: BALANCE (${r.balance?.text}) and WIN (${r.win?.text}) readable`, { balance: r.balance, win: r.win });
+		// (a key's disabled look may dim it a little; a faded HUD is 0)
+		const gone = r.keys.filter((k) => !k.there || k.op <= 0.2);
+		check(gone.length === 0, `${tag}: every key on screen under the card, not faded out`, gone);
+		check(r.focusable === 0 && r.spinHit === 'catch', `${tag}: no HUD control can take focus and the Spin's spot takes the card's press (${r.spinHit})`, { focusable: r.focusable, spinHit: r.spinHit });
+	};
+	for (const S of SIZES_CARDS) {
+		const tag = `cards ${S.vp.width}x${S.vp.height}`;
+		const { ctx, p, errs } = await boot(browser, S);
+		await settle(p, S);
+		await p.evaluate(() => window.__reindeer.fixtures.next('natural_free_spins'));
+		await spinOnce(p);
+		const intro = await waitCard(p, 'intro', 180000);
+		check(intro, `${tag}: the entry card is up and waiting for the press`);
+		if (intro) {
+			await sleep(900);
+			judge(await read(p), `${tag} entry`);
+		}
+		await p.evaluate(() => document.querySelector('button.catch:not([data-wheel-gate])')?.click());
+		const outro = await waitCard(p, 'outro', 300000);
+		check(outro, `${tag}: the wrap-up card is up and waiting for the press`);
+		if (outro) {
+			await sleep(900);
+			const r = await read(p);
+			judge(r, `${tag} wrap-up`);
+			// (the board's card amount is the formatted string it draws; WIN's own text carries the same digits)
+			const digits = (t) => String(t ?? '').replace(/[^0-9]/g, '');
+			check(r.show?.kind === 'total' && r.hudWin > 0 && !!digits(r.show.amount) && digits(r.show.amount) === digits(r.win?.text), `${tag} wrap-up: WIN holds the round's total, the card's amount (${r.win?.text} against ${r.show?.amount})`, r.show);
+		}
+		await p.evaluate(() => document.querySelector('button.catch:not([data-wheel-gate])')?.click());
+		await settle(p, S, 120000);
+		const after = await p.evaluate(() => {
+			const layer = document.querySelector('.am-ui.layer:not(.modals)');
+			return { held: !!layer?.classList.contains('hud-held'), off: !!layer?.classList.contains('hud-off'), inert: !!layer?.inert };
+		});
+		check(!after.held && !after.off && !after.inert, `${tag}: after the wrap-up the HUD is live again`, after);
+		check(errs.filter((x) => !/favicon/.test(x)).length === 0, `${tag}: no console errors`, errs.slice(0, 5));
+		await ctx.close();
+	}
+}
+
 /** THE LANE RING WITH REDUCED MOTION (2026-11-20): nothing on the Spin turns or loops at rest or in a round; the stop
  *  square only fades in (the ring's driver checks the same query) */
 async function reducedMotion(browser) {
@@ -953,6 +1076,13 @@ async function flip(browser) {
 				await everyRoundTurns(browser);
 			} catch (e) {
 				check(false, 'rounds: ran to the end', String(e).slice(0, 300));
+			}
+		}
+		if (!ONLY.length || ONLY.includes('cards')) {
+			try {
+				await cardsHud(browser);
+			} catch (e) {
+				check(false, 'cards: ran to the end', String(e).slice(0, 300));
 			}
 		}
 		if (!ONLY.length || ONLY.includes('reduced')) {

@@ -64,6 +64,11 @@ export const stateGame = $state({
 	autoPlayBonuses: false,
 	/** how many press-to-continue screens are up (Space belongs to them): the bonus round's cards */
 	pressGates: 0,
+	/** THE HUD UNDER THE BONUS ROUND'S CARDS (2026-11-20, Manticore Unleashed's rule, its harsh review 2026-11-17 m8): set by
+	 *  game/bookEventHandlerMap.ts showCard around its uiHide .. uiShow (the entry and the wrap-up). While it is set a plain
+	 *  uiHide keeps the HUD on screen, inert (ui/Chrome.svelte hud-held: no pointer, no focus, the press still reaches the
+	 *  card's catch), BALANCE and WIN readable. finalWin clears it */
+	hudHeld: false,
 	/** a win screen is up (none in the first pass: line wins show on the board itself) */
 	winShowing: false,
 	/** a mode plaque is up (none in the first pass) */

@@ -81,9 +81,14 @@
 	// outside the `if (show)` guard below — the max flow hides the HUD at the win plate and only
 	// deepens it later, so a deep uiHide must land even when the chrome is already faded.
 	let deep = $state(false);
+	// THE HUD UNDER THE BONUS ROUND'S CARDS (2026-11-20, Manticore Unleashed's rule; game/stateGame hudHeld): a plain uiHide
+	// while the game holds the HUD leaves it on screen as it is, inert (no pointer, no focus: the press reaches the card's
+	// catch as when it was faded), BALANCE and WIN readable. A deep uiHide still takes it all
+	let held = $state(false);
 	const FADE = 350;
 	context.eventEmitter.subscribeOnMount({
 		uiShow: async () => {
+			held = false;
 			deep = false;
 			if (!show) {
 				show = true;
@@ -91,6 +96,11 @@
 			}
 		},
 		uiHide: async (emitterEvent) => {
+			if (context.stateGame.hudHeld && !emitterEvent.deep && show) {
+				held = true;
+				return;
+			}
+			held = false;
 			const wasDeep = deep;
 			deep = emitterEvent.deep ?? false;
 			if (show) {
@@ -124,8 +134,18 @@
      uiHide (bonus intro, the wrap-up, max win) fades the HUD too, but NOT the elements marked `keep`:
      the landscape and portrait logos and every layout's WIN readout stay up through every presentation
      (Corey 2026-09-15; the wrap-up total is then readable off the HUD as well as the plate). The phone
-     logo shares its column with the prompt, so it still goes with the HUD there. -->
-<div class="am-ui layer" class:hidden={context.stateLayout.showLoadingScreen || stateModal.modal != null} class:hud-off={!show} class:hud-deep={!show && deep} data-chrome={kind}>
+     logo shares its column with the prompt, so it still goes with the HUD there.
+     Since 2026-11-20 the bonus round's cards hold the HUD on screen instead (hud-held, game/stateGame hudHeld): inert,
+     BALANCE and WIN readable under the entry and the wrap-up. -->
+<div
+	class="am-ui layer"
+	class:hidden={context.stateLayout.showLoadingScreen || stateModal.modal != null}
+	class:hud-off={!show}
+	class:hud-deep={!show && deep}
+	class:hud-held={held}
+	inert={held}
+	data-chrome={kind}
+>
 	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})" style:--fit-scale={scale} style:--vp-extra-bottom="{extraBottom}px" style:--vp-extra-top="{extraTop}px">
 		{#if kind === 'landscape'}
 			<ChromeLandscape {controls} {hud} />
@@ -160,7 +180,8 @@
 		opacity: 0;
 	}
 	.layer.hidden :global(*),
-	.layer.hud-off :global(*) {
+	.layer.hud-off :global(*),
+	.layer.hud-held :global(*) {
 		pointer-events: none !important;
 	}
 	/* uiHide: every top-level chrome element fades except the ones marked keep (the logo, the WIN
