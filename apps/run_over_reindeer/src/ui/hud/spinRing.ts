@@ -201,6 +201,15 @@ export class RingDriver {
 		this.draw(now);
 	}
 
+	/** THE HOVER (desktop pointers): on, the quarter turn forward; off, forward home and the bounce (RingCore.hover) */
+	hover(on: boolean) {
+		const L = this.layer();
+		if (!L) return;
+		const now = performance.now();
+		this.core.hover(now, on, ang(L.rw) + ang(L.rr));
+		this.draw(now);
+	}
+
 	/** a brake from now over T ms and a settle of Ts (onto home, RingCore.brakeNow) */
 	brake(T: number, Ts: number, t: Turbo) {
 		if (this.core.phase !== 'spin') return;

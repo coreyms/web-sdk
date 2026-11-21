@@ -46,8 +46,10 @@
 //     ui/hud/ringPlan.ts): 10 rounds at 1440 x 900 (three at Regular, two at Super Turbo, two stop presses at Regular
 //     300 and 900 ms in, a run of three autoplay rounds; the run's ending Stop press brakes a fourth, reported, not
 //     judged), each a line with its rest's distance from home (as planned and as drawn on the page), its brake against
-//     today's and the cruise's largest speed change (as planned and as drawn). Pass: 9 of 10 or better within 2 degrees
-//     of home, no brake over today's + 150 ms. HOME_METHODS=steer,long,fixed records each rest method in turn (the dev
+//     today's and the cruise's largest speed change (as planned and as drawn). Then two desktop hovers (800 and 300 ms
+//     over the key, then off it): their way home. Each line also prints the bounce's overshoot (planned and drawn) and
+//     the round's bound. Pass: 9 of 10 or better within 2 degrees of home, both hovers home, no brake over its bound
+//     (today's + 150 ms; a stop press today's + 250 ms; the bounce inside). HOME_METHODS=steer,long,fixed records each rest method in turn (the dev
 //     hook's ringMethod; steer, the game's, by default)
 //   · THE HUD UNDER THE BONUS ROUND'S CARDS (section `cards`, 2026-11-20): on the entry and the wrap-up, at 390 x 844,
 //     844 x 390 and 1440 x 900, the HUD is held on screen (hud-held, inert, not hud-off), BALANCE and WIN readable, every
@@ -816,8 +818,8 @@ async function everyRoundTurns(browser) {
 /** THE HOME POSE (section `home`, 2026-11-20, Corey on the ring coming to rest at a random angle: "Fix it";
  *  ui/hud/ringPlan.ts). The page records the ring every frame (its phase and its angle on the page, the two driven
  *  wrappers) while 10 rounds play; the dev hook's ringRounds says what each round planned (its kind, its brake and
- *  today's for the same end, its cruise speed change, its planned rest). Each round prints one line; the rule: 9 of 10 or
- *  better within 2 degrees of home (the angle drawn on the page just after the planned rest; a round the next spin
+ *  today's for the same end and its bound, its cruise speed change, its bounce, its planned rest); then two desktop
+ *  hovers. Each round prints one line; the rule: 9 of 10 or better within 2 degrees of home, both hovers home (the angle drawn on the page just after the planned rest; a round the next spin
  *  began before its rest is judged by its plan), and no brake over today's + 150 ms (as planned, and as drawn: the first
  *  frame from which the drawn angle sits on the planned rest, less that frame's gap). */
 const HOME_TOL = 2;
@@ -856,7 +858,7 @@ const lastRingN = async (p) => {
 const fold = (a) => ((((a + 180) % 360) + 360) % 360) - 180;
 /** one round's line: the plan (ringRounds) against the page's frames */
 function homeJudge(R, rows, tag) {
-	const out = { tag, err: R.err, page: null, brake: R.brakeMs, today: R.todayMs, seen: null, steer: R.steer, pageSteer: null, ended: R.ended, kind: `${R.kind}/${R.shape}` };
+	const out = { tag, err: R.err, page: null, brake: R.brakeMs, today: R.todayMs, bound: R.boundMs, seen: null, steer: R.steer, pageSteer: null, over: R.over, pageOver: null, ended: R.ended, kind: `${R.kind}/${R.shape}` };
 	if (R.restAt !== null) {
 		// the angle drawn on the first frame at or after the planned rest
 		const at = rows.find((r) => r.t >= R.restAt && r.a !== null);
@@ -882,9 +884,14 @@ function homeJudge(R, rows, tag) {
 			out.seen = rows[j].t - R.brakeAt;
 			out.slack = j > 0 ? rows[j].t - rows[j - 1].t : 0;
 		}
+		// THE BOUNCE as drawn: the farthest past the rest from the end of the way home (40 ms early) to the rest
+		if (R.over && R.bounceMs && R.ended === 'rest') {
+			const B = rows.filter((r) => r.t >= R.restAt - R.bounceMs - 40 && r.t <= R.restAt + 5 && r.a !== null);
+			if (B.length) out.pageOver = Math.max(...B.map((r) => fold(r.a - R.rest)));
+		}
 	}
 	// the cruise as drawn: frame to frame speed against the loop's, from the wind-up's end to the brake
-	if (R.brakeAt !== null) {
+	if (R.brakeAt !== null && R.kind !== 'hover') {
 		// (only where a frame cannot carry the ring past 150 degrees: further apart, the turn between two frames is
 		// ambiguous and the speed read from it means nothing)
 		const cr = rows.filter((r) => r.t > R.upEnd + 20 && r.t < R.brakeAt - 5 && r.u !== null);
@@ -899,9 +906,9 @@ function homeJudge(R, rows, tag) {
 	}
 	return out;
 }
-const homeLine = (method, i, o) =>
+const homeLine = (method, i, o, of = 10) =>
 	console.log(
-		`  HOME ${method} ${String(i).padStart(2)}/10 ${o.tag.padEnd(22)} rest ${o.err === null ? '?' : o.err.toFixed(2)} deg from home (page ${o.page === null ? (o.ended === 'next' ? 'none: the next spin began first' : '?') : o.page.toFixed(2)}), brake ${o.brake === null ? '?' : Math.round(o.brake)} ms against today's ${o.today === null ? '?' : Math.round(o.today)} (${o.brake === null ? '?' : `${o.brake - o.today >= 0 ? '+' : ''}${Math.round(o.brake - o.today)}`}; page ${o.seen === null ? '?' : Math.round(o.seen)} ms), cruise speed change ${Math.round(100 * (o.steer ?? 0))} % (page ${o.pageSteer === null ? '?' : o.pageSteer === 'far' ? '? frames too far apart' : Math.round(100 * o.pageSteer) + ' %'}), ${o.kind}`,
+		`  HOME ${method} ${String(i).padStart(2)}/${of} ${o.tag.padEnd(22)} rest ${o.err === null ? '?' : o.err.toFixed(2)} deg from home (page ${o.page === null ? (o.ended === 'next' ? 'none: the next spin began first' : '?') : o.page.toFixed(2)}), overshoot ${o.over === null ? '?' : o.over.toFixed(1)} deg (page ${o.pageOver === null ? '?' : o.pageOver.toFixed(1)}), ${o.today === null ? `way home ${Math.round(o.brake ?? 0)} ms (page ${o.seen === null ? '?' : Math.round(o.seen)} ms)` : `brake ${o.brake === null ? '?' : Math.round(o.brake)} ms against today's ${Math.round(o.today)} (${o.brake === null ? '?' : `${o.brake - o.today >= 0 ? '+' : ''}${Math.round(o.brake - o.today)}`}, bound ${o.bound === null ? '?' : Math.round(o.bound)}; page ${o.seen === null ? '?' : Math.round(o.seen)} ms)`}, cruise speed change ${Math.round(100 * (o.steer ?? 0))} % (page ${o.pageSteer === null ? '?' : o.pageSteer === 'far' ? '? frames too far apart' : Math.round(100 * o.pageSteer) + ' %'}), ${o.kind}`,
 	);
 
 async function setTurboR(p, want) {
@@ -919,7 +926,7 @@ async function homePose(browser) {
 		const { ctx, p, errs } = await boot(browser, S);
 		await settle(p, S);
 		await sleep(500);
-		// (the pointer off the Spin: its hover quarter turn is a wrapper of its own, never measured, but kept out)
+		// (the pointer off the Spin: a desktop hover turns the ring itself since 2026-11-20; the hover rounds below put it on)
 		await p.mouse.move(4, 4);
 		const got = await p.evaluate((m) => window.__reindeer.ringMethod?.(m) ?? null, method);
 		if (got !== method) {
@@ -939,14 +946,20 @@ async function homePose(browser) {
 			await setTurboR(p, turbo);
 			const n0 = await lastRingN(p);
 			await p.click(CONTROLS.spin);
+			// (the stop press as the key's own click, at once: Playwright's click waits for the key to hold still, and the
+			// key pops at the press, so the probe's stop came only after the round in this Mac's first smoke runs)
+			let stopAt = null;
 			if (haltMs !== null) {
 				await sleep(haltMs);
-				await p.click(CONTROLS.spin).catch(() => {});
+				stopAt = await p.evaluate(() => {
+					document.querySelector('.hudp button.spin')?.click();
+					return performance.now();
+				});
 			}
 			await restWait();
 			const R = (await ringRounds(p)).filter((r) => r.n > n0);
 			if (!R.length) check(false, `home ${method} ${tag}: the ring recorded the round`);
-			else judged.push([R[R.length - 1], tag]);
+			else judged.push([R[R.length - 1], stopAt === null ? tag : `${tag} (${Math.round(stopAt - R[R.length - 1].startAt)} in)`]);
 		};
 		await one('regular', 0);
 		await one('regular', 0);
@@ -955,6 +968,25 @@ async function homePose(browser) {
 		await one('super turbo', 2);
 		await one('stop at 300 ms', 0, 300);
 		await one('stop at 900 ms', 0, 900);
+		// TWO HOVER ROUNDS (a desktop pointer): over the key 800 ms, then 300 ms (the quarter turn forward, cut short), and
+		// off it (forward home and the bounce)
+		const hovers = [];
+		await p.mouse.move(4, 4);
+		await sleep(500);
+		for (const ms of [800, 300]) {
+			const n1 = await lastRingN(p);
+			const b = await p.evaluate(() => {
+				const r = document.querySelector('.hudp button.spin').getBoundingClientRect();
+				return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+			});
+			await p.mouse.move(b.x, b.y, { steps: 4 });
+			await sleep(ms);
+			await p.mouse.move(4, 4, { steps: 4 });
+			await sleep(1200);
+			const H = (await ringRounds(p)).filter((r) => r.n > n1 && r.kind === 'hover');
+			if (!H.length) check(false, `home ${method} hover ${ms} ms: the ring recorded the hover's way home`);
+			else hovers.push([H[H.length - 1], `hover ${ms} ms`]);
+		}
 		// A SHORT AUTOPLAY RUN (Regular): three rounds back to back judged; the run's ending Stop press brakes the fourth
 		await setTurboR(p, 0);
 		const n0 = await lastRingN(p);
@@ -979,6 +1011,11 @@ async function homePose(browser) {
 			homeLine(method, i + 1, o);
 			return o;
 		});
+		const hres = hovers.map(([R, tag], i) => {
+			const o = homeJudge(R, rows, tag);
+			homeLine(method, i + 1, o, 2);
+			return o;
+		});
 		if (A[3]) {
 			const o = homeJudge(A[3], rows, "autoplay's Stop press");
 			console.log(`  INFO home ${method}: the run's ending Stop press (not judged): rest ${o.err === null ? '?' : o.err.toFixed(2)} deg, page ${o.page === null ? '?' : o.page.toFixed(2)}, brake ${Math.round(o.brake ?? 0)} ms against today's ${Math.round(o.today ?? 0)}, ${o.kind}`);
@@ -988,11 +1025,17 @@ async function homePose(browser) {
 		const med = gaps[Math.floor(gaps.length / 2)] ?? 0;
 		// (half a ms for the sums' rounding; the brake as drawn is seen on the first frame at its rest, so that frame's gap
 		// is its slack)
-		const over = res.filter((o) => o.brake !== null && (o.brake > o.today + HOME_EXTRA + 0.5 || (o.seen !== null && o.seen - (o.slack ?? 0) > o.today + HOME_EXTRA + 1)));
+		// (each brake against its own bound from the plan: today's + 150 ms, a stop press today's + 250 ms, the bounce inside)
+		const lim = (o) => o.bound ?? o.today + HOME_EXTRA;
+		const over = res.filter((o) => o.brake !== null && (o.brake > lim(o) + 0.5 || (o.seen !== null && o.seen - (o.slack ?? 0) > lim(o) + 1)));
 		const worst = Math.max(...res.filter((o) => o.brake !== null).map((o) => o.brake - o.today));
 		const worstSeen = Math.max(...res.filter((o) => o.seen !== null).map((o) => o.seen - o.today));
 		check(res.length === 10 && within >= 9, `home ${method}: ${within} of ${res.length} rounds rest within ${HOME_TOL} degrees of home (9 of 10 needed; frames every ${Math.round(med)} ms median)`, res.map((o) => `${o.tag} ${o.err?.toFixed(2)} / ${o.page?.toFixed(2)}`));
-		check(res.length === 10 && over.length === 0, `home ${method}: no brake over today's + ${HOME_EXTRA} ms (worst ${worst >= 0 ? '+' : ''}${Math.round(worst)} ms as planned, ${Number.isFinite(worstSeen) ? `${worstSeen >= 0 ? '+' : ''}${Math.round(worstSeen)}` : '?'} ms as drawn with frames every ${Math.round(med)} ms)`, over.map((o) => `${o.tag} ${Math.round(o.brake)} / page ${Math.round(o.seen ?? 0)} against ${Math.round(o.today)}`));
+		check(res.length === 10 && over.length === 0, `home ${method}: no brake over its bound, today's + ${HOME_EXTRA} ms or a stop press's today's + 250 ms (worst ${worst >= 0 ? '+' : ''}${Math.round(worst)} ms as planned, ${Number.isFinite(worstSeen) ? `${worstSeen >= 0 ? '+' : ''}${Math.round(worstSeen)}` : '?'} ms as drawn with frames every ${Math.round(med)} ms)`, over.map((o) => `${o.tag} ${Math.round(o.brake)} / page ${Math.round(o.seen ?? 0)} against ${Math.round(o.today)}`));
+		const hin = hres.filter((o) => o.err !== null && o.err <= HOME_TOL && (o.page === null || o.page <= HOME_TOL)).length;
+		check(hovers.length === 2 && hin === 2, `home ${method}: after both hovers the ring is home within ${HOME_TOL} degrees (${hin} of ${hovers.length})`, hres.map((o) => `${o.tag} ${o.err?.toFixed(2)} / ${o.page?.toFixed(2)}`));
+		const allO = [...res, ...hres].filter((o) => o.over !== null && o.over > 0);
+		console.log(`  INFO home ${method}: overshoot planned ${Math.min(...allO.map((o) => o.over)).toFixed(1)} to ${Math.max(...allO.map((o) => o.over)).toFixed(1)} deg; drawn ${allO.filter((o) => o.pageOver !== null).map((o) => o.pageOver.toFixed(1)).join(', ') || '?'}`);
 		await p.evaluate(() => window.__reindeer.fixtures.clear?.());
 		check(errs.filter((x) => !/favicon/.test(x)).length === 0, `home ${method}: no console errors`, errs.slice(0, 5));
 		await ctx.close();

@@ -1378,7 +1378,7 @@
 }
 /* THE FACE: concept G2 "Lane Ring" (ui/hud/spinRing.ts draws it, HudSpin turns it; Corey's pick from the spin symbols
    round 2 mock, 2026-11-20, whose CSS this is). A stack of layers over the key's whole inside: the free-spins fill, the
-   ring (one SVG under three transform-only wrappers: .rh the hover quarter turn and the breath, .rw the idle hop and the
+   ring (one SVG under three transform-only wrappers: .rh the breath and the idle kick, .rw the idle hop (retired) and the
    wind-up, .rr the loop and the brake), the stop square, the win sparks. Transform and opacity only. */
 .hudp .spin .fxs,
 .hudp .spin .fx,
@@ -1413,25 +1413,23 @@
 .hudp .spin[data-run='1'][data-tb='2'] .t2 {
 	display: inline;
 }
-/* at rest: a slow breath (3.5 % in scale, 3.4 s) and a hop forward every 2.8 s (nine hops of 40 degrees make one turn,
-   so the loop never jumps). The hop only pauses outside rest, so the ring keeps its angle through a round */
+/* at rest: a slow breath (3.5 % in scale, 3.4 s) and every 2.8 s a kick forward that springs back to the standing
+   position (Corey 2026-11-20: "a consistant standing position that it bounces back to"; it took the place of the hop
+   that stepped the ring on 40 degrees at a time, hud-ring-hop below, no longer used). The kick is on .rh's rotate, a
+   wrapper of its own, so the ring's own angle (.rw and .rr, ui/hud/ringPlan.ts) is home at every rest, and a kick cut
+   short by a press leaves nothing behind. */
 .hudp .spin .rh {
 	transition: rotate 0.55s cubic-bezier(0.3, 1.6, 0.45, 1);
 }
 .hudp .spin:is([data-st='idle'], [data-st='loaded'], [data-st='armed']):not(:disabled) .rh {
-	animation: hud-ring-breathe 3.4s ease-in-out infinite;
+	animation:
+		hud-ring-breathe 3.4s ease-in-out infinite,
+		hud-ring-kick 2.8s linear infinite;
 }
-.hudp .spin .rw {
-	animation: hud-ring-hop 25.2s linear infinite;
-	animation-play-state: paused;
-}
-.hudp .spin:is([data-st='idle'], [data-st='loaded'], [data-st='armed']):not(:disabled) .rw {
-	animation-play-state: running;
-}
-/* hover: a quarter turn with an overshoot (the rotate property, so it adds to the other turns) */
+/* hover: the ring's own quarter turn forward and its way home on leave are the driver's (HudSpin's pointer handlers,
+   RingCore.hover); here only the breath and the kick hold still while the pointer is over the key */
 @media (hover: hover) and (pointer: fine) {
 	.hudp .spin:hover:not(:disabled) .rh {
-		rotate: 90deg;
 		animation-play-state: paused;
 	}
 }
@@ -1505,6 +1503,24 @@
 @keyframes hud-ring-breathe {
 	50% {
 		scale: 1.035;
+	}
+}
+@keyframes hud-ring-kick {
+	0%,
+	86% {
+		rotate: 0deg;
+		animation-timing-function: cubic-bezier(0.3, 0, 0.3, 1);
+	}
+	91% {
+		rotate: 12deg;
+		animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+	}
+	96% {
+		rotate: -2deg;
+		animation-timing-function: ease-out;
+	}
+	100% {
+		rotate: 0deg;
 	}
 }
 @keyframes hud-ring-hop {
