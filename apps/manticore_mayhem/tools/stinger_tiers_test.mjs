@@ -6,10 +6,11 @@
 //   node --experimental-strip-types --no-warnings tools/stinger_tiers_test.mjs
 // Corey 2026-11-21: "Let's make the base games match the bonus round numbers, off the based spin amount. Let's drop Big
 // win from Bonus games individual spins. Raise Super to 200x and make that the trigger for the stinger." and "Yes it
-// should be also 200x." (the base game's Super). Checked:
-//   - BASE GAME spin: no Stinger under 50x; Big 50x, Super 200x, Mega 400x, Epic 1,500x, Max 10,000x
+// should be also 200x." (then softened for the base game, below). Checked:
+//   - BASE GAME spin: no Stinger under 25x; Big 25x, Super 100x, Mega 400x, Epic 1,500x, Max 10,000x (Corey, the same day,
+//     on the proposal "Big at 25x and Super at 100x, with Mega 400x and Epic 1,500x as you set them": "take yours")
 //   - FREE SPIN (every feature): no Stinger under 200x, NO Big tier; Super 200x, Mega 400x, Epic 1,500x, Max 10,000x
-//   - boundaries 49.99 / 50 / 99.99 / 100 / 199.99 / 200 / 399.99 / 400 / 1499.99 / 1500 / 10000 on both ladders
+//   - boundaries 24.99 / 25 / 99.99 / 100 / 399.99 / 400 / 1499.99 / 1500 / 10000 (base) and 199.99 / 200 and up (free)
 //   - the plaque opens on the ladder's FIRST tier (a free spin's on SUPER, never a BIG flash first), steps up once per
 //     bar the count crosses, each step at or past its bar, and lands on the win's own tier; a skip lands it in one beat
 //   - the tier clip played at the impact is the opening tier's (sfx_win_super on a free spin), never sfx_win_big there
@@ -50,19 +51,19 @@ const featureTier = (xBet, mode) => {
 };
 
 // ---- the ladders themselves ----------------------------------------------------------------------------------------
-check(JSON.stringify(W.WIN_TIER_STAGES.map((s) => [s.alias, s.xBet])) === JSON.stringify([['big', 50], ['superwin', 200], ['mega', 400], ['epic', 1500], ['max', 10000]]), 'base ladder 50 / 200 / 400 / 1500 / 10000', W.WIN_TIER_STAGES);
+check(JSON.stringify(W.WIN_TIER_STAGES.map((s) => [s.alias, s.xBet])) === JSON.stringify([['big', 25], ['superwin', 100], ['mega', 400], ['epic', 1500], ['max', 10000]]), 'base ladder 25 / 100 / 400 / 1500 / 10000', W.WIN_TIER_STAGES);
 check(JSON.stringify(W.WIN_TIER_STAGES_FEATURE_SPIN.map((s) => [s.alias, s.xBet])) === JSON.stringify([['superwin', 200], ['mega', 400], ['epic', 1500], ['max', 10000]]), 'free spin ladder 200 / 400 / 1500 / 10000, no Big', W.WIN_TIER_STAGES_FEATURE_SPIN);
 check(JSON.stringify(W.WIN_TIER_STAGES_END_FEATURE.map((s) => s.xBet)) === JSON.stringify([50, 100, 400, 1500, 10000]), 'end of feature TOTAL WIN ladder unchanged', W.WIN_TIER_STAGES_END_FEATURE);
 for (const mode of ['bonus', 'super', 'epic', null]) check(W.featureSpinStages(mode) === W.WIN_TIER_STAGES_FEATURE_SPIN, `every feature's free spins use the one ladder (${mode})`);
 
 // ---- boundaries --------------------------------------------------------------------------------------------------
 // expected tier index: -1 = no Stinger, 0 Big .. 4 Max
-const BASE = [[0.5, -1], [4, -1], [14.99, -1], [15, -1], [30, -1], [49.99, -1], [50, 0], [60, 0], [99.99, 0], [100, 0], [199.99, 0], [200, 1], [399.99, 1], [400, 2], [1499.99, 2], [1500, 3], [9999.99, 3], [10000, 4]];
+const BASE = [[0.5, -1], [4, -1], [14.99, -1], [15, -1], [20, -1], [24.99, -1], [25, 0], [30, 0], [60, 0], [99.99, 0], [100, 1], [199.99, 1], [200, 1], [399.99, 1], [400, 2], [1499.99, 2], [1500, 3], [9999.99, 3], [10000, 4]];
 const FEAT = [[0.5, -1], [25, -1], [49.99, -1], [50, -1], [80, -1], [99.99, -1], [100, -1], [199.99, -1], [200, 1], [250, 1], [399.99, 1], [400, 2], [1499.99, 2], [1500, 3], [9999.99, 3], [10000, 4]];
 for (const [x, want] of BASE) check(baseTier(x) === want, `base ${x}x -> ${want < 0 ? 'no Stinger' : TIERS[want]}`, baseTier(x));
 for (const mode of ['bonus', 'super', 'epic']) for (const [x, want] of FEAT) check(featureTier(x, mode) === want, `free spin (${mode}) ${x}x -> ${want < 0 ? 'no Stinger' : TIERS[want]}`, featureTier(x, mode));
 // a base win under Big is level 4 or 5 (no word, no screen): the same treatment a 4x to 15x win had
-for (const x of [15, 30, 49.99]) {
+for (const x of [15, 20, 24.99]) {
 	const d = W.getWinLevelDataByBookEventAmount({ bookEventAmount: book(x) });
 	check(d && d.level === 5 && d.type === 'medium' && d.text === null, `base ${x}x is level 5, no word`, d && d.level);
 }
@@ -99,8 +100,8 @@ const playCount = (xBet, stages, { skipAtMs } = {}) => {
 
 const tiersOf = (r) => r.seq.map((s) => TIERS[s.tier]).join(' > ');
 const cases = [
-	['base 60x', 60, W.WIN_TIER_STAGES, 'big', 'sfx_win_big'],
-	['base 250x', 250, W.WIN_TIER_STAGES, 'big > super', 'sfx_win_big'],
+	['base 30x', 30, W.WIN_TIER_STAGES, 'big', 'sfx_win_big'],
+	['base 150x', 150, W.WIN_TIER_STAGES, 'big > super', 'sfx_win_big'],
 	['base 450x', 450, W.WIN_TIER_STAGES, 'big > super > mega', 'sfx_win_big'],
 	['base 2000x', 2000, W.WIN_TIER_STAGES, 'big > super > mega > epic', 'sfx_win_big'],
 	['base 10000x', 10000, W.WIN_TIER_STAGES, 'big > super > mega > epic > max', 'sfx_win_big'],
@@ -125,7 +126,7 @@ for (const [name, x, stages, want, sound] of cases) {
 	check(k.seq.length === (r.seq.length > 1 ? 2 : 1) && k.seq[k.seq.length - 1].tier === r.finalTier, `${name}: a skip lands ${TIERS[r.finalTier]} in one beat`, tiersOf(k));
 }
 // the count lengths are the house pacing by final tier (3 / 4 / 5 / 6 / 7 s), unchanged
-for (const [x, ms] of [[60, 3000], [250, 4000], [450, 5000], [2000, 6000], [10000, 7000]]) check(Math.round(playCount(x, W.WIN_TIER_STAGES).total) === ms, `base ${x}x counts ${ms} ms`, playCount(x, W.WIN_TIER_STAGES).total);
+for (const [x, ms] of [[30, 3000], [150, 4000], [450, 5000], [2000, 6000], [10000, 7000]]) check(Math.round(playCount(x, W.WIN_TIER_STAGES).total) === ms, `base ${x}x counts ${ms} ms`, playCount(x, W.WIN_TIER_STAGES).total);
 for (const [x, ms] of [[250, 4000], [450, 5000], [2000, 6000]]) check(Math.round(playCount(x, W.WIN_TIER_STAGES_FEATURE_SPIN).total) === ms, `free spin ${x}x counts ${ms} ms`, playCount(x, W.WIN_TIER_STAGES_FEATURE_SPIN).total);
 
 console.log(`${failed ? 'FAILED' : 'OK'}: ${passed} passed, ${failed} failed`);

@@ -879,7 +879,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		//   the feature is unchanged.
 		//   ONLY BIG AND ABOVE GETS A WIN SCREEN, everywhere (Corey 2026-10-09: "no Nice win level"): a
 		//   smaller win is the board's own run up and nothing more. THE LADDERS (Corey 2026-11-21, game/winLevelMap.ts):
-		//   a base game spin's Stinger starts at Big 50x (WIN_TIER_STAGES); a FREE SPIN has no Big, its Stinger starts at
+		//   a base game spin's Stinger starts at Big 25x (WIN_TIER_STAGES, Super 100x there); a FREE SPIN has no Big, its Stinger starts at
 		//   Super 200x (WIN_TIER_STAGES_FEATURE_SPIN, every feature) and its count steps up on that ladder. Both are
 		//   multiples of the base bet (book amounts are base-bet multiples in every mode, Ante and buys included).
 		const free = stateGame.gameType !== 'basegame';

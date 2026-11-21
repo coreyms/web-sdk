@@ -6,7 +6,7 @@ export const winLevelMap = {
 	1: { level: 1, alias: 'zero', type: 'small', text: null, presentDuration: 0, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
 	2: { level: 2, alias: 'standard', type: 'small', text: null, presentDuration: 0, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
 	3: { level: 3, alias: 'small', type: 'small', text: null, presentDuration: 0, sound: { sfx: undefined, bgm: undefined }, animation: undefined },
-	// LEVELS 4 AND 5 (4x to Big, 50x since 2026-11-21, 15x before) HAVE NO WIN SCREEN AND NO WORD (Corey 2026-10-09: "no Nice win level"): the board's
+	// LEVELS 4 AND 5 (4x to Big, 25x since 2026-11-21, 15x before) HAVE NO WIN SCREEN AND NO WORD (Corey 2026-10-09: "no Nice win level"): the board's
 	// own run up (cluster labels, the SPIN readout, the HUD win) is all a win under Big gets. Level 5 read
 	// 'BIG WIN' on a plain screen with no plaque until then, which is what "Big wins are not showing the
 	// stinger" was. Their presentDuration is still what the WRAP UP counts over when a feature ends at
@@ -34,7 +34,11 @@ export type WinLevelAlias = WinLevelData['alias'];
 // THE STINGER LADDERS: WHICH WINS GET THE FULL-SCREEN PLAQUE (components/StingerPlaque.svelte), ALL IN ONE PLACE.
 // Corey 2026-11-21 (the Stinger "hurts the fluidity of the games"): "Let's make the base games match the bonus round
 // numbers, off the based spin amount. Let's drop Big win from Bonus games individual spins. Raise Super to 200x and make
-// that the trigger for the stinger." and, on the base game's Super: "Yes it should be also 200x."
+// that the trigger for the stinger." After seeing how rare that made a base game Stinger, the same day, on the
+// coordinator's proposal "Big at 25x and Super at 100x, with Mega 400x and Epic 1,500x as you set them" for the base
+// game, keeping the bonus round numbers: "take yours".
+// SO SUPER WIN IS 100x IN THE BASE GAME AND 200x INSIDE A FEATURE, ON PURPOSE. The two ladders differ by design: do not
+// "fix" one to match the other.
 // Every bar is a multiple of the BASE bet: a book amount / BOOK_AMOUNT_MULTIPLIER, and book amounts are base-bet
 // multiples in every mode (Ante 3x, Super Ante 10x and the bought features debit more, but pay on the base bet; the
 // 10,000x cap is the same in every mode). Nothing here divides by a mode's cost.
@@ -43,10 +47,11 @@ export type WinLevelAlias = WinLevelData['alias'];
 // PRESENTATION ONLY: the tier is picked from the book's own amount and decides nothing.
 //
 // BASE GAME SPIN (Ante and Super Ante included): Big opens the ladder. A win under Big gets no Stinger (the board's
-// own run up only: cluster labels, the bar's WIN, the HUD win). Was 15 / 30 / 60 / 150 / 10,000x until 2026-11-21.
+// own run up only: cluster labels, the bar's WIN, the HUD win). Big 25x, Super 100x, Mega 400x, Epic 1,500x, Max
+// 10,000x since 2026-11-21 (was 15 / 30 / 60 / 150 / 10,000x). The capped feature's MAX WIN wrap up climbs these bars too.
 export const WIN_TIER_STAGES = [
-	{ alias: 'big', title: 'BIG WIN', xBet: 50 },
-	{ alias: 'superwin', title: 'SUPER WIN', xBet: 200 },
+	{ alias: 'big', title: 'BIG WIN', xBet: 25 },
+	{ alias: 'superwin', title: 'SUPER WIN', xBet: 100 },
 	{ alias: 'mega', title: 'MEGA WIN', xBet: 400 },
 	{ alias: 'epic', title: 'EPIC WIN', xBet: 1500 },
 	{ alias: 'max', title: 'MAX WIN', xBet: 10000 },
@@ -54,7 +59,7 @@ export const WIN_TIER_STAGES = [
 
 // A FREE SPIN'S OWN WIN, in every feature (Free Spins, Super, Epic; bought, triggered or from Mystery alike): there is
 // NO Big tier, the Stinger first appears at SUPER and opens on SUPER WIN. A spin under 200x gets no Stinger, as a base
-// win under Big. Was per feature until 2026-11-21: Free Spins 25 / 50 / 100 / 250, Super 40 / 80 / 160 / 400, Epic
+// win under Big. (Super here is 200x, the base game's is 100x: see above.) Was per feature until 2026-11-21: Free Spins 25 / 50 / 100 / 250, Super 40 / 80 / 160 / 400, Epic
 // 75 / 150 / 300 / 750 (harsh review 2026-10-15, gameplay finding 6).
 export const WIN_TIER_STAGES_FEATURE_SPIN = [
 	{ alias: 'superwin', title: 'SUPER WIN', xBet: 200 },
