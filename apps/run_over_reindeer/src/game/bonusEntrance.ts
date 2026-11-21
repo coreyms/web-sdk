@@ -73,8 +73,10 @@ export const entranceCut = () => {
 	devMark('entrance', `cut ${E.duck.to} ${E.duck.ms}ms`);
 };
 
-/** THE CARD COMES UP: the hit lands with it, the build follows under it */
-export const entranceCard = () => {
+/** THE CARD COMES UP: the hit lands with it, the build follows under it. `selfDismiss`: the card will leave by itself
+ *  (Autoplay Bonuses in a live run) about 1.4 s after it comes up, so the build is not started at all: on the probe host
+ *  (2026-11-21) 140 ms of it sounded, at up to a third of its level, before the drop cut it. */
+export const entranceCard = (selfDismiss = false) => {
 	// the card's landing (ms after it comes up): the LED back board seated, or the HTML card's pop at its end
 	const board = LED_BOARD.on && LED_BOARD.cards === 'board';
 	const landMs = board ? LED_BOARD.rise.backAtMs + LED_BOARD.rise.riseMs : E.cardPopMs;
@@ -84,6 +86,10 @@ export const entranceCard = () => {
 		hitAt = performance.now();
 		eventEmitter.broadcast({ type: 'soundOnce', name: HIT, forcePlay: true });
 		devMark('entrance', 'hit');
+		if (selfDismiss) {
+			devMark('entrance', 'no build (the card leaves by itself)');
+			return;
+		}
 		later(E.buildAfterMs, () => {
 			buildAt = performance.now();
 			eventEmitter.broadcast({ type: 'soundLoop', name: BUILD });

@@ -275,7 +275,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		if (entrance) entranceCut();
 		await eventEmitter.broadcastAsync({ type: 'boardPulse', cells: bookEvent.cells, ms: ROUND.triggerPulseMs });
 		enterBonus(bookEvent, !entrance);
-		if (entrance) entranceCard();
+		if (entrance) entranceCard(stateGame.autoPlayBonuses && stateBet.autoSpinsCounter > 0);
 		// (2026-11-20, Corey: "Real trigger count": the presents the LED entry pops are the scatters this round triggered with,
 		// the book's own cells; the math gives Free Spins 3, Super 4 or 5)
 		await showCard({ kind: 'intro', bonus: stateGame.bonusMode ?? 'bonus', spins: bookEvent.totalFs, presents: bookEvent.cells.length });
