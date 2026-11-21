@@ -32,6 +32,8 @@ export const STAGING_MARKERS = [
  *  carry them, so --expect-staging does not ask for them) */
 export const NEVER_MARKERS = [
 	'audiodiag', // ui/MenuButton.svelte: the iOS audio readout's query parameter, DEV only since 2026-10-21 (Corey "no longer needed")
+	'ringMethod', // ui/hud/HudSpin.svelte: the Spin ring's rest method knob on the dev hook (hud_probe `home`, 2026-11-20)
+	'ringRounds', // the same dev hook's record of the ring's rounds
 ];
 /** strings the SHIPPED index.html must not carry, production or staging (Corey 2026-10-21 on src/app.html's developer
  *  comments: "they shouldn't be in the production or staging builds"; scripts/prune-build.mjs strips them). The
