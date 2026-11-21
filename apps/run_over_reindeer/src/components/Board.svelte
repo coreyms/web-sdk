@@ -391,7 +391,7 @@
 	// a press on the wheel is the board's tap (ui/controls.svelte.ts boardTap: the wheel's press at rest, the slam stop after)
 	wheel.onTap = () => context.eventEmitter.broadcast({ type: 'boardTap' });
 	/** THE WHEEL'S PLACE (constants SUPER_WHEEL.size; mock rounds 3 and 4), canvas CSS px */
-	const wheelGeoOf = (g: ReturnType<typeof scoreboardGeometry>, layout: typeof kind, canvasW: number, board: { x: number; y: number; w: number; h: number }): WheelGeo => {
+	const wheelGeoOf = (g: ReturnType<typeof scoreboardGeometry>, layout: typeof kind, canvasW: number, board: { x: number; y: number; w: number; h: number }, phone: boolean): WheelGeo => {
 		const Z = SUPER_WHEEL.size;
 		// round 3's wheel: the board's height about its middle (sideways and desktop), or the board's width standing on the
 		// board's bottom edge (upright), the board being the layout's own box (layoutSpec boardRect, as the mock read it);
@@ -400,7 +400,7 @@
 		const top3 = layout === 'portrait' ? board.y + board.h + Z.lift * d3 - d3 : board.y + board.h / 2 - Z.lift * d3 - d3 / 2;
 		// round 4: it grows down until its bottom is tucked behind the LED strip, never wider than the screen
 		const d = Math.max(40, Math.min(Math.max(d3, g.strip.housing.y + g.strip.housing.h - Z.bottomInset - top3), canvasW - 2 * Z.screenPad));
-		return { cx: board.x + board.w / 2, cy: top3 + d / 2, d, pegScale: Math.min(1, d3 / d), capTop: g.strip.housing.y - g.strip.cap * 1.3, road: g.road };
+		return { cx: board.x + board.w / 2, cy: top3 + d / 2, d, pegScale: Math.min(1, d3 / d), phone, capTop: g.strip.housing.y - g.strip.cap * 1.3, road: g.road };
 	};
 
 	// THE SCENE PRESET AND ITS SWAP (game/stateScene.svelte.ts, game/scene/sceneSwap.ts): its pieces by asset key (the base
@@ -574,7 +574,9 @@
 		// THE SUPER WHEEL's place follows the LED strip's (its bottom tucks behind it)
 		{
 			const br = boardRect(kind);
-			const wg = wheelGeoOf(scoreboardGeometry(kind, canvasSize.width, canvasSize.height, main, place, isPhoneSizeType(context.stateLayoutDerived.canvasSizeType())), kind, canvasSize.width, { x: masterLeft + br.x * main.scale, y: masterTop + br.y * main.scale, w: br.width * main.scale, h: br.height * main.scale });
+			// (a phone layout: the wedges' numbers take the thicker even outline, WILD_MULT.place.wheel evenOutline)
+			const phoneLayout = isPhoneSizeType(context.stateLayoutDerived.canvasSizeType());
+			const wg = wheelGeoOf(scoreboardGeometry(kind, canvasSize.width, canvasSize.height, main, place, phoneLayout), kind, canvasSize.width, { x: masterLeft + br.x * main.scale, y: masterTop + br.y * main.scale, w: br.width * main.scale, h: br.height * main.scale }, phoneLayout);
 			wheel.layout(wg);
 			stateGame.wheelBox = { cx: wg.cx, cy: wg.cy, d: wg.d };
 		}

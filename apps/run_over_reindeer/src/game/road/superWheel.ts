@@ -30,6 +30,7 @@ import { STAGING_TOOLS, perfMark } from '../staging';
 import { queuePresentUpload, rebatchBeforeUnload } from './columnClips';
 import { awaitRunViews, runFrame } from './reindeerRun';
 import { WildMult } from './wildMult';
+import { flapDist, pegRest, stepPeg as stepPegOn, studAt, type PegGeom, type PegParams, type PegPath, type PegState } from './wheelPeg';
 import { WHEEL_SLICES, WHEEL_STEP, curveAt, curveLength, ringAtPointer, ringCurve, slotAtPeg, spinCurve, type WheelCurve, type WheelPlan } from '../superWheelPlan';
 
 const TIER = PHONE_TIER ? 'phone' : 'full';
@@ -119,8 +120,11 @@ export type WheelGeo = {
 	cy: number;
 	/** the rim's outer diameter */
 	d: number;
-	/** the peg's size against the wheel's (it keeps its round 3 size about its tip) */
+	/** the peg's size against the wheel's (it keeps its round 3 size about its tip; SUPER_WHEEL.peg.size on top) */
 	pegScale: number;
+	/** a phone layout (layoutSpec isPhoneSizeType: the window's short side 480 CSS px or less): the numbers' thicker
+	 *  even outline (WILD_MULT.place.wheel evenOutline) */
+	phone: boolean;
 	/** the top of the LED strip's snow cap: the reindeer's road line stays above it */
 	capTop: number;
 	/** the road picture's corner and CSS px per road px */
@@ -153,6 +157,8 @@ export class SuperWheel {
 	private disc!: PIXI.Container;
 	private wedgeLayer!: PIXI.Container;
 	private wedges: PIXI.Container[] = [];
+	/** each wedge's own picture (its colour, its bust; the number beside it in the same container) */
+	private wedgeArt: PIXI.Sprite[] = [];
 	private hiLayer!: PIXI.Container;
 	private bulbs: { s: PIXI.Sprite; on: PIXI.Texture; off: PIXI.Texture }[] = [];
 	private lights!: PIXI.Container;
@@ -187,15 +193,19 @@ export class SuperWheel {
 	private spinT0 = 0;
 	private spinning = false;
 	private ringGo: { c: WheelCurve; t0: number } | null = null;
-	private peg = { phi: 0, v: 0 };
-	/** the stud the flapper's tip is on (its index along the rim, counted through every turn), null: none; whether the
-	 *  disc's last turn was the spin's (a new contact then ticks) or a quiet one (the rest's drift, a pose) */
-	private onStud: number | null = null;
+	/** THE PEG'S STATE (game/road/wheelPeg.ts): its turn and speed, the disc's turn it last stepped at, the stud on it (its
+	 *  index along the rim, counted through every turn; null: none), the stud that ticked last */
+	private peg: PegState = pegRest(-WHEEL_STEP / 2);
+	/** whether the disc's last turn was the spin's (a new contact then ticks) or a quiet one (the rest's drift, a pose) */
 	private pegLoud = false;
-	/** the disc's turn when the peg last stepped (a stud that passed the tip wholly between two frames still meets it) */
-	private pegTheta = -WHEEL_STEP / 2;
-	/** DEV and the probe: the flapper frame by frame (wheelPegTrace) */
-	private pegTrace: { real: number; clock: number; theta: number; phi: number; stud: number | null; met: number[]; gap: number; tick: boolean }[] | null = null;
+	/** the disc's turn through this frame for the peg: the spin's own curve while it runs (a long frame follows the
+	 *  curve's pace inside it), else null (an even pace from where the peg last stepped) */
+	private pegPath: ((u: number) => number) | null = null;
+	/** the numbers' outline class drawn now (WILD_MULT.place.wheel evenOutline) */
+	private outlineClass: 'phone' | 'wide' = 'wide';
+	/** DEV and the probe: the flapper frame by frame (wheelPegTrace): `met` the studs whose first contact came in the
+	 *  frame, `tick` whether a tick sounded, `gap` the flapper's least clearance to a stud (wheel units, 0: touching) */
+	private pegTrace: { real: number; clock: number; theta: number; phi: number; stud: number | null; met: number[]; gap: number; tick: boolean; maxAbs: number; dt: number }[] | null = null;
 	/** the wedges' numbers: the Wild multipliers (game/road/wildMult.ts) in each wedge's character's color */
 	private nums: WildMult[] = [];
 	private mouth: { x: number; y: number; cell: number } | null = null;
@@ -228,11 +238,32 @@ export class SuperWheel {
 		this.geo = geo;
 		if (geo) this.root.hitArea = new PIXI.Circle(geo.cx, geo.cy, geo.d / 2);
 		if (this.wrap && geo) {
-			this.pegWrap.scale.set(geo.pegScale);
-			this.pegWrap.position.set(0, U.peg.boltY + U.peg.tip * (1 - geo.pegScale));
+			const s = this.pegScaleNow();
+			this.pegWrap.scale.set(s);
+			this.pegWrap.position.set(0, U.peg.boltY + U.peg.tip * (1 - s));
+			this.setOutlineClass(geo.phone ? 'phone' : 'wide');
 			this.lights.visible = geo.d >= SUPER_WHEEL.size.bulbsFromPx;
 			if (this.seated) this.place(geo.cx, geo.cy, 1, 0);
 		}
+	}
+
+	/** the peg's drawn scale about its tip: the layout's pegScale times SUPER_WHEEL.peg.size (his 1.11) */
+	private pegScaleNow(): number {
+		return (this.geo?.pegScale ?? 1) * SUPER_WHEEL.peg.size;
+	}
+	/** the flapper as the peg's physics sees it (wheel units): its bolt, its length, the contact distance, the studs */
+	private pegGeom(): PegGeom {
+		const s = this.pegScaleNow();
+		return { L: ART.pegFit.flap.tipBelowBoltUnits * s, by: -(U.peg.tipR + U.peg.tip * s), rc: U.studOut + SUPER_WHEEL.peg.tipRadius, studR: U.stud, step: WHEEL_STEP };
+	}
+	private pegParams(): PegParams {
+		const P = SUPER_WHEEL.peg;
+		return { stiffness: P.stiffness, damping: P.damping, fling: P.fling, maxSwing: P.maxSwing, subDeg: P.subDeg, springStepS: P.springStepMs / 1000, flingMax: P.flingMax };
+	}
+	/** THE NUMBERS' EVEN OUTLINE for a screen class: the wheel sheet's silhouettes mo_<class>_<color>_<letter> */
+	private setOutlineClass(cls: 'phone' | 'wide') {
+		this.outlineClass = cls;
+		for (const n of this.nums) n.setOutlineArt((ch) => textures?.get(`mo_${cls}_${n.color}_${ch}`) ?? null, 1 / SHEET.density);
 	}
 
 	// ---- building ---------------------------------------------------------------------------------------------------------
@@ -263,15 +294,18 @@ export class SuperWheel {
 		const back = this.discOf(U.wedge + 1, 0x14161f, disc);
 		const wedgeLayer = (this.wedgeLayer = new PIXI.Container());
 		disc.addChild(wedgeLayer);
+		this.wedgeArt = [];
 		this.wedges = plan.slices.map((slice, i) => {
 			const c = new PIXI.Container();
 			c.rotation = (WHEEL_STEP / 2 + i * WHEEL_STEP) * DEG;
-			this.spr(`wedge_${slice.tier}`, c);
+			this.wedgeArt.push(this.spr(`wedge_${slice.tier}`, c));
 			// ITS NUMBER (Corey 2026-11-20: "put the new wild multipliers in the place of the yellow"): the Wild multiplier's
 			// letters in the character's own color (WILD_MULT.colors), still, about round 5's number's middle grown with the
 			// wedge (tools/build_super_wheel.py MULT_R)
 			const num = new WildMult('wheel', WILD_MULT.colors[slice.tier] ?? 'gold', i * 0.37);
 			num.root.position.set(0, -U.multR);
+			// (the layout page round 3: the letters follow the wedge's arc, one height, the even outline from the sheet)
+			if (WILD_MULT.place.wheel.arc) num.setArc(U.multR);
 			num.show(slice.m, 'still', 0);
 			num.update(0);
 			c.addChild(num.root);
@@ -338,10 +372,10 @@ export class SuperWheel {
 		this.parts = { shadow: this.shadow, back, wedges: wedgeLayer, hi: this.hiLayer, lights, rim, studs, ring: ringWrap, hub: hubArt, medal: this.medal, tag: this.tag, peg: pegWrap, bracket, runner: this.runner };
 		this.theta = -WHEEL_STEP / 2;
 		this.ringPhi = 0;
-		this.peg = { phi: 0, v: 0 };
-		this.onStud = null;
-		this.pegTheta = this.theta;
+		this.peg = pegRest(this.theta);
+		this.pegPath = null;
 		disc.rotation = this.theta * DEG;
+		this.setOutlineClass(this.geo?.phone ? 'phone' : 'wide');
 		this.layout(this.geo);
 	}
 
@@ -355,6 +389,7 @@ export class SuperWheel {
 		this.runner.visible = false;
 		this.runner.texture = PIXI.Texture.EMPTY;
 		this.wedges = [];
+		this.wedgeArt = [];
 		this.bulbs = [];
 		this.parts = {};
 	}
@@ -663,103 +698,34 @@ export class SuperWheel {
 		return true;
 	}
 
-	/** THE PEG (Corey 2026-11-20: "the pin moves way too early"): a damped spring whose flapper turns about its bolt, and
-	 *  the rim's studs as real circles. The flapper's tip (a circle of SUPER_WHEEL.peg.tipRadius) may not enter a stud's
-	 *  circle (the stud's outer radius, superWheelSpec units studOut): when the spring would put it inside, it is pushed out
-	 *  to the circle's edge on the side it came from, so it starts to turn the moment a stud's leading edge reaches it,
-	 *  turns while the stud pushes past, and springs back when it clears. Nothing moves it before the contact. Its tick is
-	 *  that contact (a spin's, not the rest's drift). It never pushes the wheel.
+	/** THE PEG (Corey 2026-11-20: "the pin moves way too early"; the layout page round 3: "the pin ... should be bouncing
+	 *  most of the spins"): game/road/wheelPeg.ts steps it (the whole flapper meets the studs, it flicks when a stud lets go,
+	 *  a damped spring brings it back straight; constants SUPER_WHEEL.peg). Every stud's first contact is a tick (a spin's,
+	 *  not the rest's drift), each through tick()'s tickMinMs. It never pushes the wheel.
 	 *  Until 2026-11-20 the push was a ramp by angle alone, from contactDeg (9 degrees, about 60 units of rim) before a
-	 *  stud's middle reached the top, while the tip hung at radius 404, outside the studs' outer edge (402.9): it swung
-	 *  ahead of every stud and never touched one, and its tick came at the stud's middle, later than the swing. */
-	private stepPeg(dt: number) {
-		const P = SUPER_WHEEL.peg;
-		const F = this.peg;
-		const prev = F.phi;
-		const steps = Math.max(1, Math.ceil(dt / 0.008));
-		const h = dt / Math.max(1, steps);
-		if (dt > 0)
-			for (let i = 0; i < steps; i++) {
-				F.v += (-P.stiffness * F.phi - P.damping * F.v) * h;
-				F.phi += F.v * h;
-			}
-		// the flapper about its bolt (wheel units, y down): its tip L below the bolt, the bolt above the tip's radius
-		const s = this.geo?.pegScale ?? 1;
-		const L = ART.pegFit.flap.tipBelowBoltUnits * s;
-		const by = -(U.peg.tipR + U.peg.tip * s);
-		const rc = U.studOut + P.tipRadius;
-		const k0 = Math.round(-this.theta / WHEEL_STEP);
-		let on: number | null = null;
-		let gap = Infinity;
-		for (let k = k0 - 1; k <= k0 + 1; k++) {
-			const a = (k * WHEEL_STEP + this.theta) * DEG;
-			const sx = Math.sin(a) * U.stud;
-			const sy = -Math.cos(a) * U.stud;
-			// |tip - stud|^2 = R^2 + L^2 + 2 L (dy cos phi - dx sin phi) = R^2 + L^2 + 2 L R cos(phi + delta)
-			const dx = -sx;
-			const dy = by - sy;
-			const R = Math.hypot(dx, dy);
-			const c = (rc * rc - R * R - L * L) / (2 * L);
-			if (c > -R) {
-				const centre = wrapPi(Math.PI - Math.atan2(dx, dy));
-				const half = Math.PI - Math.acos(Math.min(1, c / R));
-				const d = wrapPi(F.phi * DEG - centre);
-				if (Math.abs(d) < half) {
-					// inside its circle: out to the edge on the side the tip was on
-					const side = wrapPi(prev * DEG - centre) >= 0 ? 1 : -1;
-					F.phi = (centre + side * half) / DEG;
-					F.v = 0;
-					on = k;
-				}
-			}
-			const tx = -L * Math.sin(F.phi * DEG);
-			const ty = by + L * Math.cos(F.phi * DEG);
-			gap = Math.min(gap, Math.hypot(tx - sx, ty - sy) - rc);
-		}
-		// A STUD THAT PASSED THE TIP BETWEEN TWO FRAMES (a fast turn or a slow frame: at full speed a stud crosses the tip's
-		// reach in under a frame): it met the tip all the same, so the flapper is where that stud left it at its deepest
-		// (centred under the tip: turned to the edge of its circle the way it was going) and it ticks
-		const moved = this.theta - this.pegTheta;
-		const met = import.meta.env.DEV && this.pegTrace ? ([] as number[]) : null;
-		if (met && on !== null) met.push(on);
-		if (moved !== 0) {
-			const lo = Math.min(-this.pegTheta, -this.theta) / WHEEL_STEP;
-			const hi = Math.max(-this.pegTheta, -this.theta) / WHEEL_STEP;
-			// (every stud that crossed the top since the last frame, besides one already on the tip: a fast frame can take two
-			// past it, or one past it while the next is already on it)
-			for (let k = Math.ceil(lo); k <= Math.floor(hi); k++) {
-				if (k === this.onStud || k === on) continue;
-				// the stud centred under the tip: the tip's way out of its circle (symmetric about the upright)
-				const dy = by + U.stud;
-				const R = Math.abs(dy);
-				const c = (rc * rc - R * R - L * L) / (2 * L);
-				if (c <= -R) continue;
-				const half = Math.PI - Math.acos(Math.min(1, c / R));
-				const dir = moved < 0 ? 1 : -1;
-				if (dir * F.phi < half / DEG) {
-					F.phi = (dir * half) / DEG;
-					F.v = 0;
-				}
-				if (on === null) on = k;
-				met?.push(k);
-				// (a second stud met in the same frame still ticks: its own contact)
-				if (k !== on && this.pegLoud) {
-					this.ticks += 1;
-					this.tick(SUPER_WHEEL.sound.tick, `stud ${this.ticks}`);
-				}
-			}
-		}
-		this.pegTheta = this.theta;
+	 *  stud's middle reached the top, while the tip hung at radius 404, outside the studs' outer edge (402.9); then (the
+	 *  rework) the tip alone met the studs, posed where a stud crossing between frames would leave it, with no flick. */
+	private stepPeg(dt: number, path: PegPath = this.theta) {
+		const G = this.pegGeom();
+		const r = stepPegOn(this.peg, path, dt, G, this.pegParams());
 		let ticked = false;
-		if (on !== null && on !== this.onStud && this.pegLoud) {
+		for (const c of r.contacts) {
+			if (!this.pegLoud) continue;
 			this.ticks += 1;
-			ticked = this.tick(SUPER_WHEEL.sound.tick, `stud ${this.ticks}`);
+			ticked = this.tick(SUPER_WHEEL.sound.tick, `stud ${this.ticks}`) || ticked;
 		}
-		this.onStud = on;
-		if (import.meta.env.DEV && this.pegTrace && this.pegTrace.length < 20000) this.pegTrace.push({ real: performance.now(), clock: this.clock, theta: this.theta, phi: F.phi, stud: on, met: met ?? [], gap, tick: ticked });
+		if (import.meta.env.DEV && this.pegTrace && this.pegTrace.length < 20000) {
+			let gap = Infinity;
+			const k0 = Math.round(-this.theta / WHEEL_STEP);
+			for (let k = k0 - 1; k <= k0 + 1; k++) {
+				const [sx, sy] = studAt(k, this.theta, G);
+				gap = Math.min(gap, flapDist(this.peg.phi, sx, sy, G.L, G.by) - G.rc);
+			}
+			this.pegTrace.push({ real: performance.now(), clock: this.clock, theta: this.theta, phi: this.peg.phi, stud: r.on, met: r.contacts.map((c) => c.stud), gap, tick: ticked, maxAbs: r.maxAbs, dt });
+		}
 		// (its art's tip hangs a little off its bolt's upright line: turned back onto it)
 		const rest = (Math.atan2(ART.pegFit.flap.tipOffsetUnits, ART.pegFit.flap.tipBelowBoltUnits) * 180) / Math.PI;
-		this.flap.rotation = (F.phi + rest) * DEG;
+		this.flap.rotation = (this.peg.phi + rest) * DEG;
 	}
 
 	/** DEV and the probe: record the flapper frame by frame from now (true), or read and stop (false) */
@@ -913,7 +879,9 @@ export class SuperWheel {
 		if (!this.active || !this.wrap || this.phase === 'dev') return;
 		if (!this.geo) return;
 		const dt = Math.min(100, dtMs) * rate;
+		const clock0 = this.clock;
 		this.clock += dt;
+		this.pegPath = null;
 		this.real += Math.min(100, dtMs);
 		for (const t of this.tasks.slice()) {
 			if (this.clock < t.at) continue;
@@ -933,6 +901,11 @@ export class SuperWheel {
 			const tS = (this.clock - this.spinT0) / 1000;
 			const prev = this.theta;
 			this.setTheta(c.from - curveAt(c, tS));
+			// the peg follows the curve's own pace through this frame (from where it last stepped to here)
+			const t0 = this.spinT0;
+			const th0 = this.peg.theta;
+			const a0 = (clock0 - t0) / 1000;
+			this.pegPath = a0 > 0 ? (u: number) => c.from - curveAt(c, a0 + (u * dt) / 1000) : (u: number) => th0 + (this.theta - th0) * u;
 			// on the rim his pose comes from the rim's own travel: his hooves move with its surface
 			if (this.onRim) {
 				const travel = Math.abs(this.theta - prev) * DEG * (this.geo.d / 2);
@@ -952,7 +925,7 @@ export class SuperWheel {
 			if (tS >= curveLength(c)) this.beatLand2();
 		}
 		if (!this.wrap) return;
-		this.stepPeg(dt / 1000);
+		this.stepPeg(dt / 1000, this.pegPath ?? this.theta);
 		// the string lights chase: one in three dim, a step every lightsStepMs (real time)
 		const k = Math.floor(this.real / SUPER_WHEEL.rest.lightsStepMs) % 3;
 		for (let i = 0; i < this.bulbs.length; i++) {
@@ -994,7 +967,7 @@ export class SuperWheel {
 		return {
 			phase: this.phase,
 			played: this.played,
-			geo: g ? { cx: g.cx, cy: g.cy, d: g.d, pegScale: g.pegScale, capTop: g.capTop } : null,
+			geo: g ? { cx: g.cx, cy: g.cy, d: g.d, pegScale: g.pegScale, capTop: g.capTop, phone: g.phone } : null,
 			wrap: this.wrap ? { x: this.wrap.x, y: this.wrap.y, scale: this.wrap.scale.x, alpha: this.wrap.alpha, rotation: this.wrap.rotation / DEG } : null,
 			theta: this.theta,
 			ringPhi: this.ringPhi,
@@ -1004,11 +977,17 @@ export class SuperWheel {
 			runner: { shown: this.runner.visible, onRim: this.onRim, pose: this.runPose, stride: (((Math.floor(this.runPose) % 16) + 16) % 16) + 1, x: this.runner.x, y: this.runner.y, rotation: this.runner.rotation / DEG, scale: this.runner.scale.y, width: this.geo ? this.runnerWidth() : 0 },
 			bulbs: this.lights?.visible ?? false,
 			peg: this.peg.phi,
-			onStud: this.onStud,
+			onStud: this.peg.onStud,
+			/** the peg as drawn and stepped: its scale, the flapper's length and bolt, the contact distance (wheel units) */
+			pegGeo: this.wrap ? { scale: this.pegScaleNow(), ...this.pegGeom() } : null,
+			/** the numbers' outline class (WILD_MULT.place.wheel evenOutline) */
+			outlineClass: this.outlineClass,
+			/** the disc's layers bottom to top (the string lights over the wedges' numbers) */
+			discOrder: this.disc && this.wrap ? this.disc.children.map((c) => Object.entries(this.parts).find(([, v]) => v === c)?.[0] ?? '?') : [],
 			/** the wedges' numbers, wedge by wedge: the Wild multiplier's color, value and place, how many letters drawn */
 			nums: this.nums.map((n) => {
 				const st = n.state();
-				return { color: st.color, value: st.value, place: st.place, glyphs: n.glyphBounds().length };
+				return { color: st.color, value: st.value, place: st.place, glyphs: n.glyphBounds().length, cap: st.cap, width: st.width, outline: st.outlineArt, arc: st.arc };
 			}),
 			auto: this.autoAt !== null,
 			ticks: this.ticks,
@@ -1037,18 +1016,30 @@ export class SuperWheel {
 		this.seated = true;
 		this.wrap!.alpha = 1;
 		this.place(this.geo.cx, this.geo.cy, 1, 0);
-		this.peg = { phi: 0, v: 0 };
+		this.peg = pegRest(this.theta);
 		this.stepPeg(0);
 		return true;
 	}
 	/** DEV: pose the standing wheel: the disc's and the ring's turn, which pieces draw, the highlights, the reindeer on
 	 *  the rim in a stride (1 to 16) */
-	devSet(o: { theta?: number; ringPhi?: number; ring?: boolean; hi?: number | null; ringHi?: number | null; only?: string[] | null; stride?: number | null; tag?: boolean; medal?: boolean }) {
+	devSet(o: { theta?: number; ringPhi?: number; ring?: boolean; hi?: number | null; ringHi?: number | null; only?: string[] | null; stride?: number | null; tag?: boolean; medal?: boolean; slices?: { tier: WheelPlan['slices'][number]['tier']; m: number }[]; numsOnly?: boolean }) {
 		if (this.phase !== 'dev' || !this.wrap) return null;
+		// THE WEDGES BY HAND (the probe's and the build's stills: every value in every place): the plan's eight wedges
+		// replaced, the wheel built again where it stands
+		if (o.slices !== undefined && this.plan && this.geo) {
+			this.plan = { ...this.plan, slices: o.slices.map((x) => ({ tier: x.tier, m: x.m })) };
+			this.build(this.plan);
+			this.wrap!.alpha = 1;
+			this.place(this.geo.cx, this.geo.cy, 1, 0);
+			this.peg = pegRest(this.theta);
+			this.stepPeg(0);
+		}
+		// only the wedges' numbers drawn of the wedges (their pictures hidden): the probe's measure of the numbers' pixels
+		if (o.numsOnly !== undefined) for (const a of this.wedgeArt) a.renderable = !o.numsOnly;
 		if (o.theta !== undefined) {
 			this.setTheta(o.theta, true);
 			// the flapper meets the studs where they now are
-			this.peg = { phi: 0, v: 0 };
+			this.peg = pegRest(this.theta);
 			this.stepPeg(0);
 		}
 		if (o.ringPhi !== undefined) {
@@ -1096,19 +1087,21 @@ export class SuperWheel {
 		this.devCurve = spinCurve(this.theta, this.plan, { driveMs: SUPER_WHEEL.run.driveMs, decelMs: S.decelMs, power: S.power, minDeg: S.minDeg, crawlDeg: S.crawlDeg, extraTurns: S.extraTurns });
 		this.devT = 0;
 		this.ticks = 0;
-		this.peg = { phi: 0, v: 0 };
-		this.pegTheta = this.theta;
-		this.onStud = null;
+		this.peg = pegRest(this.theta);
+		this.stepPeg(0);
 		return curveLength(this.devCurve);
 	}
 	devSpinStep(ms: number) {
 		const c = this.devCurve;
 		if (this.phase !== 'dev' || !c) return null;
+		const a0 = this.devT / 1000;
 		this.devT += ms;
-		const tS = Math.min(this.devT / 1000, curveLength(c));
+		const len = curveLength(c);
+		const tS = Math.min(this.devT / 1000, len);
 		this.setTheta(c.from - curveAt(c, tS));
-		this.stepPeg(ms / 1000);
-		return { t: this.devT, theta: this.theta, phi: this.peg.phi, onStud: this.onStud, ticks: this.ticks, done: this.devT / 1000 >= curveLength(c) };
+		// (the curve's own pace through the step, as update() steps it)
+		this.stepPeg(ms / 1000, (u: number) => c.from - curveAt(c, Math.min(len, a0 + (u * ms) / 1000)));
+		return { t: this.devT, theta: this.theta, phi: this.peg.phi, onStud: this.peg.onStud, ticks: this.ticks, done: this.devT / 1000 >= len };
 	}
 	devEnd() {
 		if (this.phase !== 'dev') return;

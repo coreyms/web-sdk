@@ -759,12 +759,24 @@ export const SUPER_WHEEL = {
 	/** A PRESS DURING THE SPIN (the slam stop's own press, ui/controls.svelte.ts): the wheel goes straight to the book's
 	 *  wedge in slamMs, the ring to the book's column in slamMs; the rest runs at the slam's hurry */
 	slamMs: 300,
-	/** THE TOP PEG (2026-11-20, Corey: "the pin moves way too early"): its flapper is a damped spring (stiffness, damping;
-	 *  degrees) turned only by the studs it touches: its tip, a circle of tipRadius wheel units, is kept out of each stud's
-	 *  circle (game/road/superWheel.ts stepPeg; the tip reaches into the studs' ring by tools/build_super_wheel.py
-	 *  TIP_BITE). It never pushes the wheel. Damping 36 against stiffness 520 is about 0.8 of critical: released, it
-	 *  comes back with one small overshoot in about 0.2 s (15, round 5's, rang on visibly after a slow stud had gone). */
-	peg: { stiffness: 520, damping: 36, tipRadius: 3 },
+	/** THE TOP PEG (2026-11-20, Corey: "the pin moves way too early"; the layout page round 3: "the pin ... should be
+	 *  bouncing most of the spins"): its flapper is a damped spring (stiffness, damping; degrees and seconds) turned only by
+	 *  the studs it touches (game/road/wheelPeg.ts, ported from the page's "whole flapper" contact): the flapper is a line
+	 *  from its bolt to its tip, tipRadius wheel units thick, and no stud's circle (superWheelSpec units studOut) ever
+	 *  overlaps it; a stud pushes it out on the side it was on and, when it lets go, the flapper keeps `fling` of that
+	 *  push's speed (its flick), never past maxSwing degrees either way. The disc's turn is walked in pieces of at most
+	 *  subDeg degrees and springStepMs of time, so it is the same at any frame rate. `size` scales the whole peg (bracket and
+	 *  flapper, about its tip) on the layout's pegScale (his 1.11). It never pushes the wheel.
+	 *  THE NUMBERS (the builder's sweep, 2026-11-20, flapper 1.22 long, tools/wheel_peg_check.mjs): stiffness 600 and
+	 *  damping 6 (about 0.12 of critical: a swing rings two or three times and is straight within about 2 s) with a flick
+	 *  of 0.94 kick the pin on every stud through a spin: a chatter at speed (every stud meets it), one flick a stud as it
+	 *  slows (about 23 degrees), the largest swing of a spin about 30 degrees (up to about 43; the tip of this long flapper
+	 *  then travels further than the page's 0.65 one at its 37). A flick of 0.95 and up starts to let a stud pass under a
+	 *  flapper still swung out (1 or 2 in 5000); 0.92 swings less. The stud's depth is tools/build_super_wheel.py TIP_BITE
+	 *  (11: every stud lets go before the closest stop, 9 degrees past it, so the pin always comes back straight). The
+	 *  page's own numbers (stiffness 350, damping 8, flick 0.3) were made for its 0.65 flapper. Until the page: stiffness
+	 *  520, damping 36, the tip alone in contact, no flick. */
+	peg: { stiffness: 600, damping: 6, fling: 0.94, maxSwing: 60, tipRadius: 3, size: 1.11, subDeg: 0.5, springStepMs: 8, flingMax: 4000 },
 	/** THE LED STRIP'S WORDS (game/scoreboard/scoreboard.ts wheelLine): plain capitals, no symbol characters */
 	text: { emerge: 'SUPER WHEEL', press: 'PRESS SPIN', auto: 'GET READY', go: 'GO REINDEER', column: 'COLUMN', names: { reindeer: 'REINDEER', santa: 'SANTA', grandma: 'GRANDMA' } },
 	/** ITS SOUNDS: existing sounds only (none was made for the wheel; the moments still wanting their own are listed in
@@ -2131,8 +2143,15 @@ export const WILD_MULT = {
 		 *  approved look) puts a soft dark blob of that strength behind the letters: the build's legibility option for the
 		 *  numbers over the busts; `outline` (0: off) a dark outline step, each letter's own picture tinted black at that
 		 *  scale behind it: ON at 1.1 (2026-11-20: the striped letters over the busts, the upside down Santa wedges worst,
-		 *  read off the art only with it; the shade alone barely helped; the build's notes) */
-		wheel: { caps: [64, 64, 64, 64], maxW: 160, floor: 0, gap: 0, shade: 0, outline: 1.1 },
+		 *  read off the art only with it; the shade alone barely helped; the build's notes; until round 3 below).
+		 *  THE LAYOUT PAGE'S ROUND 3 (Corey 2026-11-20: "The multiplier text size should all be the same size"): ONE letter
+		 *  height for every value (caps 58.24: the page's 64 x 0.91), never squeezed (maxW 220 is wider than the widest
+		 *  value, 30x at 198.7), the letters set along the wedge's arc (`arc`: each turned about the wheel's centre at the
+		 *  number's radius), and the EVEN outline in place of the scaled step (`outline` 0, off): each letter's solid shape
+		 *  grown by one thickness, baked by tools/build_super_wheel.py OUTLINE_UNITS into the wheel's sheet, evenOutline.phone
+		 *  wheel units on the phone layouts (layoutSpec isPhoneSizeType), .wide on tablets and desktops (his two settings).
+		 *  The scaled step's 1.1 stays here, unused, as `outlineScaled`. */
+		wheel: { caps: [58.24, 58.24, 58.24, 58.24], maxW: 220, floor: 0, gap: 0, shade: 0, outline: 0, outlineScaled: 1.1, evenOutline: { phone: 6.1, wide: 2.8 }, arc: true },
 	},
 	/** the glow behind the number (the atlas's soft blob, additive) in a win: its tint per color set, its size against
 	 *  the number's width and letter height, its strength at the win's peak */

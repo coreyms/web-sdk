@@ -1,5 +1,5 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
-// WATCHES: apps/run_over_reindeer/src/{game/road/superWheel.ts,game/superWheelPlan.ts,game/superWheelSpec.ts,ui/WheelGate.svelte,ui/controls.svelte.ts,ui/SquareSpin.svelte,game/bookEventHandlerMap.ts,game/actor.ts,game/utils.ts,game/road/roadBoard.ts,game/road/present.ts,components/Board.svelte};
+// WATCHES: apps/run_over_reindeer/src/{game/road/superWheel.ts,game/road/wheelPeg.ts,game/road/wildMult.ts,game/superWheelPlan.ts,game/superWheelSpec.ts,ui/WheelGate.svelte,ui/controls.svelte.ts,ui/SquareSpin.svelte,game/bookEventHandlerMap.ts,game/actor.ts,game/utils.ts,game/road/roadBoard.ts,game/road/present.ts,components/Board.svelte};
 // WATCHES: ; SUPER_WHEEL, AUTO_BONUS_WAIT_MS, WHEEL_SHARES, LED_BOARD.stripOrder, ROUND.betweenSpinsMs, RESUME_TEXT, data-wheel-gate, data-wheel-wait, button.catch, .hudp
 // WATCHES: ; __reindeer.wheel, __reindeer.wheelPegTrace, __reindeer.tune, WILD_MULT, __reindeer.wheelPlan, __reindeer.wheelShow, __reindeer.wheelSet, __reindeer.wheelEnd, __reindeer.wheelAlone, __reindeer.sceneOnly, __reindeer.fixtures, __reindeer.roadSounds, __reindeer.hud, __reindeer.road, __reindeer.freeSpinNow, __reindeer.stockRules
 // THE SUPER WHEEL PROBE (2026-11-18; game/road/superWheel.ts, game/superWheelPlan.ts, constants SUPER_WHEEL; the approved
@@ -32,15 +32,22 @@
 //   contact    the reindeer on the rim in each of his 16 strides, from pixels: the gap between his lowest pixel and the
 //              rim's edge
 //   words      the wheel's words: plain capitals, American English, none of the restricted words
-//   pin        (2026-11-20, Corey: "the pin moves way too early") one forced Super round, its top peg recorded frame by frame
-//              from the press to the wheel's leaving (wheelPegTrace): its tip never inside a stud's circle (PIN_TOL wheel
-//              units); it never starts to turn from rest without a stud on its tip (a stud that passed the tip wholly
-//              between two frames counts as on it that frame); a turn with no stud on it only springs back
-//              after a contact (never more than it was turned at that contact's end); every tick is the first frame of a
-//              stud's contact, and at least one tick per stud passed; at the wheel's stop it is straight or on a stud.
-//              And each wedge's number is the Wild multiplier in its character's color (WILD_MULT.colors), its value the
-//              wedge's
-// Sections: ONLY=plan,rounds,auto,hold,skip,resume,concentric,contact,words,pin (default all). ROUNDS=n. LAYOUT, LAYOUTS and
+//   pin        (2026-11-20, Corey: "the pin moves way too early"; the layout page round 3: "the pin ... should be bouncing
+//              most of the spins") one forced Super round, its top peg recorded frame by frame from the press to well after
+//              the stop (wheelPegTrace): the WHOLE FLAPPER (game/road/wheelPeg.ts) never inside a stud's circle (PIN_TOL wheel
+//              units); it never starts to turn from rest without a stud on it (a stud met inside a frame counts); every stud
+//              that crossed the top met it; at least KICK_SHARE of them kick it over KICK_DEG degrees (it bounces); a free
+//              swing never past SUPER_WHEEL.peg.maxSwing; every tick is a stud's first contact, and every first contact
+//              ticks unless a tick sounded under tickMinMs before; REST_MS board ms after the stop it is straight with no stud
+//              on it. And each wedge's number is the Wild multiplier in its character's color (WILD_MULT.colors), its value
+//              the wedge's
+//   numbers    (2026-11-20, the layout page round 3) the standing wheel at each layout (device pixel ratio 3; wheelShow,
+//              wheelSet: no round played) with every wheel value (4x to 30x) in every wedge place (the eight set by hand,
+//              turned round eight times): one letter height for all (WILD_MULT.place.wheel caps), the letters on the arc,
+//              the even outline of the layout's class (a phone layout, short side 480 CSS px or less: evenOutline.phone;
+//              else .wide); from the page's own pixels, every number pixel inside its wedge (clear of the dark divider) and
+//              under the trim, every wedge pixel (its bust) inside its wedge; the string lights drawn over the numbers
+// Sections: ONLY=plan,rounds,auto,hold,skip,resume,concentric,contact,words,pin,numbers (default all). ROUNDS=n. LAYOUT, LAYOUTS and
 // PICK are explained where they are read. SHOTS=<dir> adds the
 // section `shots` (one round per layout at device pixel ratio 3 with its stills) and the contact section's closeups; the
 // build's sheet is made from them (tools/wheel_sheet.py).
@@ -63,6 +70,15 @@ if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
 /** wheel units the flapper's tip may be read inside a stud's circle (a frame's rounding) */
 const PIN_TOL = 0.5;
+/** the pin's bounce (the brief, 2026-11-20): this share of the studs kick it more than KICK_DEG degrees while they pass */
+const KICK_DEG = 8;
+const KICK_SHARE = 0.9;
+/** board ms after the wheel's stop by which the pin is straight (damping 6 against stiffness 600 rings about 2 s) */
+const REST_MS = 2500;
+const REST_DEG = 0.1;
+/** wheel units a number's or a wedge's pixel may be read past its line (a device pixel at ratio 3 is up to 0.55 unit on
+ *  the desktop wheel; a smaller wheel's device pixel reaches further and the numbers section allows that) */
+const EDGE_TOL = 1;
 const want = (s) => !ONLY.length || ONLY.includes(s);
 const ROUNDS = Number(process.env.ROUNDS || 12);
 // (to split the rounds section over several holds of the browser lock on a slow machine: PICK=0,3,7 plays those books of
@@ -958,40 +974,29 @@ async function pinSection(browser) {
 		await p.evaluate(() => window.__reindeer.wheelPegTrace(true));
 		await p.keyboard.press('Space');
 		const landed = await toPhase(p, 'land', 120000);
-		await sleep(900);
+		// (the disc stands from the stop on; the peg goes on settling: REST_MS and a little more)
+		await sleep(REST_MS + 900);
 		const tr = (await p.evaluate(() => window.__reindeer.wheelPegTrace(false))) ?? [];
 		const w = await W(p);
+		const K = await p.evaluate(() => window.__reindeer.tune.superWheel.peg);
 		check(landed && tr.length > 50, `pin: the spin recorded (${tr.length} frames)`, { landed, n: tr.length });
 		const EPS = 0.05;
 		const inside = tr.filter((f) => f.gap < -PIN_TOL);
-		check(inside.length === 0, `pin: the flapper's tip is never inside a stud (deepest ${Math.min(...tr.map((f) => f.gap)).toFixed(2)} wheel units; tolerance ${PIN_TOL}: the edge is solved in floating point and drawn at about 0.66 CSS px a unit)`, inside.slice(0, 3));
-		// a frame "in contact": a stud on the tip (sampled) or met between two frames
+		check(inside.length === 0, `pin: the flapper (its whole length, ${K.tipRadius} units thick) is never inside a stud (deepest ${Math.min(...tr.map((f) => f.gap)).toFixed(2)} wheel units; tolerance ${PIN_TOL})`, inside.slice(0, 3));
+		// a frame "in contact": a stud on the flapper at the frame's end, or met inside the frame
 		const touching = (f) => f.stud !== null || (f.met && f.met.length > 0);
 		const early = [];
-		const ring = [];
-		const settleLate = [];
-		// (at rest: SETTLED frames in a row within EPS; the spring's ring back after a contact is allowed only as a decay: never
-		// past what it was turned at the release, and back within EPS inside SPRING_MS board ms of the release)
 		const SETTLED = 3;
-		const SPRING_MS = 400;
 		let still = SETTLED;
-		let release = null;
 		for (let i = 1; i < tr.length; i++) {
 			const f = tr[i];
-			const g = tr[i - 1];
 			if (Math.abs(f.phi) > EPS && still >= SETTLED && !touching(f) && f.gap > PIN_TOL) early.push(f);
-			if (touching(g) && !touching(f)) release = { amp: Math.abs(g.phi), clock: g.clock };
-			if (touching(f)) release = null;
-			if (!touching(f) && Math.abs(f.phi) > EPS) {
-				if (release && Math.abs(f.phi) > release.amp + 0.1) ring.push(f);
-				if (release && f.clock - release.clock > SPRING_MS) settleLate.push({ ...f, after: f.clock - release.clock });
-			}
 			still = Math.abs(f.phi) <= EPS ? still + 1 : 0;
 		}
-		check(early.length === 0, `pin: from rest it never starts to turn without a stud on its tip (${early.length} frames)`, early.slice(0, 3));
-		check(ring.length === 0, `pin: released, it only springs back (never past what it was turned at the release)`, ring.slice(0, 3));
-		check(settleLate.length === 0, `pin: released, it is straight again within ${SPRING_MS} board ms (no swinging on after the stud has gone)`, settleLate.slice(0, 3));
-		// no stud passes the tip without meeting it: every stud that crossed the top between two frames is in a contact
+		check(early.length === 0, `pin: from rest it never starts to turn without a stud on it (${early.length} frames)`, early.slice(0, 3));
+		const over = tr.filter((f) => Math.abs(f.phi) > K.maxSwing + 1e-6);
+		check(over.length === 0, `pin: it never swings past ${K.maxSwing} degrees (largest ${Math.max(...tr.map((f) => f.maxAbs ?? Math.abs(f.phi))).toFixed(1)})`, over.slice(0, 3));
+		// no stud passes the flapper without meeting it: every stud that crossed the top between two frames is in a contact
 		const met = new Set();
 		for (const f of tr) {
 			if (f.stud !== null) met.add(f.stud);
@@ -1004,27 +1009,146 @@ async function pinSection(browser) {
 			for (let k = Math.ceil(lo); k <= Math.floor(hi); k++) crossed.add(k);
 		}
 		const missed = [...crossed].filter((k) => !met.has(k));
-		check(crossed.size > 0 && missed.length === 0, `pin: every stud that passed the tip met it (${crossed.size} passed, ${met.size} met, at every speed, between frames included)`, missed.slice(0, 6));
+		check(crossed.size > 0 && missed.length === 0, `pin: every stud that crossed the top met the flapper (${crossed.size} passed, ${met.size} met, at every speed, inside frames included)`, missed.slice(0, 6));
+		// THE BOUNCE: each stud's kick, the largest swing in the frames it was the stud nearest the top
+		const kick = new Map();
+		for (const f of tr) {
+			const near = Math.round(-f.theta / 45);
+			kick.set(near, Math.max(kick.get(near) ?? 0, f.maxAbs ?? Math.abs(f.phi)));
+		}
+		const kicks = [...crossed].map((k) => kick.get(k) ?? 0);
+		const kicked = kicks.filter((v) => v > KICK_DEG).length;
+		check(crossed.size > 0 && kicked >= KICK_SHARE * crossed.size, `pin: ${kicked} of ${crossed.size} studs kicked it over ${KICK_DEG} degrees (at least ${KICK_SHARE * 100}%; kicks ${kicks.map((v) => v.toFixed(0)).join(' ')})`, kicks);
 		const ticks = tr.filter((f) => f.tick);
-		const offTick = ticks.filter((f) => !touching(f));
-		check(ticks.length > 0 && offTick.length === 0, `pin: every tick (${ticks.length}) is on a contact`, offTick.slice(0, 3));
-		// a contact with no tick only when the last tick was under tickMinMs of real time before it (the buzz rule)
+		const offTick = ticks.filter((f) => !(f.met && f.met.length > 0));
+		check(ticks.length > 0 && offTick.length === 0, `pin: every tick (${ticks.length}) is a stud's first contact`, offTick.slice(0, 3));
+		// a first contact with no tick only when the last tick was under tickMinMs of real time before it (the buzz rule)
 		const minMs = await p.evaluate(() => window.__reindeer.tune.superWheel.sound.tickMinMs);
 		let lastTick = -Infinity;
 		const silent = [];
+		const gaps = [];
 		for (let i = 1; i < tr.length; i++) {
 			const f = tr[i];
-			const newContact = touching(f) && (f.stud !== tr[i - 1].stud || (f.met ?? []).some((k) => k !== tr[i - 1].stud));
-			if (f.tick) lastTick = f.real;
-			else if (newContact && f.real - lastTick >= minMs + 1) silent.push(f);
+			if (f.tick) {
+				if (lastTick > -Infinity) gaps.push(f.real - lastTick);
+				lastTick = f.real;
+			} else if ((f.met ?? []).length > 0 && f.real - lastTick >= minMs + 1) silent.push(f);
 		}
-		check(silent.length === 0, `pin: every new contact ticks unless a tick sounded under tickMinMs (${minMs} ms) before it`, silent.slice(0, 3));
-		const last = tr[tr.length - 1];
-		check(!!last && (Math.abs(last.phi) < 0.5 || last.stud !== null) && last.gap >= -PIN_TOL, `pin: at the stop it is straight or resting on a stud (turned ${last?.phi.toFixed(2)} degrees, stud ${last?.stud}, gap ${last?.gap.toFixed(2)})`, last);
-		note(`PIN: ${tr.length} frames, ${crossed.size} studs passed, ${met.size} met, ${ticks.length} ticks, most turn ${Math.max(...tr.map((f) => Math.abs(f.phi))).toFixed(1)} degrees; at the stop ${w.atPeg}`);
+		check(silent.length === 0 && gaps.every((g) => g >= minMs - 1), `pin: every first contact ticks unless a tick sounded under tickMinMs (${minMs} ms) before it; ticks never closer (closest ${gaps.length ? Math.min(...gaps).toFixed(1) : '-'} ms)`, silent.slice(0, 3));
+		// AT REST: the stop is the last frame the disc turned; REST_MS board ms on, straight with no stud on it
+		let stopAt = 0;
+		for (let i = 1; i < tr.length; i++) if (tr[i].theta !== tr[i - 1].theta) stopAt = tr[i].clock;
+		const after = tr.filter((f) => f.clock >= stopAt + REST_MS);
+		const bent = after.filter((f) => Math.abs(f.phi) > REST_DEG || f.stud !== null);
+		check(after.length > 0 && bent.length === 0, `pin: ${REST_MS} board ms after the stop it is straight (${after.length} frames, largest ${after.length ? Math.max(...after.map((f) => Math.abs(f.phi))).toFixed(3) : '-'} degrees) with no stud on it`, bent.slice(0, 3));
+		note(`PIN: ${tr.length} frames, ${crossed.size} studs passed, ${met.size} met, ${kicked} kicked over ${KICK_DEG} degrees, ${ticks.length} ticks, largest swing ${Math.max(...tr.map((f) => f.maxAbs ?? Math.abs(f.phi))).toFixed(1)} degrees; at the stop ${w.atPeg}`);
 		check(errs.length === 0, 'pin: no page errors', errs);
 	} finally {
 		await ctx.close();
+	}
+}
+
+// ---------------------------------------------------------------- the wedges' numbers and busts (the layout page round 3)
+/** the wheel's eight values, one wedge each (game/superWheelPlan.ts WHEEL_SHARES: Reindeer 4x to 8x, Santa 10x to 30x) */
+const WHEEL_VALUES = [
+	{ tier: 'reindeer', m: 4 },
+	{ tier: 'santa', m: 10 },
+	{ tier: 'reindeer', m: 5 },
+	{ tier: 'santa', m: 12 },
+	{ tier: 'reindeer', m: 6 },
+	{ tier: 'santa', m: 15 },
+	{ tier: 'reindeer', m: 8 },
+	{ tier: 'santa', m: 30 },
+];
+async function numbersSection(browser) {
+	for (const L of MEASURED) {
+		const S = await standing(browser, L, BOOKS[7]);
+		const { p, g, clip, DPR, set, shot } = S;
+		const K = await p.evaluate(() => ({ place: window.__reindeer.tune.wildMult.place.wheel }));
+		const spec = await p.evaluate(async () => {
+			const m = await import('/src/game/superWheelSpec.ts');
+			return { units: m.SUPER_WHEEL_ART.units, numbers: m.SUPER_WHEEL_ART.numbers };
+		});
+		const U = spec.units;
+		const phone = Math.min(L.vp.width, L.vp.height) <= 480;
+		const cls = phone ? 'phone' : 'wide';
+		await p.evaluate(() => {
+			window.__reindeer.sceneOnly(true);
+			window.__reindeer.wheelAlone(true);
+		});
+		const u = g.d / (2 * U.rim); // CSS px per wheel unit
+		// (a device pixel's reach in wheel units: a small wheel's edge pixels are read further past the line)
+		const tol = Math.max(EDGE_TOL, 1.2 / (DPR * u));
+		const theta = -22.5;
+		await set({ only: [], theta });
+		const none = await shot();
+		/** a mask's pixels in the disc's own frame: radius (wheel units), the wedge they fall in and their distance (wheel
+		 *  units) inside that wedge's nearer side line */
+		const polar = (m) => {
+			const out = [];
+			for (let i = 0; i < m.pts.length; i += 2) {
+				const x = ((m.pts[i] + 0.5) / DPR + clip.x - g.cx) / u;
+				const y = ((m.pts[i + 1] + 0.5) / DPR + clip.y - g.cy) / u;
+				const r = Math.hypot(x, y);
+				const a = (((Math.atan2(x, -y) * 180) / Math.PI - theta) % 360 + 360) % 360;
+				const k = Math.floor(a / 45);
+				const off = a - (k * 45 + 22.5);
+				out.push({ r, k, side: r * Math.sin(((22.5 - Math.abs(off)) * Math.PI) / 180) });
+			}
+			return out;
+		};
+		const caps = new Set();
+		let worstSide = Infinity;
+		let worstR = 0;
+		const badNum = [];
+		for (let turn = 0; turn < 8; turn++) {
+			const slices = WHEEL_VALUES.map((_, i) => WHEEL_VALUES[(i + turn) % 8]);
+			await set({ slices, theta, only: ['wedges'], numsOnly: true });
+			await sleep(150);
+			const w = await W(p);
+			for (const n of w.nums) caps.add(n.cap.toFixed(2));
+			if (turn === 0) {
+				check(w.outlineClass === cls && w.nums.every((n) => n.outline && Math.abs(n.arc - U.multR) < 0.01), `numbers ${L.name}: the ${cls} outline (${spec.numbers.outline[cls]} wheel units, baked), every number on the arc of radius ${U.multR}`, { cls: w.outlineClass, nums: w.nums });
+				const order = w.discOrder;
+				check(order.indexOf('lights') > order.indexOf('wedges') && order.indexOf('wedges') >= 0, `numbers ${L.name}: the string lights draw over the wedges' numbers (the disc, bottom to top: ${order.join(', ')})`, order);
+			}
+			const pts = polar(diffMask(await shot(), none, 24));
+			for (const q of pts) {
+				worstSide = Math.min(worstSide, q.side);
+				worstR = Math.max(worstR, q.r);
+				// clear of the dark divider (4 units each side of the line) and under the trim's wire
+				if (q.side < 4 - tol || q.r > U.trim.wire[0] + tol) badNum.push({ turn, ...q });
+			}
+			if (SHOTS && (turn === 0 || turn === 1)) {
+				await set({ numsOnly: false, only: null });
+				await p.evaluate(() => {
+					window.__reindeer.sceneOnly(false);
+					window.__reindeer.wheelAlone(false);
+				});
+				await sleep(120);
+				writeFileSync(join(SHOTS, `${L.name}_values_${turn}.png`), await p.screenshot({ clip }));
+				await p.evaluate(() => {
+					window.__reindeer.sceneOnly(true);
+					window.__reindeer.wheelAlone(true);
+				});
+			}
+		}
+		check(caps.size === 1 && Math.abs(Number([...caps][0]) - K.place.caps[0]) < 0.01, `numbers ${L.name}: one letter height for every value in every place (${[...caps].join(', ')} wheel units; WILD_MULT.place.wheel caps ${K.place.caps[0]})`, [...caps]);
+		check(badNum.length === 0, `numbers ${L.name}: every value in every wedge place stays inside its wedge, clear of the divider (closest ${worstSide.toFixed(1)} wheel units from a side line, the divider 4) and under the trim (outermost pixel at radius ${worstR.toFixed(1)}, the trim's wire from ${U.trim.wire[0]})`, badNum.slice(0, 4));
+		// THE BUSTS, cut to their wedges (baked): every wedge pixel inside the wedge's outline
+		await set({ numsOnly: false, only: ['wedges'], slices: WHEEL_VALUES, theta });
+		await sleep(150);
+		const wp = polar(diffMask(await shot(), none, 24));
+		const out = wp.filter((q) => q.side < -tol || q.r > U.wedge + tol || q.r < U.hub - tol);
+		check(wp.length > 0 && out.length === 0, `numbers ${L.name}: every wedge's picture (its bust) is inside its wedge (${wp.length} pixels; outermost radius ${wp.reduce((m, q) => Math.max(m, q.r), 0).toFixed(1)}, the wedge ${U.wedge})`, out.slice(0, 4));
+		note(`NUMBERS ${L.name}: class ${cls}, letter height ${[...caps].join(', ')}, the closest number pixel ${worstSide.toFixed(1)} wheel units from a side line, the outermost at radius ${worstR.toFixed(1)}`);
+		await p.evaluate(() => {
+			window.__reindeer.sceneOnly(false);
+			window.__reindeer.wheelAlone(false);
+			window.__reindeer.wheelEnd();
+		});
+		check(S.errs.length === 0, `numbers ${L.name}: no page error`, S.errs);
+		await S.ctx.close();
 	}
 }
 
@@ -1048,6 +1172,7 @@ try {
 	if (want('concentric')) await concentricSection(browser);
 	if (want('contact')) await contactSection(browser);
 	if (want('pin')) await pinSection(browser);
+	if (want('numbers')) await numbersSection(browser);
 	if (SHOTS && (!ONLY.length || ONLY.includes('shots'))) await shotsSection(browser);
 } finally {
 	await browser.close();
