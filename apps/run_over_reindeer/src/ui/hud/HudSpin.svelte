@@ -127,7 +127,7 @@
 		driver.frame({ live: boardPace.live(), restIn: boardPace.restIn(), serial: boardPace.serial(), halted, reduced, turbo: turbo(), resting: restingMode(mode) }, startRing);
 	};
 	let raf = 0;
-	const needLoop = () => !restingMode(mode) || driver.phase !== 'rest';
+	const needLoop = () => !restingMode(mode) || driver.phase !== 'rest' || driver.turning();
 	const loop = () => {
 		raf = 0;
 		tick();
@@ -216,11 +216,11 @@
 			/** the ring's last rounds as planned: kind, shape, brake ms and today's, the cruise's largest speed change, the
 			 *  planned rest angle and its distance from home (ui/hud/ringPlan.ts RingRound) */
 			ringRounds: () => driver.core.rounds.map((r) => ({ ...r })),
-			/** the ring now: its phase and its angle on the page (the two driven wrappers, 0..360) */
+			/** the ring now: its phase, its angle on the page (the two driven wrappers, 0..360), the backstop's count */
 			ringNow: () => {
 				const rw = btn?.querySelector<HTMLElement>('.rw');
 				const rr = btn?.querySelector<HTMLElement>('.rr');
-				return { phase: driver.phase, angle: rw && rr ? (ang(rw) + ang(rr)) % 360 : null, t: performance.now() };
+				return { phase: driver.phase, angle: rw && rr ? (ang(rw) + ang(rr)) % 360 : null, t: performance.now(), watchdogs: driver.core.watchdogs };
 			},
 		});
 	}

@@ -858,7 +858,8 @@ const lastRingN = async (p) => {
 const fold = (a) => ((((a + 180) % 360) + 360) % 360) - 180;
 /** one round's line: the plan (ringRounds) against the page's frames */
 function homeJudge(R, rows, tag) {
-	const out = { tag, err: R.err, page: null, brake: R.brakeMs, today: R.todayMs, bound: R.boundMs, seen: null, steer: R.steer, pageSteer: null, over: R.over, pageOver: null, ended: R.ended, kind: `${R.kind}/${R.shape}` };
+	// (the plan's own fastest speed, as a share of the loop's: the cruise's steered speed or the brake's peak)
+	const out = { tag, peak: Math.max(R.peak ?? 0, 1 + (R.steer ?? 0)), err: R.err, page: null, brake: R.brakeMs, today: R.todayMs, bound: R.boundMs, seen: null, steer: R.steer, pageSteer: null, over: R.over, pageOver: null, ended: R.ended, kind: `${R.kind}/${R.shape}` };
 	if (R.restAt !== null) {
 		// the angle drawn on the first frame at or after the planned rest
 		const at = rows.find((r) => r.t >= R.restAt && r.a !== null);
@@ -906,9 +907,19 @@ function homeJudge(R, rows, tag) {
 	}
 	return out;
 }
+/** every ring round of the section has a plan that ended at home (none with no plan, but one whose face was rebuilt
+ *  under it: its drawing went with the old face), and the backstop never had to bring a loop home */
+async function homeEnds(p, method, nStart) {
+	const all = (await ringRounds(p)).filter((r) => r.n > nStart);
+	const bad = all.filter((r) => r.kind === null && r.ended !== 'face');
+	const off = all.filter((r) => r.kind !== null && r.ended === 'rest' && r.err !== null && r.err > HOME_TOL);
+	const wd = (await p.evaluate(() => window.__reindeer.ringNow?.()))?.watchdogs ?? null;
+	check(bad.length === 0 && off.length === 0, `home ${method}: every one of the section's ${all.length} ring rounds had a plan to home (${bad.length} without, ${off.length} off home)`, [...bad, ...off].map((r) => `#${r.n} ${r.kind}/${r.shape} ended ${r.ended}`));
+	check(wd === 0, `home ${method}: the backstop never had to bring a loop home (${wd})`);
+}
 const homeLine = (method, i, o, of = 10) =>
 	console.log(
-		`  HOME ${method} ${String(i).padStart(2)}/${of} ${o.tag.padEnd(22)} rest ${o.err === null ? '?' : o.err.toFixed(2)} deg from home (page ${o.page === null ? (o.ended === 'next' ? 'none: the next spin began first' : '?') : o.page.toFixed(2)}), overshoot ${o.over === null ? '?' : o.over.toFixed(1)} deg (page ${o.pageOver === null ? '?' : o.pageOver.toFixed(1)}), ${o.today === null ? `way home ${Math.round(o.brake ?? 0)} ms (page ${o.seen === null ? '?' : Math.round(o.seen)} ms)` : `brake ${o.brake === null ? '?' : Math.round(o.brake)} ms against today's ${Math.round(o.today)} (${o.brake === null ? '?' : `${o.brake - o.today >= 0 ? '+' : ''}${Math.round(o.brake - o.today)}`}, bound ${o.bound === null ? '?' : Math.round(o.bound)}; page ${o.seen === null ? '?' : Math.round(o.seen)} ms)`}, cruise speed change ${Math.round(100 * (o.steer ?? 0))} % (page ${o.pageSteer === null ? '?' : o.pageSteer === 'far' ? '? frames too far apart' : Math.round(100 * o.pageSteer) + ' %'}), ${o.kind}`,
+		`  HOME ${method} ${String(i).padStart(2)}/${of} ${o.tag.padEnd(22)} rest ${o.err === null ? '?' : o.err.toFixed(2)} deg from home (page ${o.page === null ? (o.ended === 'next' ? 'none: the next spin began first' : '?') : o.page.toFixed(2)}), overshoot ${o.over === null ? '?' : o.over.toFixed(1)} deg (page ${o.pageOver === null ? '?' : o.pageOver.toFixed(1)}), ${o.today === null ? `way home ${Math.round(o.brake ?? 0)} ms (page ${o.seen === null ? '?' : Math.round(o.seen)} ms)` : `brake ${o.brake === null ? '?' : Math.round(o.brake)} ms against today's ${Math.round(o.today)} (${o.brake === null ? '?' : `${o.brake - o.today >= 0 ? '+' : ''}${Math.round(o.brake - o.today)}`}, bound ${o.bound === null ? '?' : Math.round(o.bound)}; page ${o.seen === null ? '?' : Math.round(o.seen)} ms)`}, peak ${o.peak.toFixed(2)} x the loop's (planned), cruise speed change ${Math.round(100 * (o.steer ?? 0))} % (page ${o.pageSteer === null ? '?' : o.pageSteer === 'far' ? '? frames too far apart' : Math.round(100 * o.pageSteer) + ' %'}), ${o.kind}`,
 	);
 
 async function setTurboR(p, want) {
@@ -936,7 +947,20 @@ async function homePose(browser) {
 		}
 		await p.evaluate(() => window.__reindeer.fixtures.next('no_win_1', true));
 		await homeRecStart(p);
+		const nStart = await lastRingN(p);
 		const judged = [];
+		// THE IDLE KEY (2026-11-21, the probe host: after an autoplay run's last round and after a free spins round the
+		// ring went on turning at rest): 1 s after the game is idle the ring is home, and still over the next 3 s
+		const idleHome = async (what) => {
+			await sleep(1000);
+			const a = await p.evaluate(() => window.__reindeer.ringNow?.());
+			await sleep(3000);
+			const b = await p.evaluate(() => window.__reindeer.ringNow?.());
+			const off = a && a.angle !== null ? Math.abs(fold(a.angle)) : null;
+			const moved = a && b && a.angle !== null && b.angle !== null ? Math.abs(fold(b.angle - a.angle)) : null;
+			console.log(`  HOME ${method} idle after ${what}: ${off === null ? '?' : off.toFixed(2)} deg from home 1 s after idle, moved ${moved === null ? '?' : moved.toFixed(2)} deg over the next 3 s, phase ${a?.phase}`);
+			check(off !== null && off <= HOME_TOL && moved !== null && moved <= 0.05 && a.phase === 'rest', `home ${method}: 1 s after ${what} the ring is home (${off === null ? '?' : off.toFixed(2)} deg, phase ${a?.phase}) and still over 3 s (${moved === null ? '?' : moved.toFixed(2)} deg)`);
+		};
 		const restWait = async () => {
 			await settle(p, S, 120000);
 			for (let i = 0; i < 40 && (await p.evaluate(() => window.__reindeer.ringNow?.().phase)) !== 'rest'; i++) await sleep(100);
@@ -1002,6 +1026,7 @@ async function homePose(browser) {
 		}
 		await p.click(CONTROLS.spin).catch(() => {});
 		await restWait();
+		await idleHome("the autoplay run's end");
 		const A = (await ringRounds(p)).filter((r) => r.n > n0);
 		A.slice(0, 3).forEach((r, k) => judged.push([r, `autoplay ${k + 1} of 3`]));
 		await homeRecStop(p);
@@ -1037,6 +1062,14 @@ async function homePose(browser) {
 		const allO = [...res, ...hres].filter((o) => o.over !== null && o.over > 0);
 		console.log(`  INFO home ${method}: overshoot planned ${Math.min(...allO.map((o) => o.over)).toFixed(1)} to ${Math.max(...allO.map((o) => o.over)).toFixed(1)} deg; drawn ${allO.filter((o) => o.pageOver !== null).map((o) => o.pageOver.toFixed(1)).join(', ') || '?'}`);
 		await p.evaluate(() => window.__reindeer.fixtures.clear?.());
+		// A FREE SPINS ROUND, to its wrap-up and the return to the base game
+		if (process.env.SKIPFS !== '1') {
+			await p.evaluate(() => window.__reindeer.fixtures.next('natural_free_spins'));
+			await spinOnce(p);
+			await settle(p, S, 240000);
+			await idleHome('the free spins round');
+		}
+		await homeEnds(p, method, nStart);
 		check(errs.filter((x) => !/favicon/.test(x)).length === 0, `home ${method}: no console errors`, errs.slice(0, 5));
 		await ctx.close();
 	}
