@@ -51,6 +51,12 @@ SRC = os.path.join(HERE, "super_wheel_src")
 SPEC = os.path.join(APP, "src", "game", "superWheelSpec.ts")
 FONT = os.path.join(ASSETS, "fonts", "overpass", "Overpass-heavy.woff2")
 DENSITY = {"full": 2.0, "phone": 1.25}  # sheet px per wheel unit
+# THE GAP BETWEEN FRAMES on the sheet, sheet px (2026-11-21): the desktop sheet is mipmapped (components/Board.svelte
+# setWheelMipmapper), and a mip level 2^k smaller averages 2^k px blocks across the gap: with 2 px, the wedge drawn at the
+# pop-out's size (mip level 2 to 3) showed its atlas neighbor's pixels along its rectangle's edge, out over the next
+# wedge (wheel_probe numbers, 400x225: 39 units past a side line). 16 keeps every level to 4 clean (a 1x pop-out). The
+# phone sheet has no mip chain.
+PACK_PAD = {"full": 16, "phone": 2}
 SS = 3  # supersampling of every drawn shape
 
 # ---- the wheel's geometry, wheel units (the mock's faces5.js and wheel_r5_open_me.html) --------------------------------
@@ -819,7 +825,7 @@ def build_tier(tier, busts, flap, letters):
         for (color, ch), (alpha, dens) in sorted(art.items()):
             im, o = make_outline_letter(d, alpha, dens, art_cap, t)
             items.append((f"mo_{cls}_{color}_{ch}", im, o))
-    sheet, frames = pack(items)
+    sheet, frames = pack(items, PACK_PAD[tier])
     name = "super-wheel.webp" if tier == "full" else f"super-wheel-{tier}.webp"
     os.makedirs(OUT, exist_ok=True)
     sheet.save(os.path.join(OUT, name), "WEBP", lossless=True, method=6, exact=True)
