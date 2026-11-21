@@ -1022,7 +1022,7 @@ export class SuperWheel {
 	}
 	/** DEV: pose the standing wheel: the disc's and the ring's turn, which pieces draw, the highlights, the reindeer on
 	 *  the rim in a stride (1 to 16) */
-	devSet(o: { theta?: number; ringPhi?: number; ring?: boolean; hi?: number | null; ringHi?: number | null; only?: string[] | null; stride?: number | null; tag?: boolean; medal?: boolean; slices?: { tier: WheelPlan['slices'][number]['tier']; m: number }[]; numsOnly?: boolean }) {
+	devSet(o: { theta?: number; ringPhi?: number; ring?: boolean; hi?: number | null; ringHi?: number | null; only?: string[] | null; stride?: number | null; tag?: boolean; medal?: boolean; slices?: { tier: WheelPlan['slices'][number]['tier']; m: number }[]; numsOnly?: boolean; wedgeOnly?: number | null }) {
 		if (this.phase !== 'dev' || !this.wrap) return null;
 		// THE WEDGES BY HAND (the probe's and the build's stills: every value in every place): the plan's eight wedges
 		// replaced, the wheel built again where it stands
@@ -1036,6 +1036,8 @@ export class SuperWheel {
 		}
 		// only the wedges' numbers drawn of the wedges (their pictures hidden): the probe's measure of the numbers' pixels
 		if (o.numsOnly !== undefined) for (const a of this.wedgeArt) a.renderable = !o.numsOnly;
+		// one wedge drawn alone (null: all): the probe's measure of a wedge's own picture against its own outline
+		if (o.wedgeOnly !== undefined) this.wedges.forEach((w, i) => (w.renderable = o.wedgeOnly === null || i === o.wedgeOnly));
 		if (o.theta !== undefined) {
 			this.setTheta(o.theta, true);
 			// the flapper meets the studs where they now are

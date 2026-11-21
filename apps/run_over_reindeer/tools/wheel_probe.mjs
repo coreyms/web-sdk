@@ -86,6 +86,11 @@ const STILL_DEG = 0.02;
 /** wheel units a number's or a wedge's pixel may be read past its line (a device pixel at ratio 3 is up to 0.55 unit on
  *  the desktop wheel; a smaller wheel's device pixel reaches further and the numbers section allows that) */
 const EDGE_TOL = 1;
+/** the wedge's dark divider, its half on each side of a side line (tools/build_super_wheel.py make_wedge, wheel units), and
+ *  how much a pixel past the line may lighten the empty picture under it (the sum of its channels; the divider's ink only
+ *  darkens: a lighter pixel there is the bust's own art) */
+const DIVIDER_HALF = 4;
+const DIVIDER_DARK = 12;
 const want = (s) => !ONLY.length || ONLY.includes(s);
 const ROUNDS = Number(process.env.ROUNDS || 12);
 // (to split the rounds section over several holds of the browser lock on a slow machine: PICK=0,3,7 plays those books of
@@ -1156,12 +1161,81 @@ async function numbersSection(browser) {
 		// never covers one, and outside the hub
 		const ringOut = U.ring[1] + 5.5;
 		check(worstIn >= Math.max(ringOut, U.hub) + tol, `numbers ${L.name}: every value in every wedge place lies outside the column ring and the hub (innermost number pixel at radius ${worstIn.toFixed(1)}; the ring's outer edge ${ringOut}, the hub ${U.hub})`, { worstIn, ringOut, hub: U.hub });
-		// THE BUSTS, cut to their wedges (baked): every wedge pixel inside the wedge's outline
-		await set({ numsOnly: false, only: ['wedges'], slices: WHEEL_VALUES, theta });
+		// THE BUSTS, cut to their wedges (baked): one wedge's picture drawn alone (a Reindeer wedge and a Santa wedge), every
+		// pixel of it measured against THAT wedge (2026-11-21: measured against whichever wedge a pixel fell in, the side
+		// lines could never fail and the arcs failed on the GPU's own filtering): no pixel past its side lines (onto a
+		// neighbor); past its outer arc only under the trim's opaque bands (to U.trim.inkIn[1]), past its inner arc only under
+		// the hub's gold disc (superWheelSpec hubFit.discRadius). The wedge picture is baked exact (tools/build_super_wheel.py
+		// make_wedge); a mipmapped sheet drawn well under its size (the desktop tier: the pop-out, a small window) spreads
+		// every edge by a sheet pixel or two, which the trim and the hub cover.
+		// (the scene's clock held still and a fresh empty picture taken first: a snowflake drifting between the two pictures
+		// read as 39 units past a side line at the pop-out, 2026-11-21)
+		const hubDisc = await p.evaluate(async () => (await import('/src/game/superWheelSpec.ts')).SUPER_WHEEL_ART.hubFit.discRadius);
+		await p.evaluate(() => window.__reindeer.clock(0));
+		await set({ only: [], wedgeOnly: null, slices: WHEEL_VALUES, theta });
 		await sleep(150);
-		const wp = polar(diffMask(await shot(), none, 24));
-		const out = wp.filter((q) => q.side < -tol || q.r > U.wedge + tol || q.r < U.hub - tol);
-		check(wp.length > 0 && out.length === 0, `numbers ${L.name}: every wedge's picture (its bust) is inside its wedge (${wp.length} pixels; outermost radius ${wp.reduce((m, q) => Math.max(m, q.r), 0).toFixed(1)}, the wedge ${U.wedge})`, out.slice(0, 4));
+		const none2 = await shot();
+		const edges = [];
+		// (a device pixel in wheel units; the dark divider's half on each side of a side line, tools/build_super_wheel.py
+		// make_wedge: 4 units of ink, so a spread of up to that, or two device pixels, lies on the neighbor's own divider)
+		const devPx = 1 / (DPR * u);
+		const sideAllow = Math.max(DIVIDER_HALF, 2 * devPx);
+		for (const k of [0, 1]) {
+			await set({ numsOnly: false, only: ['wedges'], theta, wedgeOnly: k });
+			await sleep(150);
+			const png0 = await shot();
+			const m = diffMask(png0, none2, 24);
+			let side = Infinity;
+			let outer = 0;
+			let inner = 0;
+			let worstOuter = null;
+			let worstInner = null;
+			let worstSide = null;
+			let bright = 0;
+			for (let i = 0; i < m.pts.length; i += 2) {
+				const cssX = (m.pts[i] + 0.5) / DPR + clip.x;
+				const cssY = (m.pts[i + 1] + 0.5) / DPR + clip.y;
+				const x = (cssX - g.cx) / u;
+				const y = (cssY - g.cy) / u;
+				const r = Math.hypot(x, y);
+				const a = (((((Math.atan2(x, -y) * 180) / Math.PI - theta - (k * 45 + 22.5)) % 360) + 540) % 360) - 180;
+				const s = r * Math.sin(((22.5 - Math.abs(a)) * Math.PI) / 180);
+				if (s < side) {
+					side = s;
+					worstSide = { cssX, cssY, r, a };
+				}
+				// past the line by more than a device pixel: only the wedge's own dark divider, spread by the filtering
+				if (s < -devPx) {
+					const o = (m.pts[i + 1] * png0.width + m.pts[i]) * 4;
+					// (darker than the empty picture there: the ink laid over it; anything that lightens it is not the divider)
+					const now = png0.data[o] + png0.data[o + 1] + png0.data[o + 2];
+					const was = none2.data[o] + none2.data[o + 1] + none2.data[o + 2];
+					if (now > was + DIVIDER_DARK) bright++;
+				}
+				if (r - U.wedge > outer) {
+					outer = r - U.wedge;
+					worstOuter = { cssX, cssY, r, a };
+				}
+				if (U.hub - r > inner) {
+					inner = U.hub - r;
+					worstInner = { cssX, cssY, r, a };
+				}
+			}
+			edges.push({ k, tier: WHEEL_VALUES[k].tier, side: -side, bright, outer, inner, worstSide, worstOuter, worstInner });
+			if (SHOTS) {
+				writeFileSync(join(SHOTS, `${L.name}_wedge${k}_alone.png`), PNG.sync.write(png0));
+				writeFileSync(join(SHOTS, `${L.name}_wedge${k}_alone.json`), JSON.stringify({ clip, DPR, g, u, theta, edges: edges[edges.length - 1] }));
+			}
+		}
+		await set({ wedgeOnly: null });
+		await p.evaluate(() => window.__reindeer.clock(1));
+		const sideOver = Math.max(...edges.map((e) => e.side));
+		const outerOver = Math.max(...edges.map((e) => e.outer));
+		const innerOver = Math.max(...edges.map((e) => e.inner));
+		note(`BUSTS ${L.name}: past the side lines ${sideOver.toFixed(2)}, past the outer arc ${outerOver.toFixed(2)} (to radius ${(U.wedge + outerOver).toFixed(2)}), past the inner arc ${innerOver.toFixed(2)} (to radius ${(U.hub - innerOver).toFixed(2)}) wheel units; a device pixel ${(1 / (DPR * u)).toFixed(2)} units`);
+		const brightPast = edges.reduce((n, e) => n + e.bright, 0);
+		check(sideOver <= sideAllow && brightPast === 0, `numbers ${L.name}: a Reindeer and a Santa wedge's picture drawn alone reach past their side lines only by the filtering's spread of their own dark divider (${sideOver.toFixed(2)} wheel units at most, allowed ${sideAllow.toFixed(2)}: the divider's half ${DIVIDER_HALF} or two device pixels; ${brightPast} pixels past a device pixel lighter than the picture under them)`, edges.map((e) => ({ tier: e.tier, side: e.side, bright: e.bright, at: e.worstSide })));
+		check(U.wedge + outerOver <= U.trim.inkIn[1] && U.hub - innerOver >= 0 && hubDisc >= U.hub, `numbers ${L.name}: past their arcs only under the trim and the hub (outer edge drawn to radius ${(U.wedge + outerOver).toFixed(2)}, the trim's opaque bands to ${U.trim.inkIn[1]}; inner to ${(U.hub - innerOver).toFixed(2)}, the hub's disc to ${hubDisc})`, edges.map((e) => ({ tier: e.tier, outer: e.outer, inner: e.inner, at: [e.worstOuter, e.worstInner] })));
 		note(`NUMBERS ${L.name}: class ${cls}, letter height ${[...caps].join(', ')}, the closest number pixel ${worstSide.toFixed(1)} wheel units from a side line, the outermost at radius ${worstR.toFixed(1)}, the innermost at ${worstIn.toFixed(1)}`);
 		await p.evaluate(() => {
 			window.__reindeer.sceneOnly(false);
