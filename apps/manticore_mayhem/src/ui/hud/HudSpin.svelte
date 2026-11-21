@@ -125,6 +125,8 @@
 			lastSerial = boardPace.serial();
 			return;
 		}
+		// THE BACKSTOP (2026-11-21): a loop still drawn on the face showing while the ring is at rest is braked
+		if (driver.phase === 'rest' && driver.looping()) driver.rescue(turbo());
 		const live = boardPace.live();
 		const restIn = boardPace.restIn();
 		const t = turbo();
@@ -147,7 +149,7 @@
 		}
 	};
 	let raf = 0;
-	const needLoop = () => !restingMode(mode) || driver.phase !== 'rest';
+	const needLoop = () => !restingMode(mode) || driver.phase !== 'rest' || driver.looping();
 	const loop = () => {
 		raf = 0;
 		tick();
@@ -169,7 +171,14 @@
 		const was = lastRingSt;
 		lastRingSt = now;
 		untrack(() => {
-			if (now === 'run' && was === 'idle' && driver.phase !== 'spin') startRing();
+			// THE RING THAT NEVER STOPPED (2026-11-21, the probe host, on both live games): an autoplay run's last round, or
+			// a free spins round, hands the key back by changing its face in the same update that turns it to Stop. That is
+			// not a press (a press turns Play into Stop on the same face), and this effect runs before the face's own (below),
+			// so a start here landed on the new face and the face change then set the driver at rest over a turning loop:
+			// it turned at rest for ever. A start here only for a press on the face it began on; the round's own start (the
+			// board's count) has turned the ring already
+			const faceChanging = lastFace !== '' && faceKind !== lastFace;
+			if (now === 'run' && was === 'idle' && driver.phase !== 'spin' && !faceChanging) startRing();
 			if (now === 'halt') halted = true;
 		});
 	});
@@ -181,7 +190,8 @@
 			const was = lastFace;
 			lastFace = k;
 			if (!was || was === k) return;
-			if (driver.phase !== 'rest') driver.rest();
+			// (the old face's ring goes with it; a ring already turning on the face showing goes on, and brakes as usual)
+			if (driver.phase !== 'rest' && !driver.onFace()) driver.rest();
 			// a spin still live winds up again on the new face's ring
 			if (boardPace.live()) lastSerial = -1;
 			flash('pop', 420);
