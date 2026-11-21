@@ -1016,9 +1016,11 @@ export const LINE_WIN = {
 		 *  line starts while the last line's show is still sounding (lengthMs of the clip, shortened by its rate: at turbo,
 		 *  and in a slam's hurry) that one is stopped as this one starts, so one voice only */
 		sound: { rateStep: 0.03, rateMax: 1.3, lengthMs: 197, oneVoice: true },
-		/** each span between two winning symbols droops this many road px at its middle */
+		/** (NOT IN USE since the strand, 2026-11-20: its sag is strand.sag) each span between two winning symbols droops this
+		 *  many road px at its middle */
 		sag: 38,
-		/** the wire, road px: its outline's full width, its core's, and how finely a span is cut into straight quads (the
+		/** (NOT IN USE since the strand, 2026-11-20: the cord is strand.cord) the wire, road px: its outline's full width, its
+		 *  core's, and how finely a span is cut into straight quads (the
 		 *  nail's baked wrap, tools/build_win_lights.py, is drawn for 14 and 6 and these colors) */
 		wire: { outline: 14, core: 6, outlineColor: 0x0b0c0f, coreColor: 0x1f5c36, segmentsPerSpan: 14 },
 		/** THE WIRE'S ENDS (Corey 2026-11-18, the tips mock win_line_tips_2026-11-18, his pick "T2 Nail"; a tester: "the ends
@@ -1029,19 +1031,91 @@ export const LINE_WIN = {
 		 *  symbol's centre (where the wire ended before). One nail per symbol end, shared by every line that starts (or
 		 *  ends) there: it pops in with the first of them (popMs, from popFrom, the bulbs' back-out) and leaves with the
 		 *  last (outMs): a start nail as its line starts coming down, an end nail as its line's last wire goes. */
+		//   (since the strand, 2026-11-20: on, end, popMs, popFrom and outMs still hold for every nail; edgeGap is NOT IN USE,
+		//   the end nail's place is strand.ends ringOverlap; the wrap is strand.ends)
 		tips: { on: true, end: 'edge' as 'center' | 'edge', edgeGap: 15, popMs: 110, popFrom: 0.3, outMs: 110 },
 		/** a bulb every `spacing` road px along the wire from `first`; it pops up from popFrom over popMs as the wire
 		 *  reaches it; a bulb not lit in the chase is its color times `dim`. `scale`: its drawn size, a share of the
-		 *  sheet's largest draw (winLightsSpec.ts pop) */
+		 *  sheet's largest draw (winLightsSpec.ts pop). Since the strand (2026-11-20) only popFrom, popMs and dim are in
+		 *  use (dim: the 'steps' animation); spacing, first and scale are strand.bulbs. */
 		bulb: { spacing: 74, first: 36, popFrom: 0.5, popMs: 110, dim: 0.68, scale: 1 / 1.18 },
-		/** the glow under a lit bulb, added (its alpha lit and in the chase's off beat) */
+		/** (NOT IN USE since the strand, 2026-11-20: strand.glow) the glow under a lit bulb, added (its alpha lit and in the
+		 *  chase's off beat) */
 		glow: { alpha: 0.7, dimAlpha: 0.16, scale: 1 / 1.18 },
-		/** after the wire is drawn: one bulb in `cycle` is lit, the light steps along every stepMs */
+		/** after the wire is drawn: one bulb in `cycle` is lit, the light steps along every stepMs (since the strand: its
+		 *  animation 'steps' only) */
 		chase: { stepMs: 140, cycle: 3 },
 		/** a line's own amount: Overpass Heavy, gold with the dark edge, this cap size in road px; it pops in when its line
 		 *  is complete, swelling by `swell` over popMs, on a winning symbol's top edge (the middle one first; another if
 		 *  it would touch an amount already up). It fades as its line comes down (the line schedule above). */
 		amount: { size: 52, fill: 0xffd400, stroke: 0x101216, strokeWidth: 10, popMs: 160, swell: 0.35, pad: 6 },
+		/** THE STRAND (Corey 2026-11-20: the win line lights mock round 1, his pick "B. Thick cord, C7 on pigtails", with the
+		 *  round 2 nails, win_line_lights_r2_2026-11-20; his words: "the nails should be staying silver, I would have the cord
+		 *  coming over the top side of the nail", "the corder around the nails should bisibly smaller like it's partially
+		 *  behind a nail thread", "The long straight lines need a middle nail so they don't sag so much", "ON nails that aren't
+		 *  endpoint the cord shouldn't be wrapped all the way around them, just draped over the nails"). His settings, read
+		 *  back from the mock: {"candidate":"B","bulbSize":1.05,"bulbSpacingRoadPx":73,"glow":0.65,"sagRoadPx":20,
+		 *  "wireThicknessRoadPx":10,"outlineWeightRoadPx":2.75,"hangPoints":"bends","nailSize":1.55,"nailColor":"silver",
+		 *  "endWrapTurns":1,"endWrapSize":0.15,"middleNailStyle":"drape","supportNails":"middle","supportEveryReels":2,
+		 *  "supportMinSpanReels":3,"supportBetweenSymbols":false,"animation":"chase"} (the bulbs keep each line's palette
+		 *  below). One round cord with an even outline and a highlight, hung in a parabola from nail to nail (game/road/
+		 *  winLightsPath.ts), a C7 bulb on a short pigtail lead every spacing road px, silver nails at both ends (a small
+		 *  wrap seated behind the head), at every bend (the cord draped over the top, never wrapped) and on long runs.
+		 *  Every length is road px. The pictures are baked for these numbers by tools/build_win_lights.py (its STRAND,
+		 *  written to WIN_LIGHTS_ART.strand.bakedFor): a change to a baked number here needs the tool run again. Drawn with
+		 *  sprites of the lights' sheet and one textured triangle strip per line for the cord (a Pixi Mesh of the sheet's
+		 *  cord strip, batched with the sprites); no filter, mask or shader. Read when a win starts (live tunable), except
+		 *  the baked pictures. */
+		strand: {
+			/** THE CORD: its core width and its ink outline each side (baked: the cord strip, the end ring, the lead), its
+			 *  colors (baked), how finely its path is cut (a span every spanStep, an arc every arcStep rad) and the most
+			 *  points its triangle strip has */
+			cord: { width: 10, ink: 2.75, color: 0x2b7746, highlight: 0x7cc591, spanStep: 10, arcStepRad: 0.15, stripPoints: 512 },
+			/** THE SAG: a two reel span (sagRef road px of chord) sags `roadPx` at its middle; another span in proportion to its
+			 *  length, between minShare and maxShare of that */
+			sag: { roadPx: 20, refRoadPx: 500, minShare: 0.5, maxShare: 1.6 },
+			/** where the middle nails go: 'bends' at every bend of the line (a turn of more than bendRad), 'every' at every
+			 *  winning symbol */
+			hangPoints: 'bends' as 'bends' | 'every',
+			bendRad: 0.06,
+			/** THE NAILS (baked: the head, its shadow, the ring): the head's radius at size 1 (times size), the shank's radius as a
+			 *  share of the head's, the color ('silver'; the tool's NAIL_TONES has brass, iron, candy, gold), the shadow's
+			 *  offset and alpha. A middle nail's cord rests on the shank: its centerline on a circle of the shank plus half the
+			 *  cord plus the ink, so the head covers the cord's lower edge and its top shows over the head. */
+			nail: { size: 1.55, headRoadPx: 6.6, shankShare: 0.36, color: 'silver' as 'silver' | 'brass' | 'iron' | 'candy' | 'gold', shadow: { dx: 2.6, dy: 4, alpha: 0.38 } },
+			/** THE END NAILS: wrapTurns turns of the cord round the shank (the ring sprite; deeper turns offset turnStep cord
+			 *  widths down and right and darker by turnDarken each), wrapSize from tight on the shank (0) to loose (baked); the
+			 *  path hooks hookRad round the wrap so its end is under the ring. The nail stands along the line's own direction,
+			 *  past the symbol's art: the ring's outer edge ringOverlap road px over the art's edge (today's 1: "just past the
+			 *  art"; LINE_WIN.lights.tips end 'center' puts it on the symbol's centre). insideLanes: the ring is kept between
+			 *  the board's top and bottom lane lines (a line starting on a diagonal at the top or bottom lane). */
+			ends: { wrapTurns: 1, wrapSize: 0.15, turnStep: [0.16, 0.3] as [number, number], turnDarken: 0.14, hookRad: 2.5, ringOverlap: 1, insideLanes: true },
+			/** A VALLEY (a nail the line turns upward at: the middle of a V, a zigzag's low points): Corey on the round 2 loop,
+			 *  "when there's a big dip like the middle V shape the hanging over the center nail is way too aggresive". 'drape'
+			 *  (the default): the cord passes over the top of the nail with a slight rise (drapeRise road px from the shallow dip
+			 *  either side to the top, for a straight line), scaled down strongly as the bend gets sharper: x (1 - turn /
+			 *  riseGoneAtDeg)^risePower, so line 7's V (a turn of about 56 degrees) rises about 4 road px; the dips' fillet
+			 *  radius drapeFillet. 'sit': a round bottomed V resting on the top of the nail, radius sitRadius. */
+			valley: { style: 'drape' as 'drape' | 'sit', drapeRise: 9, drapeFillet: 14, riseGoneAtDeg: 180, risePower: 2, sitRadius: 24 },
+			/** SUPPORT NAILS: a nail to nail run longer than minSpanReels reels gets one ('middle': on the winning symbol nearest
+			 *  its middle; 'every': one every everyReels reels; 'off'), or in the gap between two reels (betweenSymbols). The
+			 *  cord is draped over it as at a peak. */
+			support: { mode: 'middle' as 'off' | 'middle' | 'every', everyReels: 2, minSpanReels: 3, betweenSymbols: false },
+			/** THE BULBS: the C7 at size (baked), on a lead of leadRoadPx x max(0.8, size) (baked); one every spacing road px
+			 *  along the cord from firstShare of a spacing, none within clearX / clearY (times size) of a nail or its joint */
+			bulbs: { size: 1.05, spacing: 73, firstShare: 0.5, leadRoadPx: 12, clearX: 15, clearY: 40 },
+			/** the glow under a bulb (added, the sheet's glow, diameterRoadPx x size): alpha strength x (floor + (1 - floor) x
+			 *  its light); the hot core over a lit bulb's glass (added): hotDiameter x size, hotAlpha x its light, its color
+			 *  hotWhite of the way to white */
+			glow: { strength: 0.65, floor: 0.18, diameterRoadPx: 100, hotDiameterRoadPx: 30, hotAlpha: 0.5, hotWhite: 0.55 },
+			/** an unlit bulb: its color x darken, greyShare of the way to grey; between unlit and lit in `steps` steps */
+			unlit: { darken: 0.5, grey: 0x3a4048, greyShare: 0.25, steps: 6 },
+			/** AFTER THE CORD IS DRAWN: 'chase', a wave of light runs along the line (one wave every waveBulbs bulbs, passing a
+			 *  bulb every periodMs, x the turbo level's share; a bulb's light is the wave squared); 'steps', the old chase (one
+			 *  bulb in LINE_WIN.lights.chase cycle lit, stepping every stepMs) */
+			animation: 'chase' as 'chase' | 'steps',
+			chase: { periodMs: 760, waveBulbs: 4 },
+		},
 		/** THE BULB COLORS, by the symbol the line pays (Corey: "different color lights, maybe that align with the types of
 		 *  symbols they are clearing"), cycled along the wire. Sampled from the art where it has the color (the van's
 		 *  light blue, Grandma's purple and gold, the sleigh's red and gold, the signs'): the wagon's tree green is its

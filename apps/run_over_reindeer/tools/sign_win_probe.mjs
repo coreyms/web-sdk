@@ -1,5 +1,5 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
-// WATCHES: apps/run_over_reindeer/src/{game/road/signRig.ts,game/road/roadBoard.ts,game/road/winLights.ts,game/signRigSpec.ts};
+// WATCHES: apps/run_over_reindeer/src/{game/road/signRig.ts,game/road/roadBoard.ts,game/road/winLights.ts,game/road/winLightsPath.ts,game/signRigSpec.ts};
 // WATCHES: ; SIGN_WIN, SIGN_RIG, __reindeer.signs, __reindeer.signShow, __reindeer.fixtures, __reindeer.step, __reindeer.clock
 // WATCHES: ; __reindeer.tune.signWin, __reindeer.roadSprites, __reindeer.setBoard, __reindeer.turbo, tools/sign_layers.py
 // THE SIGN WIN PROBE (Corey 2026-11-19, the sign wins mock sign_wins_r1_2026-11-19 and his settings; constants SIGN_WIN,
@@ -13,6 +13,8 @@
 //   - A FIVE SIGN LINE (10 J Q K A on lane 2, the mock's own view): each sign's show starts as the wire reaches it (left to
 //     right), its light is up (the added layer), it rocks and its decorations swing; then everything back exactly at rest
 //     (no rotation, no shake, no squash, no lit reflector, no flake, nothing added)
+//     (since the strand, 2026-11-20: the cord's path runs over the line's support nail and round its end wraps; reachAt
+//     reads the head's first pass of each symbol's x, so the order and the turbo window below hold unchanged)
 //   - the same win at turbo 2 (its show over in holdShare of the time) and under a slam stop
 //   - a board put up mid show (the skip to result's cut, a resumed round): every show and flake gone on that frame
 //   - THE LANDING (hinged): a sign past its stop tips its plate, the whole sign stands upright
