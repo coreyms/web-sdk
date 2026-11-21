@@ -36,10 +36,11 @@
 //              most of the spins") one forced Super round, its top peg recorded frame by frame from the press to well after
 //              the stop (wheelPegTrace): the WHOLE FLAPPER (game/road/wheelPeg.ts) never inside a stud's circle (PIN_TOL wheel
 //              units); it never starts to turn from rest without a stud on it (a stud met inside a frame counts); every stud
-//              that crossed the top met it; at least KICK_SHARE of them kick it over KICK_DEG degrees (it bounces); a free
-//              swing never past SUPER_WHEEL.peg.maxSwing; every tick is a stud's first contact, and every first contact
-//              ticks unless a tick sounded under tickMinMs before; REST_MS board ms after the stop it is straight with no stud
-//              on it. And each wedge's number is the Wild multiplier in its character's color (WILD_MULT.colors), its value
+//              that crossed the top met it; at least KICK_SHARE of them kick it over KICK_DEG degrees, a stud's median kick
+//              at least KICK_MEDIAN and the spin's largest swing from LARGEST_MIN to SUPER_WHEEL.peg.maxSwing (Corey: "Go
+//              deeper, by dropping lower I was trying to make it move more visibly"); every tick is a stud's first contact,
+//              and every first contact ticks unless a tick sounded under tickMinMs before; REST_MS board ms after the stop it
+//              is straight with no stud on it, or leaning on a stud in contact (gap within LEAN_GAP) and still. And each wedge's number is the Wild multiplier in its character's color (WILD_MULT.colors), its value
 //              the wedge's
 //   numbers    (2026-11-20, the layout page round 3) the standing wheel at each layout (device pixel ratio 3; wheelShow,
 //              wheelSet: no round played) with every wheel value (4x to 30x) in every wedge place (the eight set by hand,
@@ -73,9 +74,14 @@ const PIN_TOL = 0.5;
 /** the pin's bounce (the brief, 2026-11-20): this share of the studs kick it more than KICK_DEG degrees while they pass */
 const KICK_DEG = 8;
 const KICK_SHARE = 0.9;
-/** board ms after the wheel's stop by which the pin is straight (damping 6 against stiffness 600 rings about 2 s) */
+const KICK_MEDIAN = 35;
+const LARGEST_MIN = 45;
+/** board ms after the wheel's stop by which the pin is at rest (damping 8 against stiffness 550 rings about 2 s): straight,
+ *  or leaning on a stud's side in contact (LEAN_GAP wheel units) and still (STILL_DEG over the frames after) */
 const REST_MS = 2500;
 const REST_DEG = 0.1;
+const LEAN_GAP = 0.1;
+const STILL_DEG = 0.02;
 /** wheel units a number's or a wedge's pixel may be read past its line (a device pixel at ratio 3 is up to 0.55 unit on
  *  the desktop wheel; a smaller wheel's device pixel reaches further and the numbers section allows that) */
 const EDGE_TOL = 1;
@@ -982,7 +988,7 @@ async function pinSection(browser) {
 		check(landed && tr.length > 50, `pin: the spin recorded (${tr.length} frames)`, { landed, n: tr.length });
 		const EPS = 0.05;
 		const inside = tr.filter((f) => f.gap < -PIN_TOL);
-		check(inside.length === 0, `pin: the flapper (its whole length, ${K.tipRadius} units thick) is never inside a stud (deepest ${Math.min(...tr.map((f) => f.gap)).toFixed(2)} wheel units; tolerance ${PIN_TOL})`, inside.slice(0, 3));
+		check(inside.length === 0, `pin: the flapper (its drawn outline, its whole length) is never inside a stud (deepest ${Math.min(...tr.map((f) => f.gap)).toFixed(2)} wheel units; tolerance ${PIN_TOL})`, inside.slice(0, 3));
 		// a frame "in contact": a stud on the flapper at the frame's end, or met inside the frame
 		const touching = (f) => f.stud !== null || (f.met && f.met.length > 0);
 		const early = [];
@@ -1019,6 +1025,10 @@ async function pinSection(browser) {
 		const kicks = [...crossed].map((k) => kick.get(k) ?? 0);
 		const kicked = kicks.filter((v) => v > KICK_DEG).length;
 		check(crossed.size > 0 && kicked >= KICK_SHARE * crossed.size, `pin: ${kicked} of ${crossed.size} studs kicked it over ${KICK_DEG} degrees (at least ${KICK_SHARE * 100}%; kicks ${kicks.map((v) => v.toFixed(0)).join(' ')})`, kicks);
+		const sorted = [...kicks].sort((a, b) => a - b);
+		const kickMed = sorted[Math.floor(sorted.length / 2)] ?? 0;
+		const largestSwing = tr.reduce((m, f) => Math.max(m, f.maxAbs ?? Math.abs(f.phi)), 0);
+		check(kickMed >= KICK_MEDIAN && largestSwing >= LARGEST_MIN && largestSwing <= K.maxSwing + 1e-6, `pin: a stud's kick median ${kickMed.toFixed(1)} degrees (at least ${KICK_MEDIAN}), the largest swing ${largestSwing.toFixed(1)} (${LARGEST_MIN} to ${K.maxSwing})`, { kickMed, largestSwing });
 		const ticks = tr.filter((f) => f.tick);
 		const offTick = ticks.filter((f) => !(f.met && f.met.length > 0));
 		check(ticks.length > 0 && offTick.length === 0, `pin: every tick (${ticks.length}) is a stud's first contact`, offTick.slice(0, 3));
@@ -1039,8 +1049,10 @@ async function pinSection(browser) {
 		let stopAt = 0;
 		for (let i = 1; i < tr.length; i++) if (tr[i].theta !== tr[i - 1].theta) stopAt = tr[i].clock;
 		const after = tr.filter((f) => f.clock >= stopAt + REST_MS);
-		const bent = after.filter((f) => Math.abs(f.phi) > REST_DEG || f.stud !== null);
-		check(after.length > 0 && bent.length === 0, `pin: ${REST_MS} board ms after the stop it is straight (${after.length} frames, largest ${after.length ? Math.max(...after.map((f) => Math.abs(f.phi))).toFixed(3) : '-'} degrees) with no stud on it`, bent.slice(0, 3));
+		const leaning = after.length > 0 && after.every((f) => f.stud !== null);
+		const moved = after.length ? Math.max(...after.map((f) => f.phi)) - Math.min(...after.map((f) => f.phi)) : 0;
+		const bent = leaning ? after.filter((f) => Math.abs(f.gap) > LEAN_GAP) : after.filter((f) => Math.abs(f.phi) > REST_DEG || f.stud !== null);
+		check(after.length > 0 && bent.length === 0 && (!leaning || moved <= STILL_DEG), `pin: ${REST_MS} board ms after the stop it is ${leaning ? `leaning on a stud at ${after[after.length - 1].phi.toFixed(1)} degrees, in contact (gap within ${Math.max(...after.map((f) => Math.abs(f.gap))).toFixed(3)} units) and still (moved ${moved.toFixed(4)})` : `straight (largest ${after.length ? Math.max(...after.map((f) => Math.abs(f.phi))).toFixed(3) : '-'} degrees) with no stud on it`} (${after.length} frames)`, bent.slice(0, 3));
 		note(`PIN: ${tr.length} frames, ${crossed.size} studs passed, ${met.size} met, ${kicked} kicked over ${KICK_DEG} degrees, ${ticks.length} ticks, largest swing ${Math.max(...tr.map((f) => f.maxAbs ?? Math.abs(f.phi))).toFixed(1)} degrees; at the stop ${w.atPeg}`);
 		check(errs.length === 0, 'pin: no page errors', errs);
 	} finally {

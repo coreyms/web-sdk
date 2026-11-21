@@ -76,16 +76,13 @@ STUD_INK0, STUD_GOLD0, STUD_HL0 = 17.5, 12.5, 4.5  # round 5's stud radii (its h
 STUD_R = 385.4 + GROW + STUD_SHIFT
 STUD_OUT = STUD_INK0 * STUD_SIZE  # the stud's outer (ink) radius
 # THE PEG MEETS THE STUDS (Corey 2026-11-20: "pay attention to the circles the pin is supposed to come in contact with,
-# the pin moves way too early"): its tip (the flapper's centre line; the flapper's own half thickness is SUPER_WHEEL.peg
-# tipRadius) reaches TIP_BITE units inside the studs' outer edge; the bolt sits above it by the flapper's length (scaled
-# with the peg about its tip, game/road/superWheel.ts). 7 until the layout page; his round 2 settings asked 20 with the
-# pin lowered 8.5 (28.5) on a flapper 1.22 long. AT 1.22 THE DEPTH IS SET BY THE STOP (2026-11-20, the builder's
-# sweep, NOTES wheel_layout_built_2026-11-20): a stop lands at least 9 degrees past a stud (game/superWheelPlan.ts: within
-# 30% of its wedge's middle), and a long flapper lets a stud go late. At 28.5 the stud still held it at about 23 to 29
-# degrees in such a stop (the page's "rests on a stud"); 12 still held it on the largest peg (pegScale 1); 11 lets every
-# stud go before 9 degrees on every layout, so the pin always comes back straight. The bounce comes from the spring and
-# the flick on release (constants SUPER_WHEEL.peg), not the depth.
-TIP_BITE = 11.0
+# the pin moves way too early"): its tip (the end of the flapper's centre line) reaches TIP_BITE units inside the studs'
+# outer edge; the bolt sits above it by the flapper's length (scaled with the peg about its tip, game/road/superWheel.ts).
+# 7 until the layout page; his round 2 settings asked 20 with the pin lowered 8.5 (28.5) on a flapper 1.22 long.
+# 11 for one build (6a95d3b): every stud let go before the closest stop, so the pin always came back straight. Corey then
+# (2026-11-20): "Go deeper, by dropping lower I was trying to make it move more visibly": 28.5 again, the tip down among
+# the string lights. A stop can now leave the pin leaning on a stud's side, as a real clicker does (game/road/wheelPeg.ts).
+TIP_BITE = 28.5
 # THE FLAPPER'S LENGTH (Corey 2026-11-20, his round 2 value, kept: "I actually did not mean to change the size of the
 # flapper"): 1.22 times its art, REDRAWN at that length (make_long_flap: one more turn of its stripe, never a stretch)
 FLAP_LENGTH = 1.22
@@ -155,6 +152,7 @@ PEG_SRC = {"x": -79.10958904109589, "y": -66.45205479452055, "w": 154.3013698630
 # the seam runs through white at every place across the body and never through a red stripe's highlight; the row each
 # pixel is read from is solved FLAP_SOLVE times (its slant depends on that row)
 FLAP_SMOOTH = 15
+PEG_PROFILE_N = 41  # the flapper's half width sampled at this many steps from the bolt to the tip (make_peg)
 FLAP_PITCH_COLS = (480, 568)
 FLAP_BODY = (500, 1450)
 FLAP_SLANT_U = 0.42
@@ -691,7 +689,21 @@ def make_peg(d, name, src=None):
     al = np.asarray(cut.getchannel("A")) > 128
     tip_row = np.where(al.any(axis=1))[0][-1]
     tip_x = np.where(al[max(0, tip_row - 6)])[0].mean() + box[0]
-    return out, ((bolt[0] - box[0]) * k, (bolt[1] - box[1]) * k), {"tipOffsetUnits": round((tip_x - bolt[0]) * upp, 2), "tipBelowBoltUnits": round((tip_row + box[1] - bolt[1]) * upp, 2)}
+    info = {"tipOffsetUnits": round((tip_x - bolt[0]) * upp, 2), "tipBelowBoltUnits": round((tip_row + box[1] - bolt[1]) * upp, 2)}
+    # THE FLAPPER'S OWN WIDTH (2026-11-20, the deeper pin: it rests against a stud's side, so the contact is its drawn outline,
+    # ink included, not a line): its half width at PEG_PROFILE_N even steps from the bolt (0) to the tip (1), wheel units
+    # at the peg's own size (game/road/wheelPeg.ts scales it with the peg)
+    if name.startswith("peg_flap"):
+        L_px = tip_row + box[1] - bolt[1]
+        prof = []
+        for i in range(PEG_PROFILE_N):
+            y = int(round(bolt[1] + L_px * i / (PEG_PROFILE_N - 1))) - box[1]
+            y = min(max(y, 0), al.shape[0] - 1)
+            xs = np.where(al[y])[0]
+            prof.append(round((xs[-1] + 1 - xs[0]) / 2 * upp, 2) if len(xs) else 0.0)
+        prof[-1] = 0.0  # (the tip's last row is a point: the rounded end is the samples before it)
+        info["profile"] = prof
+    return out, ((bolt[0] - box[0]) * k, (bolt[1] - box[1]) * k), info
 
 
 def load_wild_letters():

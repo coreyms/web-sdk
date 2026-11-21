@@ -30,7 +30,7 @@ import { STAGING_TOOLS, perfMark } from '../staging';
 import { queuePresentUpload, rebatchBeforeUnload } from './columnClips';
 import { awaitRunViews, runFrame } from './reindeerRun';
 import { WildMult } from './wildMult';
-import { flapDist, pegRest, stepPeg as stepPegOn, studAt, type PegGeom, type PegParams, type PegPath, type PegState } from './wheelPeg';
+import { flapGap, pegRest, stepPeg as stepPegOn, studAt, type PegGeom, type PegParams, type PegPath, type PegState } from './wheelPeg';
 import { WHEEL_SLICES, WHEEL_STEP, curveAt, curveLength, ringAtPointer, ringCurve, slotAtPeg, spinCurve, type WheelCurve, type WheelPlan } from '../superWheelPlan';
 
 const TIER = PHONE_TIER ? 'phone' : 'full';
@@ -254,11 +254,11 @@ export class SuperWheel {
 	/** the flapper as the peg's physics sees it (wheel units): its bolt, its length, the contact distance, the studs */
 	private pegGeom(): PegGeom {
 		const s = this.pegScaleNow();
-		return { L: ART.pegFit.flap.tipBelowBoltUnits * s, by: -(U.peg.tipR + U.peg.tip * s), rc: U.studOut + SUPER_WHEEL.peg.tipRadius, studR: U.stud, step: WHEEL_STEP };
+		return { L: ART.pegFit.flap.tipBelowBoltUnits * s, by: -(U.peg.tipR + U.peg.tip * s), rc: U.studOut + SUPER_WHEEL.peg.tipRadius, studR: U.stud, step: WHEEL_STEP, studOut: U.studOut, hw: ART.pegFit.flap.profile.map((v) => v * s) };
 	}
 	private pegParams(): PegParams {
 		const P = SUPER_WHEEL.peg;
-		return { stiffness: P.stiffness, damping: P.damping, fling: P.fling, maxSwing: P.maxSwing, subDeg: P.subDeg, springStepS: P.springStepMs / 1000, flingMax: P.flingMax };
+		return { stiffness: P.stiffness, damping: P.damping, fling: P.fling, maxSwing: P.maxSwing, subDeg: P.subDeg, springStepS: P.springStepMs / 1000, flingMax: P.flingMax, edgeDeg: P.edgeDeg };
 	}
 	/** THE NUMBERS' EVEN OUTLINE for a screen class: the wheel sheet's silhouettes mo_<class>_<color>_<letter> */
 	private setOutlineClass(cls: 'phone' | 'wide') {
@@ -719,7 +719,7 @@ export class SuperWheel {
 			const k0 = Math.round(-this.theta / WHEEL_STEP);
 			for (let k = k0 - 1; k <= k0 + 1; k++) {
 				const [sx, sy] = studAt(k, this.theta, G);
-				gap = Math.min(gap, flapDist(this.peg.phi, sx, sy, G.L, G.by) - G.rc);
+				gap = Math.min(gap, flapGap(this.peg.phi, sx, sy, G));
 			}
 			this.pegTrace.push({ real: performance.now(), clock: this.clock, theta: this.theta, phi: this.peg.phi, stud: r.on, met: r.contacts.map((c) => c.stud), gap, tick: ticked, maxAbs: r.maxAbs, dt });
 		}
@@ -1081,8 +1081,10 @@ export class SuperWheel {
 	 *  the peg goes on settling. The build's frame by frame pictures of the peg (no round needed) */
 	private devCurve: WheelCurve | null = null;
 	private devT = 0;
-	devSpin() {
+	devSpin(off?: number) {
 		if (this.phase !== 'dev' || !this.plan) return false;
+		// (the stop inside its wedge by hand, -0.3 to 0.3 of a wedge: the build's pictures of a pin leaning on a stud)
+		if (off !== undefined) this.plan = { ...this.plan, off: Math.max(-0.3, Math.min(0.3, off)) };
 		const S = SUPER_WHEEL.spin;
 		this.devCurve = spinCurve(this.theta, this.plan, { driveMs: SUPER_WHEEL.run.driveMs, decelMs: S.decelMs, power: S.power, minDeg: S.minDeg, crawlDeg: S.crawlDeg, extraTurns: S.extraTurns });
 		this.devT = 0;
