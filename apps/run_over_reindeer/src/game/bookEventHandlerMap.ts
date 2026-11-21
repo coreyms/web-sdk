@@ -45,7 +45,9 @@ let cardDone: (() => void) | null = null;
 const showCard = async (card: RoundCard) => {
 	// THE HUD STAYS ON SCREEN UNDER THE CARD, DISABLED (2026-11-20, Manticore Unleashed's rule: stateGame.hudHeld): until
 	// then the uiHide below faded all of it but the WIN readout, so BALANCE was gone under the entry and the Total Win
-	stateGame.hudHeld = true;
+	// THE MAX WIN WRAP-UP IS THE EXCEPTION (Corey 2026-11-20: "Yes, hide the bar on the max win screen."; his 2026-09-15
+	// rule in Manticore Unleashed): a capped Total Win hides the bar as before, WIN readout only
+	stateGame.hudHeld = !(card.kind === 'outro' && card.capped);
 	eventEmitter.broadcast({ type: 'uiHide' });
 	// THE CARD ON THE LED BACK BOARD (constants LED_BOARD.cards, part B): the Free Spins entry, the Super entry and the Total
 	// Win play as the board's staged scenes, with the press line on the strip; the HTML card keeps the press, its timers and
