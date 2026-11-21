@@ -57,6 +57,7 @@ import { RoadSounds } from './roadSounds';
 import { castShadow, dropShadow, makeShadow, shadowStrength } from './shadows';
 import { Roam, roamDev } from './roam';
 import { ChargeFx, planWindup, windupFrame, type WindupPlan } from './chargeWindup';
+import { lockSnortDue, lockSnortLeft, lockSnortOn } from './lockSnort';
 import { REINDEER_ROAM } from '../reindeerRoamSpec';
 import type { RoadRect } from '../roamPaths';
 import { WildMult } from './wildMult';
@@ -380,7 +381,7 @@ type Runner = {
 	cut: boolean;
 	/** the dart's whoosh has been cued (REINDEER_SOUND dart) */
 	darted: boolean;
-	/** THE SNORT AT THE LOCK (his own strike, REINDEER_SOUND.snort.lockPeakMs): asked once (played or kept quiet) */
+	/** THE SNORT AT THE LOCK (every strike, game/road/lockSnort.ts; REINDEER_SOUND.snort.lockPeakMs): asked once */
 	snorted: boolean;
 	/** HIS CAST SHADOW (constants SHADOW): his twin, on the road's ground under the traffic */
 	shadow: PIXI.Sprite;
@@ -1513,6 +1514,22 @@ export class RoadFeatures {
 		}
 	}
 
+	/** THE SNORT AT THE LOCK on this frame of strike `r`, if it is due (game/road/lockSnort.ts has the rule): every strike
+	 *  while ROAM.charge is on (his own; with REINDEER_SOUND.snort.lockEveryStrike the strikes from off the screen too),
+	 *  once, at the crosshair's lock; `impact` this is the strike's impact frame (asked there if not asked before) */
+	private lockSnortFrame(r: Runner, impact: boolean) {
+		const S = REINDEER_SOUND.snort;
+		if (r.snorted || !lockSnortOn(ROAM.charge.on, r.roam, S.lockEveryStrike)) return;
+		const x = this.xh && this.xh.morphAt === null && this.xh.plan.target === r.cell ? this.xh : null;
+		const lockAt = x ? x.plan.lockAt : null;
+		if (!lockSnortDue(r.snorted, lockAt, this.clock, this.rate, S.lockPeakMs, impact)) return;
+		r.snorted = true;
+		const left = lockSnortLeft(lockAt, this.clock, this.rate);
+		const where = left === null ? 'no lock (no crosshair), at the impact' : `${Math.round(left)} ms before the lock${impact && left > S.lockPeakMs ? ' (at the impact)' : ''}`;
+		const who = !r.roam ? 'from off the screen' : this.roam.state === 'alert' ? `standing, ${this.roam.clip} frame ${Math.round(this.roam.frame)}` : 'running';
+		this.sounds.lockSnort(`${where}, ${who}`);
+	}
+
 	/** the road clock ms (from t0) a pose index starts at (planStrike's times: strideFps poses a second along the snow,
 	 *  then the run down and the cut at the pace that keeps the strike's length) */
 	private poseTime(r: Runner, index: number): number {
@@ -1550,16 +1567,10 @@ export class RoadFeatures {
 			this.sounds.mark('strike', `target ${this.xh?.plan.target ?? '-'}`);
 			this.sounds.cue('alert');
 		}
-		if (r.roam && !r.snorted && ROAM.charge.on && this.xh && this.xh.morphAt === null) {
-			// THE SNORT AT THE LOCK (REINDEER_SOUND.snort.lockPeakMs, his own strike only): its loudest point lands on the
-			// lock, so it starts on the first frame within lockPeakMs real ms of it (the strike's first frame when the
-			// lock is there)
-			const left = (this.xh.plan.lockAt - this.clock) / Math.max(0.001, this.rate);
-			if (left <= REINDEER_SOUND.snort.lockPeakMs) {
-				r.snorted = true;
-				this.sounds.lockSnort(`${Math.round(left)} ms before the lock, ${this.roam.state === 'alert' ? `standing, ${this.roam.clip} frame ${Math.round(this.roam.frame)}` : 'running'}`);
-			}
-		}
+		// THE SNORT AT THE LOCK (game/road/lockSnort.ts; REINDEER_SOUND.snort.lockPeakMs): once on every strike, its loudest
+		// point on the lock: asked on the first frame within lockPeakMs real ms of it (the strike's first frame when the
+		// lock is there), or on the impact's frame if it was not asked by then (below)
+		this.lockSnortFrame(r, false);
 		if (this.clock < r.t0) return;
 		// THE STRIKE RUNS ON TIME (Corey 2026-11-12: slow screens skip poses so the strike always takes the same time):
 		// the pose and the body's place both come from the road clock since t0, so a slow screen, a dropped frame, turbo
@@ -1581,6 +1592,8 @@ export class RoadFeatures {
 			const late = missed !== undefined && missed < r.nAlong ? missed : undefined;
 			pose = late !== undefined ? late : end - 1e-6;
 			if (missed !== undefined) r.late = e - this.poseTime(r, missed);
+			// (the lock's snort not asked yet: on this frame, before the crash; lockSnort.ts NEVER MISSED)
+			this.lockSnortFrame(r, true);
 			r.impactAt = this.clock;
 			this.crosshairCrash();
 			// BRAWL: a Grandma car's landing starts from this frame; the spin's last strike lets the landing's frames go after

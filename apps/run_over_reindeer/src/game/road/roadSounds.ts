@@ -4,7 +4,7 @@
 // the red box), his dart, a column's multiplier stamp and the presents' pop (game/road/roadBoard.ts cues the spin's);
 // since round 3 the column's growth, Santa's and Grandma's entrances, each character's win clip, a sticky column
 // settling in, and the line show once per line as it lights (game/road/roadBoard.ts). Since 2026-11-20 the snort also
-// plays at the crosshair's lock on the roaming reindeer's own strike (lockSnort; constants ROAM.charge).
+// plays at the crosshair's lock (lockSnort; constants ROAM.charge), since 2026-11-21 on every strike (game/road/lockSnort.ts).
 // game/road/roadFeatures.ts says WHEN, from the frame the animation reaches the moment (the road clock, so turbo and a
 // slam stop move a sound with its picture); this file says WHAT plays and keeps the two loops honest: each is started
 // once, stopped on the frame its picture ends, and never left running.
@@ -260,9 +260,9 @@ export class RoadSounds {
 		this.cue('snort', `reel ${reel}`);
 	}
 
-	/** THE SNORT AT THE LOCK (REINDEER_SOUND.snort.lockPeakMs; the roaming reindeer's own strike, once): the idle snort's
-	 *  clip, played on this frame, which roadFeatures picks so its loudest point lands on the crosshair's lock. EXEMPT
-	 *  from minGapMs (Corey 2026-11-20, "yes" to exempting it): it sounds on every strike of his. One copy of the key at
+	/** THE SNORT AT THE LOCK (REINDEER_SOUND.snort.lockPeakMs; once a strike, on every strike: game/road/lockSnort.ts):
+	 *  the idle snort's clip, played on this frame, which roadFeatures picks so its loudest point lands on the crosshair's
+	 *  lock. EXEMPT from minGapMs (Corey 2026-11-20, "yes" to exempting it): it sounds on every strike. One copy of the key at
 	 *  a time: a snort still sounding now (an idle one the strike's alert has not yet faded to its stop, or his last
 	 *  strike's) is stopped on this frame first, so the lock's snort wins. It is never the idle roll; the idle snort keeps
 	 *  its own rule, minGapMs after any snort, this one included. */
