@@ -39,7 +39,8 @@
 //     area at least 44 x 44 at every size
 //   · EVERY ROUND TURNS THE RING (section `rounds`, 2026-11-20): an autoplay run of at least 6 rounds back to back (Super
 //     Turbo, the no-win fixture on every round) and a free spins round: at each spin's start (the board's own count,
-//     game/boardPace.ts serial) data-run 1 within 100 ms and the ring 10 degrees on within 400 ms
+//     game/boardPace.ts serial) data-run 1 within 100 ms and the ring 10 degrees on within 400 ms; then an autoplay run
+//     of 10 to its own end and the free spins round: once the key is idle the ring's turning layer holds still over 3 s
 //   · THE HUD UNDER THE BONUS ROUND'S CARDS (section `cards`, 2026-11-20): on the entry and the wrap-up, at 390 x 844,
 //     844 x 390 and 1440 x 900, the HUD is held on screen (hud-held, inert, not hud-off), BALANCE and WIN readable, every
 //     key on screen, nothing focusable, the Spin's spot takes the card's press; on the wrap-up WIN holds the round's total
@@ -755,6 +756,31 @@ function spinJudge(rows, tag, want, until = Infinity) {
 	check(starts.length >= want && missed.length === 0, `rounds ${tag}: every spin start turns the ring (${starts.length} starts, ${missed.length} missed; frames every ${Math.round(gaps[Math.floor(gaps.length / 2)] ?? 0)} ms median)`, missed.slice(0, 4));
 }
 
+/** THE RING HOLDS STILL AT IDLE (2026-11-21, the probe host, on both live games: after an autoplay run's own last round
+ *  and after a free spins round the ring went on turning with the key idle): from 1 s after the game is idle, the
+ *  ring's turning layer (.rr, the driver's own: the idle hop on .rw moves by design) unchanged over 3 s, read every
+ *  250 ms (so a loop cannot hide behind a whole turn) */
+async function ringStill(p, tag) {
+	await sleep(1000);
+	const rd = () =>
+		p.evaluate(() => {
+			const el = document.querySelector('.hudp button.spin .rr');
+			const v = el && getComputedStyle(el).transform.match(/matrix\(([^)]+)\)/);
+			if (!v) return 0;
+			const q = v[1].split(',').map(parseFloat);
+			return (Math.atan2(q[1], q[0]) * 180) / Math.PI;
+		});
+	const a0 = await rd();
+	let moved = 0;
+	for (let i = 0; i < 12; i++) {
+		await sleep(250);
+		const a = await rd();
+		moved = Math.max(moved, Math.abs((((a - a0 + 540) % 360) + 360) % 360 - 180));
+	}
+	const run = await p.evaluate(() => document.querySelector('.hudp button.spin')?.dataset.run);
+	check(moved <= 0.05, `rounds ${tag}: once the key is idle the ring holds still over 3 s (its turning layer moved ${moved.toFixed(2)} degrees at most; data-run ${run})`);
+}
+
 async function everyRoundTurns(browser) {
 	const S = { name: 'rounds', vp: { width: 1440, height: 900 }, phone: false, touch: false, family: 'desktop' };
 	const { ctx, p, errs } = await boot(browser, S);
@@ -785,6 +811,18 @@ async function everyRoundTurns(browser) {
 	await settle(p, S, 120000);
 	await sleep(600);
 	spinJudge(await spinRecStop(p), 'autoplay back to back (Super Turbo, no win)', 6, stopAt - 450);
+	// AN AUTOPLAY RUN TO ITS OWN END (10 rounds, Super Turbo, no win): the ring still once the key is idle
+	await p.click(CONTROLS.auto);
+	await sleep(700);
+	await p.locator('.am-ui.layer.modals button.chip').first().click().catch(() => {});
+	await sleep(300);
+	await p.click('.am-ui.layer.modals .go');
+	await sleep(700);
+	await p.click(CONTROLS.spin);
+	await sleep(1500);
+	for (let i = 0; i < 1200 && (await p.evaluate(() => !!document.querySelector('.hudp button.spin.m-auto'))); i++) await sleep(100);
+	await settle(p, S, 120000);
+	await ringStill(p, "after an autoplay run's own last round");
 	await p.evaluate(() => window.__reindeer.fixtures.clear?.());
 	for (let k = 0; k < 3; k++) {
 		if ((await p.evaluate(() => +document.querySelector('.hudp button.spin').dataset.tb)) === 0) break;
@@ -799,6 +837,7 @@ async function everyRoundTurns(browser) {
 		await settle(p, S, 240000);
 		await sleep(600);
 		spinJudge(await spinRecStop(p), 'a free spins round', 5);
+		await ringStill(p, 'after a free spins round');
 	}
 	check(errs.filter((x) => !/favicon/.test(x)).length === 0, 'rounds: no console errors', errs.slice(0, 5));
 	await ctx.close();
