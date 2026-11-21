@@ -1412,14 +1412,18 @@ export const REINDEER_SOUND = {
 		/** real ms between two snorts at least, and after a strike or a column's arrival */
 		minGapMs: 10000,
 		quietMs: 1200,
-		/** THE SNORT AT THE LOCK (Corey 2026-11-20, "B Snort at lock"; constants ROAM.charge): the roaming reindeer's own
-		 *  strike plays the same clip, retimed so its loudest point (lockPeakMs real ms into the file) lands on the
-		 *  crosshair's lock: cued on the first frame within lockPeakMs of the lock (the dart's pattern), or on the strike's
-		 *  first frame when the lock is there (one target). Once per strike, on EVERY strike of his: exempt from minGapMs
-		 *  (Corey 2026-11-20, "yes"); a snort still sounding then is stopped first (one copy of the key at a time). The
-		 *  idle snort keeps its quiet rules and waits minGapMs after any snort, this one included.
-		 *  sfx_target_lock still plays at the lock. */
+		/** THE SNORT AT THE LOCK (Corey 2026-11-20, "B Snort at lock"; constants ROAM.charge; game/road/lockSnort.ts has
+		 *  the rule): a strike plays the same clip, retimed so its loudest point (lockPeakMs real ms into the file) lands
+		 *  on the crosshair's lock: cued on the first frame within lockPeakMs of the lock (the dart's pattern), or on the
+		 *  strike's first frame when the lock is there (one target), or, not asked by its impact, on the impact's frame.
+		 *  Once per strike, on EVERY strike: exempt from minGapMs (Corey 2026-11-20, "yes"); a snort still sounding then
+		 *  is stopped first (one copy of the key at a time). The idle snort keeps its quiet rules and waits minGapMs after
+		 *  any snort, this one included. sfx_target_lock still plays at the lock. */
 		lockPeakMs: 140,
+		/** (2026-11-21) the strikes from off the screen snort at their lock too: a spin's second and later strikes, and a
+		 *  first strike while the roaming reindeer is still walking in (they have no wind-up by design: no reindeer stands
+		 *  on the screen to wind up). false: only his own strike snorts, as on 2026-11-20 */
+		lockEveryStrike: true,
 	},
 };
 
