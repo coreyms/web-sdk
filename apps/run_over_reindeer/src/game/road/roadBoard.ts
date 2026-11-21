@@ -984,7 +984,9 @@ export class RoadBoard {
 				// THE NAILS (constants LINE_WIN lights tips): each point's cell and the half width its symbol is drawn at (a
 				// Wild's box when it is wider), so an end nail can stand just past the art
 				const half = sorted.map((c) => Math.max(this.cars.find((car) => car.phase === 'rest' && car.col * ROWS + car.lane === c)?.halfW ?? 0, this.features.wildBoxHalf(c)));
-				return { points, symbol: w.symbol ?? 'L5', amountText: w.amountText ?? '', slots, plainText: w.plainText, multiplier: w.multiplier ?? 1, cells: sorted, half };
+				// (the strand, constants LINE_WIN lights strand: an end nail's ring stays between the top and bottom lane lines;
+				// support nails between reels use the pitch and the board's left edge)
+				return { points, symbol: w.symbol ?? 'L5', amountText: w.amountText ?? '', slots, plainText: w.plainText, multiplier: w.multiplier ?? 1, cells: sorted, half, lanes: { top: LINES[0], bottom: LINES[ROWS] }, pitch: PITCH, boardX: ROAD_ART.board.x };
 			});
 			// TREATMENT B: every line its own amount (a one line win's too; never a capped spin's: its lines pay more than is
 			// awarded), the label sized for the phone's rule there (its digit cap phone.capPx CSS px)

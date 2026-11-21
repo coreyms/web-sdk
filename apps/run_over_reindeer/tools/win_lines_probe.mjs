@@ -5,6 +5,7 @@
 // WATCHES: ; __reindeer.turbo, __reindeer.winLights, __reindeer.winLightsShown, LINE_WIN, sfx_line_show, .landing, .hudp, .spin
 // WATCHES: apps/run_over_reindeer/src/game/{winLightsSpec.ts,road/roadBoard.ts,road/roadFeatures.ts,roadArtSpec.ts}; __reindeer.shadows
 // WATCHES: ; LINE_WIN.lights.tips, WIN_LIGHTS_ART.nail, RED_BOX.inset, RED_BOX.edge, wildBoxHalf, nailSnapshot
+// WATCHES: ; LINE_WIN.lights.strand, WIN_LIGHTS_ART.strand, apps/run_over_reindeer/src/game/road/winLightsPath.ts, tools/build_win_lights.py
 // THE WIN LINES PROBE (the Christmas lights, Corey 2026-11-15; constants LINE_WIN lights, game/road/winLights.ts). Posed
 // books handed to the fixtures through the dev hook (presentation only, no math): a one line win, a three line win (three
 // different paying symbols), and three palette boards that between them pay on every symbol (H1 to H4, a line of Wilds
@@ -27,11 +28,18 @@
 //   - sfx_line_show once per line, on the frame that line starts (the road's sound log against the Howl's own plays)
 //   - after the win, and after a slam stop during it: nothing of the lights, the amounts or the total on screen
 //   - the sprites and the WebGL draw calls per frame of a three line win, with the lights and without (the same frame)
-//   - THE NAILS (PART=tips, constants LINE_WIN lights tips, Corey 2026-11-18 "T2 Nail"): off, square ends at the
-//     centres; 'center', on the symbols' centres; 'edge', each ring just past its symbol's art or a Wild's frame (a line
-//     ending on a 5x Grandma Wild, one starting on a 10x), the wire meeting each wrap on its ring's lower half, on the
-//     road; one nail per symbol end in the twelve line win, a shared nail popping in once and staying; the start nail up
-//     as its wire starts; no nail under an amount showing; none left after the win
+//   - THE NAILS (PART=tips, constants LINE_WIN lights tips and strand; Corey 2026-11-18 "T2 Nail", 2026-11-20 the
+//     strand, win_line_lights_r2): off, square ends at the centres (no end nail); 'center', on the symbols' centres;
+//     'edge', each end nail along the line's own direction with its ring just past its symbol's art or a Wild's frame
+//     (a line ending on a 5x Grandma Wild, one starting on a 10x), kept between the top and bottom lane lines, a level
+//     end's ring just clear of the art sideways as before; the cord leaving each wrap on its ring's upper half (over the
+//     top), on the road; the sheet baked for the strand's numbers; the nails silver; at every middle nail (a bend or a
+//     support) the cord's top edge above the nail's centre and its centerline above the shank, no full wrap (no ring,
+//     under half a turn round it), a valley in the chosen style with a rise no more than the rule's; a support nail on
+//     every run over strand.support minSpanReels reels (and none on a shorter one); every end nail with its wrap; one
+//     end nail per symbol end (its cell, side and the line's first step) and one middle nail per cell in the twelve line
+//     win, a shared nail popping in once and staying; the start nail up as its cord starts; no nail under an amount
+//     showing; none left after the win
 //   - no page errors
 // With OUT=<dir>: per-frame tables (table_<case>_<size>.md), frames for 60 fps clips (frames_<case>_<size>/, VIDEO=1),
 // stills of each palette at 3 device px per CSS px (palette_<board>_<size>.png, crops.json; the caller upscales to 4x).
@@ -650,6 +658,17 @@ async function tipsJudge(p, S, T, name, bookEvents, { wild = [], end = 'edge' } 
 	if (!A) return;
 	const N = A.nails;
 	const ringOuter = N.ringOuter;
+	const ST = T.lights.strand;
+	const deg = (v) => Math.round(v * 573) / 10;
+	// THE STRAND (2026-11-20, constants LINE_WIN lights strand): the sheet's pictures were baked for today's numbers
+	if (name === 'one') {
+		const bk = N.bakedFor ?? {};
+		const want = { wire: ST.cord.width, ink: ST.cord.ink, cordColor: ST.cord.color, cordHighlight: ST.cord.highlight, bulbSize: ST.bulbs.size, leadRoadPx: ST.bulbs.leadRoadPx, nailSize: ST.nail.size, headRoadPx: ST.nail.headRoadPx, shankShare: ST.nail.shankShare, nailColor: ST.nail.color, wrapSize: ST.ends.wrapSize };
+		const off = Object.entries(want).filter(([k, v]) => bk[k] !== v);
+		check(off.length === 0, `${S.name} strand: the sheet was baked for constants LINE_WIN lights strand (tools/build_win_lights.py STRAND)`, off);
+		// the nails stay silver (Corey 2026-11-20: "the nails should be staying silver")
+		check(N.color === 'silver' && bk.nailColor === 'silver', `${S.name} strand: the nails are silver (constants ${N.color}, baked ${bk.nailColor})`);
+	}
 	// THE BOARD'S BOXES: a symbol's drawn art (its sprite's width at rest), a Wild cell's box to its outer dark line (the
 	// cell, RED_BOX.inset 4 in, its dark line 3 out: 250 / 2 - 4 + 3 road px either side of the column's centre)
 	const colX = (cell) => 142 + (Math.floor(cell / 4) + 0.5) * 250;
@@ -659,26 +678,74 @@ async function tipsJudge(p, S, T, name, bookEvents, { wild = [], end = 'edge' } 
 		const [a, b] = l.ends;
 		const c0 = cells[0];
 		const c1 = cells[cells.length - 1];
+		const P = l.points;
 		if (end === 'edge') {
-			// the start nail's ring clears its symbol's left edge (a Wild's frame), the end nail's its right edge (1 road px)
-			const left = colX(c0) - halfOf(c0);
-			const right = colX(c1) + halfOf(c1);
-			check(a.x + ringOuter <= left + 1 && a.x + ringOuter >= left - 2, `${tag}: line ${k + 1} start nail just left of cell ${c0}'s ${wild.includes(c0) ? 'Wild frame' : 'art'} (ring right ${r1(a.x + ringOuter)}, art left ${r1(left)})`);
-			check(b.x - ringOuter >= right - 1 && b.x - ringOuter <= right + 2, `${tag}: line ${k + 1} end nail just right of cell ${c1}'s ${wild.includes(c1) ? 'Wild frame' : 'art'} (ring left ${r1(b.x - ringOuter)}, art right ${r1(right)})`);
+			// THE END NAILS stand along the line's own direction (2026-11-20: a line that starts on a diagonal gets no extra
+			// bend at its first symbol), the ring's outer edge strand.ends ringOverlap road px over the art's edge (a Wild's
+			// frame), kept between the board's top and bottom lane lines (167, 851)
+			const place = (c, from, to) => {
+				const dx = from.x - to.x;
+				const dy = from.y - to.y;
+				const len = Math.hypot(dx, dy) || 1;
+				const e = halfOf(c) + ringOuter - ST.ends.ringOverlap;
+				const y = from.y + (dy / len) * e;
+				return { x: from.x + (dx / len) * e, y: ST.ends.insideLanes ? Math.min(851 - ringOuter, Math.max(167 + ringOuter, y)) : y };
+			};
+			const wa = place(c0, P[0], P[1]);
+			const wb = place(c1, P[P.length - 1], P[P.length - 2]);
+			check(Math.hypot(a.x - wa.x, a.y - wa.y) < 0.6, `${tag}: line ${k + 1} start nail past cell ${c0}'s ${wild.includes(c0) ? 'Wild frame' : 'art'} along the line (${a.x}, ${a.y}; want ${r1(wa.x)}, ${r1(wa.y)})`);
+			check(Math.hypot(b.x - wb.x, b.y - wb.y) < 0.6, `${tag}: line ${k + 1} end nail past cell ${c1}'s ${wild.includes(c1) ? 'Wild frame' : 'art'} along the line (${b.x}, ${b.y}; want ${r1(wb.x)}, ${r1(wb.y)})`);
+			// a line that starts or ends level: the ring just clears the art sideways, as before (0.6: the art's half width read
+			// from the board's sprites, the nails' places rounded to 0.1 road px)
+			if (Math.abs(P[1].y - P[0].y) < 0.5) check(a.x + ringOuter <= colX(c0) - halfOf(c0) + ST.ends.ringOverlap + 0.6 && a.x + ringOuter >= colX(c0) - halfOf(c0) - 2, `${tag}: line ${k + 1} start nail just left of cell ${c0}'s art (ring right ${r1(a.x + ringOuter)}, art left ${r1(colX(c0) - halfOf(c0))})`);
+			if (Math.abs(P[P.length - 1].y - P[P.length - 2].y) < 0.5) check(b.x - ringOuter >= colX(c1) + halfOf(c1) - ST.ends.ringOverlap - 0.6 && b.x - ringOuter <= colX(c1) + halfOf(c1) + 2, `${tag}: line ${k + 1} end nail just right of cell ${c1}'s art (ring left ${r1(b.x - ringOuter)}, art right ${r1(colX(c1) + halfOf(c1))})`);
 		} else {
 			check(Math.abs(a.x - colX(c0)) < 0.2 && Math.abs(b.x - colX(c1)) < 0.2, `${tag}: line ${k + 1} nails on the symbols' centres (${a.x}, ${b.x})`);
 		}
-		// the wire meets each wrap on its circle, on its lower half
+		// the cord leaves each end wrap on the wrap's circle, on its upper half (it comes over the top of the nail)
 		for (const [e, w] of [[a, l.wire[0]], [b, l.wire[1]]]) {
 			const d = Math.hypot(w.x - e.x, w.y - e.y);
-			check(Math.abs(d - N.ring) < 0.5 && w.y >= e.y - 0.5, `${tag}: line ${k + 1} wire meets its wrap on the ring (${r1(d)} from the nail's centre, want ${N.ring}), below its middle`);
+			check(Math.abs(d - N.ring) < 0.5 && w.y <= e.y + 0.5, `${tag}: line ${k + 1} cord meets its wrap on the ring (${r1(d)} from the nail's centre, want ${N.ring}), over its top half`);
 		}
-		// on the board: inside the tunnel mouths and above the board's bottom lane line (the LED strip is under it)
-		for (const e of [a, b]) check(e.x - ringOuter >= 51 && e.x + ringOuter <= 1483 && e.y + ringOuter <= 851, `${tag}: line ${k + 1} nail at ${e.x}, ${e.y} stays on the road (mouths 51 / 1483, bottom line 851)`);
+		// on the board: inside the tunnel mouths and above the board's bottom lane line (the LED strip is under it; 0.06: the
+		// nail's place rounded to 0.1 road px, a ring held exactly on the line by strand.ends insideLanes)
+		for (const e of [a, b]) check(e.x - ringOuter >= 51 && e.x + ringOuter <= 1483 && e.y + ringOuter <= 851.06, `${tag}: line ${k + 1} nail at ${e.x}, ${e.y} stays on the road (mouths 51 / 1483, bottom line 851)`);
+		// THE MIDDLE NAILS: the cord draped over the top (its top edge above the nail's centre, its centerline above the
+		// shank), never wrapped (no ring, the path turns less than half a turn round it)
+		const mids = l.nails.filter((q) => q.kind !== 'end');
+		for (const q of mids) {
+			const top = q.cordY - ST.cord.width / 2 - ST.cord.ink;
+			check(q.cordY !== null && top < q.y && q.cordY <= q.y - N.shank + 0.05, `${tag}: line ${k + 1} ${q.kind} nail ${q.key} (${q.joint}): the cord over its top (top edge ${r1(top - q.y)}, centerline ${r1(q.cordY - q.y)} road px from its centre; the head's top ${r1(-N.head)})`);
+			check(q.sweep < Math.PI, `${tag}: line ${k + 1} ${q.kind} nail ${q.key} (${q.joint}): no full wrap (the cord turns ${deg(q.sweep)} degrees round it)`);
+			if (q.joint === 'drape' || q.joint === 'sit') check(q.joint === ST.valley.style && (q.joint === 'sit' ? q.rise === 0 : q.rise <= ST.valley.drapeRise * Math.pow(Math.max(0, 1 - q.turn / ((ST.valley.riseGoneAtDeg * Math.PI) / 180)), ST.valley.risePower) + 0.01), `${tag}: line ${k + 1} valley at ${q.key}: ${q.joint}, rise ${q.rise} road px at a ${deg(q.turn)} degree bend`);
+		}
+		// SUPPORT NAILS: every run between two end or bend nails longer than minSpanReels reels holds one
+		if (ST.support.mode !== 'off') {
+			const main = l.nails.map((q, i) => ({ ...q, i })).filter((q) => q.kind !== 'support');
+			for (let j = 0; j < main.length - 1; j++) {
+				const u = main[j];
+				const v = main[j + 1];
+				const len = Math.hypot(v.x - u.x, v.y - u.y);
+				const held = l.nails.slice(u.i + 1, v.i).filter((q) => q.kind === 'support').length;
+				if (len > ST.support.minSpanReels * 250) check(held >= 1, `${tag}: line ${k + 1} the ${r1(len)} road px run from ${u.key} to ${v.key} (over ${ST.support.minSpanReels} reels) has a support nail (${held})`);
+				else if (held) check(false, `${tag}: line ${k + 1} a support nail on the ${r1(len)} road px run from ${u.key} to ${v.key} (not over ${ST.support.minSpanReels} reels)`);
+			}
+		}
 	});
-	// ONE NAIL PER SYMBOL END: as many nails as distinct (first cell) and (last cell) ends, each listing every line on it
-	const keys = new Set(info.wins.flatMap((w) => { const c = [...w.cells].sort((x, y) => x - y); return [`${c[0]}:a`, `${c[c.length - 1]}:b`]; }));
-	check(N.nails.length === keys.size && N.nails.every((x) => keys.has(x.key)), `${tag}: one nail per symbol end (${N.nails.length} nails, ${keys.size} ends)`);
+	// ONE NAIL PER SYMBOL END: as many end nails as distinct ends (its cell, its side and the line's first step: the nail
+	// stands along the line), each listing every line on it; MIDDLE NAILS one per cell (a bend or a support shared by every
+	// line held there)
+	const stepOf = (c, c2) => { const d = (c2 % 4) - (c % 4); return end === 'edge' ? (d > 0 ? 'd' : d < 0 ? 'u' : '') : ''; };
+	const keys = new Set(info.wins.flatMap((w) => { const c = [...w.cells].sort((x, y) => x - y); return [`${c[0]}:a${stepOf(c[0], c[1])}`, `${c[c.length - 1]}:b${stepOf(c[c.length - 2], c[c.length - 1])}`]; }));
+	const endNails = N.nails.filter((x) => x.kind === 'end');
+	check(endNails.length === keys.size && endNails.every((x) => keys.has(x.key)), `${tag}: one nail per symbol end (${endNails.length} end nails, ${keys.size} ends)`, endNails.map((x) => x.key));
+	const midKeys = new Set(A.lines.flatMap((l) => l.nails.filter((q) => q.kind !== 'end').map((q) => q.key)));
+	const midNails = N.nails.filter((x) => x.kind !== 'end');
+	check(midNails.length === midKeys.size && midNails.every((x) => midKeys.has(x.key)), `${tag}: one middle nail per key, shared by its lines (${midNails.length} nails, ${midKeys.size} keys: ${[...midKeys].join(' ')})`);
+	// every end nail shows its wrap, no middle nail one
+	const fullRows = live.filter((r) => r.nails?.nails?.length);
+	const ringsOk = fullRows.every((r) => r.nails.nails.every((x) => (x.kind === 'end' ? !x.visible || x.rings === N.turns : x.rings === 0)));
+	check(ringsOk && N.turns >= 1, `${tag}: every end nail shows its wrap (${N.turns} turn), no middle nail a wrap`);
 	check(N.layerBelowAmounts, `${tag}: the nails' layer is under the amounts`);
 	// a shared nail comes once and goes once: from its first full size it stays full until its last line's out
 	for (const x of N.nails.filter((q) => q.lines.length > 1)) {
@@ -688,7 +755,7 @@ async function tipsJudge(p, S, T, name, bookEvents, { wild = [], end = 'edge' } 
 		const dips = sc.slice(first, lastFull + 1).filter((v) => v < 0.999).length;
 		check(first >= 0 && dips === 0 && x.ups.length === 1, `${tag}: the nail at ${x.key} shared by lines ${x.lines.map((q) => q + 1).join(', ')} pops in once and stays (${dips} frames under full between)`);
 	}
-	// no nail over a line's amount up at the same frame (road px boxes)
+	// no nail (an end, a bend or a support) over a line's amount up at the same frame (road px boxes)
 	let over = 0;
 	for (const r of live) {
 		const boxes = r.lines.filter((l) => l.amount?.shown && l.amount.rect).map((l) => l.amount.rect);
@@ -875,7 +942,7 @@ try {
 			await R(p, () => { window.__reindeer.tune.lineWin.lights.tips.on = false; });
 			const off = await playWin(p, S, BOOKS.one);
 			const o = off.rows.filter((r) => r.active).pop();
-			check(!!o && o.lines[0].ends.length === 0 && (o.nails?.nails ?? []).length === 0 && Math.abs(o.lines[0].wire[0].x - (142 + 125)) < 0.2, `${S.name} nails off: square ends at the centres, no nail`, o?.nails);
+			check(!!o && o.lines[0].ends.length === 0 && !(o.nails?.nails ?? []).some((x) => x.kind === 'end') && Math.abs(o.lines[0].wire[0].x - (142 + 125)) < 0.2, `${S.name} nails off: square ends at the centres, no end nail`, o?.nails);
 			await R(p, () => { window.__reindeer.tune.lineWin.lights.tips.on = true; });
 			await tipsJudge(p, S, T, 'one', BOOKS.one, { end: 'center' });
 			await tipsJudge(p, S, T, 'ends on a 5x Wild', TIP_BOOKS.wildEnd, { wild: [9] });

@@ -171,6 +171,20 @@ export const META: Record<string, Meta> = {
 	'lineWin.lights.tips.edgeGap': { label: 'nail past the symbol edge', min: 0, max: 60, step: 1, unit: 'road px' },
 	'lineWin.lights.tips.popMs': ms(600, 'nail pop in'),
 	'lineWin.lights.tips.outMs': ms(600, 'nail pop out'),
+	// the strand (2026-11-20, constants LINE_WIN lights strand; read when a win starts; the pictures are baked, so a change
+	// to the cord's widths, the bulb's size or the nail's size draws the baked pictures at their baked size)
+	'lineWin.lights.strand.valley.style': { label: 'valley (a V bottom)', options: ['drape', 'sit'] },
+	'lineWin.lights.strand.valley.drapeRise': { label: 'valley drape rise (a straight line)', min: 0, max: 30, step: 0.5, unit: 'road px' },
+	'lineWin.lights.strand.valley.drapeFillet': { label: 'valley drape dip radius', min: 4, max: 40, step: 0.5, unit: 'road px' },
+	'lineWin.lights.strand.valley.risePower': { label: 'valley rise falls off with the bend (power)', min: 0, max: 6, step: 0.1 },
+	'lineWin.lights.strand.valley.sitRadius': { label: 'valley sit radius', min: 4, max: 60, step: 1, unit: 'road px' },
+	'lineWin.lights.strand.sag.roadPx': { label: 'sag (a two reel span)', min: 0, max: 80, step: 1, unit: 'road px' },
+	'lineWin.lights.strand.support.mode': { label: 'support nails', options: ['middle', 'every', 'off'] },
+	'lineWin.lights.strand.support.minSpanReels': { label: 'support nails on runs over', min: 1, max: 5, step: 0.5, unit: 'reels' },
+	'lineWin.lights.strand.hangPoints': { label: 'middle nails', options: ['bends', 'every'] },
+	'lineWin.lights.strand.animation': { label: 'lit animation', options: ['chase', 'steps'] },
+	'lineWin.lights.strand.bulbs.spacing': { label: 'bulb spacing', min: 30, max: 160, step: 1, unit: 'road px' },
+	'lineWin.lights.strand.glow.strength': { label: 'glow', min: 0, max: 1.5, step: 0.05 },
 	// LINE WINS, TREATMENT B (2026-11-17, constants LINE_WIN slam; read when a win starts, game/road/winLights.ts slamSchedule)
 	'lineWin.slam': { label: 'Line win slam (treatment B)', when: 'win' },
 	'lineWin.slam.on': { label: 'slam on (off: the old total over the board)' },
