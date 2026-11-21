@@ -5,7 +5,7 @@
 	// Space or Enter, or the card's own time running out, dismisses it. Every amount on it is the book's.
 	import { onMount, untrack } from 'svelte';
 	import { stateBet, stateUrlDerived } from 'state-shared';
-	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
+	import { bookEventAmountToCurrencyString } from '../game/currency';
 
 	import { getContext } from '../game/context';
 	import config from '../game/config';

@@ -2,7 +2,7 @@
 // plaque renders in Pixi (components/ModePlaque.svelte — behind the mantises, per Corey 2026-08-26)
 // while the HTML buttons still need the same numbers. All state comes from the state-shared singletons.
 import { stateBet, stateBetDerived } from 'state-shared';
-import { numberToCurrencyString } from 'utils-shared/amount';
+import { numberToCurrencyString } from './currency';
 
 import { soc } from './social';
 

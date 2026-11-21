@@ -5,6 +5,7 @@
 // WATCHES: ; __reindeer.symbolPopup, __reindeer.setBoard, __reindeer.grandmaWild, __reindeer.ledCurrency, __reindeer.hurryLevel
 // WATCHES: ; __reindeer.fixtures, __reindeer.hud, __reindeer.atRest, __reindeer.road, __reindeer.gameType, FIRST_TAP.ignoreMs
 // WATCHES: ; SYMBOL_POPUP, data-symbol-popup, data-hud, data-hud-step, .sp-pop, .landing, .hudp
+// WATCHES: apps/run_over_reindeer/src/game/currency.ts;
 // THE SYMBOL PAY POPUP PROBE (components/SymbolPopup.svelte, Corey 2026-11-17: "click on tiles to show their
 // value/payouts during idle, the same way it's set up for manticore mayhem"). Modeled on Manticore's
 // tools/manticore/symbol_popup_probe.js: its checks are the behavior contract Corey approved there, mapped onto this
@@ -207,7 +208,7 @@ async function checkContent(p, code, label, wording = 'standard', coinMark = nul
 	const want = await H(p, (m) => m.map((x) => window.__reindeer.symbolPopup.fmt(x * window.__reindeer.symbolPopup.bet())), PAYTABLE[code]);
 	const rule = await H(p, (m) => m.map((x) => window.__reindeer.symbolPopup.payText(x)), PAYTABLE[code]);
 	const numeric = got.every((v, i) => Math.abs(num(v) - PAYTABLE[code][i] * bet) < 0.0051) && !got.some((v) => /x$/.test(v));
-	const coin = !coinMark || got.every((v) => v.startsWith(coinMark));
+	const coin = !coinMark || got.every((v) => v.endsWith(coinMark) && /^[0-9,]+\.\d{2,4} [A-Z]{2}$/.test(v) && !v.includes('$'));
 	ok(JSON.stringify(keys) === JSON.stringify(KINDS) && JSON.stringify(got) === JSON.stringify(want) && JSON.stringify(got) === JSON.stringify(rule) && numeric && coin, `${label}: ${code} at ${bet} == paytable x play amount in the HUD's formatter (${got.join(' / ')})`, { keys, got, want, rule, bet, coinMark });
 	ok(JSON.stringify(s.head) === JSON.stringify(HEAD[wording]) && s.rows[2]?.top === true, `${label}: heading ${JSON.stringify(s.head)}, the 5 in a row in the accent`, { head: s.head, rows: s.rows });
 	return s;
@@ -648,8 +649,9 @@ async function social() {
 	try {
 		await placeBoard(c);
 		// a stake.us session plays in Stake Cash or Gold Coins: the play currency set by the dev hook (the fixtures
-		// answer USD), the popup's amounts read in that coin with the HUD's mark ("SC 1.50", "GC 2")
-		for (const [cur, mark] of [['XSC', 'SC '], ['XGC', 'GC ']]) {
+		// answer USD), the popup's amounts read in that coin as Stake's table writes it, the amount first, two decimals,
+		// then the code ("1.50 SC", "2.00 GC"; game/currency.ts, 2026-11-21)
+		for (const [cur, mark] of [['XSC', ' SC'], ['XGC', ' GC']]) {
 			await H(p, (code) => window.__reindeer.ledCurrency(code), cur);
 			await sleep(150);
 			for (const [key, [code, reel, row]] of Object.entries(SPOTS)) {

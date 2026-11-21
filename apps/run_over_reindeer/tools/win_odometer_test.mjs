@@ -12,6 +12,7 @@
 //     over at the roll's own speed
 //   - every face is on the strip (0 to 10) and the transform is the strip's 1.6em pitch
 //   - the same total and count plan the same roll (a rebuilt HUD continues it)
+//   - a trailing currency code ("10.00 GC", "10.00 SC", "0.000120 BTC") never rolls and the landing is the exact text
 import { WIN_ODOMETER, odoDigits, odoFace, odoLocked, odoPos, odoReading, odoSeed, odoTransform, planOdometer, odoRandom } from '../src/ui/hud/winOdometer.ts';
 
 let fails = 0;
@@ -84,7 +85,7 @@ check(WIN_ODOMETER.rollPerS === 16 && WIN_ODOMETER.staggerMs === 70 && WIN_ODOME
 	check(same, 'the seeded random is the mock\'s');
 }
 
-const TOTALS = ['$12.40', '$248.50', '$1,234,567.89', '$0.10', '$0.20', '$1.00', '$10.00', '$100.00', '$9,999,999.99', 'SC 248.50', '$0.0025', '$7,777.00', '$45.70', '$3.05'];
+const TOTALS = ['$12.40', '$248.50', '$1,234,567.89', '$0.10', '$0.20', '$1.00', '$10.00', '$100.00', '$9,999,999.99', '248.50 SC', '10.00 GC', '1,234,567.00 GC', '0.0025 SC', '¥1,234', '10.00 USDT', '0.000120 BTC', '€10.00', '$0.0025', '$7,777.00', '$45.70', '$3.05'];
 // the count lengths (ms): the size classes 1.5 / 3 / 4 / 5 s, the mock's 5.75 s, turbo rates 2 and 3, and short ones
 const LENGTHS = [1500, 3000, 4000, 5000, 5750, 750, 500, 1000, 1333, 2000, 600, 420, 300];
 const C0 = 620;
@@ -171,6 +172,16 @@ check(mockCompared > 200 && mockSame === mockCompared, `the mock's positions (${
 	const P = planOdometer(odoDigits('$1,234,567.89'), C0, C0 + 5000, 1);
 	check(odoReading('$1,234,567.89', P, C0 + 100) === '$#,###,###.##', 'the reading while it rolls', odoReading('$1,234,567.89', P, C0 + 100));
 	check(odoLocked(P.cols[0], P.cols[0].E) && !odoLocked(P.cols[1], P.cols[0].E), 'the first lock before the second');
+}
+// a trailing code (Stake's table, game/currency.ts: "10.00 GC", "10.00 SC", "0.000120 BTC") stays plain at the right end
+// while the digits roll, and the reading lands on the exact text, code included
+for (const text of ['1,234.00 GC', '10.00 SC', '0.000120 BTC', '10.00 USDT']) {
+	const P = planOdometer(odoDigits(text), C0, C0 + 3000, odoSeed(Number(text.replace(/[^0-9.]/g, '')), odoDigits(text).length));
+	const rolling = odoReading(text, P, C0 + 100);
+	const code = text.slice(text.indexOf(' '));
+	check(rolling === text.replace(/[0-9]/g, '#') && rolling.endsWith(code), `${text}: the code stays plain while it rolls ("${rolling}")`);
+	check(odoReading(text, P, C0 + 3000) === text, `${text}: it lands on the exact text`, odoReading(text, P, C0 + 3000));
+	check(P.cols.length === odoDigits(text).length, `${text}: one window per digit, none for the code`);
 }
 check(odoTransform(0) === 'translate3d(0, 0em, 0)' && odoTransform(3) === 'translate3d(0, -4.8em, 0)' && odoTransform(9.5) === 'translate3d(0, -15.2em, 0)', 'the strip transform', [odoTransform(0), odoTransform(3), odoTransform(9.5)]);
 check(odoFace(-0.25) === 9.75 && odoFace(23.4567) === 3.457 && odoFace(10) === 0, 'the face wraps the strip', [odoFace(-0.25), odoFace(23.4567), odoFace(10)]);

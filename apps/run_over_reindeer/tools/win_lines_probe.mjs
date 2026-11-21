@@ -545,7 +545,7 @@ async function slamJudge(p, tag, W, T, share, bookEvents, { phone = false, big =
 }
 
 /** an amount with no multiplier on it: digits with its currency's sign before or after (the LED currency work, 2026-11-18:
- *  "$0.50", "R$3.40", "SC 0.50", "30 ₹"), never an "x" with a number */
+ *  "$0.50", "R$3.40", "0.50 SC", "10.000000 BTC"), never an "x" with a number */
 const noMult = (str) => typeof str === 'string' && /[0-9]/.test(str) && !/x\s*\d|\d\s*x/i.test(str) && /^[^0-9]*[0-9][0-9.,]*[^0-9]*$/.test(str);
 
 const md = (tag, W) => {

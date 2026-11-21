@@ -5,7 +5,7 @@
 // 2026-11-20a no floorTopUp: math 2026.11.20 redraws a round under its minimum, and the game never mentions a minimum).
 import { strikePlace } from './strikeOrder';
 import { stateBet, stateBetDerived } from 'state-shared';
-import { bookEventAmountToBetAmountMultiplier, bookEventAmountToCurrencyString } from 'utils-shared/amount';
+import { bookEventAmountToBetAmountMultiplier, bookEventAmountToCurrencyString } from './currency';
 import { waitForTimeout } from 'utils-shared/wait';
 import type { BookEventHandlerMap } from 'utils-book';
 

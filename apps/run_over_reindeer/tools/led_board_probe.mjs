@@ -14,6 +14,7 @@
 // WATCHES: ; __reindeer.scoreboardWin, __reindeer.soundTap, __reindeer.tune, __reindeer.turbo, INTRO_LINE, LED_BOARD.fps, LED_BOARD, ROUND
 // WATCHES: ; SHOWCASE_ROUNDS, sfx_win_*, sfx_win_big, sfx_win_epic, sfx_win_max, sfx_win_mega, sfx_win_super, data-round-card, data-round-board
 // WATCHES: ; .landing, .hudp, .spin, .am-ui, .wrap, .layer, .modals, .go
+// WATCHES: apps/run_over_reindeer/src/game/currency.ts;
 // THE LED SCOREBOARD PROBE (part A, 2026-11-17; bigwin_led_r3_2026-11-16 "r3b"; constants LED_BOARD, game/scoreboard/). At each size:
 //   - THE STRIP'S RULE per layout class, worked out here from the game's own geometry (the road picture's place, the board,
 //     the HUD's layout functions): desktop and tablet 0.62 of the road picture, centred on the window, top the bottom lane
@@ -57,7 +58,7 @@
 //     natural_small_free_spins (math 2026.11.20: its wrap-up on the board with NO line: no top-up or minimum is ever said, no
 //     HTML card, it waits for the press); autoplay's tier sounds once per tier per round
 //   - THE CURRENCY (section currency, desktop, sideways, upright, 2026-11-17 led_currency): with the play currency set by hand
-//     (USD, EUR, JPY, BRL, INR, a made-up XQZ, social XSC) a small win's amount on the strip is, dot for dot, the game's own
+//     (USD, EUR, JPY, BRL, INR, a made-up XQZ, social XSC and XGC, BTC, USDT; 2026-11-21 Stake's table) a small win's amount on the strip is, dot for dot, the game's own
 //     drawRow of the expected text (symbol, number, decimals as the HUD writes them; XQZ the number alone) inside the face, and
 //     a Mega win's amount on the big board is that text with its lit dots inside the face; no page errors
 //     (2026-11-18: and for USD, EUR, JPY and BRL a free spin's strip win with cents, 39.2x, counted at LINE_WIN.slam
@@ -700,13 +701,16 @@ const TITLE_MARGIN = 4;
 // ---- THE CURRENCY (2026-11-17, led_currency_2026-11-17) ----
 // the expected LED text, worked out here (not by the game's rule): Stake's symbol on its side, en-US marks, the currency's
 // decimals extended only by digits the amount really carries (as the HUD's formatter does); a made-up code: the number alone
-const CUR = { USD: ['$', 2, ''], EUR: ['€', 2, ''], JPY: ['¥', 0, ''], BRL: ['R$', 2, ''], INR: ['₹', 2, ''], XQZ: [null, 2, ''], XSC: ['SC', 2, ' '] };
+// (2026-11-21, Stake's table, game/currency.ts: a symbol before the number touches it, one after it is spaced; the social
+// coins are "3.40 SC" and "3.40 GC", BTC 6 decimals, USDT 2 after; a win's finer digits never past 6)
+// COPY OF Stake's docs rgs "Supported currencies" for these codes: [symbol, decimals, after]
+const CUR = { USD: ['$', 2, false], EUR: ['€', 2, false], JPY: ['¥', 0, false], BRL: ['R$', 2, false], INR: ['₹', 2, false], XQZ: [null, 2, true], XSC: ['SC', 2, true], XGC: ['GC', 2, true], BTC: ['BTC', 6, true], USDT: ['USDT', 2, true] };
 const ledExpect = (code, v) => {
-	const [sym, dec, sp] = CUR[code];
+	const [sym, dec, after] = CUR[code];
 	let d = dec;
-	while (d < dec + 2 && Math.abs(Math.round(v * 10 ** d) - v * 10 ** d) > 1e-6) d++;
+	while (d < Math.max(dec, Math.min(6, dec + 2)) && Math.abs(Math.round(v * 10 ** d) - v * 10 ** d) > 1e-6) d++;
 	const n = v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
-	return sym === null ? n : `${sym}${sp}${n}`;
+	return sym === null ? n : after ? `${n} ${sym}` : `${sym}${n}`;
 };
 /** a section starts from a quiet board whatever an earlier one left up (a card waiting, a win, the back board, a scatter
  *  count by hand): one failure never cascades into the next section */

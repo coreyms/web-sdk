@@ -19,7 +19,7 @@
 	import { untrack } from 'svelte';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import { stateModal } from 'state-shared';
-	import { numberToCurrencyString } from 'utils-shared/amount';
+	import { numberToCurrencyString } from '../game/currency';
 
 	import { modeChipData } from '../game/modeChipData';
 	import { fitFont, UI_TEXT_FACE } from '../game/textFit';

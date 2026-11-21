@@ -109,7 +109,7 @@
 	import { SCENE_ART } from '../game/sceneArtSpec';
 	import { isPaying, symbolPopupBoard, symbolPopupHook } from '../game/symbolPopup';
 	import { boardIdle } from '../game/boardIdle';
-	import { bookEventAmountToBetAmountMultiplier, bookEventAmountToNormalisedAmount, numberToCurrencyString } from 'utils-shared/amount';
+	import { bookEventAmountToBetAmountMultiplier, bookEventAmountToNormalisedAmount, numberToCurrencyString } from '../game/currency';
 	import { ledAmountText } from '../game/scoreboard/ledCurrency';
 
 	const context = getContext();
