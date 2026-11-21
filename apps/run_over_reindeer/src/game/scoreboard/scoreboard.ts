@@ -33,7 +33,7 @@ import { C, mk, setScreenScaleMax, shimmer, wildsDrawn, type Cv } from '../landi
 import { renderResolutionFor } from '../deviceTier';
 import { clearP, copyFace, copyP, densityFor, fillP, ledN } from './ledGrid';
 import { type ScoreboardGeo, type Rect } from './layout';
-import { backScene, clearTitle, borderGlint, countBorder, dissolveFace, entryWaitOf, flashesOf, powerOnFace, plowOf, raceCardOf, ridersOf, titlesOf, gagWordsAt, setBoardClass, titleOf, makeFaceCanvases, maxRaceAtOf, maxRaceOf, powerOffFace, showCounter, showGag, showRibbon, showSmall, showWin, stripFlourish, type CartoonState, type Face } from './scoreboardDraw';
+import { backScene, clearTitle, borderGlint, countBorder, dissolveFace, entryWaitOf, flashesOf, powerOnFace, plowOf, raceCardOf, ridersOf, titlesOf, gagWordsAt, setBoardClass, setBoardPitch, titleOf, makeFaceCanvases, maxRaceAtOf, maxRaceOf, powerOffFace, showCounter, showGag, showRibbon, showSmall, showWin, stripFlourish, type CartoonState, type Face } from './scoreboardDraw';
 import { amountNow, backOffset, brightOf, dimAlpha, endShow, isCard, landCard, newCardShow, newPressShow, newShow, phaseOf, seatedAt, shakeAt, skipShow, tierNow, type Show } from './show';
 import { newRace, type RaceOutcome } from './race';
 import { pickStrip, type StripItem, type StripTruth } from './stripArbiter';
@@ -310,6 +310,8 @@ export class Scoreboard {
 		this.geo = g;
 		// the back board's title knobs are per layout class (constants LED_BOARD.titles)
 		setBoardClass(g.cls);
+		// (the back board's dot pitch: the Total Win ladder's label floor, LED_BOARD.sizeD.ladderLabelMinCss)
+		setBoardPitch(g.back.face.w / Math.max(1, g.back.face.dotsW));
 		// (board size d on desktop and tablet: the press screen's figure may grow with the face, LED_BOARD.sizeD)
 		setScreenScaleMax((g.cls === 'desktop' || g.cls === 'tablet') && LED_BOARD.size === 'd' ? LED_BOARD.sizeD.pressScaleMax : 6);
 		this.ensureFaces();

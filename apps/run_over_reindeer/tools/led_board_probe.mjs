@@ -94,7 +94,12 @@
 // each layout (upright and sideways phones, 1280 x 720, 1280 x 800, 1440 x 900, 1920 x 1080, 1180 x 820, 1024 x 768) for a
 // 2,500x Total Win and the cap (MAX WIN, $7,777,000.00): phones unchanged; on board size d's desktop and tablet face a
 // label against the amount's cap as on the upright phone for the same amount; every mark clear of the amount, each other
-// and the border
+// and the border. 2026-11-21 (LED_BOARD.sizeD.ladderRule 'amount', the probe host's upright tablet): the rule on every
+// layout, so the section also runs the upright tablets (820 x 1180, 768 x 1024, 1024 x 1366) and a small upright phone
+// (360 x 560), and asserts at every size the ratio rule (a label against the amount's cap at the upright phone's for the
+// same amount, or above it on a face whose amount is the phone's or smaller, factor 1) and the floor (a label at least
+// ladderLabelMinCss CSS px tall), the labels under the amount's lowest row. The phone tier (game/deviceTier.ts PHONE_TIER)
+// keeps today's marks exactly, its bigger phones included (430 x 932, 414 x 896, 932 x 430: LED_BOARD.sizeD.ladderPhones off)
 // M4 (section m4, desktop and upright, 2026-11-19, driven by hand): the strip's scan to a message leaves the old picture alone
 //   right of its line (never the two drawn at once); the Total Win's amount is lit whenever its title is, the landing blink too
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=desktop,...] [SECTIONS=rule,rise,gag,race,round,scenes,cards,titles] node tools/led_board_probe.mjs
@@ -150,7 +155,7 @@ const r1 = (v) => Math.round(v * 10) / 10;
 
 async function boot(browser, S) {
 	// (the sizes run at a device pixel ratio of 1; the density section at the device's own: S.dpr)
-	const ctx = await browser.newContext({ viewport: S.vp, deviceScaleFactor: S.dpr ?? 1, isMobile: S.phone, hasTouch: S.phone });
+	const ctx = await browser.newContext({ viewport: S.vp, deviceScaleFactor: S.dpr ?? 1, isMobile: S.phone, hasTouch: S.phone || !!S.touch });
 	const p = await ctx.newPage();
 	const errs = [];
 	p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
@@ -2110,6 +2115,15 @@ const LADDER_CASES = [
 	{ name: 'ladder 1920x1080', vp: { width: 1920, height: 1080 }, dpr: 1, phone: false, d: true },
 	{ name: 'ladder 1180x820', vp: { width: 1180, height: 820 }, dpr: 2, phone: false, d: true },
 	{ name: 'ladder 1024x768', vp: { width: 1024, height: 768 }, dpr: 2, phone: false, d: true },
+	// (2026-11-21: the rule on every layout; the upright tablets, touch, as the probe host's; a small upright phone)
+	{ name: 'ladder 820x1180', vp: { width: 820, height: 1180 }, dpr: 2, phone: false, touch: true, d: true },
+	{ name: 'ladder 768x1024', vp: { width: 768, height: 1024 }, dpr: 2, phone: false, touch: true, d: true },
+	{ name: 'ladder 1024x1366', vp: { width: 1024, height: 1366 }, dpr: 2, phone: false, touch: true, d: true },
+	{ name: 'ladder 360x560', vp: { width: 360, height: 560 }, dpr: 2, phone: true, d: false },
+	// (the phone tier keeps today's marks whatever its amount: the bigger phones, whose amount is larger than the 390's)
+	{ name: 'ladder 430x932', vp: { width: 430, height: 932 }, dpr: 3, phone: true, d: false },
+	{ name: 'ladder 414x896', vp: { width: 414, height: 896 }, dpr: 3, phone: true, d: false },
+	{ name: 'ladder 932x430', vp: { width: 932, height: 430 }, dpr: 3, phone: true, d: false },
 ];
 async function ladderMarkChecks(browser) {
 	// today's upright phone board's ratio of a rung label's height to the amount's cap, per amount (the first case reads it)
@@ -2122,7 +2136,7 @@ async function ladderMarkChecks(browser) {
 				const h = window.__reindeer;
 				h.scoreboardManual(true);
 				h.scoreboardStep(100, 20);
-				const out = { size: h.tune.ledBoard.size, rows: {} };
+				const out = { size: h.tune.ledBoard.size, minCss: h.tune.ledBoard.sizeD.ladderLabelMinCss, rows: {} };
 				for (const [k, o] of [['2,500x', { x: 2500, play: 1 }], ['cap', { x: 7777, play: 1000, title: 'MAX WIN', capped: true }]]) {
 					h.scoreboardCard('total', o);
 					let s = h.scoreboardStep(0);
@@ -2149,13 +2163,27 @@ async function ladderMarkChecks(browser) {
 				const apart = lb.every((b, i) => i === 0 || b.x0 >= lb[i - 1].x1 + 2);
 				const inside = lb.every((b) => b.y1 <= M.H - M.border - 1 && b.x0 >= M.border + 1 && b.x1 <= M.W - M.border - 1);
 				const runnerClear = M.runner.y0 >= M.amount.y1 + 1;
+				const underAmount = lb.every((b) => b.y0 >= M.amount.y1 + 1);
 				if (S.name === 'ladder upright') phoneRatio[k] = M.ratio;
-				if (!S.d) check(M.f === 1 && M.z === 1, `${tag} ${k}: PHONES KEEP TODAY'S LADDER MARKS (factor ${M.f}, labels size ${M.z}, ${M.lampW} x ${M.lampH} lamps, runner ${M.runner.h} dots; the label against the amount's cap ${M.ratio})`, M);
+				const pr = phoneRatio[k];
+				// THE RULE AT EVERY SIZE: the label against the amount's cap at the upright phone's for the same amount (within 6
+				// percent, the label's dot scale rounded), or at or above it with factor 1 (a face whose amount is the phone's or
+				// smaller keeps today's marks), or above it where the floor drives; cut back by the room only if reported
+				const floorDrives = M.byFloor > M.byAmount && M.byFloor > 1;
+				// (today's 1x grid, where the density rule leaves a face at 1 LED a dot, the upright tablets at 1.3 CSS px and a pixel
+				// ratio of 2: the labels take the nearest whole dot scale to the factor, so the ratio lands within half a scale)
+				const wholeOk = !M.fine && M.z === Math.max(1, Math.round(M.f));
+				const ratioOk = (!!pr && (M.f === 1 ? M.ratio >= pr * 0.94 : Math.abs(M.ratio - pr) <= pr * 0.06 || wholeOk || (floorDrives && M.ratio >= pr * 0.94))) || M.limited;
+				// (the phone tier is held to today's marks below, not to the ratio; the tier as the game decided it)
+				check(M.phoneTier === !!S.phone, `${tag} ${k}: THE PHONE TIER (deviceTier PHONE_TIER) ${M.phoneTier}, want ${!!S.phone}`, M);
+				if (!S.phone) check(ratioOk, `${tag} ${k} (${row.str}): THE RATIO RULE: a label against the amount's cap ${M.ratio}, the upright phone's ${pr} (factor ${M.f}, labels size ${M.z}${M.fine ? '' : ' on the 1x grid'}, by the amount ${M.byAmount}, by the floor ${M.byFloor}${M.limited ? ', CUT BACK BY THE ROOM' : ''})`, M);
+				check(M.labelCss >= r.minCss - 0.01 || M.limited, `${tag} ${k} (${row.str}): THE FLOOR: a label ${M.labelCss} CSS px tall (7 x ${M.z} dots at ${M.pitch} CSS px), at least ${r.minCss}`, M);
+				console.log(`  ROW ${tag} ${k}: face ${M.W} x ${M.H} dots at ${M.pitch} CSS px, the amount's cap ${M.cap} dots = ${Math.round(M.cap * M.pitch * 10) / 10} CSS px, a label ${Math.round(7 * M.z * 100) / 100} dots = ${M.labelCss} CSS px, ratio ${M.ratio} (phone ${pr}), factor ${M.f}, lamps ${M.lampW} x ${M.lampH}, runner ${M.runner.h}, band ${M.band} (held ${M.bandK})${M.limited ? ', cut back' : ''}`);
+				if (!S.d) check(M.f === 1 && M.z === 1 && M.lampW === Math.max(3, Math.round(M.band * 0.2)) && M.lampH === Math.max(2, Math.round(M.band * 0.13)) && M.runner.h === Math.max(7, Math.round(M.band * 0.5)), `${tag} ${k}: PHONES KEEP TODAY'S LADDER MARKS (factor ${M.f}, labels size ${M.z}, ${M.lampW} x ${M.lampH} lamps, runner ${M.runner.h} dots; the label against the amount's cap ${M.ratio})`, M);
 				else {
-					const pr = phoneRatio[k];
-					check(M.f > 1 && !!pr && (Math.abs(M.ratio - pr) <= pr * 0.06 || M.limited), `${tag} ${k} (${row.str}): THE LADDER'S MARKS SCALE WITH THE AMOUNT: a label against the amount's cap ${M.ratio}, the upright phone's ${pr} for the same amount (factor ${M.f}, labels size ${M.z}, ${M.lampW} x ${M.lampH} lamps, runner ${M.runner.h} dots${M.limited ? ', cut back by the room' : ''})`, M);
+					check(M.f > 1 && !!pr && (Math.abs(M.ratio - pr) <= pr * 0.06 || wholeOk || M.limited), `${tag} ${k} (${row.str}): THE LADDER'S MARKS SCALE WITH THE AMOUNT: a label against the amount's cap ${M.ratio}, the upright phone's ${pr} for the same amount (factor ${M.f}, labels size ${M.z}, ${M.lampW} x ${M.lampH} lamps, runner ${M.runner.h} dots${M.limited ? ', cut back by the room' : ''})`, M);
 				}
-				check(apart && inside && runnerClear, `${tag} ${k} (${row.str}): the marks clear: the labels apart (${lb.map((b) => `${b.x0}..${b.x1}`).join(' ')}) and inside the face above its border (bottom ${Math.max(...lb.map((b) => b.y1))} of ${M.H}), the runner's top ${M.runner.y0} under the amount's lowest row ${M.amount.y1}`, { M, lb });
+				check(apart && inside && runnerClear && underAmount, `${tag} ${k} (${row.str}): the marks clear: the labels under the amount, apart (${lb.map((b) => `${b.x0}..${b.x1}`).join(' ')}) and inside the face above its border (bottom ${Math.max(...lb.map((b) => b.y1))} of ${M.H}), the runner's top ${M.runner.y0} under the amount's lowest row ${M.amount.y1}`, { M, lb });
 			}
 			check(errs.length === 0, `${tag}: no page errors`, errs);
 		} catch (e) {
