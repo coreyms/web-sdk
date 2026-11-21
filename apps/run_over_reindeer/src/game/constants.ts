@@ -799,8 +799,16 @@ export const SUPER_WHEEL = {
 	 *  stud over 8 degrees. A stop can leave it leaning on a stud's side (about 27 to 29 degrees, in contact, still);
 	 *  one balanced on the stud's top (the stud blocking less than edgeDeg of its swing) slips off and comes back
 	 *  straight. `tipRadius` is the page's line contact's half thickness (used only without an outline).
-	 *  Until then (6a95d3b): the tip 11 units in, stiffness 600, damping 6, flick 0.94, the centre line contact. */
-	peg: { stiffness: 550, damping: 8, fling: 1.35, maxSwing: 65, tipRadius: 3, size: 1.11, subDeg: 0.5, springStepMs: 8, flingMax: 4000, edgeDeg: 5 },
+	 *  Until then (6a95d3b): the tip 11 units in, stiffness 600, damping 6, flick 0.94, the centre line contact.
+	 *  THE STOP'S RELEASE (2026-11-21, Corey: "Give the pin spring in those cases, so it rolls back inward towards the
+	 *  wedge"): a stop that would leave the flapper held on the stud that just passed the top (about one stop in ten,
+	 *  the ones within about 11.5 degrees of the winning wedge's first divider) is held still for release.holdMs, then
+	 *  the disc rolls on over release.rollMs (eased in and out) to release.marginDeg past the turn where that stud can no
+	 *  longer reach the flapper (1 to 3.5 degrees at the layouts' pegs, 4.4 at the largest): the stud slips out from under
+	 *  the tip and the spring swings the flapper back inward into the wedge, straight. The pointer goes that much deeper
+	 *  into the winning wedge; spin one's stop (the lock, the strip's gold name, the wedge's lift) waits for the roll's end.
+	 *  Why on and not back: game/road/wheelPeg.ts, THE STOP'S RELEASE. A stop that ends free has none. */
+	peg: { stiffness: 550, damping: 8, fling: 1.35, maxSwing: 65, tipRadius: 3, size: 1.11, subDeg: 0.5, springStepMs: 8, flingMax: 4000, edgeDeg: 5, release: { holdMs: 120, rollMs: 360, marginDeg: 0.6 } },
 	/** THE LED STRIP'S WORDS (game/scoreboard/scoreboard.ts wheelLine): plain capitals, no symbol characters */
 	text: { emerge: 'SUPER WHEEL', press: 'PRESS SPIN', auto: 'GET READY', go: 'GO REINDEER', column: 'COLUMN', names: { reindeer: 'REINDEER', santa: 'SANTA', grandma: 'GRANDMA' } },
 	/** ITS SOUNDS: existing sounds only (none was made for the wheel; the moments still wanting their own are listed in

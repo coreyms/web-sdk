@@ -40,7 +40,14 @@
 //              at least KICK_MEDIAN and the spin's largest swing from LARGEST_MIN to SUPER_WHEEL.peg.maxSwing (Corey: "Go
 //              deeper, by dropping lower I was trying to make it move more visibly"); every tick is a stud's first contact,
 //              and every first contact ticks unless a tick sounded under tickMinMs before; REST_MS board ms after the stop it
-//              is straight with no stud on it, or leaning on a stud in contact (gap within LEAN_GAP) and still. And each wedge's number is the Wild multiplier in its character's color (WILD_MULT.colors), its value
+//              is straight with no stud on it (until 2026-11-21 it could also lean on a stud in contact, gap within
+//              LEAN_GAP, and still; since THE STOP'S RELEASE, Corey: "Give the pin spring in those cases, so it rolls back
+//              inward towards the wedge", a lean is a fail); the disc reaches its rest angle (wheel().release.stop) within
+//              the release of the curve's stop and never moves after it. Played twice: the fixture's own stop, then the
+//              same round forced to lean (__reindeer.wheelOffNext(PIN_LEAN_OFF)): the stud just past the top holds the
+//              flapper at the curve's stop, the disc rolls on wheel().release.deg degrees (at most RELEASE_MAX_DEG) and
+//              no further, the flapper comes free inside the release, no tick sounds from the curve's stop on, and the
+//              book's wedge is under the peg. And each wedge's number is the Wild multiplier in its character's color (WILD_MULT.colors), its value
 //              the wedge's
 //   numbers    (2026-11-20, the layout page round 3) the standing wheel at each layout (device pixel ratio 3; wheelShow,
 //              wheelSet: no round played) with every wheel value (4x to 30x) in every wedge place (the eight set by hand,
@@ -83,6 +90,10 @@ const REST_MS = 2500;
 const REST_DEG = 0.1;
 const LEAN_GAP = 0.1;
 const STILL_DEG = 0.02;
+/** THE STOP'S RELEASE (2026-11-21, game/road/wheelPeg.ts): the pin section's forced leaning stop (of a wedge off its
+ *  middle: the stud that just passed the top then holds the flapper), and the release's largest roll on (degrees) */
+const PIN_LEAN_OFF = -0.27;
+const RELEASE_MAX_DEG = 5;
 /** wheel units a number's or a wedge's pixel may be read past its line (a device pixel at ratio 3 is up to 0.55 unit on
  *  the desktop wheel; a smaller wheel's device pixel reaches further and the numbers section allows that) */
 const EDGE_TOL = 1;
@@ -328,7 +339,7 @@ async function oneRound(browser, book, how, tag, { shots = null, L: layout = PLA
 				const last = window.__wheelLog[window.__wheelLog.length - 1];
 				if (w.phase === 'drive' || w.phase === 'runin' || w.phase === 'leap') window.__wheelRun = (window.__wheelRun ?? []).concat([{ ph: w.phase, onRim: w.runner.onRim, pose: w.runner.pose, theta: w.theta, shown: w.runner.shown, x: w.runner.x, y: w.runner.y, rot: w.runner.rotation }]);
 				const key = `${w.phase}|${w.line?.text}|${w.line?.tone}|${w.line?.blink}`;
-				if (!last || last.key !== key) window.__wheelLog.push({ key, t: performance.now(), clock: w.clock, phase: w.phase, line: w.line, theta: w.theta, ringPhi: w.ringPhi, atPeg: w.atPeg, ringAt: w.ringAt });
+				if (!last || last.key !== key) window.__wheelLog.push({ key, t: performance.now(), clock: w.clock, phase: w.phase, line: w.line, theta: w.theta, ringPhi: w.ringPhi, atPeg: w.atPeg, ringAt: w.ringAt, release: w.release });
 			}, 8);
 		});
 		if (how === 'space') await p.keyboard.press('Space');
@@ -376,9 +387,12 @@ async function oneRound(browser, book, how, tag, { shots = null, L: layout = PLA
 		check(lineAt('land').every((t) => t === want1) && land.line.tone === 'gold' && land.line.blink, `${tag}: the LED strip names the stop: ${want1}`, lineAt('land'));
 		const stop2 = log.log.filter((l) => l.phase === 'land2').pop();
 		check(!!stop2 && stop2.ringAt === o.reel && lineAt('land2').every((t) => t === `COLUMN ${o.reel + 1}`), `${tag}: the ring stops on the book's column (COLUMN ${o.reel + 1} on the strip)`, { ringAt: stop2?.ringAt, lines: lineAt('land2') });
-		// the stop point inside the wedge: the plan's own (never at an edge)
+		// the stop point inside the wedge: the plan's own (never at an edge), and with THE STOP'S RELEASE (a stop that would
+		// leave the pin on a stud, 2026-11-21) that much further on, deeper inside the wedge (toward its middle)
 		const inWedge = stop ? ((((-stop.theta % 360) + 360) % 360) / 45 - plan.at - 0.5) : null;
-		check(inWedge !== null && Math.abs(inWedge - plan.off) < 0.01 && Math.abs(inWedge) <= 0.301, `${tag}: it stops ${(inWedge * 100).toFixed(1)}% of a wedge off its middle (the plan's ${(plan.off * 100).toFixed(1)}%)`, { inWedge, off: plan.off });
+		const relDeg = stop?.release?.deg ?? 0;
+		const wantOff = plan.off + relDeg / 45;
+		check(inWedge !== null && Math.abs(inWedge - wantOff) < 0.01 && Math.abs(inWedge) <= 0.301 && relDeg >= 0 && relDeg <= RELEASE_MAX_DEG && (relDeg === 0 || Math.abs(inWedge) < Math.abs(plan.off)), `${tag}: it stops ${(inWedge * 100).toFixed(1)}% of a wedge off its middle (the plan's ${(plan.off * 100).toFixed(1)}%${relDeg > 0 ? `, then the stop's release ${relDeg.toFixed(2)} degrees on, inward` : ', no release'})`, { inWedge, off: plan.off, release: stop?.release });
 		// THE REINDEER'S STRIDE: on the rim his pose advances with the rim's own travel
 		const rim = log.run.filter((r) => r.ph === 'drive' && r.onRim && r.shown);
 		if (rim.length >= 4) {
@@ -582,6 +596,8 @@ async function skipSection(browser) {
 	const book = BOOKS[5];
 	const o = openingOf(book.events);
 	await queue(p, book);
+	// (its stop forced to lean, the same wedge: THE STOP'S RELEASE, 2026-11-21; the slam must land on the free pose)
+	await p.evaluate((off) => window.__reindeer.wheelOffNext(off), PIN_LEAN_OFF);
 	await p.click('.hudp button.spin');
 	await toPhase(p, 'rest');
 	await sleep(300);
@@ -598,6 +614,10 @@ async function skipSection(browser) {
 	const slam = await p.evaluate(() => window.__reindeer.roadSounds().filter((e) => e.what === 'wheel').map((e) => e.detail));
 	const ms = land ? land.clock - c0 : null;
 	check(!!land && slam.includes('slam') && land.atPeg === land.plan.at && land.plan.slices[land.plan.at] === `${o.tier} ${o.multiplier}x` && ms < 1200, `skip: a Spin press during the slow-down goes straight to the book's wedge (${ms?.toFixed(0)} ms on the wheel's clock, the slow-down's rest skipped)`, { ms, atPeg: land?.atPeg, slam });
+	// the slam lands on the stop's free pose: the release's rest angle (the forced leaning stop has one), no stud on the pin
+	const mod = (v) => ((v % 360) + 360) % 360;
+	const relS = land?.release;
+	check(!!relS && relS.deg > 0 && Math.abs(mod(land.theta) - mod(relS.stop)) < 1e-6 && land.onStud === null, `skip: the slam lands straight on the stop's free pose (${relS ? `${relS.deg.toFixed(2)} degrees past the curve's stop` : '-'}), no stud on the pin`, { theta: land?.theta, release: relS, onStud: land?.onStud });
 	const done = await until(p, () => (window.__reindeer.wheel().played >= 1 ? window.__reindeer.road().features.columns : null), 240000);
 	const col = done?.find((c) => c.reel === o.reel);
 	check(!!col && col.tier === o.tier && col.multiplier === o.multiplier, `skip: then the ring, and the book's column (${o.tier} ${o.multiplier}x reel ${o.reel + 1})`, done);
@@ -966,10 +986,19 @@ async function wordsSection(browser) {
 }
 
 // ---------------------------------------------------------------- the pin and the wedges' numbers
+const outerCheck = check;
 async function pinSection(browser) {
+	// the fixture's own stop, then the same round forced to lean (THE STOP'S RELEASE)
+	await pinRound(browser, null);
+	await pinRound(browser, PIN_LEAN_OFF);
+}
+async function pinRound(browser, leanOff) {
 	const { ctx, p, errs } = await boot(browser, PLAYED);
+	// (the forced lean's lines say so)
+	const check = (ok, msg, detail) => outerCheck(ok, leanOff === null ? msg : msg.replace(/^pin: /, `pin (forced lean, off ${leanOff}): `), detail);
 	try {
 		await p.evaluate(() => window.__reindeer.fixtures.next('super_typical'));
+		if (leanOff !== null) await p.evaluate((off) => window.__reindeer.wheelOffNext(off), leanOff);
 		await p.click('.hudp button.spin');
 		const rested = await toPhase(p, 'rest', 180000);
 		check(rested, 'pin: the wheel comes out and rests', null);
@@ -986,7 +1015,8 @@ async function pinSection(browser) {
 		await p.evaluate(() => window.__reindeer.wheelPegTrace(true));
 		await p.keyboard.press('Space');
 		const landed = await toPhase(p, 'land', 120000);
-		// (the disc stands from the stop on; the peg goes on settling: REST_MS and a little more)
+		// (the disc stands from the stop on, the stop's release included: spin one's stop is the release's end; the peg goes
+		// on settling: REST_MS and a little more)
 		await sleep(REST_MS + 900);
 		const tr = (await p.evaluate(() => window.__reindeer.wheelPegTrace(false))) ?? [];
 		const w = await W(p);
@@ -1065,14 +1095,38 @@ async function pinSection(browser) {
 			} else if ((f.met ?? []).length > 0 && f.real - lastTick >= minMs + 1) silent.push(f);
 		}
 		check(silent.length === 0 && gaps.every((g) => g >= minMs - 1), `pin: every first contact ticks unless a tick sounded under tickMinMs (${minMs} ms) before it; ticks never closer (closest ${gaps.length ? Math.min(...gaps).toFixed(1) : '-'} ms)`, silent.slice(0, 3));
-		// AT REST: the stop is the last frame the disc turned; REST_MS board ms on, straight with no stud on it
+		// AT REST: the stop is the last frame the disc turned (the stop's release's end when it has one); REST_MS board ms
+		// on, straight with no stud on it. A lean (still on a stud) is a fail since the stop's release (2026-11-21)
 		let stopAt = 0;
 		for (let i = 1; i < tr.length; i++) if (tr[i].theta !== tr[i - 1].theta) stopAt = tr[i].clock;
 		const after = tr.filter((f) => f.clock >= stopAt + REST_MS);
 		const leaning = after.length > 0 && after.every((f) => f.stud !== null);
 		const moved = after.length ? Math.max(...after.map((f) => f.phi)) - Math.min(...after.map((f) => f.phi)) : 0;
-		const bent = leaning ? after.filter((f) => Math.abs(f.gap) > LEAN_GAP) : after.filter((f) => Math.abs(f.phi) > REST_DEG || f.stud !== null);
-		check(after.length > 0 && bent.length === 0 && (!leaning || moved <= STILL_DEG), `pin: ${REST_MS} board ms after the stop it is ${leaning ? `leaning on a stud at ${after[after.length - 1].phi.toFixed(1)} degrees, in contact (gap within ${Math.max(...after.map((f) => Math.abs(f.gap))).toFixed(3)} units) and still (moved ${moved.toFixed(4)})` : `straight (largest ${after.length ? Math.max(...after.map((f) => Math.abs(f.phi))).toFixed(3) : '-'} degrees) with no stud on it`} (${after.length} frames)`, bent.slice(0, 3));
+		const bent = after.filter((f) => Math.abs(f.phi) > REST_DEG || f.stud !== null);
+		check(after.length > 0 && !leaning && bent.length === 0, `pin: ${REST_MS} board ms after the stop it is ${leaning ? `LEANING on a stud at ${after[after.length - 1].phi.toFixed(1)} degrees (gap ${Math.max(...after.map((f) => Math.abs(f.gap))).toFixed(3)} units, moved ${moved.toFixed(4)}): the stop's release did not free it` : `straight (largest ${after.length ? Math.max(...after.map((f) => Math.abs(f.phi))).toFixed(3) : '-'} degrees) with no stud on it`} (${after.length} frames)`, bent.slice(0, 3));
+		// THE STOP'S RELEASE and NO DRIFT: the disc comes to its rest angle (the curve's stop, rolled on by the release when
+		// it has one) within the release's length (and a frame) of the curve's stop, and never moves after it
+		// (frames on the wheel's clock: a slow headless frame may step over the release's hold, so the curve's stop is read
+		// from the wheel, wheel().release.curveStopClock, not looked for in the frames)
+		const rel = w.release;
+		const restAt = rel ? tr.findIndex((f) => Math.abs(f.theta - rel.stop) < 1e-9) : -1;
+		const drift = restAt >= 0 ? tr.slice(restAt).filter((f) => Math.abs(f.theta - rel.stop) >= 1e-9) : [];
+		const frameMax = Math.max(0, ...tr.map((f) => f.dt ?? 0)) * 1000;
+		const late = rel && restAt >= 0 ? tr[restAt].clock - rel.curveStopClock : null;
+		check(!!rel && restAt >= 0 && drift.length === 0 && late <= rel.ms + frameMax + 1, `pin: the disc comes to rest at ${rel ? rel.stop.toFixed(3) : '-'} degrees (${rel && rel.deg > 0 ? `the curve's stop and ${rel.deg.toFixed(2)} degrees of release` : 'the curve\'s own stop, no release'}, ${late?.toFixed(0)} board ms after the curve's stop, frames up to ${frameMax.toFixed(0)} ms) and never moves after it (${drift.length} frames off)`, { rel, restAt, late, drift: drift.slice(0, 3) });
+		if (rel && rel.deg > 0) {
+			// the roll goes on (theta falling, the way the spin turned) and never back, from the curve's stop to the rest
+			const roll = restAt >= 0 ? tr.slice(0, restAt + 1).filter((f) => f.clock >= rel.curveStopClock) : [];
+			const back = roll.filter((f, i) => i > 0 && f.theta > roll[i - 1].theta + 1e-9);
+			// the lean moment: a stud on the flapper with the disc standing at the curve's stop (the release's hold; frames
+			// that fell inside it), and the flapper free by the release's end
+			const hold = tr.filter((f) => f.theta === rel.curveStop && f.clock >= rel.curveStopClock);
+			const leanSeen = hold.some((f) => f.stud !== null);
+			const freeAt = roll.findIndex((f) => f.stud === null);
+			// no tick from the curve's stop on: the stud on the flapper there met it before the stop
+			const lateTicks = tr.filter((f) => f.clock > rel.curveStopClock && (f.tick || (f.met ?? []).length > 0));
+			check(rel.deg <= RELEASE_MAX_DEG && roll.length > 0 && back.length === 0 && (hold.length === 0 || leanSeen) && freeAt >= 0 && lateTicks.length === 0 && w.atPeg === w.plan.at, `pin: the stop's release: the stud held the flapper at the curve's stop (${hold.length ? (leanSeen ? `seen in ${hold.length} frames of the hold` : 'NOT seen') : 'no frame fell in the hold'}), the disc rolled on ${rel.deg.toFixed(2)} degrees (at most ${RELEASE_MAX_DEG}) over ${rel.ms} board ms, never back, the flapper came free inside it (frame ${freeAt} of ${roll.length}), no tick or new stud after the curve's stop (${lateTicks.length}), the book's wedge under the peg (${w.atPeg})`, { rel, back: back.slice(0, 3), leanSeen, freeAt, lateTicks: lateTicks.slice(0, 3), atPeg: w.atPeg, at: w.plan.at });
+		} else if (leanOff !== null) check(false, `pin: the forced stop (off ${leanOff}) has a release`, rel);
 		note(`PIN: ${tr.length} frames, ${crossed.size} studs passed, ${met.size} met, ${kicked} kicked over ${KICK_DEG} degrees, ${ticks.length} ticks, largest swing ${Math.max(...tr.map((f) => f.maxAbs ?? Math.abs(f.phi))).toFixed(1)} degrees; at the stop ${w.atPeg}`);
 		check(errs.length === 0, 'pin: no page errors', errs);
 	} finally {

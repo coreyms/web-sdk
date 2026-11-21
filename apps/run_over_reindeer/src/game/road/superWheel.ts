@@ -30,7 +30,7 @@ import { STAGING_TOOLS, perfMark } from '../staging';
 import { queuePresentUpload, rebatchBeforeUnload } from './columnClips';
 import { awaitRunViews, runFrame } from './reindeerRun';
 import { WildMult } from './wildMult';
-import { flapGap, pegRest, stepPeg as stepPegOn, studAt, type PegGeom, type PegParams, type PegPath, type PegState } from './wheelPeg';
+import { flapGap, pegReleaseDeg, pegReleaseMs, pegReleaseTurn, pegRest, stepPeg as stepPegOn, studAt, type PegGeom, type PegParams, type PegPath, type PegState } from './wheelPeg';
 import { WHEEL_SLICES, WHEEL_STEP, curveAt, curveLength, ringAtPointer, ringCurve, slotAtPeg, spinCurve, type WheelCurve, type WheelPlan } from '../superWheelPlan';
 
 const TIER = PHONE_TIER ? 'phone' : 'full';
@@ -201,6 +201,12 @@ export class SuperWheel {
 	/** the disc's turn through this frame for the peg: the spin's own curve while it runs (a long frame follows the
 	 *  curve's pace inside it), else null (an even pace from where the peg last stepped) */
 	private pegPath: ((u: number) => number) | null = null;
+	/** THE STOP'S RELEASE of the spin in play (game/road/wheelPeg.ts pegReleaseDeg): the degrees the disc rolls on past the
+	 *  curve's stop so a flapper held on a stud comes free (0: it ends free), worked out once per curve and peg size */
+	private releaseMemo: { c: WheelCurve; scale: number; deg: number } | null = null;
+	/** DEV and the probe: the next wheel played stops this far off its wedge's middle (-0.3 to 0.3 of a wedge, the plan's
+	 *  own range: the same wedge, so the same result), once; null: the plan's own (wheelOffNext) */
+	private devOff: number | null = null;
 	/** the numbers' outline class drawn now (WILD_MULT.place.wheel evenOutline) */
 	private outlineClass: 'phone' | 'wide' = 'wide';
 	/** DEV and the probe: the flapper frame by frame (wheelPegTrace): `met` the studs whose first contact came in the
@@ -259,6 +265,32 @@ export class SuperWheel {
 	private pegParams(): PegParams {
 		const P = SUPER_WHEEL.peg;
 		return { stiffness: P.stiffness, damping: P.damping, fling: P.fling, maxSwing: P.maxSwing, subDeg: P.subDeg, springStepS: P.springStepMs / 1000, flingMax: P.flingMax, edgeDeg: P.edgeDeg };
+	}
+	/** THE STOP'S RELEASE of a spin's curve (constants SUPER_WHEEL.peg.release, game/road/wheelPeg.ts): degrees the disc
+	 *  rolls on past the curve's stop so the stud that just passed the top lets the flapper go; 0 for a stop that ends free.
+	 *  Geometry alone (the stop's angle and the peg's size), so a round shows the same release live, on a resume and in a
+	 *  replay. */
+	private releaseOf(c: WheelCurve): number {
+		const scale = this.pegScaleNow();
+		const m = this.releaseMemo;
+		if (m && m.c === c && m.scale === scale) return m.deg;
+		const deg = pegReleaseDeg(c.from - curveAt(c, curveLength(c)), this.pegGeom(), this.pegParams(), SUPER_WHEEL.peg.release);
+		this.releaseMemo = { c, scale, deg };
+		return deg;
+	}
+	/** the disc's turn `tS` seconds into a spin: its curve, then (a stop with a release) the release's roll on past it. With
+	 *  no release it is the curve alone, exactly as before the release existed */
+	private spinAt(c: WheelCurve, deg: number, tS: number): number {
+		const len = curveLength(c);
+		if (deg <= 0 || tS <= len) return c.from - curveAt(c, tS);
+		return c.from - curveAt(c, len) - pegReleaseTurn(deg, (tS - len) * 1000, SUPER_WHEEL.peg.release);
+	}
+	/** DEV and the probe: the next wheel played stops `off` of a wedge off its wedge's middle (clamped to the plan's own
+	 *  -0.3 to 0.3: the wedge, and so the result, is the book's), once; null clears it. A leaning stop to record: about
+	 *  -0.27 (the stud that just passed the top then holds the flapper, and the release frees it) */
+	devOffNext(off: number | null) {
+		this.devOff = off === null || !Number.isFinite(off) ? null : Math.max(-0.3, Math.min(0.3, off));
+		return this.devOff;
 	}
 	/** THE NUMBERS' EVEN OUTLINE for a screen class: the wheel sheet's silhouettes mo_<class>_<color>_<letter> */
 	private setOutlineClass(cls: 'phone' | 'wide') {
@@ -434,6 +466,10 @@ export class SuperWheel {
 		if (!ok || !this.geo || this.destroyed || this.active) {
 			users--;
 			return false;
+		}
+		if (import.meta.env.DEV && this.devOff !== null) {
+			plan = { ...plan, off: this.devOff };
+			this.devOff = null;
 		}
 		this.plan = plan;
 		this.marks = { start: performance.now() };
@@ -748,7 +784,8 @@ export class SuperWheel {
 			this.spinning = false;
 			this.drift = false;
 			const c = this.curve ?? spinCurve(this.theta, this.plan!, { driveMs: S.run.driveMs, decelMs: S.spin.decelMs, power: S.spin.power, minDeg: 0, crawlDeg: 0, extraTurns: 0 });
-			const end = c.from - c.dTot;
+			// (to the stop's free pose: past the release's roll when the stop has one, so the flapper is never left on a stud)
+			const end = c.from - c.dTot - this.releaseOf(c);
 			const from = this.theta;
 			const left = (((from - end) % 360) + 360) % 360;
 			this.setPhase('slam');
@@ -900,12 +937,14 @@ export class SuperWheel {
 			const c = this.curve;
 			const tS = (this.clock - this.spinT0) / 1000;
 			const prev = this.theta;
-			this.setTheta(c.from - curveAt(c, tS));
+			// (the curve, then the stop's release when it has one: game/road/wheelPeg.ts THE STOP'S RELEASE)
+			const deg = this.releaseOf(c);
+			this.setTheta(this.spinAt(c, deg, tS));
 			// the peg follows the curve's own pace through this frame (from where it last stepped to here)
 			const t0 = this.spinT0;
 			const th0 = this.peg.theta;
 			const a0 = (clock0 - t0) / 1000;
-			this.pegPath = a0 > 0 ? (u: number) => c.from - curveAt(c, a0 + (u * dt) / 1000) : (u: number) => th0 + (this.theta - th0) * u;
+			this.pegPath = a0 > 0 ? (u: number) => this.spinAt(c, deg, a0 + (u * dt) / 1000) : (u: number) => th0 + (this.theta - th0) * u;
 			// on the rim his pose comes from the rim's own travel: his hooves move with its surface
 			if (this.onRim) {
 				const travel = Math.abs(this.theta - prev) * DEG * (this.geo.d / 2);
@@ -915,7 +954,9 @@ export class SuperWheel {
 			}
 			// during the slow-down the LED names the wedge under the peg
 			if (this.phase === 'slow') this.led(this.nameOf(slotAtPeg(this.theta)), 'white');
-			if (tS >= curveLength(c)) this.beatLand();
+			// spin one's stop: the curve's end, or the release's end (its lock, the strip's gold name and the wedge's lift wait
+			// for the flapper to come free)
+			if (tS >= curveLength(c) + pegReleaseMs(deg, SUPER_WHEEL.peg.release) / 1000) this.beatLand();
 		}
 		if (this.ringGo) {
 			const { c, t0 } = this.ringGo;
@@ -978,6 +1019,17 @@ export class SuperWheel {
 			bulbs: this.lights?.visible ?? false,
 			peg: this.peg.phi,
 			onStud: this.peg.onStud,
+			/** THE STOP'S RELEASE of the spin in play: `deg` the roll on past the curve's stop (0: it ends free), `ms` its length
+			 *  (board ms), `curveStop` the curve's stop and `stop` where the disc comes to rest (degrees), `curveStopClock` the
+			 *  wheel's clock at the curve's stop (board ms; spin one's stop, the lock, is `ms` later) */
+			release: this.curve
+				? (() => {
+						const c = this.curve!;
+						const deg = this.releaseOf(c);
+						const curveStop = c.from - curveAt(c, curveLength(c));
+						return { deg, ms: pegReleaseMs(deg, SUPER_WHEEL.peg.release), holdMs: SUPER_WHEEL.peg.release.holdMs, curveStop, stop: curveStop - deg, curveStopClock: this.spinT0 + curveLength(c) * 1000 };
+					})()
+				: null,
 			/** the peg as drawn and stepped: its scale, the flapper's length and bolt, the contact distance (wheel units) */
 			pegGeo: this.wrap ? { scale: this.pegScaleNow(), ...this.pegGeom() } : null,
 			/** the numbers' outline class (WILD_MULT.place.wheel evenOutline) */
@@ -1093,19 +1145,22 @@ export class SuperWheel {
 		this.ticks = 0;
 		this.peg = pegRest(this.theta);
 		this.stepPeg(0);
-		return curveLength(this.devCurve);
+		// (its whole length: the curve, and the stop's release when it has one)
+		return curveLength(this.devCurve) + pegReleaseMs(this.releaseOf(this.devCurve), SUPER_WHEEL.peg.release) / 1000;
 	}
 	devSpinStep(ms: number) {
 		const c = this.devCurve;
 		if (this.phase !== 'dev' || !c) return null;
 		const a0 = this.devT / 1000;
 		this.devT += ms;
-		const len = curveLength(c);
+		// (the curve, then the stop's release when it has one, as update() turns it)
+		const deg = this.releaseOf(c);
+		const len = curveLength(c) + pegReleaseMs(deg, SUPER_WHEEL.peg.release) / 1000;
 		const tS = Math.min(this.devT / 1000, len);
-		this.setTheta(c.from - curveAt(c, tS));
+		this.setTheta(this.spinAt(c, deg, tS));
 		// (the curve's own pace through the step, as update() steps it)
-		this.stepPeg(ms / 1000, (u: number) => c.from - curveAt(c, Math.min(len, a0 + (u * ms) / 1000)));
-		return { t: this.devT, theta: this.theta, phi: this.peg.phi, onStud: this.peg.onStud, ticks: this.ticks, done: this.devT / 1000 >= len };
+		this.stepPeg(ms / 1000, (u: number) => this.spinAt(c, deg, Math.min(len, a0 + (u * ms) / 1000)));
+		return { t: this.devT, theta: this.theta, phi: this.peg.phi, onStud: this.peg.onStud, ticks: this.ticks, done: this.devT / 1000 >= len, release: deg };
 	}
 	devEnd() {
 		if (this.phase !== 'dev') return;
