@@ -23,9 +23,17 @@
 		/** a press while the amount counts (or the cloth still unrolls): straight to the hung banner, the final amount */
 		skip: () => void;
 		counting: () => boolean;
+		/** THE TOTAL WIN'S OWN COUNT (2026-11-21, the bar's WIN odometer, ui/hud/winOdometer.ts): while a TOTAL WIN screen
+		 *  is up and its count has started, its screen number (id), its clock (t, real ms since the screen showed), its
+		 *  count's start and end on that clock (a press during the count, skip, moves the end to the press), the amount and
+		 *  whether it was pressed through; null before the count starts and once the banner rolls up. The HUD's WIN readout
+		 *  reads it each frame and never keeps a timer of its own. Read only. */
+		totalCount: () => BannerTotalCount | null;
 		/** the exit: resolves when the cloth is rolled up (the roll's retreat and the light's fade go on after) */
 		hide: () => Promise<void>;
 	};
+
+	export type BannerTotalCount = { id: number; t: number; countStart: number; countEnd: number; amount: number; skipped: boolean };
 
 	export const warBanner: { flow: WarBannerFlow | null } = { flow: null };
 </script>
@@ -80,6 +88,7 @@
 	import { loadBannerMotion } from '../game/banner/motion';
 	import { BannerView } from '../game/banner/view';
 	import { featureScreens } from '../game/featurePacing';
+	import { hudWinOdometer } from '../game/hudWin.svelte';
 
 	const context = getContext();
 	const view = new BannerView();
@@ -302,6 +311,14 @@
 	let rolled: (() => void)[] = [];
 	type Count = { segs: ReturnType<typeof stagedSegments>; total: number; target: number; fit: string; el: number; started: boolean; skipped: boolean; done: () => void };
 	let count: Count | null = null;
+	/** THE TOTAL WIN's count on the screen's clock, for the bar's WIN odometer (flow.totalCount): set by wrap, its start
+	 *  and end written as the count starts, its end moved to a press that lands it (skip) */
+	let total: { id: number; countStart: number | null; countEnd: number; amount: number; skipped: boolean } | null = null;
+	/** the odometer's cue off (game/hudWin.svelte.ts hudWinOdometer): the bar's WIN is today's readout again */
+	const odometerOff = () => {
+		total = null;
+		if (hudWinOdometer.amount !== null) hudWinOdometer.amount = null;
+	};
 	/** the line's fade: starts lineDelayMs after the count lands */
 	let lineT0 = Infinity;
 	let gateAt = Infinity;
@@ -367,6 +384,11 @@
 		if (!c.started) {
 			if (clock < BANNER.timing.countStartMs && view.cutAt < 0) return;
 			c.started = true;
+			// (el counts from this frame on, so the count's own clock is the screen's clock less this moment)
+			if (total && total.countStart === null) {
+				total.countStart = clock;
+				total.countEnd = c.skipped ? clock : clock + c.total;
+			}
 			log('countStart');
 		} else c.el += dt;
 		const ended = c.skipped || c.el >= c.total;
@@ -378,6 +400,10 @@
 		view.setText('amount', format(amount, c.target), { tabular: true, fit: c.fit });
 		if (!ended) return;
 		count = null;
+		if (total && c.skipped) {
+			total.skipped = true;
+			total.countEnd = Math.min(total.countEnd, clock);
+		}
 		lineT0 = clock + BANNER.timing.lineDelayMs;
 		log('countEnd', { amount: c.target, skipped: c.skipped });
 		c.done();
@@ -432,6 +458,7 @@
 		ticking = false;
 		featureScreens.bannerUp = false;
 		context.stateApp.pixiApplication?.ticker.remove(tick);
+		odometerOff();
 		context.eventEmitter.broadcast({ type: 'plaqueCheerEnd' });
 		release();
 		log('gone');
@@ -451,6 +478,7 @@
 
 	const begin = (tier: BannerTier, content: BannerContent, cls: BannerClass, tex: PIXI.Texture, sound: number) => {
 		release();
+		odometerOff();
 		screenNo += 1;
 		wrapCheer = -1;
 		clock = 0;
@@ -504,6 +532,9 @@
 			const bars = WIN_TIER_STAGES_END_FEATURE.slice(1).map((s) => s.xBet * BOOK_AMOUNT_MULTIPLIER);
 			const fit = format(amount, amount);
 			view.setText('amount', format(0, amount), { tabular: true, fit });
+			// the bar's WIN rolls with this count (ui/hud/winOdometer.ts): its cue, and the count's record on this clock
+			total = { id: screenNo, countStart: null, countEnd: Infinity, amount, skipped: false };
+			hudWinOdometer.amount = amount;
 			await new Promise<void>((done) => {
 				const segs = stagedSegments(amount, durationMs, bars);
 				count = { segs, total: stagedTotal(segs), target: amount, fit, el: 0, started: false, skipped: false, done };
@@ -520,14 +551,29 @@
 				view.cut();
 				log('cut');
 			}
-			if (count) count.skipped = true;
+			if (count) {
+				count.skipped = true;
+				// the press lands the bar's WIN at once, on this frame's clock (the banner's own count lands on its next tick)
+				if (total) {
+					if (total.countStart === null) total.countStart = clock;
+					total.countEnd = Math.min(total.countEnd, clock);
+					total.skipped = true;
+				}
+			}
 		},
 		counting: () => !!count,
+		totalCount: () => {
+			const T = total;
+			if (!T || T.countStart === null || T.id !== screenNo || !ticking || view.content !== 'total') return null;
+			if (view.phase === 'hidden' || view.phase === 'rollup' || view.phase === 'retreat') return null;
+			return { id: T.id, t: clock, countStart: T.countStart, countEnd: T.countEnd, amount: T.amount, skipped: T.skipped };
+		},
 		hide: () =>
 			new Promise<void>((resolve) => {
 				if (!ticking || view.phase === 'hidden') return resolve();
 				count = null;
 				countLoop(false);
+				odometerOff();
 				const instant = fast();
 				context.eventEmitter.broadcast({ type: 'plaqueCheerEnd' });
 				chainRun({ links: BANNER.chains.backLinks, ms: instant ? 0 : BANNER.chains.backMs, ease: 'inOut' });

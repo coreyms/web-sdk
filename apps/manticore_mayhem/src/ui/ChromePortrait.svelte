@@ -69,7 +69,7 @@
 	{#if !replay && !controls.jurisdiction().disabledAutoplay}<HudKey kind="auto" {controls} x={K.auto.x} y={K.auto.y} d={K.auto.d} />{/if}
 	{#if !controls.jurisdiction().disabledTurbo}<HudKey kind="turbo" {controls} x={K.turbo.x} y={K.turbo.y} d={K.turbo.d} />{/if}
 	<HudSpin {controls} x={G.spin.x} y={G.spin.y} d={G.spin.d} />
-	<HudReadout label="WIN" pre={hs.winPre()} value={controls.winText()} x={G.win.x} y={G.win.y} w={G.win.w} h={G.win.h} nominal={G.type.num} pad={0} cls="pt r6 l win uc {lit ? 'is-lit' : ''} {hs.winBig() ? 'is-big' : ''}" hud="win" keep />
+	<HudReadout label="WIN" pre={hs.winPre()} value={controls.winText()} odo={controls.winOdoText()} x={G.win.x} y={G.win.y} w={G.win.w} h={G.win.h} nominal={G.type.num} pad={0} cls="pt r6 l win uc {lit ? 'is-lit' : ''} {hs.winBig() ? 'is-big' : ''}" hud="win" keep />
 	<HudMenuPanel {controls} x={G.panel.x} y={G.panel.bottom - G.panel.h} W={G.panel.w} H={G.panel.h} tip={G.panel.tip} T={G.panel.tail} />
 </div>
 

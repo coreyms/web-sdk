@@ -19,3 +19,9 @@ export const hudWinRoundStart = () => {
 export const setHudWin = (amount: number) => {
 	stateBet.winBookEventAmount = amount;
 };
+
+/** THE WIN ODOMETER's cue (2026-11-21, ui/hud/winOdometer.ts): the TOTAL WIN banner's amount (book units) while its screen
+ *  is up, null otherwise. components/WarBanner.svelte writes it (its wrap up sets it, its hide and its end clear it);
+ *  ui/controls.svelte.ts winOdoText reads it, so the bar's WIN rolls only under the war banner's TOTAL WIN. A capped round
+ *  (the MAX WIN wrap up on the plaque, components/FreeSpinOutro.svelte) never asks the banner, so it never sets this. */
+export const hudWinOdometer = $state<{ amount: number | null }>({ amount: null });

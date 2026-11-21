@@ -71,7 +71,7 @@
 	{#if !replay && !controls.jurisdiction().disabledAutoplay}<HudKey kind="auto" {controls} x={K.auto.x} y={K.auto.y} d={K.auto.d} cls="ln q" />{/if}
 	{#if !controls.jurisdiction().disabledTurbo}<HudKey kind="turbo" {controls} x={K.turbo.x} y={K.turbo.y} d={K.turbo.d} cls="ln q" />{/if}
 	<HudSpin {controls} x={G.spin.x} y={G.spin.y} d={G.spin.d} />
-	<HudReadout label="WIN" pre={hs.winPre()} value={controls.winText()} x={G.win.x} y={G.win.y} w={G.win.w} h={G.win.h} nominal={15} cls="lc win uc {hs.winPre() ? 'fsw' : ''} {lit ? 'is-lit' : ''} {hs.winBig() ? 'is-big' : ''}" hud="win" keep />
+	<HudReadout label="WIN" pre={hs.winPre()} value={controls.winText()} odo={controls.winOdoText()} x={G.win.x} y={G.win.y} w={G.win.w} h={G.win.h} nominal={15} cls="lc win uc {hs.winPre() ? 'fsw' : ''} {lit ? 'is-lit' : ''} {hs.winBig() ? 'is-big' : ''}" hud="win" keep />
 	<i class="hl hz uc" style:left="{G.hz.x}px" style:top="{G.hz.y}px" style:width="{G.hz.w}px"></i>
 	<HudMenuPanel {controls} x={G.panel.x} y={G.panel.top} W={G.panel.w} H={G.panel.h} tip={G.panel.tip} up cls="pls" />
 </div>
