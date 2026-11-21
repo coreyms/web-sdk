@@ -63,7 +63,7 @@
 	import * as PIXI from 'pixi.js';
 	import { onMount, untrack } from 'svelte';
 	import { getContextParent } from 'pixi-svelte';
-	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
+	import { bookEventAmountToCurrencyString } from '../game/amount';
 	import { stateBet } from 'state-shared';
 	import { BOOK_AMOUNT_MULTIPLIER } from 'constants-shared/bet';
 
@@ -342,7 +342,7 @@
 		countLoopOn = on;
 		context.eventEmitter.broadcast({ type: on ? 'soundLoop' : 'soundStop', name: 'sfx_money_counter' });
 	};
-	const format = (amount: number, target?: number) => bookEventAmountToCurrencyString(amount, target === undefined ? undefined : { fractionDigitsOfBookAmount: target });
+	const format = (amount: number, target?: number) => bookEventAmountToCurrencyString(amount, { fractionDigitsOfBookAmount: target, canvas: true });
 	const fast = () => context.stateGame.skipping || context.stateGameDerived.timeScale() > 1.001;
 	const EPIC = STINGER_TIERS.indexOf('epic');
 

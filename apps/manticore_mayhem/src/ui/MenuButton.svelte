@@ -2,7 +2,7 @@
 	// Menu popover on black glass (2026-09-09): Game Info + Music/SFX sliders (tap the icon to mute).
 	// Bound to the SDK sound state. Three rows, an operator footer only where the jurisdiction asks.
 	import { stateSound, stateUi, stateBet, stateConfig } from 'state-shared';
-	import { numberToCurrencyString } from 'utils-shared/amount';
+	import { numberToCurrencyString } from '../game/amount';
 
 	import config from '../game/config';
 	import { sound } from '../game/sound';
@@ -51,7 +51,7 @@
 		return () => clearInterval(id);
 	});
 	const net = $derived(stateBet.balanceAmount - stateBet.sessionStartBalanceAmount);
-	const netText = $derived(`${net < 0 ? '−' : net > 0 ? '+' : ''}${numberToCurrencyString(Math.abs(net), { maximumFractionDigits: 2 })}`);
+	const netText = $derived(`${net < 0 ? '−' : net > 0 ? '+' : ''}${numberToCurrencyString(Math.abs(net), { exact: true })}`);
 	const elapsedText = $derived.by(() => {
 		const s = Math.max(0, Math.floor((now - (stateBet.sessionStartedAt || now)) / 1000));
 		const hh = Math.floor(s / 3600);

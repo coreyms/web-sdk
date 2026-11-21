@@ -3,7 +3,7 @@
 	import { betStepTarget } from './betStep';
 	import type { Controls } from './controls.svelte';
 	import HudIcon from './hud/HudIcon.svelte';
-	import { numberToCurrencyString } from 'utils-shared/amount';
+	import { numberToCurrencyString } from '../game/amount';
 
 	// pressSound: the autoplay card voices its own buttons with the sub click; elsewhere the arrows
 	// keep the general click (setBet's own)

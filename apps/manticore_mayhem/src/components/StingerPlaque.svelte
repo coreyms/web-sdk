@@ -82,7 +82,7 @@
 	import * as PIXI from 'pixi.js';
 	import { onMount } from 'svelte';
 	import { getContextParent } from 'pixi-svelte';
-	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
+	import { bookEventAmountToCurrencyString } from '../game/amount';
 
 	import { getContext } from '../game/context';
 	import { STINGER_DATA_URLS } from '../game/assets';
@@ -259,7 +259,7 @@
 	};
 
 	// amounts go through the game's own currency formatting, decimals pinned to the count's target (CountUpText does the same)
-	const format = (amount: number, target?: number) => bookEventAmountToCurrencyString(amount, target === undefined ? undefined : { fractionDigitsOfBookAmount: target });
+	const format = (amount: number, target?: number) => bookEventAmountToCurrencyString(amount, { fractionDigitsOfBookAmount: target, canvas: true });
 
 	/** this frame of the count: the amount, a tier landing, the end. Between view.advance() and view.render(). */
 	const stepCount = (c: Count) => {

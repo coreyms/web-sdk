@@ -43,7 +43,7 @@
 	// the resume hold (spec 7.1).
 	import { onMount, tick, untrack } from 'svelte';
 	import { stateBet, stateModal } from 'state-shared';
-	import { numberToCurrencyString } from 'utils-shared/amount';
+	import { numberToCurrencyString } from '../../game/amount';
 
 	import type { Controls } from '../controls.svelte';
 	import { designAnchors, type Anchors, type MenuFrame } from './menuFrame';
@@ -774,7 +774,7 @@
 	};
 
 	// ---- money -----------------------------------------------------------------------------------------------------
-	/** an amount is ONE word: the space inside "100.00 ARS" or "GC 1,000" is a no-break space */
+	/** an amount is ONE word: the space inside "100.00 ARS" or "1,000.00 GC" is a no-break space */
 	const money = (n: number) => numberToCurrencyString(n).replace(/ /g, ' ');
 	const price = (id: string) => stateBet.betAmount * modeCost(id);
 	const isOn = $derived(activeId === sel);

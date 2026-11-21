@@ -22,7 +22,7 @@
 	import type { ComponentProps } from 'svelte';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import { stateBet, stateModal, stateUrlDerived, stateConfig } from 'state-shared';
-	import { numberToCurrencyString } from 'utils-shared/amount';
+	import { numberToCurrencyString } from '../game/amount';
 
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';

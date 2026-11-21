@@ -15,7 +15,7 @@
 	// multiples (the books' payoutMultiplier / 100), so total win = base × multiplier — the same
 	// arithmetic the win counter uses during the round.
 	import { stateBet, stateUrlDerived, type BetToResume } from 'state-shared';
-	import { numberToCurrencyString } from 'utils-shared/amount';
+	import { numberToCurrencyString } from '../game/amount';
 
 	import { getContext } from '../game/context';
 	import { betModeMeta, modeShortLabel } from '../game/betModeMeta';

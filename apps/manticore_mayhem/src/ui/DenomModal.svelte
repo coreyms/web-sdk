@@ -12,7 +12,7 @@
 	// Geometry is in CSS px: ModalShell's frame is the viewport now (FIX 5), not the design master.
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import { stateBet, stateBetDerived, stateModal } from 'state-shared';
-	import { numberToCurrencyString } from 'utils-shared/amount';
+	import { numberToCurrencyString } from '../game/amount';
 
 	import { measureFitText } from '../game/textFit';
 	import { soc } from '../game/social';

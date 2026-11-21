@@ -19,7 +19,7 @@
 	import { onMount } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
-	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
+	import { bookEventAmountToCurrencyString } from '../game/amount';
 
 	import { getContext } from '../game/context';
 	import { stamp } from '../game/assets';

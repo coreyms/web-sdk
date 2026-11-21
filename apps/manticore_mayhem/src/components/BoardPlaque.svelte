@@ -70,7 +70,7 @@
 	import * as PIXI from 'pixi.js';
 	import { onMount } from 'svelte';
 	import { cubicOut, quadOut, sineInOut } from 'svelte/easing';
-	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
+	import { bookEventAmountToCurrencyString } from '../game/amount';
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
@@ -1063,7 +1063,7 @@
 	/** a row's amount: the plaque's own formatting of the book's win, the currency mark taken off (Corey's "8 x [icon]
 	 *  2.40"): the run from its first digit to its last */
 	const rowAmount = (amount: number) => {
-		const t = bookEventAmountToCurrencyString(Math.round(amount));
+		const t = bookEventAmountToCurrencyString(Math.round(amount), { canvas: true });
 		if (!PLAQUE_CLEARS.dropCurrency) return t;
 		const a = t.search(/[0-9]/);
 		let b = -1;
@@ -2355,7 +2355,7 @@
 			total.t0 = now;
 			total.ms = Math.max(1, r.countMs);
 			total.on = true;
-			total.reserve = bookEventAmountToCurrencyString(Math.round(Math.max(r.amount, total.step)));
+			total.reserve = bookEventAmountToCurrencyString(Math.round(Math.max(r.amount, total.step)), { canvas: true });
 			if (import.meta.env.DEV) {
 				const e = clearLog.find((x) => x.start === r.start && x.amount === r.amount);
 				if (e) e.countAt = now;
@@ -2380,7 +2380,7 @@
 		const value = total.value;
 		const reserve = total.on ? total.reserve : null;
 		// mid count the digits of the count's own target (gameplay 5: never "$0.784" on the way to $1.60)
-		const text = forced ?? bookEventAmountToCurrencyString(Math.round(value), total.on ? { fractionDigitsOfBookAmount: total.to } : undefined);
+		const text = forced ?? bookEventAmountToCurrencyString(Math.round(value), { fractionDigitsOfBookAmount: total.on ? total.to : undefined, canvas: true });
 		if (atlasTexture && (shown.relayout || ((text !== shown.text || reserve !== shown.reserve) && (showing || forced !== null)))) build(text, reserve);
 		// the desktop's prompt first (the lines and the figures stand aside for it), then the explainer lines
 		promptTick();
