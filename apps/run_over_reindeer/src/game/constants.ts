@@ -267,10 +267,19 @@ export const ROAM = {
 	 *  drag's frames 1 to its hit are time scaled so the hit lands on the strike's FIRST crosshair hop landing between
 	 *  hitWindow[0] and hitWindow[1] times the hit's own time (8 frames, 266.7 ms; no such hop or one target: its own
 	 *  pace); the rest at the rig's 30 fps. NOTHING here moves the strike: no wait, no later lock, no slower hop. Off: he
-	 *  stands as before (the stand, frame 1), no effect sprite, no snort at the lock. */
+	 *  stands as before (the stand, frame 1), no effect sprite, no snort at the lock. Since 2026-11-21 (Corey's option
+	 *  (b)) the hit is never later than hitMarginMs before his set off: a stand too short for that hit has it earlier. */
 	charge: {
 		on: true,
 		hitWindow: [0.85, 1.45] as [number, number],
+		/** THE HIT'S ROOM (board ms; Corey 2026-11-21, option (b); game/road/chargeWindup.ts THE ROOM): the hit shows at least
+		 *  this long before his set off, so one long frame step can never go from before the hit to past the set off
+		 *  without drawing it. One long frame of the slow drag's board clock: Turbo 1 on a 30 Hz screen is 1.7 x 33.3 =
+		 *  56.7 ms, the longest steady step the slow drag ever has; a slam stop's hurry from the middle of it (3 x 16.7 =
+		 *  50) and Turbo 2 changed in the middle of it (2.6 x 16.7 = 43.3) on a 60 Hz screen fit too. A strike with
+		 *  that much room keeps its hit where it was; only the shorter stands have it earlier. The set off, the run and
+		 *  the crosshair never move for it. */
+		hitMarginMs: 60,
 		/** ROUND 3 of "Make them read" (2026-11-20, candidates for Corey): the puff and specks drawn on LIGHT ground (day and
 		 *  night snow; the dark grounds keep the white look): 'ring' (round 2: a light disc inside a dark rim), 'A' (a
 		 *  cartoon breath cloud with a thin dark outline), 'B' (a soft slate breath, no line), 'C' (comic huff strokes,

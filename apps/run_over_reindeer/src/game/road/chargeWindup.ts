@@ -11,8 +11,27 @@
 //   THE HIT      the slow drag's frames 1 to its hit are time scaled by k so the hit lands on the FIRST crosshair hop
 //                landing (a glide's end, the hop sound's frame) within hitWindow of the hit's own time; no such hop (one
 //                target among them): k = 1, the hit at its own pace (266.7 ms). The frames after the hit at the rig's
-//                30 fps. All on the board clock. The shortest stand is CROSSHAIR.leadMs (420 ms) and the latest hit
-//                1.45 x 266.7 = 386.7 ms, so the hit always shows.
+//                30 fps. All on the board clock.
+//   THE ROOM     (Corey 2026-11-21, option (b) of the frame 18 question; constant ROAM.charge.hitMarginMs, 60 board ms)
+//                the hit is never later than hitMarginMs before his set off. Until then the header said "the hit always
+//                shows" from a stand of 420 ms and a latest hit of 386.7 ms, but that left 33 ms, less than one long frame
+//                step (Turbo 1 on a 30 Hz screen 56.7 ms, a slam stop's hurry from mid strike 50, Turbo 2 changed in mid
+//                strike 43.3), and planRoamStrike's waitMs can be negative (a far spot), so a stand can be shorter than
+//                420 and the hit could come after the set off. Now: a hit with that room stays exactly where it was (the
+//                hop's, or its own pace), frame for frame as before; one without it is moved earlier to hitMarginMs
+//                before the set off (frames 1 to the hit squeezed into that time, k < its hop's, and it leaves the hop's
+//                beat: hop null, `early` the ms it moved). A stand of hitMarginMs or less has the hit at the strike's
+//                start: frame 9 is his first frame (Roam.alert draws it), frames 1 to 8 not shown. Nothing waits or
+//                moves for it: the set off, the run, the crosshair, the lock and its snort are the same.
+//   THE GUARANTEE the hit (frame 9) is drawn before he runs whenever every frame step of the board clock during the
+//                stand is hitMarginMs or less: a step that passes the hit's time but not the set off draws frame 9 then
+//                (Roam's hitShown), and a step from before the hit cannot reach the set off. It can still be missed only
+//                by a single step longer than hitMarginMs that goes from before the hit to past the set off (a dropped
+//                frame, a speed change on a 30 Hz screen), or a stand of zero or less (the set off at or before the
+//                strike's start: no wind-up frame shows at all, as before).
+//                What follows the hit's time by construction (all from the plan's `at`): the frames after it, the kicked
+//                snow on the drag frames and the kick, and the lock's breath puff (from the nose of the frame shown at the
+//                lock). The lock's snort is keyed to the lock, not the hit, so it is unchanged and sounds on every strike.
 //   THE EFFECTS  plain sprites (no filter, mask, shader or blend mode), drawn over him in the runner's layer: two kicked
 //                specks of snow on each drag frame and eight on the kick, from that frame's near front hoof (a frame his
 //                set off cuts spawns none; specks in the air finish); and at the crosshair's lock four breath puffs from
@@ -47,6 +66,9 @@ export type WindupPlan = {
 	hop: number | null;
 	/** when the hit frame shows (board clock; the slow drag only) */
 	hitAt: number | null;
+	/** THE ROOM: board ms the hit was moved earlier than its hop or its own pace to keep hitMarginMs before the set off
+	 *  (0: it had the room, the plan as before) */
+	early: number;
 	/** when each frame starts showing (index 0 = frame 1), board clock */
 	at: number[];
 };
@@ -56,18 +78,36 @@ export type WindupPlan = {
 export const planWindup = (start: number, setOff: number, hops: readonly number[], quick: boolean): WindupPlan => {
 	if (quick) {
 		const n = C.chargeDown.rigFrames;
-		return { clip: 'chargeDown', start, setOff, k: 1, hop: null, hitAt: null, at: Array.from({ length: n }, (_, i) => start + i * FR) };
+		return { clip: 'chargeDown', start, setOff, k: 1, hop: null, hitAt: null, early: 0, at: Array.from({ length: n }, (_, i) => start + i * FR) };
 	}
 	const [lo, hi] = ROAM.charge.hitWindow;
 	const sorted = [...hops].map((h) => h - start).sort((a, b) => a - b);
-	const h = sorted.find((d) => d >= lo * TH - 1e-6 && d <= hi * TH + 1e-6) ?? null;
-	const k = h === null ? 1 : h / TH;
+	let h = sorted.find((d) => d >= lo * TH - 1e-6 && d <= hi * TH + 1e-6) ?? null;
+	let k = h === null ? 1 : h / TH;
+	// THE ROOM (ROAM.charge.hitMarginMs): the latest the hit may be, from the start; a hit later than that is moved to it
+	// (never before the start: a stand of hitMarginMs or less has the hit on his first frame). A hit with the room is
+	// left exactly as it was.
+	const latest = Math.max(0, setOff - start - ROAM.charge.hitMarginMs);
+	const own = TH * k;
+	let early = 0;
+	if (own > latest + 1e-6) {
+		early = own - latest;
+		k = latest / TH;
+		h = null;
+	}
 	const n = C.charge.rigFrames;
 	const at = Array.from({ length: n }, (_, j) => {
 		const i = j + 1;
 		return i <= CHARGE_HIT ? start + (i - 1) * FR * k : start + TH * k + (i - CHARGE_HIT) * FR;
 	});
-	return { clip: 'charge', start, setOff, k, hop: h === null ? null : start + h, hitAt: at[CHARGE_HIT - 1], at };
+	return { clip: 'charge', start, setOff, k, hop: h === null ? null : start + h, hitAt: at[CHARGE_HIT - 1], early, at };
+};
+
+/** the frame (1 based) his wind-up shows first (Roam.alert): frame 1, or the hit when the plan has it at the strike's
+ *  start (THE ROOM: a stand of hitMarginMs or less) */
+export const windupFirstFrame = (plan: WindupPlan): number => {
+	const f = windupFrame(plan, plan.start);
+	return plan.clip === 'charge' && f >= CHARGE_HIT ? CHARGE_HIT : f;
 };
 
 /** the frame (1 based) the plan shows at board clock `clock` (frame 1 before the start; the last one held) */

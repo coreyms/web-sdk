@@ -51,7 +51,8 @@
 //      the first free spin (the board's clock held for each).
 //   THE CHARGE WIND-UP (2026-11-20, Corey's "Slow Drag 1" and "B Snort at lock"; section `charge`, desktop 1440x900 and
 //      upright 390x844; chargeSize below has the list): every case on and off frame for frame (the strike does not move),
-//      the clip from the strike's first frame to the set off on its plan's frames, the hit on its hop, the head down only
+//      the clip from the strike's first frame to the set off on its plan's frames, the hit on its hop (or, since
+//      2026-11-21, earlier, at hitMarginMs before the set off, only where the stand has no room for it), the head down only
 //      at Turbo 2 and in a slam stop's hurry, the snort once within 140 ms before the lock, the puff on the lock's frame,
 //      the snow only on drag frames before the set off, nothing left after he sets off or the board's cut, his picture
 //      inside his keep-out reach. ONLY=timing TIMING=<file> [SPOTS=<file>] writes the strike timing rows of any build.
@@ -1253,7 +1254,9 @@ async function wheelWide(browser) {
 // runner: phase, view, stride, feet); the clip starts on the strike's first frame and shows the frame its plan (worked
 // out again here from the crosshair's legs, the spec's rule) has due on every frame until the set off, none at or after
 // it; the hit (frame 9) lands on the chosen hop's frame (within one frame) or at 266.7 ms in the fallback, and always
-// before the set off; the slow drag at Regular and Turbo 1, the head down only at Turbo 2 and in a slam stop's hurry
+// before the set off, never later than ROAM.charge.hitMarginMs (60) before it (2026-11-21, Corey's option (b): a stand
+// without that room has the hit moved earlier to it, off the hop, or at the strike's start for a stand of 60 or less;
+// a stand with the room keeps the hit where it was; tools/charge_hit_check.mjs sweeps it in node); the slow drag at Regular and Turbo 1, the head down only at Turbo 2 and in a slam stop's hurry
 // running at the start (a hurry from the middle of it, a turbo change, change nothing); the snort starts on the first
 // frame within 140 real ms of the lock (the strike's first frame for one target), once, never with charge off, and since
 // 2026-11-21 on a strike from off the screen too (no wind-up, no effect sprite there: by design); THE SPINS (CHARGE_SPINS):
@@ -1269,6 +1272,8 @@ async function wheelWide(browser) {
 const CHARGE_SIZES = ['desktop', 'upright'];
 const FRC = 1000 / 30;
 const THC = 8 * FRC;
+/** ROAM.charge.hitMarginMs (constants.ts): the hit at least this long before his set off */
+const HIT_MARGIN = 60;
 const CHARGE_CASES = [
 	{ id: 'regular', turbo: 0, cells: [1, 6, 11, 17], target: 11 },
 	{ id: 'regular5', turbo: 0, cells: [2, 5, 8, 13, 19], target: 8 },
@@ -1469,13 +1474,22 @@ function judgeSpin(tag, A) {
 }
 
 /** the spec's plan, worked out here from the crosshair's legs (R3_GAME_SPEC.md 3 and 4): frame i's start, ms from the strike's start */
-const specPlan = (legs, quick) => {
-	if (quick) return { clip: 'chargeDown', k: 1, hop: null, at: [0, 1, 2, 3].map((i) => i * FRC) };
+/** the spec's plan from the strike's start (0): `setOff` his set off from it (THE ROOM, 2026-11-21: the hit no later
+ *  than HIT_MARGIN before it; a hit without that room moved there, off the hop: `early` the ms it moved, 0 with room) */
+const specPlan = (legs, quick, setOff = Infinity) => {
+	if (quick) return { clip: 'chargeDown', k: 1, hop: null, early: 0, at: [0, 1, 2, 3].map((i) => i * FRC) };
 	const hops = (legs || []).filter((l) => l.kind === 'glide').map((l) => l.t1).sort((a, b) => a - b);
-	const h = hops.find((d) => d >= 0.85 * THC - 1e-6 && d <= 1.45 * THC + 1e-6) ?? null;
-	const k = h === null ? 1 : h / THC;
+	let h = hops.find((d) => d >= 0.85 * THC - 1e-6 && d <= 1.45 * THC + 1e-6) ?? null;
+	let k = h === null ? 1 : h / THC;
+	const latest = Math.max(0, setOff - HIT_MARGIN);
+	let early = 0;
+	if (THC * k > latest + 1e-6) {
+		early = THC * k - latest;
+		k = latest / THC;
+		h = null;
+	}
 	const at = Array.from({ length: 21 }, (_, j) => (j + 1 <= 9 ? j * FRC * k : THC * k + (j + 1 - 9) * FRC));
-	return { clip: 'charge', k, hop: h, at };
+	return { clip: 'charge', k, hop: h, early, at };
 };
 const frameDue = (at, c) => {
 	let f = 1;
@@ -1589,9 +1603,11 @@ async function chargeSize(browser, S, spotsFrom) {
 			check(A.roamStrike === true, `${tag}: the strike is his`);
 			const W = A.at0.windup;
 			const quick = !!C.quick;
-			const want = specPlan(A.plan?.legs, quick);
-			check(!!W && W.clip === want.clip && Math.abs(W.k - want.k) < 1e-3 && W.at.every((t, i) => Math.abs(t - want.at[i]) < 0.01), `${tag}: the plan is the spec's from the crosshair's legs (${W?.clip}, k ${W?.k}${want.hop !== null ? `, the hit on the hop at ${r1(want.hop)} ms` : ', no hop in reach: its own pace'})`, { game: W, spec: want });
-			check(A.at0.clip === want.clip && A.at0.frame === 1 && A.at0.visible && A.at0.state === 'alert', `${tag}: at the strike's start he shows ${want.clip} frame 1 (the stand)`, A.at0);
+			const want = specPlan(A.plan?.legs, quick, A.t0);
+			check(!!W && W.clip === want.clip && Math.abs(W.k - want.k) < 1e-3 && Math.abs((W.early ?? 0) - want.early) < 0.06 && W.at.every((t, i) => Math.abs(t - want.at[i]) < 0.01), `${tag}: the plan is the spec's from the crosshair's legs (${W?.clip}, k ${W?.k}${want.early > 0 ? `, no room for its hit: moved ${r1(want.early)} ms earlier, to ${HIT_MARGIN} ms before the set off` : want.hop !== null ? `, the hit on the hop at ${r1(want.hop)} ms` : ', no hop in reach: its own pace'})`, { game: W, spec: want });
+			// (THE ROOM: a stand of HIT_MARGIN or less has the hit at the start, his first frame)
+			const first = want.clip === 'charge' && want.at[8] <= 1e-6 ? 9 : 1;
+			check(A.at0.clip === want.clip && A.at0.frame === first && A.at0.visible && A.at0.state === 'alert', `${tag}: at the strike's start he shows ${want.clip} frame ${first}${first === 9 ? ' (no room for frames 1 to 8: the hit)' : ' (the stand)'}`, A.at0);
 			// (split by the game's own test of the set off, unrounded: `pre`)
 			const before = A.rows.filter((r) => r.pre === true);
 			const from = A.rows.filter((r) => r.pre === false);
@@ -1606,7 +1622,10 @@ async function chargeSize(browser, S, spotsFrom) {
 			if (!quick) {
 				const hitAt = want.at[8];
 				const r9 = A.rows.find((r) => r.roam.visible && r.roam.clip === 'charge' && r.roam.frame >= 9);
-				check(hitAt < A.t0 && !!r9 && r9.roam.frame === 9 && r9.c >= hitAt - 1e-3 && r9.c - hitAt < stepB(r9) + 1e-3, `${tag}: the hit (frame 9) shows within one frame of ${want.hop !== null ? 'its hop' : 'its own time'} (${r1(hitAt)} ms; on the frame at ${r9 ? r1(r9.c) : '-'} ms), before the set off at ${r1(A.t0)}`, { hitAt, r9, t0: A.t0 });
+				check(hitAt < A.t0 && !!r9 && r9.roam.frame === 9 && r9.c >= hitAt - 1e-3 && r9.c - hitAt < stepB(r9) + 1e-3 && r9.c < A.t0, `${tag}: the hit (frame 9) shows within one frame of ${want.early > 0 ? `its time (moved ${r1(want.early)} ms earlier for the room)` : want.hop !== null ? 'its hop' : 'its own time'} (${r1(hitAt)} ms; on the frame at ${r9 ? r1(r9.c) : '-'} ms), before the set off at ${r1(A.t0)}`, { hitAt, r9, t0: A.t0 });
+				// (2026-11-21, THE ROOM: never later than HIT_MARGIN before the set off; moved only when it had no room)
+				const own = specPlan(A.plan?.legs, false).at[8];
+				check(hitAt <= Math.max(0, A.t0 - HIT_MARGIN) + 1e-3 && (want.early > 0) === (own > Math.max(0, A.t0 - HIT_MARGIN) + 1e-6), `${tag}: the hit at ${r1(hitAt)} ms, ${r1(A.t0 - hitAt)} ms before the set off (${HIT_MARGIN} at least)${want.early > 0 ? `; moved from ${r1(own)} ms, the stand had no room` : '; where it was, the stand had room'}`, { hitAt, own, t0: A.t0, early: want.early });
 				if (want.hop !== null) {
 					const hop = A.sounds.find((e) => e.kind === 'moment' && e.what === 'hop' && Math.abs(e.clock - want.hop) < stepB(r9 ?? { rate: 1 }) + 0.2);
 					check(!!hop && !!r9 && Math.abs(hop.clock - r9.c) < 0.2, `${tag}: the hit is on the hop sound's own frame (hop at ${hop ? r1(hop.clock) : '-'}, hit at ${r9 ? r1(r9.c) : '-'} ms)`);

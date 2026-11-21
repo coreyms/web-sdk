@@ -34,7 +34,7 @@ import { ROAD_ART } from '../roadArtSpec';
 import { FOREST_LINE } from '../forestLineSpec';
 import { seeded } from './crosshair';
 import { chargeFramesReady, roamBox, roamFramesReady, roamTexture, type RoamBox, type RoamClip } from './roamFrames';
-import { CHARGE_HIT, windupFrame, type WindupPlan } from './chargeWindup';
+import { CHARGE_HIT, windupFirstFrame, windupFrame, type WindupPlan } from './chargeWindup';
 import { runBox, runFrame, runViewsReady } from './reindeerRun';
 import { castReach, castShadow, makeShadow, shadowStrength } from './shadows';
 
@@ -1131,6 +1131,12 @@ export class Roam {
 		this.hitShown = false;
 		this.clip = this.windup ? this.windup.clip : 'sniff';
 		this.frame = 1;
+		// (chargeWindup.ts THE ROOM: a stand of ROAM.charge.hitMarginMs or less has the hit at the strike's start, so the
+		// hit is his first frame, drawn here)
+		if (this.windup) {
+			this.frame = windupFirstFrame(this.windup);
+			if (this.windup.clip === 'charge' && this.frame >= CHARGE_HIT) this.hitShown = true;
+		}
 		this.alertUntil = until;
 		this.walkInAt = null;
 		this.counts.strikes++;
@@ -1573,7 +1579,7 @@ export class Roam {
 			route: this.route.map((p) => ({ x: r(p.x), y: r(p.y) })),
 			box: { walk: BOX.walk, sniff: BOX.sniff, start: BOX.start, stop: BOX.stop, charge: BOX.charge, chargeDown: BOX.chargeDown },
 			/** his strike's wind-up (null: the stand, or none) */
-			windup: this.windup ? { clip: this.windup.clip, k: Math.round(this.windup.k * 10000) / 10000, start: r(this.windup.start), setOff: r(this.windup.setOff), hop: this.windup.hop === null ? null : r(this.windup.hop), hitAt: this.windup.hitAt === null ? null : r(this.windup.hitAt), at: this.windup.at.map(r) } : null,
+			windup: this.windup ? { clip: this.windup.clip, k: Math.round(this.windup.k * 10000) / 10000, start: r(this.windup.start), setOff: r(this.windup.setOff), hop: this.windup.hop === null ? null : r(this.windup.hop), hitAt: this.windup.hitAt === null ? null : r(this.windup.hitAt), early: r(this.windup.early), at: this.windup.at.map(r) } : null,
 			lastPass: this.lastPass,
 			relaxed: this.relaxed,
 			widen: this.widen,
