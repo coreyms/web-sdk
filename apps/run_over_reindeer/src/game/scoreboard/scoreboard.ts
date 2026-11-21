@@ -29,7 +29,7 @@
 import * as PIXI from 'pixi.js';
 
 import { INTRO_LINE, LED_BOARD } from '../constants';
-import { C, mk, setScreenScaleMax, shimmer, wildsDrawn, type Cv } from '../landing/ledScreens';
+import { C, faceDrawn, mk, setFaceClear, setScreenScaleMax, shimmer, wildsDrawn, type Cv } from '../landing/ledScreens';
 import { renderResolutionFor } from '../deviceTier';
 import { clearP, copyFace, copyP, densityFor, fillP, ledN } from './ledGrid';
 import { type ScoreboardGeo, type Rect } from './layout';
@@ -37,7 +37,7 @@ import { backScene, clearTitle, borderGlint, countBorder, dissolveFace, entryWai
 import { amountNow, backOffset, brightOf, dimAlpha, endShow, isCard, landCard, newCardShow, newPressShow, newShow, phaseOf, seatedAt, shakeAt, skipShow, tierNow, type Show } from './show';
 import { newRace, type RaceOutcome } from './race';
 import { pickStrip, type StripItem, type StripTruth } from './stripArbiter';
-import { pressScreenAt, scatterWordsOf, showGagShort, showPressLine, showScatterCount, showWheelLine, type ScatterFace, type WheelLine } from './stripDraw';
+import { pressScreenAt, pressScreenNameAt, scatterWordsOf, showGagShort, showPressLine, showScatterCount, showWheelLine, type ScatterFace, type WheelLine } from './stripDraw';
 // (2026-11-19) the round 1 LED ideas Corey picked (constants LED_BOARD.ideas): the entries, the Total Win's ladder, the strip's
 // new cartoons in the rotation, the press screen's light string
 import { cartoons, pressScreensLit, showCartoonNow } from './ambient';
@@ -314,6 +314,9 @@ export class Scoreboard {
 		setBoardPitch(g.back.face.w / Math.max(1, g.back.face.dotsW));
 		// (board size d on desktop and tablet: the press screen's figure may grow with the face, LED_BOARD.sizeD)
 		setScreenScaleMax((g.cls === 'desktop' || g.cls === 'tablet') && LED_BOARD.size === 'd' ? LED_BOARD.sizeD.pressScaleMax : 6);
+		// (the press screen's face screen keeps its line above the rows the strip's snow cap covers at its highest bump, as
+		// this file's drawHousing draws the cap: LED_SIGN.face)
+		setFaceClear((g.back.face.y + g.back.face.h - (g.strip.housing.y - 1.3 * g.strip.cap)) / g.pitch);
 		this.ensureFaces();
 		this.placeFace(this.strip!, g.strip.face);
 		this.placeFace(this.back!, g.back.face);
@@ -1357,7 +1360,7 @@ export class Scoreboard {
 			stripSwitch: this.strip ? { kind: this.strip.switchKind, since: Math.round(this.clock - this.strip.switchAt) } : null,
 			gag: gt === null ? null : { t: Math.round(gt), words: this.gagShort ? LED_BOARD.gag.short.text : gagWordsAt(gt), short: this.gagShort, ms: this.gagMs() },
 			/** THE ARBITER (constants LED_BOARD.stripOrder): the item the strip shows on the last drawn step, and what was true */
-			press: this.pressText ? { up: this.pressUp(), ready: this.pressReady, screen: s && s.kind === 'press' ? pressScreenAt(Math.max(0, s.t - s.contentAt) / 1000) : null, waiting: !!this.pressWait, wilds: wildsDrawn() } : null,
+			press: this.pressText ? { up: this.pressUp(), ready: this.pressReady, screen: s && s.kind === 'press' ? pressScreenAt(Math.max(0, s.t - s.contentAt) / 1000) : null, name: s && s.kind === 'press' ? pressScreenNameAt(Math.max(0, s.t - s.contentAt) / 1000) : null, waiting: !!this.pressWait, wilds: wildsDrawn(), face: faceDrawn() } : null,
 			stripPick: { item: this.stripNow, truth: this.truthNow ? { ...this.truthNow } : null },
 			scatter: this.scat ? { id: this.scat.id, count: this.scat.count, need: this.scat.need, live: this.scat.live, hit: this.scat.hit, fireworks: this.scat.fwAt !== null && this.clock < this.scat.endAt, words: scatterWordsOf(this.scat), sinceTick: Math.round(this.clock - this.scat.tickAt) } : null,
 			cartoon: { index: this.cartoon, key: cartoons()[this.cartoon % cartoons().length].key, t: Math.round(this.clock - this.cartoonAt), race: this.cartoonState.race ? { outcome: this.cartoonState.race.outcome, id: this.cartoonState.race.id } : null },

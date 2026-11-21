@@ -2,7 +2,7 @@
 // strip's face like everything else on it (game/scoreboard/scoreboardDraw.ts; k LEDs per dot on the finer grid, ledGrid.ts).
 // Plain 2D canvas drawing, no filter. Strip only: the back board never shows these.
 import { LED_BOARD, LED_SIGN } from '../constants';
-import { SCREENS, dissolve, drawText, textW, type LedText } from '../landing/ledScreens';
+import { SCREENS, SCREEN_NAMES, dissolve, drawText, textW, type LedText } from '../landing/ledScreens';
 import { burst, chaseBorder, drawRow, fireworks, fitCap, noteFlash, oneShot, rowInfo, sprite, type Face } from './scoreboardDraw';
 import { copyFace } from './ledGrid';
 import { RED_FROM } from '../road/present';
@@ -144,9 +144,11 @@ export function showGagShort(F: Face, t: number) {
 // ---- THE PRESS SCREEN ON THE EXPANDED BOARD (2026-11-17, Corey approved) ----------------------------------------------------
 /** the explainer screen shown at `T` s (the press screen's own cycle, constants LED_SIGN holdS and transS) */
 export const pressScreenAt = (T: number) => Math.floor(T / (LED_SIGN.holdS + LED_SIGN.transS)) % SCREENS.length;
+/** its name (ledScreens.ts SCREEN_NAMES: face, win, sleigh, car) */
+export const pressScreenNameAt = (T: number) => SCREEN_NAMES[pressScreenAt(T)];
 
 /** THE EXPLAINER SCREENS on the back board's face (the press screen's own drawing code, game/landing/ledScreens.ts SCREENS):
- *  the max win, Santa's sleigh struck, Grandma's car struck, each held holdS and dissolving into the next over transS, as
+ *  the reindeer's face (first since 2026-11-21), the max win, Santa's sleigh struck, Grandma's car struck, each held holdS and dissolving into the next over transS, as
  *  the old billboard cycled them. `T` s since the board seated. */
 export function showPressScreens(F: Face, T: number, text: LedText) {
 	const W = F.dotsW;

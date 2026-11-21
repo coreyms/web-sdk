@@ -5,6 +5,7 @@
 // WATCHES: apps/run_over_reindeer/src/{game/scoreboard/ambient.ts,game/scoreboard/entryScenes.ts,game/scoreboard/totalLadder.ts,game/scoreboard/ideasKit.ts,game/scoreboard/explainDraw.ts,game/scoreboard/show.ts,game/scoreboardArtSpec.ts,game/config.ts,game/scoreboard/stripDraw.ts,game/road/present.ts,game/stateGame.svelte.ts};
 // WATCHES: ; LED_BOARD.ideas
 // WATCHES: apps/run_over_reindeer/src/{game/landing/ledScreens.ts,game/ledWildsSpec.ts}; LED_SIGN.wilds
+// WATCHES: apps/run_over_reindeer/src/game/scoreboard/stripDraw.ts; LED_SIGN.face, LED_SIGN.holdS, __reindeer.pressScreenJump, __reindeer.pressScreens, __reindeer.ledFaceAudit
 // WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.bookAmount, __reindeer.fixtures, __reindeer.gagsAsked, __reindeer.hud
 // WATCHES: ; LED_BOARD.density, __reindeer.raceSeed, __reindeer.raceTally, __reindeer.raceTrace, __reindeer.roadBoard, __reindeer.roadSounds, __reindeer.scene
 // WATCHES: ; __reindeer.scoreboard, __reindeer.scoreboardCard, __reindeer.scoreboardCardEnd, __reindeer.scoreboardCardPress
@@ -1817,17 +1818,18 @@ async function wildGrowChecks(p, tag) {
 		h.scoreboardManual(true);
 		for (const look of ['stripes', 'solid', 'today']) {
 			h.tune.ledSign.wilds.look = look;
-			for (const want of [1, 2]) {
+			// (by name: the cycle is face, win, sleigh, car since the face screen, 2026-11-21)
+			for (const want of ['sleigh', 'car']) {
 				let x = h.scoreboardStep(20);
 				let n = 0;
-				while (x.press?.screen === want && n++ < 400) x = h.scoreboardStep(20);
+				while (x.press?.name === want && n++ < 400) x = h.scoreboardStep(20);
 				n = 0;
-				while (x.press?.screen !== want && n++ < 1000) x = h.scoreboardStep(20);
+				while (x.press?.name !== want && n++ < 1000) x = h.scoreboardStep(20);
 				// the whole hold, each new frame's record once (its own screen time `t`)
-				const kind = want === 1 ? 'sleigh' : 'car';
+				const kind = want;
 				const got = [];
 				let last = -1;
-				for (let i = 0; i < 200 && x.press?.screen === want; i++) {
+				for (let i = 0; i < 200 && x.press?.name === want; i++) {
 					const w = x.press?.wilds;
 					if (w && w.kind === kind && w.t > last && w.t < 3600) {
 						got.push({ t: w.t, names: w.names, old: w.old, grow: w.grow });
@@ -1866,6 +1868,109 @@ async function wildGrowChecks(p, tag) {
 	const ts = frames['today:sleigh'] || [];
 	check(ts.length > 0 && ts.every((f) => f.old.includes('cloud') && f.old.includes('box') && f.names.length === 0), `${tag}: PRESS: look today: the sleigh screen still draws the pictures of before (the cloud and the red box read as old: the read itself works)`, ts.slice(0, 2));
 }
+/** THE FACE SCREEN (Corey 2026-11-21, led_intro_face_screen_r2_2026-11-21; constants LED_SIGN.face, ledScreens.ts
+ *  screenFace): the board driven by hand 20 ms a step through the whole face screen (__reindeer.pressScreenJump), every new
+ *  frame's record read (scoreboard().press.face, the puffs audited: __reindeer.ledFaceAudit). Judged: it is the cycle's
+ *  first screen; the script's beats where LED_SIGN.face.script puts them (within FACE_TOL ms: the board draws at 30 fps):
+ *  ONE REINDEER. lands, the snort's puffs and the ears' flick with it, TWO GRUDGES. lands, the glance at Santa (his side),
+ *  glare, the glance at Grandma, the blink, glare to the end; each frame draws exactly the patches its pose asks for (the
+ *  lids in the look in force), every patch inside the face's clip and joining the face's bake (its border LEDs within
+ *  FACE_SEAM levels of the face's), no puff LED lit on the nose's rim, the line and the two pictures inside the board, the
+ *  patches all baked before the screen ends (one a step), and the mock's own lids and puffs (LED_SIGN.face.art 'mock')
+ *  still drawn when asked for. */
+const FACE_TOL = 70;
+const FACE_SEAM = 2;
+async function faceScreenChecks(p, tag) {
+	const run = await R(p, () => {
+		const h = window.__reindeer;
+		const F = h.tune.ledSign.face;
+		const keep = { ...F.art };
+		h.ledFaceAudit(true);
+		const pass = (look) => {
+			F.art.lids = look;
+			F.art.puffs = look === 'mock' ? 'mock' : 'nostril';
+			let x = h.pressScreenJump('face', 20);
+			const got = [];
+			let last = -1;
+			for (let i = 0; i < 260 && x?.press?.name === 'face'; i++) {
+				const f = x.press.face;
+				if (f && f.t > last && f.t < 3500) {
+					got.push(f);
+					last = f.t;
+				}
+				x = h.scoreboardStep(20);
+			}
+			return got;
+		};
+		const fur = pass('fur');
+		const mock = pass('mock');
+		F.art.lids = keep.lids;
+		F.art.puffs = keep.puffs;
+		h.ledFaceAudit(false);
+		h.scoreboardManual(false);
+		return { fur, mock, names: h.pressScreens(), F: JSON.parse(JSON.stringify(F)) };
+	});
+	const { fur, mock, names, F } = run;
+	const S = F.script;
+	check(names[0] === 'face' && names.join(',') === 'face,win,sleigh,car', `${tag}: FACE: the face screen is the cycle's first (${names.join(' > ')})`);
+	check(fur.length > 60 && fur[0].t < 80 && fur[fur.length - 1].t > 3300, `${tag}: FACE: ${fur.length} frames of the face screen read, ${fur[0]?.t} to ${fur[fur.length - 1]?.t} ms (${fur[0]?.W} x ${fur[0]?.H} dots, ${fur[0]?.k} LEDs per dot)`);
+	if (!fur.length) return;
+	const first = (f) => fur.find(f)?.t;
+	const lastT = (f) => [...fur].reverse().find(f)?.t;
+	const near = (v, want) => v !== undefined && v >= want - FACE_TOL && v <= want + FACE_TOL;
+	const ms = (s) => Math.round(s * 1000);
+	const santa = F.pics.santaSide === 'left' ? 'gaze_l' : 'gaze_r';
+	const grandma = santa === 'gaze_l' ? 'gaze_r' : 'gaze_l';
+	const hold = F.glanceHoldS;
+	const beats = {
+		land1: [first((f) => f.pose.show[0]), ms(S.land1)],
+		land2: [first((f) => f.pose.show[1]), ms(S.land2)],
+		snort: [first((f) => f.puffs.length > 0), ms(S.snort)],
+		flick: [first((f) => f.pose.earL > 0), ms(S.flick)],
+		santa: [first((f) => f.pose.eye === santa), ms(S.glanceAt)],
+		santaEnd: [lastT((f) => f.pose.eye === santa), ms(S.glanceAt + hold)],
+		grandma: [first((f) => f.pose.eye === grandma), ms(S.glanceAt + hold + S.between)],
+		blink: [first((f) => f.pose.eye === 'half' || f.pose.eye === 'closed'), ms(S.glanceAt + 2 * hold + S.between + S.blinkAfter)],
+	};
+	const off = Object.entries(beats).filter(([, [v, want]]) => !near(v, want));
+	const order = [];
+	for (const f of fur) if (order[order.length - 1] !== f.pose.note) order.push(f.pose.note);
+	const wantOrder = ['glare', 'snort', 'glare', 'glance at Santa', 'glare', 'glance at Grandma', 'glare', 'blink', 'glare'];
+	check(off.length === 0 && JSON.stringify(order) === JSON.stringify(wantOrder) && fur.some((f) => f.pose.eye === 'closed') && fur.some((f) => f.pose.earL === 12), `${tag}: FACE: the script's beats (ms, got and wanted): ${Object.entries(beats).map(([k, [v, w]]) => `${k} ${v}/${w}`).join(', ')}; in order ${order.join(' > ')}`, { off, order });
+	// each frame draws the patches its pose asks for, in the look in force
+	const wantPatches = (f, look) => {
+		const out = [];
+		if (f.pose.earL) out.push(`ear_l_${f.pose.earL}`);
+		if (f.pose.earR) out.push(`ear_r_${f.pose.earR}`);
+		if (f.pose.eye !== 'centre') for (const e of ['l', 'r']) out.push(`eye_${e}_${f.pose.eye}${look === 'mock' && (f.pose.eye === 'half' || f.pose.eye === 'closed') ? '_mock' : ''}`);
+		return out.sort().join(',');
+	};
+	const wrong = fur.filter((f) => f.patches.map((q) => q.name).sort().join(',') !== wantPatches(f, 'fur'));
+	check(wrong.length === 0, `${tag}: FACE: every frame draws the patches its pose asks for (the furred lids), ${fur.filter((f) => f.patches.length).length} frames with patches`, wrong.slice(0, 3).map((f) => ({ t: f.t, pose: f.pose, drawn: f.patches.map((q) => q.name) })));
+	const outside = [];
+	let seam = 0;
+	for (const f of fur) {
+		const c = { x: Math.round(f.clip.x * f.k), y: Math.round(f.clip.y * f.k), w: Math.round(f.clip.w * f.k), h: Math.round(f.clip.h * f.k) };
+		for (const q of f.patches) {
+			seam = Math.max(seam, q.seam);
+			if (q.x < c.x || q.y < c.y || q.x + q.w > c.x + c.w || q.y + q.h > c.y + c.h) outside.push({ t: f.t, q, c });
+		}
+	}
+	check(outside.length === 0 && seam <= FACE_SEAM, `${tag}: FACE: every patch inside the face's clip, joining the face's bake (worst border LED ${seam} of 255 levels; ${FACE_SEAM} allowed)`, outside.slice(0, 3));
+	const puffs = fur.flatMap((f) => f.puffs.map((q) => ({ t: f.t, ...q })));
+	const onRim = puffs.filter((q) => q.onRim > 0);
+	check(puffs.length > 8 && onRim.length === 0 && fur.every((f) => f.rim.length > 10) && puffs.every((q) => q.frame.startsWith('puff_n')), `${tag}: FACE: the breath out of the nostrils: ${puffs.length} puff draws (${[...new Set(puffs.map((q) => q.frame))].join(', ')}), none lighting an LED on the nose's rim (${fur[0].rim.length} rim boxes)`, onRim.slice(0, 4));
+	const lastF = fur[fur.length - 1];
+	const rowsIn = fur.every((f) => f.rows.every((r) => r.x >= 0 && r.y >= 0 && r.y + 7 * r.s <= f.H));
+	const picsIn = lastF.pics.length === 2 && lastF.pics.every((b) => b.x >= 0 && b.y >= 0 && b.x + b.w <= lastF.W && b.y + b.h <= lastF.H) && lastF.pics[0].who === (F.pics.santaSide === 'left' ? 'santa' : 'grandma');
+	check(rowsIn && picsIn && lastF.rows.map((r) => r.text).join(' ') === 'ONE REINDEER. TWO GRUDGES.', `${tag}: FACE: the line (${lastF.rows.map((r) => `${r.text} s${r.s} at ${r.x},${r.y}`).join('; ')}) and Santa and Grandma (${lastF.pics.map((b) => `${b.who} ${b.w}x${b.h} at ${b.x},${b.y}`).join('; ')}) inside the board`, { rows: lastF.rows, pics: lastF.pics });
+	const flickAt = fur.find((f) => f.pose.earL > 0);
+	check(!!flickAt && flickAt.warmed >= 4 && lastF.warmed === 12, `${tag}: FACE: the patches baked one a step ahead of need (${flickAt?.warmed} by the ear flick at ${flickAt?.t} ms, ${lastF.warmed} of 12 by the end)`);
+	// the mock's own pictures behind LED_SIGN.face.art
+	const mockLids = mock.filter((f) => f.pose.eye === 'half' || f.pose.eye === 'closed');
+	const mockPuffs = mock.flatMap((f) => f.puffs);
+	check(mockLids.length > 0 && mockLids.every((f) => f.patches.some((q) => q.name.endsWith('_mock'))) && mockPuffs.length > 0 && mockPuffs.every((q) => /^puff_\d$/.test(q.frame)), `${tag}: FACE: LED_SIGN.face.art 'mock' draws the mock's own lids and puffs (${mockLids.length} lid frames, puffs ${[...new Set(mockPuffs.map((q) => q.frame))].join(', ')})`);
+}
 /** the press screen's Wilds on the boards the press section's sizes do not cover: the upright tablets, and the desktop at
  *  2x (the finer grid's 1.5 LEDs per dot) */
 const WILD_GROW_EXTRA = [
@@ -1892,6 +1997,7 @@ async function wildGrowBoards(browser) {
 			const d = await R(p, () => window.__reindeer.scoreboard().density);
 			check(!!s?.press, `${tag}: PRESS: the press screen is up on the board (${d?.k} LEDs per dot, back face ${d?.backLeds})`, d);
 			if (s?.press) await wildGrowChecks(p, tag);
+			if (s?.press) await faceScreenChecks(p, tag);
 			check(errs.length === 0, `${tag}: PRESS: no page errors`, errs);
 		} catch (e) {
 			check(false, `${tag}: PRESS wilds ran to its end`, String(e?.stack ?? e).slice(0, 600));
@@ -1923,14 +2029,17 @@ async function pressBoard(browser, S) {
 		const seen = await R(p, () => {
 			window.__reindeer.scoreboardManual(true);
 			const out = [];
-			for (let i = 0; i < 130; i++) {
+			// (four screens of LED_SIGN holdS + transS since the face screen, 2026-11-21: 17 s sees each at least once)
+			for (let i = 0; i < 170; i++) {
 				const x = window.__reindeer.scoreboardStep(100);
-				if (out[out.length - 1] !== x.press?.screen) out.push(x.press?.screen);
+				if (out[out.length - 1] !== x.press?.name) out.push(x.press?.name);
 			}
 			window.__reindeer.scoreboardManual(false);
 			return out;
 		});
-		check(new Set(seen).size === 3, `${tag}: PRESS: the explainer screens advance on the board (${seen.join(' > ')})`);
+		const cycle = ['face', 'win', 'sleigh', 'car'];
+		const inOrder = seen.every((n, i) => !i || cycle.indexOf(n) === (cycle.indexOf(seen[i - 1]) + 1) % cycle.length);
+		check(new Set(seen).size === 4 && inOrder, `${tag}: PRESS: the explainer screens advance on the board in the cycle's order, the face first (${seen.join(' > ')})`);
 		// THE WILD PICTURES (2026-11-20, constants LED_SIGN.wilds, tools/build_led_wilds.py): the sleigh and car screens draw
 		// the game's own Wilds as they stand today: Santa's column picture and his number, the Grandma Wild's picture, her
 		// candy WILD and her number, from the press screen's Wild sheet in the look in force (each look and 'today' by hand),
@@ -1956,12 +2065,12 @@ async function pressBoard(browser, S) {
 				h.scoreboardManual(true);
 				for (const look of ['stripes', 'solid', 'today']) {
 					h.tune.ledSign.wilds.look = look;
-					for (const want of [1, 2]) {
+					for (const want of ['sleigh', 'car']) {
 						let x = h.scoreboardStep(20);
 						let n = 0;
-						while (x.press?.screen === want && n++ < 400) x = h.scoreboardStep(20);
+						while (x.press?.name === want && n++ < 400) x = h.scoreboardStep(20);
 						n = 0;
-						while (x.press?.screen !== want && n++ < 1000) x = h.scoreboardStep(20);
+						while (x.press?.name !== want && n++ < 1000) x = h.scoreboardStep(20);
 						// 3.2 s into the screen: the Wild stands, its word and number on
 						for (let i = 0; i < 160; i++) x = h.scoreboardStep(20);
 						out[`${look}:${want}`] = x.press?.wilds ?? null;
@@ -1972,12 +2081,13 @@ async function pressBoard(browser, S) {
 				return out;
 			});
 			for (const look of ['stripes', 'solid']) {
-				const s1 = drawn[`${look}:1`];
-				const s2 = drawn[`${look}:2`];
+				const s1 = drawn[`${look}:sleigh`];
+				const s2 = drawn[`${look}:car`];
 				check(s1?.kind === 'sleigh' && s1.look === look && s1.names.includes('santa:picture') && s1.names.includes(`santa_mult_${look}`) && s2?.kind === 'car' && s2.look === look && ['grandma:picture', `grandma_word_${look}`, `grandma_mult_${look}`].every((n) => s2.names.includes(n)), `${tag}: PRESS: look ${look}: the sleigh screen draws Santa's column and his number (${s1?.names?.join(', ')}), the car screen the Grandma Wild, her WILD and her number (${s2?.names?.join(', ')})`, { s1, s2 });
 			}
-			check(drawn['today:1']?.look === 'today' && drawn['today:1'].names.length === 0 && drawn['today:2']?.names.length === 0, `${tag}: PRESS: look today: the pictures of before (nothing from the Wild sheet)`, { a: drawn['today:1'], b: drawn['today:2'] });
+			check(drawn['today:sleigh']?.look === 'today' && drawn['today:sleigh'].names.length === 0 && drawn['today:car']?.names.length === 0, `${tag}: PRESS: look today: the pictures of before (nothing from the Wild sheet)`, { a: drawn['today:sleigh'], b: drawn['today:car'] });
 			await wildGrowChecks(p, tag);
+			await faceScreenChecks(p, tag);
 		}
 		// ONE PROMPT ON THE DEMO PATH (2026-11-18, Corey's capture at 2000x945: the tune panel's Free Spins entry raised over
 		// the press screen showed the strip's line AND the press screen's HTML line): the press screen's line stays aside while
@@ -2731,7 +2841,8 @@ async function ideasChecks(browser) {
 					const h = window.__reindeer;
 					h.scoreboardManual(true);
 					const out = [];
-					for (let i = 0; i < 120; i++) {
+					// (17 s: the four screens of the cycle since the face screen, 2026-11-21)
+					for (let i = 0; i < 170; i++) {
 						const x = h.scoreboardStep(100);
 						const f = h.scoreboardFace('back');
 						out.push({ screen: x.press?.screen, lights: f?.ideas?.pressLights ?? null });
@@ -2740,7 +2851,7 @@ async function ideasChecks(browser) {
 					return out;
 				});
 				const want = await R(p, () => window.__reindeer.tune.ledBoard.ideas.pressLights);
-				check(!want || (pl.every((r) => r.lights && r.lights.bulbs > 10) && pl.some((r) => r.lights.tug !== null) && new Set(pl.map((r) => r.screen)).size === 3), `${tag}: PRESS LIGHTS: the light string over the press screen on all ${pl.length} steps (${pl[0]?.lights?.bulbs} bulbs), the tug at a change (${pl.filter((r) => r.lights?.tug !== null).length} steps), the three screens still advance`, pl.filter((r, i) => i % 15 === 0));
+				check(!want || (pl.every((r) => r.lights && r.lights.bulbs > 10) && pl.some((r) => r.lights.tug !== null) && new Set(pl.map((r) => r.screen)).size === 4), `${tag}: PRESS LIGHTS: the light string over the press screen on all ${pl.length} steps (${pl[0]?.lights?.bulbs} bulbs), the tug at a change (${pl.filter((r) => r.lights?.tug !== null).length} steps), the four screens still advance`, pl.filter((r, i) => i % 15 === 0));
 			}
 			for (let i = 0; i < 200; i++) {
 				const ok = await R(p, () => !!(window.__reindeer?.atRest?.() && window.__reindeer.hud && !document.querySelector('.landing') && window.__reindeer.scoreboard?.())).catch(() => false);

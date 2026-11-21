@@ -1,6 +1,6 @@
 // THE LED BILLBOARD PRESS SCREEN (Corey 2026-11-16: "That looks amazing", led_billboard_r2_2026-11-16; constants LED_SIGN).
-// Over the dimmed first board, a roadside LED billboard on two poles in a snow drift: three screens cycle on its round
-// dot face (the max win; Santa's sleigh struck; Grandma's car struck), changing by a DISSOLVE, and the ticker under them
+// Over the dimmed first board, a roadside LED billboard on two poles in a snow drift: its screens cycle on its round dot
+// face (the reindeer's face since 2026-11-21; the max win; Santa's sleigh struck; Grandma's car struck), changing by a DISSOLVE, and the ticker under them
 // says PRESS ANYWHERE TO CONTINUE once the game may be entered (the press gate's own rules: ui/LandingScreen.svelte).
 // The press powers the sign down (a flicker, the dots go out, it sinks and fades) and the game is there.
 //
@@ -16,7 +16,7 @@
 import * as PIXI from 'pixi.js';
 
 import { LED_SIGN, type LedLayout } from '../constants';
-import { C, SCREENS, dissolve, ease, mk, powerOff, screenTicker, shimmer, span, type Cv, type LedText } from './ledScreens';
+import { C, SCREENS, SCREEN_NAMES, dissolve, ease, mk, powerOff, screenTicker, shimmer, span, type Cv, type LedText } from './ledScreens';
 
 type Face = {
 	dotsW: number;
@@ -437,14 +437,16 @@ export class LedSign {
 		const period = X.holdS + X.transS;
 		const n = Math.floor(T / period);
 		const tau = T - n * period;
-		const i = n % 3;
+		// (the cycle's length: four screens since the face, 2026-11-21, ledScreens.ts SCREEN_NAMES)
+		const N = SCREENS.length;
+		const i = n % N;
 		this.cost.lastScreen = i;
 		const o = F.out.ctx;
 		F.b.ctx.clearRect(0, 0, W, H);
 		SCREENS[i](F.b.ctx, W, H, tau, this.text);
 		if (tau < X.transS && n > 0) {
 			F.a.ctx.clearRect(0, 0, W, H);
-			SCREENS[(i + 2) % 3](F.a.ctx, W, H, period + tau, this.text);
+			SCREENS[(i + N - 1) % N](F.a.ctx, W, H, period + tau, this.text);
 			o.clearRect(0, 0, W, H);
 			dissolve(o, F.a, F.b, F.noise, tau / X.transS, W, H);
 		} else {
@@ -492,6 +494,8 @@ export class LedSign {
 			ready: this.ready,
 			T: r(this.T),
 			screen: this.cost.lastScreen,
+			/** the screen's name (ledScreens.ts SCREEN_NAMES: face, win, sleigh, car) */
+			name: SCREEN_NAMES[this.cost.lastScreen],
 			face: g ? { x: r(g.face.x), y: r(g.face.y), w: r(g.face.w), h: r(g.face.h), dotsW: g.face.dotsW, dotsH: g.face.dotsH } : null,
 			ticker: g ? { x: r(g.ticker.x), y: r(g.ticker.y), w: r(g.ticker.w), h: r(g.ticker.h), dotsW: g.ticker.dotsW, dotsH: g.ticker.dotsH } : null,
 			housing: g ? { x: r(g.housing.x), y: r(g.housing.y - g.cap), w: r(g.housing.w), h: r(g.housing.h + g.cap), bottom: r(g.housing.y + g.housing.h) } : null,

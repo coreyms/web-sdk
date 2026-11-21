@@ -3,7 +3,7 @@
 // (its ambient.ts), ported. The cartoons are idle cartoons like the five before them: each a pure function of its own time,
 // lowest in the strip's priority order (anything higher cuts them at once, nothing waits for them), never in a bonus round,
 // joined into the rotation in LED_BOARD.ideas.cartoons' order. The light string plays on the expanded board over the press
-// screen's own three screens. No sounds (none were in the mock; see the notes for the ones that might want one).
+// screen's own screens. No sounds (none were in the mock; see the notes for the ones that might want one).
 //   tree      the wagon hits a bump and its tree slides off the back; brake lights, it backs up (white reversing lights)
 //             and the tree hops back on upside down; away it goes
 //   chew      the reindeer chews the light string: the bulbs go dark outward with sparks, he gets zapped, every bulb pops
@@ -384,7 +384,7 @@ export function showCartoonNow(F: Face, idx: number, t: number, st: CartoonState
 
 // ==== THE LIGHT STRING ON THE PRESS SCREEN (press-lights) ========================================================================
 /** The reindeer's own antler lights strung in loops along the top of the press screen, twinkling; at each change of screen
- *  he runs along the top tugging it, and the loops swing. Drawn over the three screens (stripDraw.ts showPressScreens). */
+ *  he runs along the top tugging it, and the loops swing. Drawn over the screens (stripDraw.ts showPressScreens). */
 export function pressScreensLit(F: Face, T: number, text: LedText) {
 	showPressScreens(F, T, text);
 	if (!LED_BOARD.ideas.pressLights) return;
