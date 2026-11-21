@@ -818,8 +818,8 @@ async function everyRoundTurns(browser) {
  *  wrappers) while 10 rounds play; the dev hook's ringRounds says what each round planned (its kind, its brake and
  *  today's for the same end, its cruise speed change, its planned rest). Each round prints one line; the rule: 9 of 10 or
  *  better within 2 degrees of home (the angle drawn on the page just after the planned rest; a round the next spin
- *  began before its rest is judged by its plan), and no brake over today's + 150 ms (as planned, and as drawn: the last
- *  frame the angle moved, one frame of slack). */
+ *  began before its rest is judged by its plan), and no brake over today's + 150 ms (as planned, and as drawn: the first
+ *  frame from which the drawn angle sits on the planned rest, less that frame's gap). */
 const HOME_TOL = 2;
 const HOME_EXTRA = 150;
 const homeRecStart = (p) =>
@@ -858,14 +858,30 @@ const fold = (a) => ((((a + 180) % 360) + 360) % 360) - 180;
 function homeJudge(R, rows, tag) {
 	const out = { tag, err: R.err, page: null, brake: R.brakeMs, today: R.todayMs, seen: null, steer: R.steer, pageSteer: null, ended: R.ended, kind: `${R.kind}/${R.shape}` };
 	if (R.restAt !== null) {
-		// the angle drawn just after the planned rest
-		const at = rows.find((r) => r.t >= R.restAt + 5 && r.a !== null);
+		// the angle drawn on the first frame at or after the planned rest
+		const at = rows.find((r) => r.t >= R.restAt && r.a !== null);
 		if (at && R.ended === 'rest') out.page = Math.abs(fold(at.a));
-		// the brake as drawn: from the planned brake start to the last frame the angle moved (more than 0.02 degrees)
-		const span = rows.filter((r) => r.t >= R.brakeAt - 1 && r.t <= R.restAt + 400 && r.u !== null);
-		let lastMove = null;
-		for (let i = 1; i < span.length; i++) if (Math.abs(span[i].u - span[i - 1].u) > 0.02) lastMove = span[i].t;
-		if (lastMove !== null && R.ended === 'rest') out.seen = lastMove - R.brakeAt;
+		// the brake as drawn: from the planned brake start to the first of the frames that sit on the planned rest (within
+		// 0.1 degrees) up to the first frame at or after the planned rest; if that frame is not on it (late), the first
+		// frame after it that is (within 400 ms; past the rest the idle hop moves the ring again, so no later); its slack
+		// is that frame's own gap to the one before
+		const near = (r) => r.a !== null && Math.abs(fold(r.a - R.rest)) < 0.1;
+		const k = rows.findIndex((r) => r.t >= R.restAt);
+		let j = -1;
+		if (k >= 0 && near(rows[k])) {
+			j = k;
+			while (j > 0 && rows[j - 1].t >= R.brakeAt && near(rows[j - 1])) j--;
+		} else if (k >= 0) {
+			for (let i = k; i < rows.length && rows[i].t <= R.restAt + 400; i++)
+				if (near(rows[i])) {
+					j = i;
+					break;
+				}
+		}
+		if (j >= 0 && R.ended === 'rest') {
+			out.seen = rows[j].t - R.brakeAt;
+			out.slack = j > 0 ? rows[j].t - rows[j - 1].t : 0;
+		}
 	}
 	// the cruise as drawn: frame to frame speed against the loop's, from the wind-up's end to the brake
 	if (R.brakeAt !== null) {
@@ -970,8 +986,9 @@ async function homePose(browser) {
 		const within = res.filter((o) => (o.page ?? o.err) !== null && (o.page ?? o.err) <= HOME_TOL && (o.err ?? 99) <= HOME_TOL).length;
 		const gaps = rows.slice(1).map((r, k) => r.t - rows[k].t).sort((x, y) => x - y);
 		const med = gaps[Math.floor(gaps.length / 2)] ?? 0;
-		// (half a ms for the sums' rounding; the brake as drawn ends on the first frame after its rest, so one frame of slack)
-		const over = res.filter((o) => o.brake !== null && (o.brake > o.today + HOME_EXTRA + 0.5 || (o.seen !== null && o.seen > o.today + HOME_EXTRA + med + 1)));
+		// (half a ms for the sums' rounding; the brake as drawn is seen on the first frame at its rest, so that frame's gap
+		// is its slack)
+		const over = res.filter((o) => o.brake !== null && (o.brake > o.today + HOME_EXTRA + 0.5 || (o.seen !== null && o.seen - (o.slack ?? 0) > o.today + HOME_EXTRA + 1)));
 		const worst = Math.max(...res.filter((o) => o.brake !== null).map((o) => o.brake - o.today));
 		const worstSeen = Math.max(...res.filter((o) => o.seen !== null).map((o) => o.seen - o.today));
 		check(res.length === 10 && within >= 9, `home ${method}: ${within} of ${res.length} rounds rest within ${HOME_TOL} degrees of home (9 of 10 needed; frames every ${Math.round(med)} ms median)`, res.map((o) => `${o.tag} ${o.err?.toFixed(2)} / ${o.page?.toFixed(2)}`));
