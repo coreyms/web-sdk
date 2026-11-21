@@ -12,6 +12,7 @@ import { modeShortLabel } from '../game/betModeMeta';
 import { soc } from '../game/social';
 import type { AutoLoadout } from '../game/stateGame.svelte';
 import { SLAM_HURRY } from '../game/constants';
+import { hudWinOdometer } from '../game/hudWin.svelte';
 import { armouryView } from './armoury/armouryView.svelte';
 
 export const createControls = () => {
@@ -308,6 +309,17 @@ export const createControls = () => {
 	// bet; Corey 2026-10-21 "Yes, unless the final win is a fraction that need to carry decimals, like player betting .01
 	// cents"): cents normally, more only when the final win itself carries them; the last frame is the book's amount
 	const winText = () => bookEventAmountToCurrencyString(Math.round(winTween.current), { fractionDigitsOfBookAmount: stateBet.winBookEventAmount });
+	// THE WIN ODOMETER (2026-11-21, Run Over Reindeer's ported; Corey: "Yes", his pick "Odomoter roll defaults works for
+	// me"; ui/hud/winOdometer.ts): while the bonus round's TOTAL WIN banner (components/WarBanner.svelte) is up, WIN rolls
+	// and lands with the banner's own count instead of showing the total at once. This is the total it lands on, formatted
+	// as winText formats WIN (the banner's amount, the book's round total), or null when the readout is today's: no
+	// banner, the intro banner, the plaque or plain fallback screens, a total of 0, and the capped round's MAX WIN wrap up
+	// (it stays on the plaque and never sets the banner's cue: its WIN counts up plain, as before)
+	const winOdoText = () => {
+		const a = hudWinOdometer.amount;
+		if (a === null || !(a > 0)) return null;
+		return bookEventAmountToCurrencyString(Math.round(a), { fractionDigitsOfBookAmount: a });
+	};
 	// SPIN readout = the full price of the next press, whatever is armed: with a 300× feature loaded
 	// the SDK's betCost() still reported the base amount here while the button charged 300× (Stake
 	// review 2026-09-05). betCostFull covers every mode, replay included.
@@ -335,7 +347,7 @@ export const createControls = () => {
 		bonusDisabled, bonusPress, activateMode, buyMode, jurisdiction,
 		betOptions, betDisabled, openDenom, setBet,
 		menuPress, openGameInfo,
-		balanceText, winText, betText, betLabel, hasWin, winAmount, freeSpin,
+		balanceText, winText, winOdoText, betText, betLabel, hasWin, winAmount, freeSpin,
 		sound,
 	};
 };

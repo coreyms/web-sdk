@@ -12,6 +12,7 @@
 	import ChromeStyles from './ChromeStyles.svelte';
 	import HudStyles from './hud/HudStyles.svelte';
 	import { hudFrame, readSafeInsets, portraitBoardBottoms } from './hud/hudLayout';
+	import { readOdoDev } from './hud/winOdometer';
 	import ChromeLandscape from './ChromeLandscape.svelte';
 	import ChromePortrait from './ChromePortrait.svelte';
 	import ChromePhone from './ChromePhone.svelte';
@@ -69,6 +70,10 @@
 		// house rule: extend __manticore, never a new global (tools/manticore/hud_probe.js reads the HUD's scale, the
 		// portrait row's t and the plaque box the rule placed it under)
 		((window as any).__manticore ??= {}).hudFrame = () => ({ variant: hud.variant, u: hud.u, t: hud.t, gap: hud.gap, plaque: kind === 'portrait' ? portraitBoardBottoms(vw, vh) : null });
+		// THE WIN ODOMETER's state (ui/hud/winOdometer.ts; tools/manticore/hud_probe.js section `cards`): its mode, the total,
+		// what the readout reads now (locked digits, '#' for a moving one), the banner screen and the clock ms it drew at, the
+		// count's end, when it went plain and whether by a skip, the pops played
+		(window as any).__manticore.winOdometer = () => readOdoDev();
 	}
 	const armouryFrame = $derived(menuFrame({ kind, phone, vw, vh, scale, master, fitWidth }, ARMOURY.layout));
 	// the real HUD's BALANCE and bet row are lit above the tint in every layout but the desktop box scaled onto a phone
