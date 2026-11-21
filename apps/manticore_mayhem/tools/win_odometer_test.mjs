@@ -89,8 +89,10 @@ check(WIN_ODOMETER_CELL.popScale === 1.075 && WIN_ODOMETER_CELL.popMs === 460 &&
 	check(same, 'the seeded random is the mock\'s');
 }
 
-// (and Manticore's long totals: six figures before the point, as an upright phone must hold them)
-const TOTALS = ['$12.40', '$248.50', '$1,234,567.89', '$0.10', '$0.20', '$1.00', '$10.00', '$100.00', '$9,999,999.99', 'SC 248.50', '$0.0025', '$7,777.00', '$45.70', '$3.05', '$125,000.00', '$999,999.99', 'GC 250,000'];
+// (and Manticore's long totals: six figures before the point, as an upright phone must hold them; and since 2026-11-21
+// Stake's currency table, game/currencyFormat.ts: the social coins and the letter codes go AFTER the amount with their
+// decimals, "248.50 SC", "250,000.00 GC", "0.012345 BTC", so the readout lands on a text that ends in its code)
+const TOTALS = ['$12.40', '$248.50', '$1,234,567.89', '$0.10', '$0.20', '$1.00', '$10.00', '$100.00', '$9,999,999.99', '248.50 SC', '$0.0025', '$7,777.00', '$45.70', '$3.05', '$125,000.00', '$999,999.99', '250,000.00 GC', '1,000,000.00 GC', '10.00 SC', '€248.50', '¥1,250', '0.012345 BTC', '1,250.00 USDT', 'CA$999,999.99', '10.000 TND'];
 // the count lengths (ms): Reindeer's (its size classes 1.5 / 3 / 4 / 5 s, the mock's 5.75 s, turbo rates 2 and 3, short
 // ones) and the war banner's TOTAL WIN counts: max(STINGER_PLAQUE.wrapMinCountMs 1200, the end feature ladder's present
 // duration / TURBO_SCALE 1, 2.2, 4; winLevelMap 1.2, 1.8, 3, 4, 5, 6 s), so 1200 at the fast levels and up to 6 s at Regular, and longer
@@ -183,6 +185,14 @@ check(mockCompared > 200 && mockSame === mockCompared, `the mock's positions (${
 	const P = planOdometer(odoDigits('$1,234,567.89'), C0, C0 + 5000, 1);
 	check(odoReading('$1,234,567.89', P, C0 + 100) === '$#,###,###.##', 'the reading while it rolls', odoReading('$1,234,567.89', P, C0 + 100));
 	check(odoLocked(P.cols[0], P.cols[0].E) && !odoLocked(P.cols[1], P.cols[0].E), 'the first lock before the second');
+}
+// a social total keeps its code AFTER the amount, plain while the digits roll, and lands on the exact text (2026-11-21)
+for (const text of ['1,250.00 GC', '248.50 SC']) {
+	const C0 = 400;
+	const P = planOdometer(odoDigits(text), C0, C0 + 3000, 1);
+	const rolling = odoReading(text, P, C0 + 100);
+	check(rolling === text.replace(/[0-9]/g, '#') && / (GC|SC)$/.test(rolling), `${text}: the code stays plain after the rolling digits (${rolling})`);
+	check(odoReading(text, P, C0 + 3000) === text, `${text}: it lands on the exact text with its trailing code`);
 }
 check(odoTransform(0) === 'translate3d(0, 0em, 0)' && odoTransform(3) === 'translate3d(0, -4.8em, 0)' && odoTransform(9.5) === 'translate3d(0, -15.2em, 0)', 'the strip transform', [odoTransform(0), odoTransform(3), odoTransform(9.5)]);
 check(odoFace(-0.25) === 9.75 && odoFace(23.4567) === 3.457 && odoFace(10) === 0, 'the face wraps the strip', [odoFace(-0.25), odoFace(23.4567), odoFace(10)]);

@@ -24,7 +24,7 @@
 	import { cubicOut } from 'svelte/easing';
 	import { fade } from 'svelte/transition';
 	import { stateBet } from 'state-shared';
-	import { numberToCurrencyString } from 'utils-shared/amount';
+	import { numberToCurrencyString } from '../game/amount';
 	import type * as PIXI from 'pixi.js';
 
 	import { getContext } from '../game/context';

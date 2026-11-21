@@ -4,7 +4,7 @@ import { Tween } from 'svelte/motion';
 import { untrack } from 'svelte';
 import { cubicOut } from 'svelte/easing';
 import { stateBet, stateBetDerived, stateConfig, stateModal, stateUi, INFINITY_MARK } from 'state-shared';
-import { numberToCurrencyString, bookEventAmountToCurrencyString } from 'utils-shared/amount';
+import { numberToCurrencyString, bookEventAmountToCurrencyString } from '../game/amount';
 
 import { getContext } from '../game/context';
 import { betCostFull } from '../game/modeChipData';
@@ -289,9 +289,9 @@ export const createControls = () => {
 	// ── readouts ─────────────────────────────────────────────────────────
 	// BALANCE is a wallet readout, not a win: it never shows the sub-cent tail that
 	// numberToCurrencyString extends to for WIN amounts (play at the $0.01 denomination left it
-	// reading "$10,069.789" — Corey 2026-09-02). Capped at the currency's own minor units, so
-	// USD/SC/GC land on 2 (a whole GC balance still prints whole) and JPY still shows 0.
-	const balanceText = () => numberToCurrencyString(stateBet.balanceAmount, { maximumFractionDigits: 2 });
+	// reading "$10,069.789", Corey 2026-09-02). Exactly the currency's own decimals per Stake's table
+	// (game/currencyFormat.ts): USD, SC and GC 2 ("1,000.00 GC"), JPY 0, KWD 3, BTC 6.
+	const balanceText = () => numberToCurrencyString(stateBet.balanceAmount, { exact: true });
 	// WIN counts UP toward the live book value (winInfo applies the spin total as the combos
 	// reveal, and this tween chases it — Mother Clucker timing); a reset to a smaller value
 	// (new spin) snaps instead of counting backwards

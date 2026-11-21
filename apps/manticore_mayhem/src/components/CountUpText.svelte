@@ -5,7 +5,7 @@
 	//   1. the DISPLAYED string updates at ~15Hz (trailing edge guarantees the final value lands);
 	//   2. while counting, the drop shadow is un-blurred (canvas shadowBlur is the expensive raster path);
 	//      once `settled`, the full-quality style returns for the resting amount.
-	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
+	import { bookEventAmountToCurrencyString } from '../game/amount';
 
 	import GameText, { type GameTextPreset } from './GameText.svelte';
 	import ArtAmount, { artAmountSupports } from './ArtAmount.svelte';

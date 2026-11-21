@@ -32,7 +32,7 @@
 	// those cells make was written by a book event (game/bookEventHandlerMap.ts). This component
 	// draws; it decides nothing.
 	import { stateBet, stateBetDerived, stateConfig } from 'state-shared';
-	import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
+	import { bookEventAmountToCurrencyString } from '../game/amount';
 
 	import { getContext } from '../game/context';
 	import { SYMBOL_SIZE, GRID, CLUSTER, READOUT } from '../game/constants';
@@ -149,7 +149,7 @@
 			/** the ONE way to set the live turbo level (0 / 1 / 2), for the motion probe's timeScale runs */
 			setTurbo: (level: 0 | 1 | 2) => context.stateGameDerived.setTurboLevel(level),
 			/** a book amount as the readouts print it, so a probe can compare canvas text it cannot read */
-			fmt: (amount: number) => bookEventAmountToCurrencyString(Math.round(amount)),
+			fmt: (amount: number) => bookEventAmountToCurrencyString(Math.round(amount), { canvas: true }),
 			/** the Pixi application (perf probe: texture / renderer counters) */
 			pixi: () => context.stateApp.pixiApplication,
 			/** the last emitter events with their performance.now() stamps, newest last (perf probe

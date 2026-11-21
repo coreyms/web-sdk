@@ -2,7 +2,7 @@ import { boardPace } from './boardPace';
 import { stateBet, stateBetDerived, stateConfig } from 'state-shared';
 import { waitForTimeout } from 'utils-shared/wait';
 import { createGetWinLevelDataByWinLevelAlias } from 'utils-shared/winLevel';
-import { bookEventAmountToCurrencyString } from 'utils-shared/amount';
+import { bookEventAmountToCurrencyString } from './amount';
 
 import type { GameType, BonusMode, MysteryOutcome, SymbolName, SymbolState, CellIndex } from './types';
 import type { Fill, TileEntry } from './typesBookEvent';
@@ -1169,7 +1169,7 @@ export type WinSetHooks = {
 	onCleared?: (cell: CellIndex) => void;
 };
 
-const fmtAmount = (n: number) => bookEventAmountToCurrencyString(Math.round(n));
+const fmtAmount = (n: number) => bookEventAmountToCurrencyString(Math.round(n), { canvas: true });
 
 /** ONE CLUSTER ACCENT ON A SKIP (Corey 2026-10-21, second harsh review: "place one sound accent at most on a skip").
  *  In normal play the clusters are sequential (clusterGapMs), so each asks for its own accent in book order. A skip
@@ -1711,7 +1711,7 @@ export const presentWinSet = async (wins: WinSpec[], id: number, hooks: WinSetHo
 			r.mode = 'merged';
 			if (cl.dev && val > cl.dev.shownMax) cl.dev.shownMax = val;
 			// mid count the digits of the cluster's own win (harsh review 2026-10-20 gameplay 5)
-			const text = bookEventAmountToCurrencyString(Math.round(val), { fractionDigitsOfBookAmount: cl.spec.total });
+			const text = bookEventAmountToCurrencyString(Math.round(val), { fractionDigitsOfBookAmount: cl.spec.total, canvas: true });
 			if (r.text !== text) r.text = text;
 			r.scale = scale;
 		}

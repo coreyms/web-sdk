@@ -55,7 +55,7 @@
 	import { onMount } from 'svelte';
 	import { getContextParent } from 'pixi-svelte';
 	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
-	import { bookEventAmountToBetAmountMultiplier, bookEventAmountToCurrencyString } from 'utils-shared/amount';
+	import { bookEventAmountToBetAmountMultiplier, bookEventAmountToCurrencyString } from '../game/amount';
 
 	import { getContext } from '../game/context';
 	import { MAX_WIN } from '../game/constants';
@@ -326,7 +326,7 @@
 		mark('start');
 		// normally in since the round's first reveal; a no-op then (the titles appear whenever it lands)
 		void maxWinPrefetch();
-		payoutText = bookEventAmountToCurrencyString(maxWinState.payout);
+		payoutText = bookEventAmountToCurrencyString(maxWinState.payout, { canvas: true });
 		multText = `${Math.round(bookEventAmountToBetAmountMultiplier(maxWinState.payout)).toLocaleString('en-US')}x`;
 		laid = '';
 		outAt = 0;
