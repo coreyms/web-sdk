@@ -140,7 +140,13 @@
 		const was = lastRingSt;
 		lastRingSt = now;
 		untrack(() => {
-			if (now === 'run' && was === 'idle' && driver.phase !== 'spin') startRing();
+			// THE RING THAT NEVER STOPPED (2026-11-21, the probe host, on both live games): an autoplay run's last round, or
+			// a free spins round, hands the key back by changing its face in the same update that turns it to Stop. That is
+			// not a press (a press turns Play into Stop on the same face), and this effect runs before the face's own (below),
+			// so a start here landed on the new face and the face change then set the driver at rest over a turning loop. A
+			// start here only for a press on the face it began on; the round's own start (the board's count) turned the ring
+			const faceChanging = lastFace !== '' && faceKind !== lastFace;
+			if (now === 'run' && was === 'idle' && driver.phase !== 'spin' && !faceChanging) startRing();
 			if (now === 'halt') halted = true;
 		});
 	});
