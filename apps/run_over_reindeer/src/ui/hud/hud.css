@@ -482,6 +482,83 @@
 		transform: scale(1);
 	}
 }
+/* THE WIN ODOMETER (2026-11-21, Corey on the mock bar_win_count_r1: "Odomoter roll defaults works for me";
+   ui/hud/winOdometer.ts, ui/hud/HudReadout.svelte): while the Total Win card counts, each digit of WIN is a window of its
+   own (.od: the tabular digit's own width, taken from a hidden 0 in it, so nothing is measured; its own overflow clip, no
+   mask) holding a strip of 0 to 9 and 0 (.ods) moved by translateY. The window is a hair taller than the line (never into
+   the WIN word above: the upright row has 1 px between them) and 0.12em wider each side for the glow, its margins taking
+   both back, so it sits in exactly a digit's box; the strip's digits are 1.6em apart, so no neighbor shows at rest. The
+   separators and the currency marker (.oc) are boxes of their own, the same in every state, and once the last digit
+   locks the digits are .oc boxes too (the same widths: the number does not move by a pixel) with their glow whole. Every
+   box is one line box tall from the line's top, so a rolling digit and a locked one share the baseline. */
+.hudp .stat.win .value.odo {
+	white-space: nowrap;
+}
+.hudp .value.odo .oc {
+	display: inline-block;
+	height: 1em;
+	line-height: 1em;
+	vertical-align: top;
+	white-space: pre;
+}
+.hudp .value.odo .od {
+	display: inline-block;
+	position: relative;
+	box-sizing: content-box;
+	height: 1.12em;
+	margin: -0.06em -0.12em;
+	padding: 0 0.12em;
+	overflow: hidden;
+	vertical-align: top;
+}
+.hudp .value.odo .odz {
+	display: block;
+	height: 1em;
+	line-height: 1em;
+	visibility: hidden;
+}
+.hudp .value.odo .ods {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 0.06em;
+	text-align: center;
+	will-change: transform;
+}
+.hudp .value.odo .ods i {
+	display: block;
+	height: 1.6em;
+	line-height: 1em;
+	font-style: normal;
+}
+/* the landing's pop on the whole WIN cell (the mock's: 7.5 % at 28 % of 460 ms, an ease out up and an ease in and out
+   back; the upright readout from its left), a transform on the readout (its fixed box and its paint containment stay) */
+.hudp .stat.win.odo-pop {
+	transform-origin: 50% 50%;
+	animation: wb-pop-cell 0.46s linear 1;
+}
+.hudp .stat.pt.win.odo-pop {
+	transform-origin: 0 50%;
+}
+@keyframes wb-pop-cell {
+	0% {
+		transform: scale(1);
+		animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+	}
+	28% {
+		transform: scale(1.075);
+		animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+	}
+	100% {
+		transform: scale(1);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.hudp .stat.win.odo-pop {
+		animation: none;
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.hudp .wburst,
 	.hudp .wburst.on,

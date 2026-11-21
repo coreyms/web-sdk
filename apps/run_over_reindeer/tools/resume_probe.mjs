@@ -1,6 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/{ui/ResumeCard.svelte,game/resumeRound.svelte.ts,ui/LandingScreen.svelte,game/actor.ts,components/ResumeBet.svelte}, apps/run_over_reindeer/src/game/bookEventHandlerMap.ts;
 // WATCHES: ; __reindeer.resumeRound, __reindeer.fixtures, __reindeer.hud, __reindeer.atRest, __reindeer.gameType, __reindeer.roadSounds, __reindeer.stockRules
+// WATCHES: apps/run_over_reindeer/src/{ui/hud/HudReadout.svelte,ui/hud/winOdometer.ts}; __reindeer.hud.winOdometer, data-odo, .od
 // WATCHES: ; roundHasNothingLeft, countLeft, ledCountDone, SKIP_SHOW_MS, settleWinsAfterPresentation, settleEarly, OPEN_KEY, data-resume-card, data-resume, data-resume-mode, skipToResult, toSkippedBet, RESUME_TEXT, createBonusSnapshot, .landing, .pressText, .press-target
 // THE RESUME PROBE (2026-11-18, the resume card, a stock rule for every game: game/resumeRound.svelte.ts,
 // ui/ResumeCard.svelte). A reload into a round the RGS holds open (the fixture RGS's fixtures.resume: the session comes
@@ -15,6 +16,8 @@
 //     the book's final board (the last reveal's) on the road, a bonus round's Total Win card, back in the base game
 //   · either way: the end-round sent exactly once, WIN equals the book's finalWin, BALANCE the fixture wallet's, idle and
 //     at rest, the turbo level the base one, no page error
+//   - the WIN odometer (2026-11-21, ui/hud/winOdometer.ts): a feature round's wrap-up card ran it to its end (plain on its
+//     total), and after the round WIN reads the book's finalWin in plain text, no digit window left
 //   · a reload while the card is up brings the card back
 //   · the card at every layout (1920 x 1080, 1440 x 900, 1280 x 720, tablet 1180 x 820 and 820 x 1180, phones 390 x 844,
 //     390 x 620, 360 x 640, sideways 844 x 390, Stake's popouts 800 x 450 and 400 x 225): inside the window with a margin,
@@ -192,6 +195,11 @@ async function choiceCase(browser, R, choice) {
 			marks: (window.__reindeer.roadSounds?.() ?? []).filter((e) => e.kind !== 'sound').map((e) => `${e.what} ${e.detail ?? ''}`),
 			sr: window.__reindeer.stockRules?.() ?? null,
 			card: !!document.querySelector('[data-resume-card]'),
+			odo: window.__reindeer.hud.winOdometer?.() ?? null,
+			winText: document.querySelector('.hudp [data-hud="win"] .value')?.textContent ?? '',
+			winWindows: document.querySelector('.hudp [data-hud="win"] .value')?.querySelectorAll('.od').length ?? -1,
+			winData: document.querySelector('.hudp [data-hud="win"] .value')?.getAttribute('data-odo') ?? null,
+			finText: window.__reindeer.bookAmount ? window.__reindeer.bookAmount(window.__reindeer.hud.win()) : null,
 		}),
 		[t0],
 	);
@@ -200,6 +208,11 @@ async function choiceCase(browser, R, choice) {
 	check(ok && !end.card && end.gameType === 'basegame', `${tag}: the round reaches its end, back in the base game, idle and at rest`, { ok, gameType: end.gameType });
 	check(ends === 1 && plays === 0, `${tag}: the end-round sent exactly once, no new play (${ends} end-round, ${plays} play)`, end.calls);
 	check(fin !== undefined && end.win === fin, `${tag}: WIN is the book's finalWin (${end.win} vs ${fin})`, { win: end.win, fin });
+	// THE WIN ODOMETER (2026-11-21): no rolling digit stuck after a resumed round; a feature round's wrap-up ran it and it
+	// landed on its total (the readout's text against the book's finalWin, in the currency's units)
+	const winNum = Number(String(end.winText).replace(/[^0-9.]/g, ''));
+	check(!!end.odo && end.odo.mode === 'off' && end.winWindows === 0 && end.winData === null && end.finText !== null && Math.abs(winNum - end.finText) < 0.005, `${tag}: after the round WIN is plain text on the book's total (${end.winText.trim()}), no digit window left`, { odo: end.odo, winText: end.winText, windows: end.winWindows, finText: end.finText });
+	if (R.feature) check(!!end.odo && end.odo.plans >= 1 && end.odo.doneT !== null && Math.abs(Number(String(end.odo.text).replace(/[^0-9.]/g, '')) - end.finText) < 0.005, `${tag}: the wrap-up's odometer ran and went plain on the total (${end.odo?.text}, plain at ${end.odo?.doneT} ms)`, end.odo);
 	const wallet = end.wallet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 	check(end.balanceText.replace(/[^0-9.,]/g, '').includes(wallet), `${tag}: BALANCE reads the wallet after the end-round (${end.balanceText.trim()} vs ${wallet})`, { balanceText: end.balanceText, wallet });
 	check(end.sr === null || end.sr.turbo === end.sr.base, `${tag}: the speed is the base game's after the round`, end.sr && { turbo: end.sr.turbo, base: end.sr.base });
