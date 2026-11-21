@@ -3,7 +3,7 @@
 
 	export type EmitterEventWin =
 		| { type: 'winShow' }
-		// `stages`: the ladder the count steps up on (a free spin's feature ladder, WIN_TIER_STAGES_FEATURE_SPIN); none = the base one
+		// `stages`: the ladder the count steps up on (a free spin's ladder, WIN_TIER_STAGES_FEATURE_SPIN); none = the base one
 		| { type: 'winUpdate'; amount: number; winLevelData: WinLevelData; stages?: readonly WinTierStage[] }
 		| { type: 'winHide' };
 </script>
@@ -11,8 +11,9 @@
 <script lang="ts">
 	// The base-game win presentation.
 	//   BIG WIN AND ABOVE (level type 'big'): the animated win plaque (components/StingerPlaque.svelte) slams
-	//     in, counts the amount with the house pacing and steps its title up through the tiers the amount
-	//     crosses, never past the book's own level. A press while it counts lands on the final amount and
+	//     in on its ladder's first tier (BIG in the base game, SUPER on a free spin since 2026-11-21), counts the
+	//     amount with the house pacing and steps its title up through the tiers the amount crosses, never past
+	//     the win's own tier. A press while it counts lands on the final amount and
 	//     tier. THERE IS NO PRESS GATE AND NO PROMPT (Corey 2026-10-09: "these should go away naturally"): once
 	//     the count has landed the plaque holds STINGER_PLAQUE.winHoldMs (winAutoHoldMs while auto bonuses run)
 	//     and leaves by itself; a press during the hold only ends it early. The press catcher stays up, with no
@@ -38,7 +39,7 @@
 	import { getContext } from '../game/context';
 	import { awaitPlaqueAssets } from '../game/assetGate';
 	import { STINGER_PLAQUE } from '../game/constants';
-	import { WIN_TIER_SOUND, WIN_TIER_STAGES } from '../game/winLevelMap';
+	import { WIN_TIER_SOUND, WIN_TIER_STAGES, tierIndexOfAlias } from '../game/winLevelMap';
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
 	import { stingerPlaque } from './StingerPlaque.svelte';
 	import CountUpText from './CountUpText.svelte';
@@ -90,7 +91,8 @@
 			void dim.set(0.55);
 		},
 		winUpdate: async ({ amount, winLevelData, stages = WIN_TIER_STAGES }) => {
-			const tier = Math.max(0, stages.findIndex((s) => s.alias === winLevelData.alias));
+			// the win's own tier, 0 Big .. 4 Max, whichever ladder it is on (a free spin's ladder opens on Super, index 1)
+			const tier = tierIndexOfAlias(winLevelData.alias);
 			// the plaque's atlases are deferred assets
 			await awaitPlaqueAssets();
 			const flow = stingerPlaque.flow;

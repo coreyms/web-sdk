@@ -878,9 +878,10 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		//   from the book's cascade.spinWin, and a SKIP TO RESULT plays none of them. The wrap up at the end of
 		//   the feature is unchanged.
 		//   ONLY BIG AND ABOVE GETS A WIN SCREEN, everywhere (Corey 2026-10-09: "no Nice win level"): a
-		//   smaller win is the board's own run up and nothing more. Big is 15x in the base game; A FREE SPIN'S Big
-		//   is its feature's own bar (Corey 2026-10-16, harsh review gameplay finding 6: WIN_TIER_STAGES_FEATURE_SPIN,
-		//   Free Spins 25x / Super 40x / Epic 75x), and its count steps up on that feature's ladder.
+		//   smaller win is the board's own run up and nothing more. THE LADDERS (Corey 2026-11-21, game/winLevelMap.ts):
+		//   a base game spin's Stinger starts at Big 50x (WIN_TIER_STAGES); a FREE SPIN has no Big, its Stinger starts at
+		//   Super 200x (WIN_TIER_STAGES_FEATURE_SPIN, every feature) and its count steps up on that ladder. Both are
+		//   multiples of the base bet (book amounts are base-bet multiples in every mode, Ante and buys included).
 		const free = stateGame.gameType !== 'basegame';
 		if (free && stateGame.skipping) return;
 		const amount = free ? spinOwnWin(bookEvent, bookEvents) : bookEvent.amount;

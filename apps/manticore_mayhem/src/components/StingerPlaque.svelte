@@ -21,10 +21,11 @@
 	export type StingerPlaqueFlow = {
 		/** the art, the tracks and the scene are in: false = the caller keeps its plain screen */
 		ready: () => boolean;
-		/** the win screen: Big slams in and the amount counts to `amount` over durationMs (house pacing), the title
-		 *  stepping up at each bar crossed, never past `finalTier`. Resolves when the count has landed.
-		 *  `stages`: the ladder whose bars those are (a free spin's feature ladder); none = WIN_TIER_STAGES. */
-		win: (o: { amount: number; finalTier: number; durationMs: number; stages?: readonly { xBet: number }[] }) => Promise<void>;
+		/** the win screen: the ladder's first tier slams in and the amount counts to `amount` over durationMs (house pacing), the title
+		 *  stepping up at each bar crossed, never past `finalTier` (0 Big .. 4 Max). Resolves when the count has landed.
+		 *  `stages`: the ladder whose bars those are (a free spin's, which opens on SUPER); none = WIN_TIER_STAGES.
+		 *  The plaque opens on the ladder's FIRST tier, so a free spin's never shows BIG. */
+		win: (o: { amount: number; finalTier: number; durationMs: number; stages?: readonly WinTierStage[] }) => Promise<void>;
 		/** the feature's intro: resolves once its rows are in */
 		intro: (o: { mode: StingerMode }) => Promise<void>;
 		/** does the baked intro copy say what the book says (spins in the title, the tile cap in the rows)? */
@@ -96,8 +97,8 @@
 	import { boardKick, chainGust } from '../game/featureFx';
 	import { layoutKind } from '../game/layoutSpec';
 	import { enableMipmaps } from '../game/mipmaps';
-	import { WIN_TIER_SOUND, WIN_TIER_STAGES, WIN_TIER_STAGES_END_FEATURE } from '../game/winLevelMap';
-	import { stagedAmountAt, stagedSegments, stagedTotal, tierIndexAt, type CountSegment } from '../game/stinger/count';
+	import { WIN_TIER_SOUND, WIN_TIER_STAGES, WIN_TIER_STAGES_END_FEATURE, tierIndexOfAlias, type WinTierStage } from '../game/winLevelMap';
+	import { ladderTierAt, stagedAmountAt, stagedSegments, stagedTotal, type CountSegment } from '../game/stinger/count';
 	import { loadStingerData } from '../game/stinger/data';
 	import { STAGING_TOOLS, perfMark } from '../game/staging';
 	import { maxWinTierLanded } from '../game/maxWin.svelte';
@@ -193,6 +194,8 @@
 		/** the ladder's upgrade bars as book amounts, and the highest tier index the book allows */
 		bars: number[];
 		cap: number;
+		/** the tier the ladder opens on (0 Big in the base game, 1 Super on a free spin): bars[0] lifts it to entry + 1 */
+		entry: number;
 		shown: number;
 		/** false = the tier is fixed for the whole screen (the wrap up) */
 		beats: boolean;
@@ -274,7 +277,7 @@
 		countLoop(!ended);
 		const amount = ended ? c.target : stagedAmountAt(c.segs, el);
 		// several bars inside one frame (a skip, a long frame) are ONE beat, on the highest tier reached
-		const index = c.beats ? tierIndexAt(amount, c.bars, c.cap) : c.shown;
+		const index = c.beats ? ladderTierAt(amount, c.bars, c.entry, c.cap) : c.shown;
 		const up = index > c.shown;
 		if (up) {
 			c.shown = index;
@@ -379,8 +382,9 @@
 			log({ type: 'impact', tier: STINGER_TIERS[view.tier] });
 			// ...nor for a moment after it lands (this ends the drop's window)
 			creatureUploadQuiet(CREATURE.wins.quiet.impactMs, true);
-			// THE CHEER (PLAQUE_CHEER): a win that stays BIG cheers on the impact; a TOTAL WIN wrap up on its total's tier
-			if (view.screen === 'win' && count && count.cap === 0) cheer(0);
+			// THE CHEER (PLAQUE_CHEER): a win that stays on its ladder's first tier (BIG, or SUPER on a free spin) cheers on
+			// the impact; a TOTAL WIN wrap up on its total's tier
+			if (view.screen === 'win' && count && count.cap === count.entry) cheer(count.entry);
 			else if (view.screen === 'wrap' && wrapCheer >= 0) cheer(wrapCheer);
 			// THE BOARD PLAQUE'S FIRST WORD (PLAQUE_CELEBRATE): the impact is BIG's bar, its title punches titleDelayMs later
 			if (celebrating && plaqueCelebrate.on) {
@@ -456,10 +460,10 @@
 	const until = (at: number) => new Promise<void>((resolve) => waiters.push({ at, resolve }));
 	const barsOf = (stages: readonly { xBet: number }[]) => stages.slice(1).map((s) => s.xBet * BOOK_AMOUNT_MULTIPLIER);
 	const tierName = (index: number) => STINGER_TIERS[Math.max(0, Math.min(STINGER_TIERS.length - 1, index))];
-	const counting = (o: { amount: number; durationMs: number; bars: number[]; cap: number; shown: number; beats: boolean }) =>
+	const counting = (o: { amount: number; durationMs: number; bars: number[]; cap: number; shown: number; beats: boolean; entry?: number }) =>
 		new Promise<void>((done) => {
 			const segs = stagedSegments(o.amount, o.durationMs, o.bars);
-			count = { segs, total: stagedTotal(segs), target: o.amount, bars: o.bars, cap: o.cap, shown: o.shown, beats: o.beats, fit: format(o.amount), skipped: false, started: false, done };
+			count = { segs, total: stagedTotal(segs), target: o.amount, bars: o.bars, cap: o.cap, entry: o.entry ?? 0, shown: o.shown, beats: o.beats, fit: format(o.amount), skipped: false, started: false, done };
 			view.countBegins();
 		});
 
@@ -484,9 +488,11 @@
 		ready: () => view.ready,
 		win: async ({ amount, finalTier, durationMs, stages = WIN_TIER_STAGES }) => {
 			if (!view.ready) return;
-			// Big always opens the ladder; its clip plays on the impact, as each later tier's does on its landing
-			begin({ screen: 'win', tier: 'big' }, 0);
-			await counting({ amount, durationMs, bars: barsOf(stages), cap: Math.max(0, Math.min(STINGER_TIERS.length - 1, finalTier)), shown: 0, beats: true });
+			// the ladder's first tier opens the plaque (BIG in the base game, SUPER on a free spin: never a BIG flash first);
+			// its clip plays on the impact, as each later tier's does on its landing
+			const entry = Math.min(STINGER_TIERS.length - 1, tierIndexOfAlias(stages[0]?.alias ?? 'big'));
+			begin({ screen: 'win', tier: STINGER_TIERS[entry] }, entry);
+			await counting({ amount, durationMs, bars: barsOf(stages), cap: Math.max(entry, Math.min(STINGER_TIERS.length - 1, finalTier)), shown: entry, beats: true, entry });
 		},
 		intro: async ({ mode }) => {
 			if (!view.ready) return;

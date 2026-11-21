@@ -39,3 +39,8 @@ export const tierIndexAt = (amount: number, bars: readonly number[], cap: number
 	while (i < cap && i < bars.length && amount >= bars[i]) i += 1;
 	return i;
 };
+
+/** the plaque's tier (0 Big .. 4 Max) `amount` has reached on a ladder that OPENS on tier `entry` (0 Big in the base
+ *  game, 1 Super on a free spin since 2026-11-21): `bars` are that ladder's upgrade bars, `cap` the win's own tier */
+export const ladderTierAt = (amount: number, bars: readonly number[], entry: number, cap: number): number =>
+	entry + tierIndexAt(amount, bars, Math.max(0, cap - entry));
