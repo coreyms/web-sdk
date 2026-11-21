@@ -48,7 +48,9 @@
 //     300 and 900 ms in, a run of three autoplay rounds; the run's ending Stop press brakes a fourth, reported, not
 //     judged), each a line with its rest's distance from home (as planned and as drawn on the page), its brake against
 //     today's and the cruise's largest speed change (as planned and as drawn). Then two desktop hovers (800 and 300 ms
-//     over the key, then off it): their way home. Each line also prints the bounce's overshoot (planned and drawn) and
+//     over the key, then off it): their way home: BACK the way they came (2026-11-21, Corey: "I would prefer it goes backwards in that one
+//     scenario"), home and still, the angle never above where the pointer left and the travel about the hover's angle
+//     (not 360 less it); then a press during a hover: forward into the spin. Each line also prints the bounce's overshoot (planned and drawn) and
 //     the round's bound. Pass: 9 of 10 or better within 2 degrees of home, both hovers home, no brake over its bound
 //     (today's + 150 ms; a stop press today's + 250 ms; the bounce inside). HOME_METHODS=steer,long,fixed records each rest method in turn (the dev
 //     hook's ringMethod; steer, the game's, by default)
@@ -924,8 +926,12 @@ function homeJudge(R, rows, tag) {
 			out.seen = rows[j].t - R.brakeAt;
 			out.slack = j > 0 ? rows[j].t - rows[j - 1].t : 0;
 		}
-		// THE BOUNCE as drawn: the farthest past the rest from the end of the way home (40 ms early) to the rest
-		if (R.over && R.bounceMs && R.ended === 'rest') {
+		// THE BOUNCE as drawn: the farthest past the rest from the end of the way home (40 ms early) to the rest (a hover's
+		// way back: the deepest short of home, its soft settle)
+		if (R.shape === 'back' && R.ended === 'rest') {
+			const B = rows.filter((r) => r.t >= R.startAt && r.t <= R.restAt + 5 && r.a !== null);
+			if (B.length) out.pageOver = Math.max(0, -Math.min(...B.map((r) => fold(r.a - R.rest))));
+		} else if (R.over && R.bounceMs && R.ended === 'rest') {
 			const B = rows.filter((r) => r.t >= R.restAt - R.bounceMs - 40 && r.t <= R.restAt + 5 && r.a !== null);
 			if (B.length) out.pageOver = Math.max(...B.map((r) => fold(r.a - R.rest)));
 		}
@@ -946,6 +952,29 @@ function homeJudge(R, rows, tag) {
 	}
 	return out;
 }
+/** THE WAY BACK as drawn (2026-11-21, Corey: "if you go off the hover over without pressing spin ... I would prefer it
+ *  goes backwards in that one scenario"): a hover's way home from the pointer's leave (its record's startAt, the angle
+ *  it left at its `from`) to its rest, on the page's frames: never above where it left (1 degree for the frames), the
+ *  travel about the hover's angle (the way back plus twice the settle, 6 degrees for the frames; never near 360 less
+ *  it), then home and still over the 500 ms after the rest. */
+function hoverBack(R, rows) {
+	const out = { from: R.from ?? null, top: null, travel: null, off: null, moved: null, ms: R.restAt !== null ? R.restAt - R.startAt : null, ok: false };
+	if (R.shape !== 'back' || R.from === null || R.from === undefined || R.restAt === null) return out;
+	const W = rows.filter((r) => r.t >= R.startAt && r.t <= R.restAt + 20 && r.a !== null && r.u !== null);
+	const after = rows.filter((r) => r.t >= R.restAt + 20 && r.t <= R.restAt + 520 && r.a !== null);
+	if (W.length < 2 || after.length < 2) return out;
+	out.top = Math.max(...W.map((r) => fold(r.a)));
+	// (from where it left, R.from, to the first frame after the leave, then frame to frame)
+	let travel = Math.abs(R.from - fold(W[0].a));
+	for (let i = 1; i < W.length; i++) travel += Math.abs(W[i].u - W[i - 1].u);
+	out.travel = travel;
+	out.off = Math.max(...after.map((r) => Math.abs(fold(r.a))));
+	out.moved = Math.max(...after.map((r) => fold(r.a - after[0].a))) - Math.min(...after.map((r) => fold(r.a - after[0].a)));
+	const settle = R.over ?? 0;
+	out.ok = R.ended === 'rest' && out.top <= R.from + 1 && Math.abs(travel - R.from - 2 * settle) <= 6 && travel < 180 && out.off <= HOME_TOL && out.moved <= 0.05;
+	return out;
+}
+
 /** every ring round of the section has a plan that ended at home (none with no plan, but one whose face was rebuilt
  *  under it: its drawing went with the old face), and the backstop never had to bring a loop home */
 async function homeEnds(p, method, nStart) {
@@ -1032,7 +1061,7 @@ async function homePose(browser) {
 		await one('stop at 300 ms', 0, 300);
 		await one('stop at 900 ms', 0, 900);
 		// TWO HOVER ROUNDS (a desktop pointer): over the key 800 ms, then 300 ms (the quarter turn forward, cut short), and
-		// off it (forward home and the bounce)
+		// off it with no press: THE WAY BACK (2026-11-21), back the way it came to home and a soft settle
 		const hovers = [];
 		await p.mouse.move(4, 4);
 		await sleep(500);
@@ -1049,6 +1078,27 @@ async function homePose(browser) {
 			const H = (await ringRounds(p)).filter((r) => r.n > n1 && r.kind === 'hover');
 			if (!H.length) check(false, `home ${method} hover ${ms} ms: the ring recorded the hover's way home`);
 			else hovers.push([H[H.length - 1], `hover ${ms} ms`]);
+		}
+		// A PRESS DURING A HOVER: over the key 300 ms, then the press where the pointer is: forward into the spin from the
+		// hover's angle (no way back first), home after the round
+		const pressHover = { R: null, back: 0, fwd: null };
+		{
+			await setTurboR(p, 0);
+			const n2 = await lastRingN(p);
+			const b = await p.evaluate(() => {
+				const r = document.querySelector('.hudp button.spin').getBoundingClientRect();
+				return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+			});
+			await p.mouse.move(b.x, b.y, { steps: 4 });
+			await sleep(300);
+			await p.mouse.down();
+			await p.mouse.up();
+			await restWait();
+			await p.mouse.move(4, 4, { steps: 4 });
+			await sleep(500);
+			const R2 = (await ringRounds(p)).filter((r) => r.n > n2);
+			pressHover.back = R2.filter((r) => r.kind === 'hover').length;
+			pressHover.R = R2.filter((r) => r.kind !== 'hover').pop() ?? null;
 		}
 		// A SHORT AUTOPLAY RUN (Regular): three rounds back to back judged; the run's ending Stop press brakes the fourth
 		await setTurboR(p, 0);
@@ -1080,6 +1130,27 @@ async function homePose(browser) {
 			homeLine(method, i + 1, o, 2);
 			return o;
 		});
+		// THE WAY BACK as drawn, each hover
+		const hback = hovers.map(([R, tag]) => {
+			const o = hoverBack(R, rows);
+			const f = (x, d = 1) => (x === null ? '?' : x.toFixed(d));
+			console.log(`  HOME ${method} ${tag} way back: left at ${f(o.from)} deg past home, back to home in ${o.ms === null ? '?' : Math.round(o.ms)} ms (settle ${f(R.over ?? null)} deg short), highest on the way ${f(o.top)} deg, travel ${f(o.travel)} deg (a turn on round would be ${o.from === null ? '?' : (360 - o.from).toFixed(0)}), then ${f(o.off, 2)} deg from home and moved ${f(o.moved, 3)} deg over 500 ms, ${R.kind}/${R.shape}`);
+			return [tag, o];
+		});
+		check(hback.length === 2 && hback.every(([, o]) => o.ok), `home ${method}: both hovers left with no press go BACK to home (never above where they left, travel about the hover's angle, not 360 less it) and are home and still after`, hback.map(([tag, o]) => `${tag} from ${o.from?.toFixed(1)} top ${o.top?.toFixed(1)} travel ${o.travel?.toFixed(1)} off ${o.off?.toFixed(2)} moved ${o.moved?.toFixed(3)}`));
+		// THE PRESS DURING A HOVER as drawn: from the press to the round's rest, the ring's net way forward
+		{
+			const R = pressHover.R;
+			let fwd = null;
+			if (R && R.restAt !== null) {
+				const a = rows.filter((r) => r.t >= R.startAt && r.u !== null)[0];
+				const z = rows.filter((r) => r.t >= R.restAt + 20 && r.u !== null)[0];
+				if (a && z) fwd = z.u - a.u;
+			}
+			const o = R ? homeJudge(R, rows, 'press during a hover') : null;
+			console.log(`  HOME ${method} press during a hover: ${R ? `${R.kind}/${R.shape}, forward ${fwd === null ? '?' : fwd.toFixed(1)} deg from the press to the rest, rest ${o.err === null ? '?' : o.err.toFixed(2)} deg from home (page ${o.page === null ? '?' : o.page.toFixed(2)}), ways back recorded ${pressHover.back}` : 'no round recorded'}`);
+			check(!!R && pressHover.back === 0 && fwd !== null && fwd >= 300 && o.err !== null && o.err <= HOME_TOL && (o.page === null || o.page <= HOME_TOL), `home ${method}: a press during a hover goes FORWARD into the spin (${fwd === null ? '?' : fwd.toFixed(0)} deg forward to its rest, ${pressHover.back} ways back) and rests home`);
+		}
 		if (A[3]) {
 			const o = homeJudge(A[3], rows, "autoplay's Stop press");
 			console.log(`  INFO home ${method}: the run's ending Stop press (not judged): rest ${o.err === null ? '?' : o.err.toFixed(2)} deg, page ${o.page === null ? '?' : o.page.toFixed(2)}, brake ${Math.round(o.brake ?? 0)} ms against today's ${Math.round(o.today ?? 0)}, ${o.kind}`);

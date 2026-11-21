@@ -12,8 +12,13 @@
 // frames come at one steady interval or a random one from 8 to 700 ms. Checked:
 //   - every planned rest is home within 0.5 degrees (the art has no rotational symmetry, so home only), hovers' too
 //   - ONE STANDING POSITION: on every frame where the ring is still and no hover is on, it is on home (0.5 degrees)
-//   - THE BOUNCE on every arrival: 6 to 10 degrees past home, back over 180 to 260 ms (a graze's spring back aside)
-//   - forward only on the way home (a stop press's rush, a hover's leave, every steered brake)
+//   - THE BOUNCE on every arrival: 6 to 10 degrees past home, back over 180 to 260 ms (a hover's way back aside)
+//   - forward only on the way home (a stop press's rush, every steered brake)
+//   - THE WAY BACK (2026-11-21, Corey: "I would prefer it goes backwards in that one scenario"): every hover left with
+//     no press turns back to home: its angle never above where it left, its travel the way back plus twice the settle
+//     (not a turn on round), the settle at most 3 degrees short of home, all within 75 + 2 ms a degree (255 at most) + 90 ms (a full
+//     quarter 345 ms); and the hover cases one by one (hoverCases below): a whole quarter, a leave mid turn, a hover
+//     again on the way back, a press on the way back and a press during the hover (both forward into the spin)
 //   - no brake longer than its bound: today's brake + 150 ms, a stop press today's stop + 250 ms, the bounce included
 //     (the cruise steer; long and fixed are reported)
 //   - BACK TO BACK SHORT ROUNDS (2026-11-21, the probe host: Super Turbo rounds of 417 ms left the ring still): runs of
@@ -25,7 +30,7 @@
 //     rest or a hover's start, as today, and where a forward-only brake starts from a ring winding back)
 //   - the page's keyframes (linear between samples) follow the path within 0.25 degrees and end on home
 //   - reduced motion: nothing is ever planned or drawn
-import { RingCore, RingPath, ringMotion, RING_HOME, HOME_EXTRA_MS, STOP_EXTRA_MS, STEER_CAP, REST_METHODS, wrap180 } from '../src/ui/hud/ringPlan.ts';
+import { RingCore, RingPath, ringMotion, RING_HOME, HOME_EXTRA_MS, STOP_EXTRA_MS, STEER_CAP, REST_METHODS, wrap180, HOVER_DEG, HOVER_MS, BACK_SETTLE_DEG, BACK_SETTLE_MS, backMs } from '../src/ui/hud/ringPlan.ts';
 
 const N = +(process.env.ROUNDS || 20000);
 let seed = +(process.env.SEED || 7);
@@ -61,6 +66,8 @@ function checkPath(core, tag) {
 		if (b.k === 'bez') continue;
 		const v0 = speedOf(a, b.t0);
 		const v1 = speedOf(b, b.t0);
+		// (THE WAY BACK starts from still wherever the quarter turn was: the turn back is the change of direction)
+		if (a.k === 'bez' && b.k === 'herm' && b.m0 === 0 && b.d <= 0 && Math.abs(v1) < 1e-4) continue;
 		// (a forward-only way home that starts while the ring winds back starts from still)
 		if (v0 < 0 && Math.abs(v1) < 1e-4) continue;
 		if (Math.abs(v1 - v0) > 1e-3 + 0.002 * Math.abs(core.v)) fail(`${tag}: a speed step of ${(v1 - v0).toFixed(5)} deg/ms into piece ${i} (${a.k} to ${b.k})`);
@@ -72,6 +79,44 @@ function speedOf(seg, t) {
 	tmp.segs = [{ ...seg, te: seg.te + 1e-9 }];
 	const e = 1e-4;
 	return t <= seg.t0 + e ? tmp.vel(seg.t0 + e) : tmp.vel(Math.min(t, seg.te) - e);
+}
+
+/** THE WAY BACK as planned, from the leave at t: never above where it left, its travel about the way back (the way
+ *  back plus twice the settle), ending home and still, within its time. Adds its numbers to W for the summary. */
+const WAYBACK_TOL = 1e-6;
+function checkWayBack(core, t, tag, W) {
+	const P = core.path;
+	const a0 = P.pos(t);
+	const from = wrap180(a0 - RING_HOME);
+	const end = P.end;
+	const ms = end - t;
+	let top = -Infinity;
+	let travel = 0;
+	let low = Infinity;
+	let prev = a0;
+	const n = 400;
+	for (let i = 1; i <= n; i++) {
+		const x = P.pos(t + (ms * i) / n);
+		top = Math.max(top, x);
+		low = Math.min(low, x - (a0 - from));
+		travel += Math.abs(x - prev);
+		prev = x;
+	}
+	const settle = Math.max(0, -low);
+	const rest = wrap180(P.pos(end) - RING_HOME);
+	const still = Math.abs(P.pos(end + 500) - P.pos(end));
+	W.n += 1;
+	W.msFull = Math.max(W.msFull, from > HOVER_DEG - 1 ? ms : 0);
+	W.msMax = Math.max(W.msMax, ms);
+	W.settleMax = Math.max(W.settleMax, settle);
+	W.travelOff = Math.max(W.travelOff, Math.abs(travel - Math.abs(from) - 2 * settle));
+	if (top > a0 + WAYBACK_TOL) fail(`${tag}: the way back rises ${(top - a0).toFixed(4)} degrees above where it left`);
+	if (Math.abs(travel - Math.abs(from) - 2 * settle) > 0.01) fail(`${tag}: the way back travels ${travel.toFixed(2)} degrees from ${from.toFixed(2)} past home (settle ${settle.toFixed(2)})`);
+	if (from > 0 && travel > 180) fail(`${tag}: the way back travels ${travel.toFixed(1)} degrees, a turn on round`);
+	if (settle > BACK_SETTLE_DEG + 1e-6) fail(`${tag}: the settle runs ${settle.toFixed(2)} degrees short of home`);
+	if (ms > backMs(from) + BACK_SETTLE_MS + 1e-6) fail(`${tag}: the way back takes ${ms.toFixed(0)} ms from ${from.toFixed(1)} degrees`);
+	if (from >= HOVER_DEG - 1 && ms > 350) fail(`${tag}: a whole quarter's way back takes ${ms.toFixed(0)} ms (350 at most)`);
+	if (Math.abs(rest) > 1e-6 || still > 1e-9) fail(`${tag}: the way back ends ${rest.toFixed(4)} degrees off home, moving ${still.toFixed(4)}`);
 }
 
 /** the page's keyframes against the path: the linear interpolation between samples within 0.25 degrees, the end home */
@@ -121,6 +166,7 @@ function run(method) {
 	let widened = 0;
 	const stopPeaks = [];
 	const arrivals = { n: 0, grazes: 0, overMin: Infinity, overMax: 0, msMin: Infinity, msMax: 0, backMin: Infinity, stopMax: -Infinity, stopPast150: 0, stops: 0, stopPeak: 0, hovers: 0 };
+	const wayBack = { n: 0, msFull: 0, msMax: 0, settleMax: 0, travelOff: 0 };
 	let lastVersion = core.version;
 	// THE PAGE: what the driver last drew (a copy of the path at each new version), kept through a face change that leaves
 	// the same elements showing, gone with one that builds new ones (they stand at home)
@@ -230,6 +276,7 @@ function run(method) {
 			}
 			ev.sort((x, y) => x.t - y.t);
 			const doEv = (e) => {
+				const leaving = e.k === 'out' && core.hovering && core.phase === 'rest';
 				if (e.k === 'press') {
 					core.start(e.t, turbo, aDom(e.t));
 					started = true;
@@ -239,6 +286,7 @@ function run(method) {
 					drawn();
 					checkPath(core, `${method} r${round} ${e.k}`);
 					checkKeyframes(core, e.t, `${method} r${round} ${e.k}`, worst);
+					if (leaving) checkWayBack(core, e.t, `${method} r${round} hover out`, wayBack);
 				}
 			};
 			while (nextF < until) {
@@ -280,10 +328,13 @@ function run(method) {
 		tally[key] = (tally[key] ?? 0) + 1;
 		if (r.err > worst.err) worst.err = r.err;
 		if (r.err > 0.5) fail(`${method} round ${r.n} (${r.kind}, t${r.turbo}): rests ${r.err.toFixed(3)} degrees off home`);
-		// THE BOUNCE on every arrival (a hover's graze springs straight back instead)
+		// THE BOUNCE on every arrival (a hover's way back has its own soft settle instead, checkWayBack)
 		const graze = r.kind === 'hover' && r.shape === 'snap';
 		if (graze) arrivals.grazes += 1;
-		else {
+		if (r.kind === 'hover' && r.shape !== 'back') fail(`${method} round ${r.n}: a hover's way home is ${r.shape}, not THE WAY BACK`);
+		if (r.kind === 'hover' && r.shape === 'back') {
+			if (!(r.over <= BACK_SETTLE_DEG + 1e-9 && r.bounceMs <= BACK_SETTLE_MS && r.low <= 1e-9 && typeof r.from === 'number')) fail(`${method} round ${r.n}: the way back's record (settle ${r.over} degrees over ${r.bounceMs} ms, from ${r.from}, low ${r.low})`);
+		} else if (!graze) {
 			arrivals.n += 1;
 			arrivals.overMin = Math.min(arrivals.overMin, r.over);
 			arrivals.overMax = Math.max(arrivals.overMax, r.over);
@@ -328,7 +379,7 @@ function run(method) {
 		worst.steer = Math.max(worst.steer, r.steer);
 	}
 	if (core.watchdogs) fail(`${method}: the backstop brought home ${core.watchdogs} loops left with no plan`);
-	return { method, checked, reducedRounds, unseen, worst, tally, byTurbo, byKind, stillChecks, arrivals, widened, stopPeaks, endChecks, watchdogs: core.watchdogs };
+	return { method, checked, reducedRounds, unseen, worst, tally, byTurbo, byKind, stillChecks, arrivals, widened, stopPeaks, endChecks, watchdogs: core.watchdogs, wayBack };
 }
 // (the core keeps its last 60 rounds; the test keeps every one)
 const ALL = new WeakMap();
@@ -412,6 +463,89 @@ function backToBack(method) {
 	return out;
 }
 
+/** THE HOVER CASES one by one (THE WAY BACK, 2026-11-21): each from a ring at rest on home after a round */
+function hoverCases() {
+	const out = [];
+	const W = { n: 0, msFull: 0, msMax: 0, settleMax: 0, travelOff: 0 };
+	const fresh = () => {
+		const core = new RingCore();
+		core.record = true;
+		// (a round's rest, a few turns on: the unwrapped angle a multiple of 360)
+		core.path.reset(RING_HOME + 720, 0);
+		return core;
+	};
+	const line = (name, ok, msg) => {
+		out.push(`   ${ok ? 'ok  ' : 'FAIL'} ${name}: ${msg}`);
+		if (!ok) fail(`hover case ${name}: ${msg}`);
+	};
+	// a whole quarter: over the key past its turn, then off
+	{
+		const c = fresh();
+		c.hover(1000, true, 0);
+		const top = c.path.pos(1000 + HOVER_MS + 50) - 720;
+		c.hover(1000 + HOVER_MS + 200, false, 0);
+		checkWayBack(c, 1000 + HOVER_MS + 200, 'hover case whole quarter', W);
+		const r = c.rounds[c.rounds.length - 1];
+		line('whole quarter', Math.abs(top - HOVER_DEG) < 1e-6 && r.shape === 'back' && Math.abs(r.from - HOVER_DEG) < 1e-6 && r.brakeMs <= 350, `the turn to ${top.toFixed(2)} degrees, back from ${r.from.toFixed(2)} in ${r.brakeMs.toFixed(0)} ms (settle ${r.over.toFixed(2)} degrees short, forward to home over ${r.bounceMs} ms), rest ${r.err.toFixed(4)} off home`);
+	}
+	// a leave mid turn: back from wherever it is, sooner
+	for (const at of [60, 150, 300]) {
+		const c = fresh();
+		c.hover(1000, true, 0);
+		const p = c.path.pos(1000 + at) - 720;
+		c.hover(1000 + at, false, 0);
+		checkWayBack(c, 1000 + at, `hover case leave ${at} ms in`, W);
+		const r = c.rounds[c.rounds.length - 1];
+		line(`leave ${at} ms in`, Math.abs(r.from - p) < 1e-6 && r.brakeMs <= backMs(p) + BACK_SETTLE_MS + 1e-6, `back from ${r.from.toFixed(2)} degrees in ${r.brakeMs.toFixed(0)} ms (settle ${r.over.toFixed(2)}), rest ${r.err.toFixed(4)} off home`);
+	}
+	// a hover again on the way back: forward again from where it is to the same quarter, then off: back again
+	{
+		const c = fresh();
+		c.hover(1000, true, 0);
+		c.hover(1000 + HOVER_MS + 100, false, 0);
+		const t2 = 1000 + HOVER_MS + 100 + 120;
+		const p2 = c.path.pos(t2) - 720;
+		c.hover(t2, true, 0);
+		const first = c.rounds[c.rounds.length - 1];
+		const v2 = c.path.vel(t2 + 5);
+		const top = c.path.pos(t2 + HOVER_MS + 50) - 720;
+		c.hover(t2 + HOVER_MS + 100, false, 0);
+		checkWayBack(c, t2 + HOVER_MS + 100, 'hover case again on the way back', W);
+		const r = c.rounds[c.rounds.length - 1];
+		line('hover again on the way back', first.ended === 'next' && v2 > 0 && Math.abs(top - HOVER_DEG) < 1e-6 && r !== first && Math.abs(r.from - HOVER_DEG) < 1e-6, `the way back cut at ${p2.toFixed(2)} degrees (${first.ended}), forward again (${v2.toFixed(3)} deg/ms) to ${top.toFixed(2)}, back again from ${r.from.toFixed(2)}`);
+	}
+	// a press on the way back and a press during the hover: forward into the spin, home after it
+	for (const [name, leaveAt, pressAt] of [
+		['press on the way back', 1000 + HOVER_MS + 50, 1000 + HOVER_MS + 150],
+		['press during the hover', null, 1000 + 300],
+	]) {
+		for (const turbo of [0, 1, 2]) {
+			const c = fresh();
+			c.hover(1000, true, 0);
+			if (leaveAt !== null) c.hover(leaveAt, false, 0);
+			const a0 = c.path.pos(pressAt);
+			let serial = 0;
+			c.lastSerial = 0;
+			c.start(pressAt, turbo, 0);
+			const restAt = pressAt + 1600;
+			let f = pressAt;
+			let lo = Infinity;
+			while (f < restAt + 1500) {
+				f += 16.7;
+				if (f >= pressAt + 20) serial = 1;
+				const live = f < restAt;
+				c.frame(f, { live, restIn: f >= pressAt + 300 && f < restAt ? restAt - f : null, serial, halted: false, reduced: false, turbo, resting: !live }, () => c.start(f, turbo, 0));
+				lo = Math.min(lo, c.path.pos(f) - a0);
+			}
+			const a1 = c.path.pos(f);
+			const err = Math.abs(wrap180(a1 - RING_HOME));
+			const R = c.rounds[c.rounds.length - 1];
+			line(`${name} t${turbo}`, R.kind !== 'hover' && a1 - a0 >= 300 && err < 0.5 && c.phase === 'rest' && lo >= -20, `forward ${(a1 - a0).toFixed(1)} degrees from the press to the rest (wind back ${Math.max(0, -lo).toFixed(1)}), rest ${err.toFixed(3)} off home, ${R.kind}/${R.shape}`);
+		}
+	}
+	return { out, W };
+}
+
 const pct = (xs, q) => {
 	const s = [...xs].sort((a, b) => a - b);
 	return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : 0;
@@ -436,10 +570,19 @@ for (const m of methods) {
 	const BB = backToBack(m);
 	if (m === 'steer') steerOk = steerOk && BB.miss === 0 && BB.still === 0 && BB.finalOff === 0;
 	console.log(`   ends of things (autoplay runs ending on their last round or by a press, free spins rounds ending, Skip, resumed rounds, every round after its arrival): ${R.endChecks} checks, the ring home and still; backstop used ${R.watchdogs} times`);
+	const WB = R.wayBack;
+	console.log(`   THE WAY BACK on ${WB.n} hovers left with no press: never above where it left; travel within ${WB.travelOff.toFixed(4)} degrees of the way back plus twice the settle; settle at most ${WB.settleMax.toFixed(2)} degrees; longest ${Math.round(WB.msMax)} ms (a whole quarter ${Math.round(WB.msFull)} ms)`);
 	console.log(`   back to back short rounds: ${BB.runs} runs, ${BB.starts} starts: ${BB.miss} under 10 degrees in 400 ms (least ${BB.minAdvance.toFixed(1)}), ${BB.still} rounds still, ${BB.finalOff} runs ending off home`);
 	console.log(`   ends (kind/shape): ${Object.entries(R.tally).sort().map(([k, v]) => `${k} ${v}`).join(', ')}`);
 	if (process.env.DETAIL !== '0')
 		for (const [k, B] of Object.entries(R.byKind).sort()) console.log(`     ${k.padEnd(10)} ${String(B.n).padStart(5)} rounds, snap ${String(Math.round((100 * B.snap) / B.n)).padStart(3)} %, brake over today's median ${Math.round(pct(B.over, 0.5))} / max ${Math.round(pct(B.over, 1))} ms, cruise change median ${Math.round(100 * pct(B.steer, 0.5))} % / max ${Math.round(100 * pct(B.steer, 1))} %, brake speed ${B.low.toFixed(2)} to ${B.peak.toFixed(2)} x the loop's`);
+}
+{
+	const before = failCount;
+	const H = hoverCases();
+	console.log(`\n== the hover cases (THE WAY BACK): ${failCount === before ? 'no failures' : `${failCount - before} failures`}`);
+	console.log(H.out.join('\n'));
+	steerOk = steerOk && failCount === before;
 }
 if (fails.length) console.log('\nFAILURES (first 25):\n  ' + fails.join('\n  '));
 console.log(`\nring_home_test: ${steerOk ? 'PASS' : 'FAIL'} (the cruise steer, the default)${failCount ? `; ${failCount} failures in all` : ''}`);
