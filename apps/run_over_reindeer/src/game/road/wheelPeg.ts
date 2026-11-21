@@ -18,8 +18,13 @@
 //   - THE REST (2026-11-20, Corey: "Go deeper"): a stop can leave the flapper leaning on a stud's side, in contact, as a
 //     real clicker does; one balanced on the stud's very top (the stud blocking less than edgeDeg of its swing) slips off
 //     and comes back straight.
+//   - THE STOP'S RELEASE (2026-11-21, Corey: "Give the pin spring in those cases, so it rolls back inward towards the
+//     wedge"): a stop that would leave the flapper held on the stud that just passed the top is followed by a short roll
+//     of the disc (pegReleaseDeg, pegReleaseTurn), so the stud slips out from under the tip and the spring swings the
+//     flapper back inward, into the winning wedge, to hang straight.
 // Everything is time based: the same turn of the disc over the same time gives the same swing whatever the frame rate.
-// It never pushes the wheel.
+// It never pushes the wheel while it spins (stepPeg only reads the disc's turn); the release is the one roll the pin
+// causes, planned from geometry alone, after the spin's own stop.
 
 const DEG = Math.PI / 180;
 
@@ -187,3 +192,126 @@ export const stepPeg = (F: PegState, path: PegPath, dt: number, G: PegGeom, P: P
 	out.on = F.onStud;
 	return out;
 };
+
+// ---- THE STOP'S RELEASE (2026-11-21, Corey: "Give the pin spring in those cases, so it rolls back inward towards the
+// wedge") -------------------------------------------------------------------------------------------------------------------
+// WHY THE DISC ROLLS ON, NOT BACK: the studs stand on the dividers and the wheel turns its studs from right to left over
+// the top (theta falling). A lean is always the stud that has JUST PASSED the top (the winning wedge's first divider,
+// 9 to 11.5 degrees left of the top at the layouts' pegs) still holding the flapper's tip out to the left, about 28
+// degrees. The flapper reaches the stud's circle for every turn of the stud closer to the top than pegReleaseAngle, so
+// turning the disc back would only carry the stud up under the tip, and the flapper could come free only once the stud
+// had crossed back past the top: the previous wedge under the peg, another result. The one way to free it inside the
+// winning wedge is the stud moving on out of the flapper's reach: the disc rolls on a little (1 to 3.5 degrees), the
+// stud slips out from under the tip, and the spring swings the flapper back inward into the wedge, straight. The pointer
+// moves that much deeper inside the winning wedge, away from the divider it was resting by; it never nears the other
+// one (the stop is at most 30% of a wedge off the middle). A stop that ends free has no release and is exactly as before.
+
+/** the release's pace: held still for holdMs (the lean is seen), then the roll over rollMs (eased in from rest and out
+ *  to rest), to marginDeg past the turn where the stud can no longer reach the flapper */
+export type PegRelease = { holdMs: number; rollMs: number; marginDeg: number };
+
+/** the least gap (wheel units) between the stud at (sx, sy) and the flapper over every turn it can take on the side the
+ *  studs push it (0 to maxSwing degrees): negative, the stud can hold it there. Sampled each half degree, then the best
+ *  sample refined (golden section) to a thousandth of a degree. */
+const reachGap = (sx: number, sy: number, G: PegGeom, maxSwing: number): number => {
+	let best = Infinity;
+	let at = 0;
+	for (let phi = 0; phi <= maxSwing + 1e-9; phi += 0.5) {
+		const g = flapGap(phi, sx, sy, G);
+		if (g < best) {
+			best = g;
+			at = phi;
+		}
+	}
+	let lo = Math.max(0, at - 0.5);
+	let hi = Math.min(maxSwing, at + 0.5);
+	const r = (Math.sqrt(5) - 1) / 2;
+	for (let i = 0; i < 40 && hi - lo > 1e-3; i++) {
+		const a = hi - r * (hi - lo);
+		const b = lo + r * (hi - lo);
+		if (flapGap(a, sx, sy, G) < flapGap(b, sx, sy, G)) hi = b;
+		else lo = a;
+	}
+	return Math.min(best, flapGap((lo + hi) / 2, sx, sy, G));
+};
+
+const releaseMemo = new Map<string, number>();
+/** THE RELEASE ANGLE of a flapper (degrees, negative: left of the top): a stud that has passed the top further than this
+ *  can no longer touch the flapper at any of its turns, so it holds nothing. Pure geometry (the flapper's outline and
+ *  the studs'), the same for every round on one peg size; worked out once per geometry. */
+export const pegReleaseAngle = (G: PegGeom, maxSwing: number): number => {
+	const key = `${G.L}|${G.by}|${G.rc}|${G.studR}|${G.step}|${G.studOut}|${G.hw?.join(',')}|${maxSwing}`;
+	const hit = releaseMemo.get(key);
+	if (hit !== undefined) return hit;
+	const reach = (a: number) => {
+		const [sx, sy] = studAt(0, a, G);
+		return reachGap(sx, sy, G, maxSwing) < 0;
+	};
+	// (in reach at the top; out of reach half a stud's step away, or the flapper reaches every stud: never in this wheel)
+	let lo = -G.step / 2;
+	let hi = 0;
+	if (reach(lo)) {
+		releaseMemo.set(key, lo);
+		return lo;
+	}
+	for (let i = 0; i < 50; i++) {
+		const mid = (lo + hi) / 2;
+		if (reach(mid)) hi = mid;
+		else lo = mid;
+	}
+	if (releaseMemo.size > 32) releaseMemo.clear();
+	releaseMemo.set(key, lo);
+	return lo;
+};
+
+/** WHETHER A STUD HOLDS THE FLAPPER AT REST, the stud at turn `a` (degrees from the top): the flapper pressed against
+ *  it at the largest turn the stud blocks (where stepPeg leaves it), and stepPeg's own rest rule (edgeDeg) applied to
+ *  it, step for step: a stud that blocks less than edgeDeg of the swing from there back toward straight lets it slip off
+ *  (the stop already ended straight before the release existed, and is left alone). Without edgeDeg, any reach holds. */
+export const pegHolds = (a: number, G: PegGeom, maxSwing: number, edgeDeg?: number): boolean => {
+	const [sx, sy] = studAt(0, a, G);
+	if (reachGap(sx, sy, G, maxSwing) >= 0) return false;
+	if (!edgeDeg) return true;
+	// the largest blocked turn: from the deepest overlap out to the free side (blocked up to maxSwing: it is held there)
+	let lo = -1;
+	for (let phi = 0; phi <= maxSwing + 1e-9; phi += 0.5) if (flapGap(phi, sx, sy, G) < 0) lo = phi;
+	// (no half degree step blocked: it blocks less than half a degree, under any edgeDeg this wheel uses)
+	if (lo < 0) return edgeDeg < 0.5;
+	let hi = maxSwing;
+	if (flapGap(hi, sx, sy, G) < 0) return true;
+	for (let i = 0; i < 60; i++) {
+		const mid = (lo + hi) / 2;
+		if (flapGap(mid, sx, sy, G) >= 0) hi = mid;
+		else lo = mid;
+	}
+	// (stepPeg's edge rule, as it walks it)
+	let b = hi - 0.05;
+	let span = 0;
+	while (span < edgeDeg && flapGap(b, sx, sy, G) < 0) {
+		b -= 0.05;
+		span += 0.05;
+	}
+	return span >= edgeDeg;
+};
+
+/** THE RELEASE OF A STOP at disc turn `stop` (degrees): how far the disc rolls on past it (theta falling, the way it
+ *  was turning) so the stud that last passed the top lets the flapper go, marginDeg past the release angle (the stud
+ *  then cannot touch it at any turn: it slides off the stud's side, never snaps); 0 when that stud does not hold the
+ *  flapper at rest (pegHolds: the stop ends free and is left exactly as it was) */
+export const pegReleaseDeg = (stop: number, G: PegGeom, P: Pick<PegParams, 'maxSwing' | 'edgeDeg'>, R: PegRelease): number => {
+	const k = Math.floor(-stop / G.step);
+	const a = k * G.step + stop; // the stud just past the top: -step < a <= 0
+	if (!pegHolds(a, G, P.maxSwing, P.edgeDeg)) return 0;
+	return Math.max(0, a - pegReleaseAngle(G, P.maxSwing)) + R.marginDeg;
+};
+
+/** the release's turn `ms` after the stop (degrees, 0 up to deg): still through holdMs, then eased in and out over rollMs
+ *  (a cubic: it leaves rest gently as the spring's push takes the disc, and comes to rest softly) */
+export const pegReleaseTurn = (deg: number, ms: number, R: PegRelease): number => {
+	if (deg <= 0 || ms <= R.holdMs) return 0;
+	const u = Math.min(1, (ms - R.holdMs) / R.rollMs);
+	return deg * (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+};
+
+/** the release's whole length (ms): 0 for a stop that ends free */
+export const pegReleaseMs = (deg: number, R: PegRelease): number => (deg > 0 ? R.holdMs + R.rollMs : 0);

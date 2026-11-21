@@ -1163,6 +1163,11 @@
 			 *  middle (-0.3 to 0.3 of a wedge) */
 			wheelDevSpin: (off?: number) => wheel.devSpin(off),
 			wheelDevSpinStep: (ms: number) => wheel.devSpinStep(ms),
+			/** the NEXT real wheel (a played Super round) stops `off` of a wedge off its wedge's middle, once (-0.3 to 0.3, the
+			 *  plan's own range: the book's wedge, the same result); null clears it. wheelOffNext(-0.27) gives a leaning
+			 *  stop, the stud just past the top holding the flapper until the stop's release frees it (real rounds lean
+			 *  about one stop in ten); wheel().release says how far it rolled on */
+			wheelOffNext: (off: number | null) => wheel.devOffNext(off),
 			/** the LED scoreboard (drawn over the wheel's foot) not drawn, for the probe's measurements of the whole wheel */
 			wheelAlone: (on: boolean) => {
 				if (scoreboard) scoreboard.root.renderable = !on;
