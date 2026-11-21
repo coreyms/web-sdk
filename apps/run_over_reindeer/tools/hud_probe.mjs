@@ -4,6 +4,8 @@
 // WATCHES: ; __reindeer.skipHud, data-skip, __reindeer.atRest, __reindeer.boardLayout, __reindeer.fixtures, __reindeer.gameType, __reindeer.hud, __reindeer.scene
 // WATCHES: ; data-title-sign, data-hud, data-hud-step, data-st, .hudp, .landing, .fb, .lb, .am-ui, .lbw, .value, .mp, .is-open, .mpsh, .layer
 // WATCHES: ; .modals, .panel, .sweep, .go, .spin, .cg, .rr, .rw, .rs, .fx, .halo, data-face, data-run
+// WATCHES: apps/run_over_reindeer/src/{ui/hud/HudSpin.svelte,ui/hud/spinRing.ts,ui/hud/ringPlan.ts};
+// WATCHES: ; __reindeer.ringMethod, __reindeer.ringRounds, __reindeer.ringNow, __reindeer.spinSerial
 // THE HUD PROBE (the house glass HUD from Manticore, "Win over Balance, Drop 6" plus round 6, in this game's "Frost"
 // theme; ported from tools/manticore/hud_probe.js in the main repo). The HUD is HTML over the canvas (ui/Chrome*.svelte,
 // ui/hud/*: ui/hud/hudLayout.ts places it in the mockup's own px, scaled by the chrome's fit). At each size:
@@ -40,6 +42,13 @@
 //   · EVERY ROUND TURNS THE RING (section `rounds`, 2026-11-20): an autoplay run of at least 6 rounds back to back (Super
 //     Turbo, the no-win fixture on every round) and a free spins round: at each spin's start (the board's own count,
 //     game/boardPace.ts serial) data-run 1 within 100 ms and the ring 10 degrees on within 400 ms
+//   - THE HOME POSE (section `home`, 2026-11-20, Corey "Fix it": the ring came to rest at a random angle;
+//     ui/hud/ringPlan.ts): 10 rounds at 1440 x 900 (three at Regular, two at Super Turbo, two stop presses at Regular
+//     300 and 900 ms in, a run of three autoplay rounds; the run's ending Stop press brakes a fourth, reported, not
+//     judged), each a line with its rest's distance from home (as planned and as drawn on the page), its brake against
+//     today's and the cruise's largest speed change (as planned and as drawn). Pass: 9 of 10 or better within 2 degrees
+//     of home, no brake over today's + 150 ms. HOME_METHODS=steer,long,fixed records each rest method in turn (the dev
+//     hook's ringMethod; steer, the game's, by default)
 //   · THE HUD UNDER THE BONUS ROUND'S CARDS (section `cards`, 2026-11-20): on the entry and the wrap-up, at 390 x 844,
 //     844 x 390 and 1440 x 900, the HUD is held on screen (hud-held, inert, not hud-off), BALANCE and WIN readable, every
 //     key on screen, nothing focusable, the Spin's spot takes the card's press; on the wrap-up WIN holds the round's total
@@ -50,7 +59,7 @@
 // With FLIP=<file.json> it also records the Spin's stop square popping in and out frame by frame at 1440 x 900 (both
 // directions).
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=a,b] [SKIPFS=1] [SHOTS=dir] \
-//     [FLIP=file] node tools/hud_probe.mjs
+//     [FLIP=file] [HOME_METHODS=steer,long,fixed] node tools/hud_probe.mjs
 // Uses the dev server that is already running (it never starts one). One headless browser, closed at the end. Take the
 // shared browser lock around it (mkdir /tmp/hud_mock_shot.lock ... rmdir).
 import { createRequire } from 'node:module';
@@ -804,6 +813,175 @@ async function everyRoundTurns(browser) {
 	await ctx.close();
 }
 
+/** THE HOME POSE (section `home`, 2026-11-20, Corey on the ring coming to rest at a random angle: "Fix it";
+ *  ui/hud/ringPlan.ts). The page records the ring every frame (its phase and its angle on the page, the two driven
+ *  wrappers) while 10 rounds play; the dev hook's ringRounds says what each round planned (its kind, its brake and
+ *  today's for the same end, its cruise speed change, its planned rest). Each round prints one line; the rule: 9 of 10 or
+ *  better within 2 degrees of home (the angle drawn on the page just after the planned rest; a round the next spin
+ *  began before its rest is judged by its plan), and no brake over today's + 150 ms (as planned, and as drawn: the last
+ *  frame the angle moved, one frame of slack). */
+const HOME_TOL = 2;
+const HOME_EXTRA = 150;
+const homeRecStart = (p) =>
+	p.evaluate(() => {
+		const rec = (window.__homeRec = { on: true, rows: [] });
+		let un = null;
+		let last = null;
+		const f = (t) => {
+			if (!rec.on) return;
+			const n = window.__reindeer.ringNow?.();
+			const a = n && n.angle !== null ? n.angle : null;
+			if (a !== null) {
+				if (un === null) un = a;
+				else {
+					let d = a - last;
+					if (d > 180) d -= 360;
+					if (d < -180) d += 360;
+					un += d;
+				}
+				last = a;
+			}
+			rec.rows.push({ t, ph: n?.phase, a, u: un });
+			requestAnimationFrame(f);
+		};
+		requestAnimationFrame(f);
+	});
+const homeRows = (p) => p.evaluate(() => window.__homeRec.rows.slice());
+const homeRecStop = (p) => p.evaluate(() => (window.__homeRec.on = false));
+const ringRounds = (p) => p.evaluate(() => window.__reindeer.ringRounds?.() ?? []);
+const lastRingN = async (p) => {
+	const r = await ringRounds(p);
+	return r.length ? r[r.length - 1].n : 0;
+};
+const fold = (a) => ((((a + 180) % 360) + 360) % 360) - 180;
+/** one round's line: the plan (ringRounds) against the page's frames */
+function homeJudge(R, rows, tag) {
+	const out = { tag, err: R.err, page: null, brake: R.brakeMs, today: R.todayMs, seen: null, steer: R.steer, pageSteer: null, ended: R.ended, kind: `${R.kind}/${R.shape}` };
+	if (R.restAt !== null) {
+		// the angle drawn just after the planned rest
+		const at = rows.find((r) => r.t >= R.restAt + 5 && r.a !== null);
+		if (at && R.ended === 'rest') out.page = Math.abs(fold(at.a));
+		// the brake as drawn: from the planned brake start to the last frame the angle moved (more than 0.02 degrees)
+		const span = rows.filter((r) => r.t >= R.brakeAt - 1 && r.t <= R.restAt + 400 && r.u !== null);
+		let lastMove = null;
+		for (let i = 1; i < span.length; i++) if (Math.abs(span[i].u - span[i - 1].u) > 0.02) lastMove = span[i].t;
+		if (lastMove !== null && R.ended === 'rest') out.seen = lastMove - R.brakeAt;
+	}
+	// the cruise as drawn: frame to frame speed against the loop's, from the wind-up's end to the brake
+	if (R.brakeAt !== null) {
+		// (only where a frame cannot carry the ring past 150 degrees: further apart, the turn between two frames is
+		// ambiguous and the speed read from it means nothing)
+		const cr = rows.filter((r) => r.t > R.upEnd + 20 && r.t < R.brakeAt - 5 && r.u !== null);
+		let m = 0;
+		let far = false;
+		for (let i = 1; i < cr.length; i++) {
+			const dt = cr[i].t - cr[i - 1].t;
+			if (dt * R.v * 1.4 > 150) far = true;
+			if (dt > 0) m = Math.max(m, Math.abs((cr[i].u - cr[i - 1].u) / dt / R.v - 1));
+		}
+		if (cr.length > 2) out.pageSteer = far ? 'far' : m;
+	}
+	return out;
+}
+const homeLine = (method, i, o) =>
+	console.log(
+		`  HOME ${method} ${String(i).padStart(2)}/10 ${o.tag.padEnd(22)} rest ${o.err === null ? '?' : o.err.toFixed(2)} deg from home (page ${o.page === null ? (o.ended === 'next' ? 'none: the next spin began first' : '?') : o.page.toFixed(2)}), brake ${o.brake === null ? '?' : Math.round(o.brake)} ms against today's ${o.today === null ? '?' : Math.round(o.today)} (${o.brake === null ? '?' : `${o.brake - o.today >= 0 ? '+' : ''}${Math.round(o.brake - o.today)}`}; page ${o.seen === null ? '?' : Math.round(o.seen)} ms), cruise speed change ${Math.round(100 * (o.steer ?? 0))} % (page ${o.pageSteer === null ? '?' : o.pageSteer === 'far' ? '? frames too far apart' : Math.round(100 * o.pageSteer) + ' %'}), ${o.kind}`,
+	);
+
+async function setTurboR(p, want) {
+	for (let k = 0; k < 3; k++) {
+		if ((await p.evaluate(() => +document.querySelector('.hudp button.spin').dataset.tb)) === want) return;
+		await p.click(CONTROLS.turbo);
+		await sleep(300);
+	}
+}
+
+async function homePose(browser) {
+	const methods = (process.env.HOME_METHODS || 'steer').split(',').filter(Boolean);
+	for (const method of methods) {
+		const S = { name: 'home', vp: { width: 1440, height: 900 }, phone: false, touch: false, family: 'desktop' };
+		const { ctx, p, errs } = await boot(browser, S);
+		await settle(p, S);
+		await sleep(500);
+		// (the pointer off the Spin: its hover quarter turn is a wrapper of its own, never measured, but kept out)
+		await p.mouse.move(4, 4);
+		const got = await p.evaluate((m) => window.__reindeer.ringMethod?.(m) ?? null, method);
+		if (got !== method) {
+			check(false, `home ${method}: the dev hook's ringMethod took the method`, got);
+			await ctx.close();
+			continue;
+		}
+		await p.evaluate(() => window.__reindeer.fixtures.next('no_win_1', true));
+		await homeRecStart(p);
+		const judged = [];
+		const restWait = async () => {
+			await settle(p, S, 120000);
+			for (let i = 0; i < 40 && (await p.evaluate(() => window.__reindeer.ringNow?.().phase)) !== 'rest'; i++) await sleep(100);
+			await sleep(300);
+		};
+		const one = async (tag, turbo, haltMs = null) => {
+			await setTurboR(p, turbo);
+			const n0 = await lastRingN(p);
+			await p.click(CONTROLS.spin);
+			if (haltMs !== null) {
+				await sleep(haltMs);
+				await p.click(CONTROLS.spin).catch(() => {});
+			}
+			await restWait();
+			const R = (await ringRounds(p)).filter((r) => r.n > n0);
+			if (!R.length) check(false, `home ${method} ${tag}: the ring recorded the round`);
+			else judged.push([R[R.length - 1], tag]);
+		};
+		await one('regular', 0);
+		await one('regular', 0);
+		await one('regular', 0);
+		await one('super turbo', 2);
+		await one('super turbo', 2);
+		await one('stop at 300 ms', 0, 300);
+		await one('stop at 900 ms', 0, 900);
+		// A SHORT AUTOPLAY RUN (Regular): three rounds back to back judged; the run's ending Stop press brakes the fourth
+		await setTurboR(p, 0);
+		const n0 = await lastRingN(p);
+		await p.click(CONTROLS.auto);
+		await sleep(700);
+		await p.click('.am-ui.layer.modals .go');
+		await sleep(700);
+		await p.click(CONTROLS.spin);
+		for (let i = 0; i < 600; i++) {
+			const R = (await ringRounds(p)).filter((r) => r.n > n0);
+			if (R.length >= 4) break;
+			await sleep(100);
+		}
+		await p.click(CONTROLS.spin).catch(() => {});
+		await restWait();
+		const A = (await ringRounds(p)).filter((r) => r.n > n0);
+		A.slice(0, 3).forEach((r, k) => judged.push([r, `autoplay ${k + 1} of 3`]));
+		await homeRecStop(p);
+		const rows = await homeRows(p);
+		const res = judged.map(([R, tag], i) => {
+			const o = homeJudge(R, rows, tag);
+			homeLine(method, i + 1, o);
+			return o;
+		});
+		if (A[3]) {
+			const o = homeJudge(A[3], rows, "autoplay's Stop press");
+			console.log(`  INFO home ${method}: the run's ending Stop press (not judged): rest ${o.err === null ? '?' : o.err.toFixed(2)} deg, page ${o.page === null ? '?' : o.page.toFixed(2)}, brake ${Math.round(o.brake ?? 0)} ms against today's ${Math.round(o.today ?? 0)}, ${o.kind}`);
+		}
+		const within = res.filter((o) => (o.page ?? o.err) !== null && (o.page ?? o.err) <= HOME_TOL && (o.err ?? 99) <= HOME_TOL).length;
+		const gaps = rows.slice(1).map((r, k) => r.t - rows[k].t).sort((x, y) => x - y);
+		const med = gaps[Math.floor(gaps.length / 2)] ?? 0;
+		// (half a ms for the sums' rounding; the brake as drawn ends on the first frame after its rest, so one frame of slack)
+		const over = res.filter((o) => o.brake !== null && (o.brake > o.today + HOME_EXTRA + 0.5 || (o.seen !== null && o.seen > o.today + HOME_EXTRA + med + 1)));
+		const worst = Math.max(...res.filter((o) => o.brake !== null).map((o) => o.brake - o.today));
+		const worstSeen = Math.max(...res.filter((o) => o.seen !== null).map((o) => o.seen - o.today));
+		check(res.length === 10 && within >= 9, `home ${method}: ${within} of ${res.length} rounds rest within ${HOME_TOL} degrees of home (9 of 10 needed; frames every ${Math.round(med)} ms median)`, res.map((o) => `${o.tag} ${o.err?.toFixed(2)} / ${o.page?.toFixed(2)}`));
+		check(res.length === 10 && over.length === 0, `home ${method}: no brake over today's + ${HOME_EXTRA} ms (worst ${worst >= 0 ? '+' : ''}${Math.round(worst)} ms as planned, ${Number.isFinite(worstSeen) ? `${worstSeen >= 0 ? '+' : ''}${Math.round(worstSeen)}` : '?'} ms as drawn with frames every ${Math.round(med)} ms)`, over.map((o) => `${o.tag} ${Math.round(o.brake)} / page ${Math.round(o.seen ?? 0)} against ${Math.round(o.today)}`));
+		await p.evaluate(() => window.__reindeer.fixtures.clear?.());
+		check(errs.filter((x) => !/favicon/.test(x)).length === 0, `home ${method}: no console errors`, errs.slice(0, 5));
+		await ctx.close();
+	}
+}
+
 /** THE HUD UNDER THE BONUS ROUND'S CARDS (section `cards`, 2026-11-20, Manticore Unleashed's rule from its harsh review
  *  2026-11-17 m8): the entry and the wrap-up (the LED back board's scenes, ui/RoundCard.svelte's catch) keep the HUD on
  *  screen, disabled: the layer hud-held and inert (not hud-off), BALANCE and WIN readable (text, opacity 1), every key on
@@ -1076,6 +1254,13 @@ async function flip(browser) {
 				await everyRoundTurns(browser);
 			} catch (e) {
 				check(false, 'rounds: ran to the end', String(e).slice(0, 300));
+			}
+		}
+		if (!ONLY.length || ONLY.includes('home')) {
+			try {
+				await homePose(browser);
+			} catch (e) {
+				check(false, 'home: ran to the end', String(e).slice(0, 300));
 			}
 		}
 		if (!ONLY.length || ONLY.includes('cards')) {
