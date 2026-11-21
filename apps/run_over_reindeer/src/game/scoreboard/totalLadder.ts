@@ -11,6 +11,7 @@
 //   the fuse; a Max win lights every rung, the top rung blinks and the taillights flash red as it lands.
 import { drawText, textW } from '../landing/ledScreens';
 import { LED_BOARD } from '../constants';
+import { PHONE_TIER } from '../deviceTier';
 import { amountAtCount, ladderBars, winSizeOf, type Show } from './show';
 import { boardClassNow, boardPitchNow, boardTitle, burst, rowInkV, centeredRow, cornerFireworks, drawRow, fitCap, fitScale, gallop, noteFlash, oneShot, perimeter, perimeterDots, rowInfo, sceneT, showTotalScene, titleGapKnob, titleScale, TOTAL_BLINK_DIM, type Face } from './scoreboardDraw';
 import { dotAt, ledN } from './ledGrid';
@@ -83,6 +84,8 @@ function ladderMarks(H: number, s: Show, L: Lay, fy: number, n: number, span: nu
 	if (LED_BOARD.size !== 'd') return base;
 	// ('desktop', f3e9bab's rule, to compare: the desktop and tablet class only, no floor, the face's own band)
 	if (rule === 'desktop' && boardClassNow() !== 'desktop') return base;
+	// (the phone tier keeps today's marks, every phone upright or sideways: Corey's "phones unchanged"; ladderPhones opens it)
+	if (rule === 'amount' && PHONE_TIER && !K.ladderPhones) return base;
 	const gap = span / (n + 0.15);
 	const labels = ladderBars().map(rungLabel);
 	// THE FACTOR: today's upright phone board's proportion for the same amount (its face, sizeD.ladderPhoneFace, lays out the
@@ -206,5 +209,5 @@ export function ladderTotal(F: Face, s: Show) {
 	// the spark at the fuse's tip
 	if (!landed) dot(g, fx + 1, fy - (Math.floor(s.t / 60) % 2), '#ffffff');
 	if (landed && size !== 'small') cornerFireworks(g, W, H, since, size === 'max' ? ['#ffd23a', '#ff3a2e', '#ffffff'] : ['#ffd23a', '#ffffff'], L.Hm);
-	noteIdea(g.canvas, 'ladder', { size, x: Math.round(X * 100) / 100, rungs: rec, fuse: Math.round(fx), multiple: Math.round(mNow * 100) / 100, marks: { f: Math.round(M.f * 100) / 100, z: M.z, lampW, lampH, lampY: ly, runner: { h: rh, y0: fy - 1 - rh - 2, y1: fy - 1 }, amount: M.amount, cap: L.cap, band: L.band, W, H, border: M.border, ratio: M.ratio, limited: M.limited, want: M.want, byAmount: M.byAmount, byFloor: M.byFloor, rule: M.rule, pitch: M.pitch, labelCss: M.labelCss, bandK: M.bandK, fine: F.k > 1, phoneBand: Math.round(LED_BOARD.sizeD.ladderPhoneFace[1] * LED_BOARD.scenes.band) } });
+	noteIdea(g.canvas, 'ladder', { size, x: Math.round(X * 100) / 100, rungs: rec, fuse: Math.round(fx), multiple: Math.round(mNow * 100) / 100, marks: { f: Math.round(M.f * 100) / 100, z: M.z, lampW, lampH, lampY: ly, runner: { h: rh, y0: fy - 1 - rh - 2, y1: fy - 1 }, amount: M.amount, cap: L.cap, band: L.band, W, H, border: M.border, ratio: M.ratio, limited: M.limited, want: M.want, byAmount: M.byAmount, byFloor: M.byFloor, rule: M.rule, pitch: M.pitch, labelCss: M.labelCss, bandK: M.bandK, fine: F.k > 1, phoneTier: PHONE_TIER, phoneBand: Math.round(LED_BOARD.sizeD.ladderPhoneFace[1] * LED_BOARD.scenes.band) } });
 }

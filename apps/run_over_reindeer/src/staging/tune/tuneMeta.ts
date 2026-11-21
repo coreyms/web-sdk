@@ -347,6 +347,7 @@ export const META: Record<string, Meta> = {
 	'ledBoard.sizeD.pressScaleMax': { label: 'press screen figure largest dot scale', min: 4, max: 10, step: 1 },
 	'ledBoard.sizeD.ladderRule': { label: 'Total Win ladder marks (amount: every layout; desktop: desktop and tablet class only)', options: ['amount', 'desktop'] },
 	'ledBoard.sizeD.ladderLabelMinCss': { label: 'ladder labels at least', min: 6, max: 16, step: 0.5, unit: 'CSS px' },
+	'ledBoard.sizeD.ladderPhones': { label: 'ladder marks grow on phone tier phones too (off: phones keep today)' },
 	'ledBoard.sizeD.ladderBandSlack': { label: 'ladder lamps and runner over the phone band at most', min: 0, max: 1, step: 0.05 },
 	// THE DOT GRID (2026-11-20): his pick is today's grid; the others to compare (the tile is made again on a change)
 	'ledBoard.grid': { label: 'Dot grid (today: round, 0.73, row 1, gaps 1, lit over 0, no snap, unlit grid)', when: 'live' },

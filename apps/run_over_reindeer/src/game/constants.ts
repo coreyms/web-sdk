@@ -2079,8 +2079,14 @@ export const LED_BOARD = {
 	 *  at its 1.296 to 1.31 CSS px pitch, 9.07 to 9.17 px; 9 sits under it, so no layout that reads today is moved by it). The
 	 *  lamps and the runner take the factor over the face's own band, held to at most ladderBandSlack over the phone's band
 	 *  (42 dots: 48.3), so they too keep the phone's share of the amount (the desktop's 44 to 47 dot bands are inside it and
-	 *  keep f3e9bab's marks exactly; a taller face's band is held to it). 'desktop' is f3e9bab's rule, to compare */
-	sizeD: { winTitleMax: 7, pressScaleMax: 8, ladderPhoneFace: [259, 189] as [number, number], ladderRule: 'amount' as 'amount' | 'desktop', ladderLabelMinCss: 9, ladderBandSlack: 0.15 },
+	 *  keep f3e9bab's marks exactly; a taller face's band is held to it). 'desktop' is f3e9bab's rule, to compare.
+	 *  PHONES STAY TODAY'S (Corey's word with the "Yes": phones unchanged; 2026-11-21): on the PHONE TIER (game/deviceTier.ts
+	 *  PHONE_TIER, the test that picks the -phone sheets: a coarse pointer and a screen short side of 500 CSS px or less, or
+	 *  ?tier=phone in dev) the marks are today's on every phone, upright or sideways, whatever its amount; an upright tablet
+	 *  (820 x 1180: short side 820) is not on it and takes the rule. ladderPhones true lets the phone tier take the rule too
+	 *  (off: Corey's choice; at 430 x 932 it would grow a label 9.08 to 10.25 CSS px at $2,500.00, lamps 9 x 6 to 10 x 7, the
+	 *  runner 23 to 26 dots) */
+	sizeD: { winTitleMax: 7, pressScaleMax: 8, ladderPhoneFace: [259, 189] as [number, number], ladderRule: 'amount' as 'amount' | 'desktop', ladderLabelMinCss: 9, ladderBandSlack: 0.15, ladderPhones: false },
 	grid: { shape: 'round' as 'round' | 'square' | 'soft', fill: 0.73, rowScale: 1, gapDark: 1, litOver: 0, snap: false, unlit: true },
 	/** THE FACES' MOVING EFFECTS (Corey 2026-11-20, led_board_size_r1_2026-11-20 round 2, his settings; game/scoreboard/
 	 *  scoreboard.ts drawBack and drawStrip, scoreboardDraw.ts borderGlint). Each keeps today's choice selectable:

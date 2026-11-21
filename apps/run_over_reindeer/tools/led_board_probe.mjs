@@ -98,7 +98,8 @@
 // layout, so the section also runs the upright tablets (820 x 1180, 768 x 1024, 1024 x 1366) and a small upright phone
 // (360 x 560), and asserts at every size the ratio rule (a label against the amount's cap at the upright phone's for the
 // same amount, or above it on a face whose amount is the phone's or smaller, factor 1) and the floor (a label at least
-// ladderLabelMinCss CSS px tall), the labels under the amount's lowest row
+// ladderLabelMinCss CSS px tall), the labels under the amount's lowest row. The phone tier (game/deviceTier.ts PHONE_TIER)
+// keeps today's marks exactly, its bigger phones included (430 x 932, 414 x 896, 932 x 430: LED_BOARD.sizeD.ladderPhones off)
 // M4 (section m4, desktop and upright, 2026-11-19, driven by hand): the strip's scan to a message leaves the old picture alone
 //   right of its line (never the two drawn at once); the Total Win's amount is lit whenever its title is, the landing blink too
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=desktop,...] [SECTIONS=rule,rise,gag,race,round,scenes,cards,titles] node tools/led_board_probe.mjs
@@ -2119,6 +2120,10 @@ const LADDER_CASES = [
 	{ name: 'ladder 768x1024', vp: { width: 768, height: 1024 }, dpr: 2, phone: false, touch: true, d: true },
 	{ name: 'ladder 1024x1366', vp: { width: 1024, height: 1366 }, dpr: 2, phone: false, touch: true, d: true },
 	{ name: 'ladder 360x560', vp: { width: 360, height: 560 }, dpr: 2, phone: true, d: false },
+	// (the phone tier keeps today's marks whatever its amount: the bigger phones, whose amount is larger than the 390's)
+	{ name: 'ladder 430x932', vp: { width: 430, height: 932 }, dpr: 3, phone: true, d: false },
+	{ name: 'ladder 414x896', vp: { width: 414, height: 896 }, dpr: 3, phone: true, d: false },
+	{ name: 'ladder 932x430', vp: { width: 932, height: 430 }, dpr: 3, phone: true, d: false },
 ];
 async function ladderMarkChecks(browser) {
 	// today's upright phone board's ratio of a rung label's height to the amount's cap, per amount (the first case reads it)
@@ -2169,7 +2174,9 @@ async function ladderMarkChecks(browser) {
 				// ratio of 2: the labels take the nearest whole dot scale to the factor, so the ratio lands within half a scale)
 				const wholeOk = !M.fine && M.z === Math.max(1, Math.round(M.f));
 				const ratioOk = (!!pr && (M.f === 1 ? M.ratio >= pr * 0.94 : Math.abs(M.ratio - pr) <= pr * 0.06 || wholeOk || (floorDrives && M.ratio >= pr * 0.94))) || M.limited;
-				check(ratioOk, `${tag} ${k} (${row.str}): THE RATIO RULE: a label against the amount's cap ${M.ratio}, the upright phone's ${pr} (factor ${M.f}, labels size ${M.z}${M.fine ? '' : ' on the 1x grid'}, by the amount ${M.byAmount}, by the floor ${M.byFloor}${M.limited ? ', CUT BACK BY THE ROOM' : ''})`, M);
+				// (the phone tier is held to today's marks below, not to the ratio; the tier as the game decided it)
+				check(M.phoneTier === !!S.phone, `${tag} ${k}: THE PHONE TIER (deviceTier PHONE_TIER) ${M.phoneTier}, want ${!!S.phone}`, M);
+				if (!S.phone) check(ratioOk, `${tag} ${k} (${row.str}): THE RATIO RULE: a label against the amount's cap ${M.ratio}, the upright phone's ${pr} (factor ${M.f}, labels size ${M.z}${M.fine ? '' : ' on the 1x grid'}, by the amount ${M.byAmount}, by the floor ${M.byFloor}${M.limited ? ', CUT BACK BY THE ROOM' : ''})`, M);
 				check(M.labelCss >= r.minCss - 0.01 || M.limited, `${tag} ${k} (${row.str}): THE FLOOR: a label ${M.labelCss} CSS px tall (7 x ${M.z} dots at ${M.pitch} CSS px), at least ${r.minCss}`, M);
 				console.log(`  ROW ${tag} ${k}: face ${M.W} x ${M.H} dots at ${M.pitch} CSS px, the amount's cap ${M.cap} dots = ${Math.round(M.cap * M.pitch * 10) / 10} CSS px, a label ${Math.round(7 * M.z * 100) / 100} dots = ${M.labelCss} CSS px, ratio ${M.ratio} (phone ${pr}), factor ${M.f}, lamps ${M.lampW} x ${M.lampH}, runner ${M.runner.h}, band ${M.band} (held ${M.bandK})${M.limited ? ', cut back' : ''}`);
 				if (!S.d) check(M.f === 1 && M.z === 1 && M.lampW === Math.max(3, Math.round(M.band * 0.2)) && M.lampH === Math.max(2, Math.round(M.band * 0.13)) && M.runner.h === Math.max(7, Math.round(M.band * 0.5)), `${tag} ${k}: PHONES KEEP TODAY'S LADDER MARKS (factor ${M.f}, labels size ${M.z}, ${M.lampW} x ${M.lampH} lamps, runner ${M.runner.h} dots; the label against the amount's cap ${M.ratio})`, M);
