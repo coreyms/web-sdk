@@ -219,6 +219,17 @@ const assets = {
 		src: stamp(new URL('../../assets/landing/led-art.webp', import.meta.url).href),
 		preload: true,
 	},
+	// THE PRESS SCREEN'S WILD PICTURES (tools/build_led_wilds.py, constants LED_SIGN.wilds): the game's own Santa column and
+	// Grandma Wild as they stand on the road, their words and numbers, one small sheet per device tier, drawn on the same
+	// 2D canvases (never sent to the GPU); unloaded with the pictures above once the game is entered
+	ledWilds: {
+		type: 'sprite',
+		src: tiered(
+			stamp(new URL('../../assets/landing/led-wilds-full.webp', import.meta.url).href),
+			stamp(new URL('../../assets/landing/led-wilds-phone.webp', import.meta.url).href),
+		),
+		preload: true,
+	},
 	// THE LED SCOREBOARD'S PICTURES (tools/build_scoreboard_art.py, game/scoreboard/): one small sheet the strip's cartoons and
 	// the back board are drawn from on 2D canvases at one pixel per dot (never drawn by Pixi itself, so never sent to the GPU).
 	// The strip is always on, so it is in the main load (about 115 KB).

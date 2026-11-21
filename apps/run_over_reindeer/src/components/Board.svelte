@@ -75,8 +75,9 @@
 	import { boot } from '../game/boot.svelte';
 	import { LedSign, capTopProfile, ledGeometry } from '../game/landing/ledSign';
 	import { resumeCardWanted } from '../game/resumeRound.svelte';
-	import { setLedArt, type LedText } from '../game/landing/ledScreens';
+	import { setLedArt, setLedWildArt, type LedText } from '../game/landing/ledScreens';
 	import { LED_ART } from '../game/ledArtSpec';
+	import { LED_WILDS } from '../game/ledWildsSpec';
 	import { seatClipMemory, setSeatUploader } from '../game/road/seatedClips';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { enableMipmaps } from '../game/mipmaps';
@@ -263,6 +264,17 @@
 			ticker: T.ticker,
 		};
 	};
+	/** the press screen's Wild pictures (constants LED_SIGN.wilds): their sheet for this device tier in, or out (with its file) */
+	const ledWildArt = (on: boolean) => {
+		if (on) {
+			const image = loaded.ledWilds?.source?.resource as CanvasImageSource | undefined;
+			setLedWildArt(image ? { image, frames: LED_WILDS.tiers[PHONE_TIER ? 'phone' : 'full'].frames } : null);
+			return;
+		}
+		setLedWildArt(null);
+		const src = (context.stateApp.assets as Record<string, { src: string }> | undefined)?.ledWilds?.src;
+		if (src) void PIXI.Assets.unload(src).catch(() => {});
+	};
 	let led: LedSign | null = null;
 	/** THE PRESS SCREEN ON THE GAME'S OWN LED BOARD (constants LED_SIGN.onBoard, 2026-11-17): the scoreboard's expanded back
 	 *  board plays the screens, the strip says PRESS ANYWHERE; no separate sign. Set once it is up, cleared once it is down. */
@@ -272,12 +284,14 @@
 		const art = loaded.ledArt;
 		const image = art?.source?.resource as CanvasImageSource | undefined;
 		setLedArt(image ? { image, frames: LED_ART.frames } : null);
+		ledWildArt(true);
 		pressOnBoard = scoreboard.press(ledText());
 		boot.ledSign = pressOnBoard;
 		scoreboard.onPressGone = () => {
 			pressOnBoard = false;
 			boot.ledSign = false;
 			setLedArt(null);
+			ledWildArt(false);
 			// the pictures' file goes (it was never sent to the GPU: only drawn on the board's canvases)
 			const src = (context.stateApp.assets as Record<string, { src: string }> | undefined)?.ledArt?.src;
 			if (src) void PIXI.Assets.unload(src).catch(() => {});
@@ -287,6 +301,7 @@
 		const art = loaded.ledArt;
 		const image = art?.source?.resource as CanvasImageSource | undefined;
 		setLedArt(image ? { image, frames: LED_ART.frames } : null);
+		ledWildArt(true);
 		led = new LedSign(ledText());
 		parent.addToParent(led.root);
 		boot.ledSign = true;
@@ -298,6 +313,7 @@
 			logoLiftWant = 0;
 			scoreboardOverLogo();
 			setLedArt(null);
+			ledWildArt(false);
 			// hidden this frame (the sign's root is invisible now), destroyed two frames later: a texture destroyed in the
 			// frame it was last batched takes the render loop down (the column sheets' rule, game/road/columnClips.ts)
 			requestAnimationFrame(() => requestAnimationFrame(() => sign?.destroy()));

@@ -523,6 +523,20 @@ export const LED_SIGN = {
 		phone: { unit: 'master', faceW: 820, faceH: 387, pitch: 3.7, frame: 22.77, ol: 5.69, pole: 28.46, drift: 41.75, cap: 32.26, margin: 0, boardShare: 1, faceHTall: 0, driftTall: 0 } as LedLayout,
 		portrait: { unit: 'css', faceW: 334, faceH: 218, pitch: 1.62, frame: 12, ol: 3, pole: 17, drift: 30, cap: 17, margin: 28, boardShare: 1.2, faceHTall: 288, driftTall: 34 } as LedLayout,
 	},
+	/** THE WILD PICTURES ON THE TWO STRIKE SCREENS (Corey 2026-11-20: "The LED Intro Screens need to be updated with the
+	 *  new FUll Screen Wild and Grandma WIld styles, not the full animations because it's supposed to be an LED board, but
+	 *  the styles no longer match"). The sleigh screen's standing column and the car screen's Grandma Wild are the game's
+	 *  own Wilds as they stand on the road today, as still pictures (tools/build_led_wilds.py, game/ledWildsSpec.ts,
+	 *  static/assets/landing/led-wilds-*.webp): Santa's column (his idle pose over the cloud backdrop in the red tinsel
+	 *  garland with gold baubles) and the Grandma Wild (the brawl cloud in the green garland), each filling the old red
+	 *  box's outer edge, the WILD word and the multiplier in their in-game places, sizes and colors (Santa green, Grandma
+	 *  gold). The screens' motion, timing and text are as before. `look` picks how the letters meet the dot grid:
+	 *    'stripes'  the game's own candy letters, stripes and all (the multiplier atlas's recipe, tools/build_wild_mult.py)
+	 *    'solid'    the same letters, outline, shadow and shine, their stripes (Grandma's tinsel flecks) flattened to the
+	 *               stripes' mean color
+	 *    'today'    the pictures of before (the red box, the cloud, Santa's small picture, the plain red WILD and the
+	 *               yellow number on its black plate) */
+	wilds: { look: 'stripes' as 'stripes' | 'solid' | 'today' },
 };
 
 // ---- THE SCATTER PRESENT (game/road/present.ts, tools/build_present.py; the 3D present Corey approved 2026-11-15) -------

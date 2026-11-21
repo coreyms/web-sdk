@@ -29,7 +29,7 @@
 import * as PIXI from 'pixi.js';
 
 import { INTRO_LINE, LED_BOARD } from '../constants';
-import { C, mk, setScreenScaleMax, shimmer, type Cv } from '../landing/ledScreens';
+import { C, mk, setScreenScaleMax, shimmer, wildsDrawn, type Cv } from '../landing/ledScreens';
 import { renderResolutionFor } from '../deviceTier';
 import { clearP, copyFace, copyP, densityFor, fillP, ledN } from './ledGrid';
 import { type ScoreboardGeo, type Rect } from './layout';
@@ -1347,7 +1347,7 @@ export class Scoreboard {
 			stripSwitch: this.strip ? { kind: this.strip.switchKind, since: Math.round(this.clock - this.strip.switchAt) } : null,
 			gag: gt === null ? null : { t: Math.round(gt), words: this.gagShort ? LED_BOARD.gag.short.text : gagWordsAt(gt), short: this.gagShort, ms: this.gagMs() },
 			/** THE ARBITER (constants LED_BOARD.stripOrder): the item the strip shows on the last drawn step, and what was true */
-			press: this.pressText ? { up: this.pressUp(), ready: this.pressReady, screen: s && s.kind === 'press' ? pressScreenAt(Math.max(0, s.t - s.contentAt) / 1000) : null, waiting: !!this.pressWait } : null,
+			press: this.pressText ? { up: this.pressUp(), ready: this.pressReady, screen: s && s.kind === 'press' ? pressScreenAt(Math.max(0, s.t - s.contentAt) / 1000) : null, waiting: !!this.pressWait, wilds: wildsDrawn() } : null,
 			stripPick: { item: this.stripNow, truth: this.truthNow ? { ...this.truthNow } : null },
 			scatter: this.scat ? { id: this.scat.id, count: this.scat.count, need: this.scat.need, live: this.scat.live, hit: this.scat.hit, fireworks: this.scat.fwAt !== null && this.clock < this.scat.endAt, words: scatterWordsOf(this.scat), sinceTick: Math.round(this.clock - this.scat.tickAt) } : null,
 			cartoon: { index: this.cartoon, key: cartoons()[this.cartoon % cartoons().length].key, t: Math.round(this.clock - this.cartoonAt), race: this.cartoonState.race ? { outcome: this.cartoonState.race.outcome, id: this.cartoonState.race.id } : null },

@@ -11,7 +11,8 @@
 // at k times the dots, and the decorations set in LEDs; every width and place is today's (textW, textInk, letterGap read
 // today's masks), so every layout is today's. At k = 1 every path is exactly as before.
 
-import { LED_BOARD } from '../constants';
+import { LED_BOARD, LED_SIGN } from '../constants';
+import { LED_WILDS } from '../ledWildsSpec';
 import { AMOUNT_OUTLINES, SENTENCE_SIGNS, ledSignCanvas } from '../scoreboard/ledSigns';
 import { blit, dotAt, fillP, kOf, ledN, overpassReady, ringPts } from '../scoreboard/ledGrid';
 
@@ -496,6 +497,13 @@ export const setLedArt = (sheet: ArtSheet | null) => {
 	ART = sheet;
 	artCache.clear();
 };
+// THE WILD PICTURES (constants LED_SIGN.wilds, tools/build_led_wilds.py): their own small sheet per device tier, drawn the
+// same way as the pictures above (art: the stepped downscale and the LED punch)
+let WILDS: ArtSheet | null = null;
+export const setLedWildArt = (sheet: ArtSheet | null) => {
+	WILDS = sheet;
+	artCache.clear();
+};
 const artCache = new Map<string, Cv>();
 const size = (name: string, src?: number[] | null): [number, number] => {
 	if (src) return [src[2], src[3]];
@@ -504,19 +512,19 @@ const size = (name: string, src?: number[] | null): [number, number] => {
 };
 // one picture at one size in dots: a stepped downscale, then an LED punch (saturation and lift), baked once; on the finer
 // grid baked at k times the dots (from the sheet itself: the picture's own detail, never today's bake blown up)
-function art(name: string, src: number[] | null, dw: number, dh: number, k = 1): Cv {
+function art(name: string, src: number[] | null, dw: number, dh: number, k = 1, sheet: ArtSheet | null = ART): Cv {
 	dw = Math.max(1, Math.round(Math.max(1, Math.round(dw)) * k));
 	dh = Math.max(1, Math.round(Math.max(1, Math.round(dh)) * k));
-	const key = name + '|' + (src ? src.join(',') : '') + '|' + dw + 'x' + dh;
+	const key = (sheet && sheet === WILDS ? 'wilds:' : '') + name + '|' + (src ? src.join(',') : '') + '|' + dw + 'x' + dh;
 	let c = artCache.get(key);
 	if (c) return c;
 	c = mk(dw, dh);
-	const f = ART?.frames[name];
-	if (!ART || !f) return c;
+	const f = sheet?.frames[name];
+	if (!sheet || !f) return c;
 	let [sx, sy, sw, sh] = src || [0, 0, f.w, f.h];
 	sx += f.x;
 	sy += f.y;
-	let cur: CanvasImageSource = ART.image;
+	let cur: CanvasImageSource = sheet.image;
 	while (sw / 2 >= dw * 1.6 && sh / 2 >= dh * 1.6) {
 		const t = mk(Math.round(sw / 2), Math.round(sh / 2));
 		t.ctx.imageSmoothingQuality = 'high';
@@ -765,14 +773,14 @@ function burst(g: Ctx, cx: number, cy: number, p: number, rMax: number) {
 	g.globalAlpha = 1;
 }
 // (in LEDs: the frame `th` dots thick, the rows one dot, whole LEDs on the face's grid)
-function redBox(g: Ctx, b: Rect, th: number, rows: number[] | null) {
+function redBox(g: Ctx, b: Rect, th: number, rows: number[] | null, color: string = C.red) {
 	const k = kOf(g);
 	const t = ledN(k, th);
 	const x0 = Math.round(b.x * k);
 	const x1 = Math.round((b.x + b.w) * k);
 	const y0 = Math.round(b.y * k);
 	const y1 = Math.round((b.y + b.h) * k);
-	g.fillStyle = C.red;
+	g.fillStyle = color;
 	fillP(g, x0 - t, y0 - t, x1 - x0 + 2 * t, t);
 	fillP(g, x0 - t, y1, x1 - x0 + 2 * t, t);
 	fillP(g, x0 - t, y0, t, y1 - y0);
@@ -791,6 +799,50 @@ function multLabel(g: Ctx, str: string, cx: number, bottom: number, maxW: number
 	g.clearRect(x - 1, y - 1, w + 2, h + 2);
 	drawText(g, str, x, y, s, C.yellow);
 }
+// ---- THE WILD PICTURES (constants LED_SIGN.wilds; tools/build_led_wilds.py, game/ledWildsSpec.ts) ----
+// The game's own Wilds as they stand on the road: the picture (its frame, backdrop and character) stretched over the old
+// red box's outer edge, the WILD word and the number in their in-game places (shares of the picture), each baked at the
+// dots by art (the stepped downscale and the LED punch)
+type WildKind = keyof typeof LED_WILDS.pictures;
+type WildPart = { cx: number; cy: number; w: number; h: number };
+/** the letters' look in force: 'stripes' or 'solid', or null for the pictures of before (LED_SIGN.wilds.look 'today', or
+ *  the sheet not in) */
+export const wildLook = (): 'stripes' | 'solid' | null => {
+	const L = LED_SIGN.wilds.look;
+	return L === 'today' || !WILDS ? null : L;
+};
+/** the picture's outer edge for a box framed `th` dots thick (the old red box's outer edge) */
+const wildOuter = (b: Rect, th: number): Rect => ({ x: b.x - th, y: b.y - th, w: b.w + 2 * th, h: b.h + 2 * th });
+function wildPic(g: Ctx, kind: WildKind, box: Rect, alpha = 1) {
+	const a = art(LED_WILDS.pictures[kind].frame, null, box.w, box.h, kOf(g), WILDS);
+	g.globalAlpha = alpha;
+	blit(g, a, box.x, box.y);
+	g.globalAlpha = 1;
+	noteWild(g, kind + ':picture');
+}
+/** the word or the number of a Wild over its picture `box`, in the look; false when the sheet has no such picture (the
+ *  number's text not the one baked: the caller draws today's) */
+function wildPart(g: Ctx, kind: WildKind, part: 'word' | 'mult', look: 'stripes' | 'solid', box: Rect, text: string, alpha = 1): boolean {
+	const P = LED_WILDS.pictures[kind] as { mult: WildPart; word?: WildPart; text: string };
+	const q = part === 'word' ? P.word : P.mult;
+	const name = `${kind}_${part}_${look}`;
+	if (!q || !WILDS?.frames[name]) return false;
+	if (part === 'mult' && text.toLowerCase() !== P.text.toLowerCase()) return false;
+	const w = q.w * box.w;
+	const h = q.h * box.h;
+	const a = art(name, null, w, h, kOf(g), WILDS);
+	g.globalAlpha = alpha;
+	blit(g, a, box.x + q.cx * box.w - a.width / kOf(g) / 2, box.y + q.cy * box.h - a.height / kOf(g) / 2);
+	g.globalAlpha = 1;
+	noteWild(g, `${name}`);
+	return true;
+}
+/** what the last strike screen drew from the Wild sheet (the probes): its screen, the look and the sheet frames */
+let wildRec: { kind: 'sleigh' | 'car'; look: string; names: string[] } | null = null;
+function noteWild(_g: Ctx, name: string) {
+	if (wildRec && !wildRec.names.includes(name)) wildRec.names.push(name);
+}
+export const wildsDrawn = () => (wildRec ? { kind: wildRec.kind, look: wildRec.look, names: wildRec.names.slice() } : null);
 const blinkOn = (mt: number) => mt > 0 && !(mt > 0.2 && mt < 0.3) && !(mt > 0.4 && mt < 0.5);
 function screenStrike(g: Ctx, W: number, H: number, t: number, kind: 'sleigh' | 'car', TX: LedText) {
 	const T = TX[kind];
@@ -854,8 +906,39 @@ function screenStrike(g: Ctx, W: number, H: number, t: number, kind: 'sleigh' | 
 			const yBot = cell.y + cell.h + (rowsTop + 4 * cellH - cell.y - cell.h) * gp;
 			box = { x: cell.x, y: Math.round(yTop), w: cell.w, h: Math.round(yBot) - Math.round(yTop) };
 		}
-		cloudCell(g, box);
+		const look = wildLook();
+		wildRec = { kind, look: look ?? 'today', names: [] };
 		const rows = [1, 2, 3].map((r) => rowsTop + r * cellH);
+		if (look && kind === 'sleigh') {
+			// THE COLUMN AS IT STANDS ON THE ROAD (LED_SIGN.wilds): the cloud grows in a plain box in the garland's own
+			// color (as the game's frame stands until its garland is in), then Santa's whole column fades in over it,
+			// the flash, and his green number blinks on at his feet
+			cloudCell(g, box);
+			redBox(g, box, th, null, LED_WILDS.pictures.santa.plain);
+			const sp = span(t, HIT + 0.85, HIT + 1.2);
+			const outer = wildOuter(box, th);
+			if (sp > 0) wildPic(g, 'santa', outer, ease(sp));
+			const flash = span(t, HIT + 0.8, HIT + 0.9) * (1 - span(t, HIT + 0.9, HIT + 1.0));
+			if (flash > 0) {
+				g.globalAlpha = flash * 0.8;
+				g.fillStyle = '#fff';
+				g.fillRect(box.x, box.y, box.w, box.h);
+				g.globalAlpha = 1;
+			}
+			if (blinkOn(t - (HIT + 1.25)) && !wildPart(g, 'santa', 'mult', look, outer, T.mult)) multLabel(g, T.mult, box.x + box.w / 2, box.y + box.h, box.w + 2 * th + 6);
+			return;
+		}
+		if (look) {
+			// THE GRANDMA WILD AS SHE STANDS ON THE ROAD: her brawl cloud in the green garland covers the car, the candy
+			// WILD fades in at its corner, her gold number blinks on
+			const outer = wildOuter(box, th);
+			wildPic(g, 'grandma', outer);
+			const wt = span(t, HIT + 0.35, HIT + 0.5);
+			if (wt > 0) wildPart(g, 'grandma', 'word', look, outer, 'WILD', wt);
+			if (blinkOn(t - (HIT + 0.75)) && !wildPart(g, 'grandma', 'mult', look, outer, T.mult)) multLabel(g, T.mult, box.x + box.w / 2, box.y + box.h, box.w + 2 * th + 6);
+			return;
+		}
+		cloudCell(g, box);
 		if (kind === 'sleigh') {
 			const sp = span(t, HIT + 0.85, HIT + 1.2);
 			if (sp > 0) {
