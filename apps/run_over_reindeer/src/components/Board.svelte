@@ -160,6 +160,8 @@
 	// THE ROAMING REINDEER'S CHARGE WIND-UP (constants ROAM.charge): at Turbo 2, or when a slam stop's hurry is already
 	// running at his strike's start, the head goes down only
 	road.features.windupQuick = () => stateGame.turboLevel === 2 || stateGame.hurryLevel > 0;
+	// (his effects' look follows the ground: the scene preset the Pixi side shows)
+	road.features.groundPreset = () => road.scene.presets()[0]?.name ?? 'snowDay';
 	road.features.onCrosshair = (beat, cell) => road.features.sounds.crosshair(beat, cell);
 	parent.addToParent(road.root);
 

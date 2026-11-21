@@ -22,7 +22,7 @@ export const ROAM_CLIPS: readonly RoamClip[] = ['walk', 'start', 'stop', 'sniff'
 /** the charge wind-up's clips (the slow drag; head down only) */
 export type ChargeClip = 'charge' | 'chargeDown';
 export const CHARGE_CLIPS: readonly ChargeClip[] = ['charge', 'chargeDown'];
-export type ChargeFxName = 'puff' | 'snow';
+export type ChargeFxName = 'puff' | 'snow' | 'puffDark' | 'snowDark';
 
 const TIER = PHONE_TIER ? 'phone' : 'full';
 const spec = REINDEER_ROAM.tiers[TIER];
@@ -101,7 +101,7 @@ export const loadRoamFrames = (): Promise<boolean> => {
 				for (const clip of CHARGE_CLIPS) textures[clip] = clipTextures(clip, pages);
 				const fx = spec.fx as Record<ChargeFxName, { sheet: number; x: number; y: number; w: number; h: number }>;
 				const one = (name: ChargeFxName) => new PIXI.Texture({ source: pages[fx[name].sheet], frame: new PIXI.Rectangle(fx[name].x, fx[name].y, fx[name].w, fx[name].h) });
-				fxTextures = { puff: one('puff'), snow: one('snow') };
+				fxTextures = { puff: one('puff'), snow: one('snow'), puffDark: one('puffDark'), snowDark: one('snowDark') };
 				chargeSources = more.map((q) => pages[q.n]);
 				charge = true;
 				if (STAGING_TOOLS) perfMark('load:reindeer-charge');

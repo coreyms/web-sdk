@@ -669,6 +669,8 @@ export class RoadFeatures {
 	readonly charge = new ChargeFx();
 	/** Turbo 2, or a slam stop's hurry running (components/Board.svelte): his wind-up is the head going down only */
 	windupQuick: () => boolean = () => false;
+	/** the scene preset shown (components/Board.svelte): the ground under him, for his effects' look (REINDEER_ROAM.fx.grounds) */
+	groundPreset: () => string = () => 'snowDay';
 	/** his strike's wind-up plan (kept past his set off: the lock's puff may come after it) */
 	private windupPlan: WindupPlan | null = null;
 	/** the screen in road px (components/Board.svelte): the roaming reindeer's path is fractions of it and the picture */
@@ -739,6 +741,10 @@ export class RoadFeatures {
 		roamDev.roam = this.roam;
 		// the roaming reindeer's safety net waits while a strike runs
 		this.roam.busy = () => this.runner !== null;
+		// his effects' look by the ground (read from the scene's art by tools/build_roam.py) and their minimum size
+		const grounds = REINDEER_ROAM.fx.grounds as Record<string, { look: 'light' | 'dark' }>;
+		this.charge.look = () => grounds[this.groundPreset()]?.look ?? 'light';
+		this.charge.cssPerRoad = () => roamDev.view?.()?.k ?? 1;
 		setStandingProbe((tier) => this.columns.some((c) => c.tier === tier));
 		// the column pictures' upload queue (game/road/columnClips.ts) keeps out of an impact's frames, and goes at once
 		// for a picture a column is waiting on

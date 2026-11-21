@@ -126,6 +126,87 @@ def readable_fx(name, im):
     return Image.fromarray((np.dstack([rgb, alpha]) * 255).round().astype(np.uint8), "RGBA")
 
 
+# ROUND 2 (Corey 2026-11-20: "Make them read", the coordinator's round 2): a white puff on white snow has no contrast.
+# Each effect is baked in two LOOKS from the same rig sprite, both on the sheet, the look picked at spawn by the ground
+# he stands on (the scene preset shown): `light` (readable_fx above: white, a cool falloff) for dark ground, `dark` (a
+# slate blue-grey body with a clear darker rim, the same shape) for light ground. Which ground is light is read from the
+# scene's own art (ground_looks: the field and top band's median luminance) and the look with the higher contrast there
+# is the one used. The alpha numbers (FX_ALPHA) are each look's start opacity; the fade holds it to FX_HOLD of the life.
+FX_DARK_BODY = (92, 106, 130)
+FX_DARK_RIM = (30, 38, 56)
+FX_DARK_SHADE = (78, 90, 112)
+FX_ALPHA = {"puff": {"light": 0.8, "dark": 0.95}, "snow": {"light": 1.0, "dark": 1.0}}
+FX_HOLD = 0.6
+# the smallest each may be drawn at its largest, CSS px (the smallest phone, 360 x 560), and its picture's floor at 3
+# physical px a CSS px of that (and of the desktop's natural size)
+FX_MIN_CSS = {"puff": 22, "snow": 5}
+FX_MIN_TEX = {"puff": 3 * 30, "snow": 3 * 6}
+SCENE_GROUNDS = {"snowDay": "snow-day", "snowNight": "snow-night", "snowSuper": "snow-super", "grassDay": "grass-day", "grassNight": "grass-night", "grassSuper": "grass-super"}
+
+
+def readable_fx_dark(name, im):
+    """the export's sprite as a slate blue-grey body with a clear darker rim (the `dark` look, for light ground)"""
+    arr = np.asarray(im.convert("RGBA")).astype(np.float32) / 255.0
+    a = arr[..., 3]
+    h, w = a.shape
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    ys, xs = np.where(a > 0.02)
+    cx, cy = (xs.min() + xs.max()) / 2, (ys.min() + ys.max()) / 2
+    r = max(xs.max() - xs.min(), ys.max() - ys.min()) / 2 + 1e-6
+    d = np.hypot(xx - cx, yy - cy) / r
+    under = _smooth(((xx - cx) * 0.45 + (yy - cy) * 0.9) / r, -0.2, 0.9)
+    if name == "puff":
+        alpha = np.clip(a * 2.0, 0, 1) ** 0.8
+        ring = _smooth(d, 0.6, 0.67) * (1 - _smooth(d, 0.74, 0.8))
+    else:
+        alpha = a
+        ring = _smooth(d, 0.76, 0.86) * (a > 0.02)
+    alpha = np.maximum(alpha, ring)
+    body = np.array(FX_DARK_BODY, np.float32) / 255
+    shade = np.array(FX_DARK_SHADE, np.float32) / 255
+    rim = np.array(FX_DARK_RIM, np.float32) / 255
+    rgb = body * (1 - 0.7 * under[..., None]) + shade * (0.7 * under[..., None])
+    rgb = rgb * (1 - ring[..., None]) + rim * ring[..., None]
+    return Image.fromarray((np.dstack([rgb, alpha]) * 255).round().astype(np.uint8), "RGBA")
+
+
+def _lum(rgb):
+    c = np.asarray(rgb, np.float64)
+    lin = np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+    return lin @ np.array([0.2126, 0.7152, 0.0722])
+
+
+def _ratio(l1, l2):
+    return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05)
+
+
+def ground_looks(fx_images):
+    """per scene preset: the ground's luminance (its field and top band, median of the opaque pixels) and the look that
+    stands out most on it (each look's rim and body, at its start opacity, over that ground)"""
+    out = {}
+    for preset, stem in SCENE_GROUNDS.items():
+        ls = []
+        for part in ("field", "band-top"):
+            arr = np.asarray(Image.open(os.path.join(OUT, "scene", f"{stem}-{part}.webp")).convert("RGBA")).astype(np.float64) / 255
+            ls.append(_lum(arr[..., :3][arr[..., 3] > 0.5]))
+        g = float(np.median(np.concatenate(ls)))
+        best = None
+        for look in ("light", "dark"):
+            worst = None
+            for name in ("puff", "snow"):
+                arr = np.asarray(fx_images[(name, look)]).astype(np.float64) / 255
+                al = arr[..., 3] * FX_ALPHA[name][look]
+                m = arr[..., 3] > 0.85
+                L = _lum(arr[..., :3][m]) * al[m] + g * (1 - al[m])
+                # the rim's or the body's: the strongest tenth of the opaque pixels against the ground
+                c = float(np.percentile([_ratio(v, g) for v in L], 90))
+                worst = c if worst is None else min(worst, c)
+            if best is None or worst > best[1]:
+                best = (look, worst)
+        out[preset] = {"lum": round(g, 4), "look": best[0], "contrast": round(best[1], 2)}
+    return out
+
+
 def ink_reach(src, clip, frames, m):
     ax, ay = m["anchor_px"]
     up = back = fwd = gup = gback = gfwd = 0
@@ -216,6 +297,17 @@ def main():
     # (drawn FX_DRAW times the export's size: its radius numbers stay the export's, the game multiplies)
     spec["fx"]["puff"]["drawScale"] = FX_DRAW["puff"]
     spec["fx"]["snow"]["drawScale"] = FX_DRAW["snow"]
+    for name in ("puff", "snow"):
+        spec["fx"][name]["alphaByLook"] = FX_ALPHA[name]
+        spec["fx"][name]["minCss"] = FX_MIN_CSS[name]
+        spec["fx"][name]["hold"] = FX_HOLD
+    full = {}
+    for name in ("puff", "snow"):
+        src_im = Image.open(os.path.join(CHARGE_SOURCE, fx[name]["sprite"])).convert("RGBA")
+        full[(name, "light")] = readable_fx(name, src_im)
+        full[(name, "dark")] = readable_fx_dark(name, src_im)
+    spec["fx"]["grounds"] = ground_looks(full)
+    print("  fx looks by ground:", spec["fx"]["grounds"])
     spec["fx"]["puff"]["offset_frame_px"] = [float(v) for v in re.search(r"\+ \(([0-9.]+)\*i, ([0-9.]+)\*i\)", fx["puff"]["start"]).groups()]
     FX = {"puff": (os.path.join(CHARGE_SOURCE, fx["puff"]["sprite"]), fx["puff"]["sprite_diameter_frame_px_at_full"]), "snow": (os.path.join(CHARGE_SOURCE, fx["snow"]["sprite"]), fx["snow"]["sprite_diameter_frame_px_at_full"])}
     for tier in ("full", "phone"):
@@ -242,9 +334,10 @@ def main():
             if group == "charge":
                 # the effect sprites, whole (a round puff, a round speck), at their largest draw at this density
                 for name, (file, diameter) in FX.items():
-                    im = readable_fx(name, Image.open(file).convert("RGBA"))
-                    side = max(2, round(diameter * FX_DRAW[name] * d))
-                    pictures[("fx", name)] = (resize_box(im, side, side), 0, 0)
+                    src_im = Image.open(file).convert("RGBA")
+                    side = max(2, round(diameter * FX_DRAW[name] * d), FX_MIN_TEX[name])
+                    for look, make in (("light", readable_fx), ("dark", readable_fx_dark)):
+                        pictures[("fx", name if look == "light" else name + "Dark")] = (resize_box(make(name, src_im), side, side), 0, 0)
             n0 = len(files)
             sheets = pack(pictures)
             for n, sh in enumerate(sheets):
@@ -254,7 +347,8 @@ def main():
                     page.paste(im, (px, py))
                     name, f = key
                     if name == "fx":
-                        fx_out[f] = {"sheet": n0 + n, "x": px, "y": py, "w": im.width, "h": im.height, "diameterFramePx": FX[f][1] * FX_DRAW[f]}
+                        base = f[:-4] if f.endswith("Dark") else f
+                        fx_out[f] = {"sheet": n0 + n, "x": px, "y": py, "w": im.width, "h": im.height, "diameterFramePx": FX[base][1] * FX_DRAW[base]}
                         continue
                     frames_out.setdefault(name, {})[str(f)] = {"sheet": n0 + n, "x": px, "y": py, "w": im.width, "h": im.height, "ox": ox, "oy": oy}
                 prefix = SHEET_PREFIX if group == "roam" else CHARGE_PREFIX
