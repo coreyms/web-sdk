@@ -8,7 +8,7 @@
 // WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.bookAmount, __reindeer.fixtures, __reindeer.gagsAsked, __reindeer.hud
 // WATCHES: ; LED_BOARD.density, __reindeer.raceSeed, __reindeer.raceTally, __reindeer.raceTrace, __reindeer.roadBoard, __reindeer.roadSounds, __reindeer.scene
 // WATCHES: ; __reindeer.scoreboard, __reindeer.scoreboardCard, __reindeer.scoreboardCardEnd, __reindeer.scoreboardCardPress
-// WATCHES: ; __reindeer.scoreboardFace, __reindeer.scoreboardGag, __reindeer.scoreboardLower, __reindeer.scoreboardManual
+// WATCHES: ; __reindeer.scoreboardFace, __reindeer.scoreboardDev, __reindeer.scoreboardGag, __reindeer.scoreboardLower, __reindeer.scoreboardManual
 // WATCHES: ; __reindeer.scoreboardRace, __reindeer.scoreboardRaise, __reindeer.scoreboardSkip, __reindeer.scoreboardStep
 // WATCHES: ; __reindeer.scoreboardWin, __reindeer.soundTap, __reindeer.tune, __reindeer.turbo, INTRO_LINE, LED_BOARD.fps, LED_BOARD, ROUND
 // WATCHES: ; SHOWCASE_ROUNDS, sfx_win_*, sfx_win_big, sfx_win_epic, sfx_win_max, sfx_win_mega, sfx_win_super, data-round-card, data-round-board
@@ -721,7 +721,9 @@ async function currencyChecks(p, S) {
 	const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
 	await quietBoard(p);
 	await R(p, () => window.__reindeer.scoreboardManual(true));
-	const bet = await R(p, async () => (await import('/src/game/scoreboard/scoreboard.ts')).scoreboardDev.bet());
+	// (the game's own scoreboardDev through the window hook: a page import of scoreboard.ts is a fresh copy of the module, board
+	// null and bet 1, once a file it imports changed under the running dev server, as on the probe host at 90be3f4)
+	const bet = await R(p, () => window.__reindeer.scoreboardDev().bet());
 	for (const code of Object.keys(CUR)) {
 		// THE STRIP: a small win (3.4x), stepped to the end of its count (before the reindeer's hop), its white dots read
 		const small = Math.round(3.4 * bet * 100) / 100;
@@ -737,7 +739,7 @@ async function currencyChecks(p, S) {
 				if (q.show && q.show.t < q.show.countEnd) q = R0.scoreboardStep(q.show.countEnd - q.show.t);
 				const D = await import('/src/game/scoreboard/scoreboardDraw.ts');
 				const LG = await import('/src/game/scoreboard/ledGrid.ts');
-				const board = (await import('/src/game/scoreboard/scoreboard.ts')).scoreboardDev.board;
+				const board = R0.scoreboardDev().board;
 				const F = board.strip.F;
 				// (2026-11-19, the finer grid: read LED by LED; the face is F.k LEDs per dot, the box below is in LEDs)
 				const W = F.ledW;

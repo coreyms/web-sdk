@@ -369,10 +369,17 @@ def make_rim(d):
 
 
 def make_disc(d, radius):
-    X, Y, r, a, w, h = canvas(-radius - 1, -radius - 1, radius + 1, radius + 1, d)
+    # (2026-11-21, wheel_probe concentric: the disc centred on its picture. Its canvas was radius + 1 units each side, so a
+    # density whose (2 radius + 2) d is not a whole number of px (the phone tier's 0.3125: 80.625) rounded the picture up
+    # on the right and bottom only, its origin 40.31 px in an 81 px frame. Stretched 3.3 times as the wheel's dark back
+    # (superWheel.ts discOf), the sprite's quad cut its soft edge 0.19 px nearer on the left and top than on the right and
+    # bottom: 1.06 CSS px off the rim's centre at 844 x 390. The frame's own px count, its origin at its exact middle.)
+    w_px = math.ceil((2 * radius + 2) * d - 1e-9)
+    half = w_px / 2 / d
+    X, Y, r, a, w, h = canvas(-half, -half, -half + (w_px - 1e-6) / d, -half + (w_px - 1e-6) / d, d)
     img = blank(w, h)
     paint(img, r <= radius, (255, 255, 255))
-    return down(img), ((radius + 1) * d, (radius + 1) * d)
+    return down(img), (w_px / 2, w_px / 2)
 
 
 def make_stud(d):

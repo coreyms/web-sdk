@@ -47,7 +47,8 @@
 //              turned round eight times): one letter height for all (WILD_MULT.place.wheel caps), the letters on the arc,
 //              the even outline of the layout's class (a phone layout, short side 480 CSS px or less: evenOutline.phone;
 //              else .wide); from the page's own pixels, every number pixel inside its wedge (clear of the dark divider) and
-//              under the trim, every wedge pixel (its bust) inside its wedge; the string lights drawn over the numbers
+//              under the trim, and outside the column ring and the hub (2026-11-21), every wedge pixel (its bust) inside its
+//              wedge; the string lights drawn over the numbers
 // Sections: ONLY=plan,rounds,auto,hold,skip,resume,concentric,contact,words,pin,numbers (default all). ROUNDS=n. LAYOUT, LAYOUTS and
 // PICK are explained where they are read. SHOTS=<dir> adds the
 // section `shots` (one round per layout at device pixel ratio 3 with its stills) and the contact section's closeups; the
@@ -1112,6 +1113,7 @@ async function numbersSection(browser) {
 		const caps = new Set();
 		let worstSide = Infinity;
 		let worstR = 0;
+		let worstIn = Infinity;
 		const badNum = [];
 		for (let turn = 0; turn < 8; turn++) {
 			const slices = WHEEL_VALUES.map((_, i) => WHEEL_VALUES[(i + turn) % 8]);
@@ -1128,6 +1130,7 @@ async function numbersSection(browser) {
 			for (const q of pts) {
 				worstSide = Math.min(worstSide, q.side);
 				worstR = Math.max(worstR, q.r);
+				worstIn = Math.min(worstIn, q.r);
 				// clear of the dark divider (4 units each side of the line) and under the trim's wire
 				if (q.side < 4 - tol || q.r > U.trim.wire[0] + tol) badNum.push({ turn, ...q });
 			}
@@ -1147,13 +1150,19 @@ async function numbersSection(browser) {
 		}
 		check(caps.size === 1 && Math.abs(Number([...caps][0]) - K.place.caps[0]) < 0.01, `numbers ${L.name}: one letter height for every value in every place (${[...caps].join(', ')} wheel units; WILD_MULT.place.wheel caps ${K.place.caps[0]})`, [...caps]);
 		check(badNum.length === 0, `numbers ${L.name}: every value in every wedge place stays inside its wedge, clear of the divider (closest ${worstSide.toFixed(1)} wheel units from a side line, the divider 4) and under the trim (outermost pixel at radius ${worstR.toFixed(1)}, the trim's wire from ${U.trim.wire[0]})`, badNum.slice(0, 4));
+		// (2026-11-21, the probe host by hand at 400x225 on 90be3f4: the numbers nearest the hub ran under the hub and the column
+		// ring; since the numbers sit out by the rim, superWheelSpec multR) every number pixel outside the column ring's outer
+		// edge (its gold and ink to RING[1] + 5.5 units, tools/build_super_wheel.py make_ring), so the ring rising in spin two
+		// never covers one, and outside the hub
+		const ringOut = U.ring[1] + 5.5;
+		check(worstIn >= Math.max(ringOut, U.hub) + tol, `numbers ${L.name}: every value in every wedge place lies outside the column ring and the hub (innermost number pixel at radius ${worstIn.toFixed(1)}; the ring's outer edge ${ringOut}, the hub ${U.hub})`, { worstIn, ringOut, hub: U.hub });
 		// THE BUSTS, cut to their wedges (baked): every wedge pixel inside the wedge's outline
 		await set({ numsOnly: false, only: ['wedges'], slices: WHEEL_VALUES, theta });
 		await sleep(150);
 		const wp = polar(diffMask(await shot(), none, 24));
 		const out = wp.filter((q) => q.side < -tol || q.r > U.wedge + tol || q.r < U.hub - tol);
 		check(wp.length > 0 && out.length === 0, `numbers ${L.name}: every wedge's picture (its bust) is inside its wedge (${wp.length} pixels; outermost radius ${wp.reduce((m, q) => Math.max(m, q.r), 0).toFixed(1)}, the wedge ${U.wedge})`, out.slice(0, 4));
-		note(`NUMBERS ${L.name}: class ${cls}, letter height ${[...caps].join(', ')}, the closest number pixel ${worstSide.toFixed(1)} wheel units from a side line, the outermost at radius ${worstR.toFixed(1)}`);
+		note(`NUMBERS ${L.name}: class ${cls}, letter height ${[...caps].join(', ')}, the closest number pixel ${worstSide.toFixed(1)} wheel units from a side line, the outermost at radius ${worstR.toFixed(1)}, the innermost at ${worstIn.toFixed(1)}`);
 		await p.evaluate(() => {
 			window.__reindeer.sceneOnly(false);
 			window.__reindeer.wheelAlone(false);

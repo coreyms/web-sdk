@@ -1345,7 +1345,10 @@ const CHARGE_STRIKE = async (p, o) =>
 				const xb = sp.x + (tx.trim.x + tx.trim.width - ax) * sp.scale.x;
 				return [Math.min(xa, xb), sp.y + (tx.trim.y - ay) * sp.scale.y, Math.max(xa, xb), sp.y + (tx.trim.y + tx.trim.height - ay) * sp.scale.y];
 			})() : null;
-			rows.push({ i, c: Math.round((F['clock'] - tS) * 1000) / 1000, rate: F.rate, roam: { state: ro.state, clip: ro.clip, frame: ro.frame, visible: ro.visible, x: ro.x, y: ro.y, drawn: ro.drawn ? ro.drawn.sprite : null, ink, windup: !!ro.windup }, run: r ? { phase: r.phase, view: r.view, stride: r.stride, x: r.x, y: r.y, vis: !!(rr && rr.sprite.visible), alpha: r.alpha, scale: r.scale, mirrored: r.mirrored } : null, fx: s.charge ? s.charge.up : null, xh: F['xh'] ? F['xh'].state : null });
+			// (`pre`: this frame is before his set off, by the game's own test, the board clock against the runner's t0 unrounded
+			// (roam.ts alert: clock >= alertUntil, roadFeatures updateRunner: clock < t0). `c` is rounded to a thousandth of a
+			// ms: a frame that lands on the set off itself (within 0.0005 ms) read as before it by `c`, and showed him gone)
+			rows.push({ i, c: Math.round((F['clock'] - tS) * 1000) / 1000, pre: r0 ? F['clock'] < r0.t0 : null, rate: F.rate, roam: { state: ro.state, clip: ro.clip, frame: ro.frame, visible: ro.visible, x: ro.x, y: ro.y, drawn: ro.drawn ? ro.drawn.sprite : null, ink, windup: !!ro.windup }, run: r ? { phase: r.phase, view: r.view, stride: r.stride, x: r.x, y: r.y, vis: !!(rr && rr.sprite.visible), alpha: r.alpha, scale: r.scale, mirrored: r.mirrored } : null, fx: s.charge ? s.charge.up : null, xh: F['xh'] ? F['xh'].state : null });
 			if (r && r.phase === 'impact' && impactAt === null) impactAt = Math.round((F['clock'] - tS) * 1000) / 1000;
 			if (impactAt !== null && (after += step * F.rate) > (o.afterMs ?? 760)) break;
 		}
@@ -1476,8 +1479,9 @@ async function chargeSize(browser, S, spotsFrom) {
 			const want = specPlan(A.plan?.legs, quick);
 			check(!!W && W.clip === want.clip && Math.abs(W.k - want.k) < 1e-3 && W.at.every((t, i) => Math.abs(t - want.at[i]) < 0.01), `${tag}: the plan is the spec's from the crosshair's legs (${W?.clip}, k ${W?.k}${want.hop !== null ? `, the hit on the hop at ${r1(want.hop)} ms` : ', no hop in reach: its own pace'})`, { game: W, spec: want });
 			check(A.at0.clip === want.clip && A.at0.frame === 1 && A.at0.visible && A.at0.state === 'alert', `${tag}: at the strike's start he shows ${want.clip} frame 1 (the stand)`, A.at0);
-			const before = A.rows.filter((r) => r.c < A.t0 - 1e-6);
-			const from = A.rows.filter((r) => r.c >= A.t0 - 1e-6);
+			// (split by the game's own test of the set off, unrounded: `pre`)
+			const before = A.rows.filter((r) => r.pre === true);
+			const from = A.rows.filter((r) => r.pre === false);
 			const dues = framesDue(before, want);
 			const wrong = before.filter((r, i) => !(r.roam.state === 'alert' && r.roam.visible && r.roam.clip === want.clip && r.roam.frame === dues[i]));
 			check(before.length > 0 && wrong.length === 0, `${tag}: from the strike's first frame to the set off (${before.length} frames) every frame shows the ${want.clip} frame its plan has due (the hit never skipped)`, wrong.slice(0, 3).map((r) => ({ c: r.c, roam: r.roam, due: dues[before.indexOf(r)] })));
