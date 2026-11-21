@@ -4,6 +4,7 @@
 // WATCHES: apps/run_over_reindeer/src/{game/scoreboard/race.ts,game/scoreboard/scoreboardDraw.ts,game/scoreboard/ledGrid.ts,game/sound.ts,ui/RoundCard.svelte,ui/hud/hudLayout.ts};
 // WATCHES: apps/run_over_reindeer/src/{game/scoreboard/ambient.ts,game/scoreboard/entryScenes.ts,game/scoreboard/totalLadder.ts,game/scoreboard/ideasKit.ts,game/scoreboard/explainDraw.ts,game/scoreboard/show.ts,game/scoreboardArtSpec.ts,game/config.ts,game/scoreboard/stripDraw.ts,game/road/present.ts,game/stateGame.svelte.ts};
 // WATCHES: ; LED_BOARD.ideas
+// WATCHES: apps/run_over_reindeer/src/{game/landing/ledScreens.ts,game/ledWildsSpec.ts}; LED_SIGN.wilds
 // WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.bookAmount, __reindeer.fixtures, __reindeer.gagsAsked, __reindeer.hud
 // WATCHES: ; LED_BOARD.density, __reindeer.raceSeed, __reindeer.raceTally, __reindeer.raceTrace, __reindeer.roadBoard, __reindeer.roadSounds, __reindeer.scene
 // WATCHES: ; __reindeer.scoreboard, __reindeer.scoreboardCard, __reindeer.scoreboardCardEnd, __reindeer.scoreboardCardPress
@@ -1823,6 +1824,53 @@ async function pressBoard(browser, S) {
 			return out;
 		});
 		check(new Set(seen).size === 3, `${tag}: PRESS: the explainer screens advance on the board (${seen.join(' > ')})`);
+		// THE WILD PICTURES (2026-11-20, constants LED_SIGN.wilds, tools/build_led_wilds.py): the sleigh and car screens draw
+		// the game's own Wilds as they stand today: Santa's column picture and his number, the Grandma Wild's picture, her
+		// candy WILD and her number, from the press screen's Wild sheet in the look in force (each look and 'today' by hand),
+		// the numbers baked in the colors the road's Wilds use (WILD_MULT colors.santa, cellColor) for the press screen's
+		// own numbers (LED_SIGN.text), the word in the road's look (GRANDMA_BRAWL.word.look 'candy')
+		{
+			const consts = readFileSync(join(SRC, 'game', 'constants.ts'), 'utf8');
+			const spec = readFileSync(join(SRC, 'game', 'ledWildsSpec.ts'), 'utf8');
+			const W = JSON.parse(spec.slice(spec.indexOf('= ') + 2, spec.lastIndexOf(' as const')));
+			const santaSet = /colors: \{ reindeer: '(\w+)', santa: '(\w+)'/.exec(consts)?.[2];
+			const cellSet = /cellColor: '(\w+)'/.exec(consts)?.[1];
+			const wordLook = /word: \{\s*look: '(\w+)'/.exec(consts)?.[1];
+			const sleighMult = /sleighMult: '([^']+)'/.exec(consts)?.[1];
+			const carMult = /carMult: '([^']+)'/.exec(consts)?.[1];
+			const P = W.pictures;
+			const tierFrames = [W.tiers.full.frames, W.tiers.phone.frames];
+			const want = ['santa', 'grandma', 'santa_mult_stripes', 'santa_mult_solid', 'grandma_mult_stripes', 'grandma_mult_solid', 'grandma_word_stripes', 'grandma_word_solid'];
+			check(P.santa.set === santaSet && P.grandma.set === cellSet && P.grandma.wordLook === wordLook && P.santa.text === sleighMult?.toLowerCase() && P.grandma.text === carMult?.toLowerCase() && tierFrames.every((f) => want.every((n) => f[n]?.w > 0)), `${tag}: PRESS: the Wild sheet holds Santa's column and the Grandma Wild with their numbers in the road's colors (${P.santa.set} ${P.santa.text}, ${P.grandma.set} ${P.grandma.text}; WILD_MULT ${santaSet}, ${cellSet}) and the ${P.grandma.wordLook} WILD (GRANDMA_BRAWL.word.look ${wordLook}), both looks, both tiers`, { pictures: P, santaSet, cellSet, wordLook });
+			const drawn = await R(p, () => {
+				const h = window.__reindeer;
+				const keep = h.tune.ledSign.wilds.look;
+				const out = {};
+				h.scoreboardManual(true);
+				for (const look of ['stripes', 'solid', 'today']) {
+					h.tune.ledSign.wilds.look = look;
+					for (const want of [1, 2]) {
+						let x = h.scoreboardStep(20);
+						let n = 0;
+						while (x.press?.screen === want && n++ < 400) x = h.scoreboardStep(20);
+						n = 0;
+						while (x.press?.screen !== want && n++ < 1000) x = h.scoreboardStep(20);
+						// 3.2 s into the screen: the Wild stands, its word and number on
+						for (let i = 0; i < 160; i++) x = h.scoreboardStep(20);
+						out[`${look}:${want}`] = x.press?.wilds ?? null;
+					}
+				}
+				h.tune.ledSign.wilds.look = keep;
+				h.scoreboardManual(false);
+				return out;
+			});
+			for (const look of ['stripes', 'solid']) {
+				const s1 = drawn[`${look}:1`];
+				const s2 = drawn[`${look}:2`];
+				check(s1?.kind === 'sleigh' && s1.look === look && s1.names.includes('santa:picture') && s1.names.includes(`santa_mult_${look}`) && s2?.kind === 'car' && s2.look === look && ['grandma:picture', `grandma_word_${look}`, `grandma_mult_${look}`].every((n) => s2.names.includes(n)), `${tag}: PRESS: look ${look}: the sleigh screen draws Santa's column and his number (${s1?.names?.join(', ')}), the car screen the Grandma Wild, her WILD and her number (${s2?.names?.join(', ')})`, { s1, s2 });
+			}
+			check(drawn['today:1']?.look === 'today' && drawn['today:1'].names.length === 0 && drawn['today:2']?.names.length === 0, `${tag}: PRESS: look today: the pictures of before (nothing from the Wild sheet)`, { a: drawn['today:1'], b: drawn['today:2'] });
+		}
 		// ONE PROMPT ON THE DEMO PATH (2026-11-18, Corey's capture at 2000x945: the tune panel's Free Spins entry raised over
 		// the press screen showed the strip's line AND the press screen's HTML line): the press screen's line stays aside while
 		// the strip says it, and comes back as the only prompt once the card is gone
