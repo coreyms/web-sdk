@@ -735,6 +735,7 @@ function screenWin(g: Ctx, W: number, H: number, t: number, T: LedText) {
 
 // ---- SCREENS 2 and 3: the strikes ----
 const cloudCell = (g: Ctx, box: Rect) => {
+	noteOld('cloud');
 	const [cw, chh] = size('cloud');
 	const sh = Math.min(chh, cw * (box.h / Math.max(1, box.w)));
 	const a = art('cloud', [0, (chh - sh) / 2, cw, sh], box.w, box.h, kOf(g));
@@ -774,6 +775,7 @@ function burst(g: Ctx, cx: number, cy: number, p: number, rMax: number) {
 }
 // (in LEDs: the frame `th` dots thick, the rows one dot, whole LEDs on the face's grid)
 function redBox(g: Ctx, b: Rect, th: number, rows: number[] | null, color: string = C.red) {
+	noteOld('box');
 	const k = kOf(g);
 	const t = ledN(k, th);
 	const x0 = Math.round(b.x * k);
@@ -820,6 +822,44 @@ function wildPic(g: Ctx, kind: WildKind, box: Rect, alpha = 1) {
 	g.globalAlpha = 1;
 	noteWild(g, kind + ':picture');
 }
+/** THE COLUMN GROWING IN ITS OWN LOOK (LED_SIGN.wilds.grow, Corey 2026-11-21): the finished column's picture `full`, shown
+ *  in the growing window `win` (both outer edges, dots): the garland's top rows and the baubles' corners ride the window's
+ *  top edge, its bottom rows and corners the bottom edge, and the picture between them stands where it stands in the full
+ *  column. Partial blits of the one baked picture (whole LEDs on the face's grid), no mask; grown, it is the whole picture. */
+function wildGrow(g: Ctx, kind: WildKind, full: Rect, win: Rect) {
+	const k = kOf(g);
+	const a = art(LED_WILDS.pictures[kind].frame, null, full.w, full.h, k, WILDS);
+	const W = a.width;
+	const H = a.height;
+	const Y0 = Math.round(full.y * k);
+	// (each edge measured from its own end of the column: the grown window is exactly the picture)
+	const top = clamp(Math.round((win.y - full.y) * k), 0, H);
+	const bot = clamp(H - Math.round((full.y + full.h - win.y - win.h) * k), top, H);
+	if (wildRec) wildRec.grow = Math.round(((bot - top) / H) * 1000) / 1000;
+	if (top === 0 && bot === H) return wildPic(g, kind, full);
+	const G = LED_SIGN.wilds.grow;
+	const half = Math.floor((bot - top) / 2);
+	const cap = Math.min(half, Math.round(G.cap * H));
+	const ch = Math.min(half, Math.max(cap, Math.round(G.corner.h * H)));
+	const cw = Math.min(Math.floor(W / 2), Math.round(G.corner.w * W));
+	const at = (row: number) => (Y0 + row) / k;
+	// the picture where it stands, between the two edges
+	if (bot - top > 2 * cap) blit(g, a, full.x, at(top + cap), 0, top + cap, W, bot - top - 2 * cap);
+	// the garland's top and bottom rows on the window's edges
+	if (cap > 0) {
+		blit(g, a, full.x, at(top), 0, 0, W, cap);
+		blit(g, a, full.x, at(bot - cap), 0, H - cap, W, cap);
+	}
+	// the baubles' rows below and above the garland, at the corners
+	if (ch > cap) {
+		const n = ch - cap;
+		for (const x of [0, W - cw]) {
+			blit(g, a, full.x + x / k, at(top + cap), x, cap, cw, n);
+			blit(g, a, full.x + x / k, at(bot - ch), x, H - ch, cw, n);
+		}
+	}
+	noteWild(g, kind + ':picture');
+}
 /** the word or the number of a Wild over its picture `box`, in the look; false when the sheet has no such picture (the
  *  number's text not the one baked: the caller draws today's) */
 function wildPart(g: Ctx, kind: WildKind, part: 'word' | 'mult', look: 'stripes' | 'solid', box: Rect, text: string, alpha = 1): boolean {
@@ -837,12 +877,17 @@ function wildPart(g: Ctx, kind: WildKind, part: 'word' | 'mult', look: 'stripes'
 	noteWild(g, `${name}`);
 	return true;
 }
-/** what the last strike screen drew from the Wild sheet (the probes): its screen, the look and the sheet frames */
-let wildRec: { kind: 'sleigh' | 'car'; look: string; names: string[] } | null = null;
+/** what the last strike screen drew from the Wild sheet (the probes): its screen, the look and the sheet frames; `old` the
+ *  elements of the pictures of before it drew (the cloud, the red or plain box, Santa's small picture: 'today' only),
+ *  `grow` the share of the column's picture shown (the sleigh), `t` the screen's time of that frame in ms */
+let wildRec: { kind: 'sleigh' | 'car'; look: string; names: string[]; old: string[]; grow: number | null; t: number } | null = null;
 function noteWild(_g: Ctx, name: string) {
 	if (wildRec && !wildRec.names.includes(name)) wildRec.names.push(name);
 }
-export const wildsDrawn = () => (wildRec ? { kind: wildRec.kind, look: wildRec.look, names: wildRec.names.slice() } : null);
+const noteOld = (name: string) => {
+	if (wildRec && !wildRec.old.includes(name)) wildRec.old.push(name);
+};
+export const wildsDrawn = () => (wildRec ? { kind: wildRec.kind, look: wildRec.look, names: wildRec.names.slice(), old: wildRec.old.slice(), grow: wildRec.grow, t: wildRec.t } : null);
 const blinkOn = (mt: number) => mt > 0 && !(mt > 0.2 && mt < 0.3) && !(mt > 0.4 && mt < 0.5);
 function screenStrike(g: Ctx, W: number, H: number, t: number, kind: 'sleigh' | 'car', TX: LedText) {
 	const T = TX[kind];
@@ -907,17 +952,15 @@ function screenStrike(g: Ctx, W: number, H: number, t: number, kind: 'sleigh' | 
 			box = { x: cell.x, y: Math.round(yTop), w: cell.w, h: Math.round(yBot) - Math.round(yTop) };
 		}
 		const look = wildLook();
-		wildRec = { kind, look: look ?? 'today', names: [] };
+		wildRec = { kind, look: look ?? 'today', names: [], old: [], grow: null, t: Math.round(t * 1000) };
 		const rows = [1, 2, 3].map((r) => rowsTop + r * cellH);
 		if (look && kind === 'sleigh') {
-			// THE COLUMN AS IT STANDS ON THE ROAD (LED_SIGN.wilds): the cloud grows in a plain box in the garland's own
-			// color (as the game's frame stands until its garland is in), then Santa's whole column fades in over it,
-			// the flash, and his green number blinks on at his feet
-			cloudCell(g, box);
-			redBox(g, box, th, null, LED_WILDS.pictures.santa.plain);
-			const sp = span(t, HIT + 0.85, HIT + 1.2);
+			// THE COLUMN AS IT STANDS ON THE ROAD (LED_SIGN.wilds): Santa's column in its garland grows from the struck
+			// cell on the old box's beat, in its own look from the first frame (LED_SIGN.wilds.grow, Corey 2026-11-21),
+			// the flash as it stands, and his green number blinks on at his feet
+			const full = wildOuter({ x: cell.x, y: rowsTop, w: cell.w, h: 4 * cellH }, th);
 			const outer = wildOuter(box, th);
-			if (sp > 0) wildPic(g, 'santa', outer, ease(sp));
+			wildGrow(g, 'santa', full, outer);
 			const flash = span(t, HIT + 0.8, HIT + 0.9) * (1 - span(t, HIT + 0.9, HIT + 1.0));
 			if (flash > 0) {
 				g.globalAlpha = flash * 0.8;
@@ -943,6 +986,7 @@ function screenStrike(g: Ctx, W: number, H: number, t: number, kind: 'sleigh' | 
 			const sp = span(t, HIT + 0.85, HIT + 1.2);
 			if (sp > 0) {
 				const inner = { x: box.x + 1, y: box.y + 1, w: box.w - 2, h: box.h - 2 };
+				noteOld('santa_col');
 				drawFit(g, 'santa_col', inner, { dy: Math.round((1 - ease(sp)) * 5), alpha: ease(sp) });
 			}
 			redBox(g, box, th, rows);
