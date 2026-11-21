@@ -9,16 +9,21 @@
 // revealPace) and the rest after it;
 // a stop press at a random moment brings the rest forward (the board's hurry, 3x); back to back autoplay rounds (the
 // next spin starts 0 to 30 ms after the board's rest, so the ring is often still braking), a bonus round on the
-// thinned ring (its face rebuilt mid spin at the start), Turbo 0, 1 and 2, and reduced motion. Each round's frames come
-// at one steady interval or a random one from 8 to 700 ms. Checked:
-//   - every planned rest is home within 0.5 degrees (the art has no rotational symmetry, so home only)
-//   - no brake longer than today's brake for the same end plus 150 ms (the cruise steer; long and fixed are reported)
+// thinned ring (its face rebuilt mid spin at the start), Turbo 0, 1 and 2, and reduced motion; a desktop hover's enter
+// and leave at random moments (at rest, a press during a hover, a hover during the spin or the brake). Each round's
+// frames come at one steady interval or a random one from 8 to 700 ms. Checked:
+//   - every planned rest is home within 0.5 degrees (the art has no rotational symmetry, so home only), hovers' too
+//   - ONE STANDING POSITION: on every frame where the ring is still and no hover is on, it is on home (0.5 degrees)
+//   - THE BOUNCE on every arrival: 6 to 10 degrees past home, back over 180 to 260 ms (a graze's spring back aside)
+//   - forward only on the way home (a stop press's rush, a hover's leave, every steered brake)
+//   - no brake longer than its bound: today's brake + 150 ms, a stop press today's stop + 250 ms, the bounce included
+//     (the cruise steer; long and fixed are reported)
 //   - the cruise speed within 40 % of the loop's
-//   - the path never jumps (each piece starts where the last one is) and its speed never steps (but into the settle's
-//     swing back, as today, and at a wind-up from rest)
+//   - the path never jumps (each piece starts where the last one is) and its speed never steps (but at a wind-up from
+//     rest or a hover's start, as today, and where a forward-only brake starts from a ring winding back)
 //   - the page's keyframes (linear between samples) follow the path within 0.25 degrees and end on home
 //   - reduced motion: nothing is ever planned or drawn
-import { RingCore, RingPath, ringMotion, RING_HOME, HOME_EXTRA_MS, STEER_CAP, REST_METHODS, wrap180 } from '../src/ui/hud/ringPlan.ts';
+import { RingCore, RingPath, ringMotion, RING_HOME, HOME_EXTRA_MS, STOP_EXTRA_MS, STEER_CAP, REST_METHODS, wrap180 } from '../src/ui/hud/ringPlan.ts';
 
 const N = +(process.env.ROUNDS || 20000);
 let seed = +(process.env.SEED || 7);
@@ -51,9 +56,11 @@ function checkPath(core, tag) {
 		if (Math.abs(a.te - b.t0) > 1e-6) fail(`${tag}: piece ${i} starts at ${b.t0}, the last ended at ${a.te}`);
 		const end = core.path.pos(b.t0 - 1e-7);
 		if (Math.abs(end - b.a0) > 1e-3) fail(`${tag}: a jump of ${(b.a0 - end).toFixed(4)} degrees into piece ${i} (${b.k})`);
-		if (b.k === 'set' || b.k === 'bez') continue;
+		if (b.k === 'bez') continue;
 		const v0 = speedOf(a, b.t0);
 		const v1 = speedOf(b, b.t0);
+		// (a forward-only way home that starts while the ring winds back starts from still)
+		if (v0 < 0 && Math.abs(v1) < 1e-4) continue;
 		if (Math.abs(v1 - v0) > 1e-3 + 0.002 * Math.abs(core.v)) fail(`${tag}: a speed step of ${(v1 - v0).toFixed(5)} deg/ms into piece ${i} (${a.k} to ${b.k})`);
 	}
 }
@@ -86,6 +93,8 @@ function checkKeyframes(core, now, tag, worst) {
 		worst.kf = Math.max(worst.kf, dev);
 		if (dev > 0.25) fail(`${tag}: keyframes ${dev.toFixed(3)} degrees off the path at ${Math.round(t - now)} of ${Math.round(D)} ms`);
 	}
+	// (a hover's quarter turn ends where it holds while the pointer is over the key)
+	if (core.hovering) return;
 	const endDeg = kf[kf.length - 1].deg + base;
 	const e = Math.abs(wrap180(endDeg - RING_HOME));
 	if (e > 0.5) fail(`${tag}: the keyframes end ${e.toFixed(3)} degrees off home`);
@@ -106,6 +115,10 @@ function run(method) {
 	let checked = 0;
 	let reducedRounds = 0;
 	let unseen = 0;
+	let stillChecks = 0;
+	let widened = 0;
+	const stopPeaks = [];
+	const arrivals = { n: 0, grazes: 0, overMin: Infinity, overMax: 0, msMin: Infinity, msMax: 0, backMin: Infinity, stopMax: -Infinity, stopPast150: 0, stops: 0, stopPeak: 0, hovers: 0 };
 	let lastVersion = core.version;
 	let nextF = 0;
 	let round = 0;
@@ -155,30 +168,45 @@ function run(method) {
 					started = true;
 				});
 				if (reduced && (core.phase !== 'rest' || core.version !== lastVersion)) fail(`reduced: the ring turns (phase ${core.phase}, a new path ${core.version !== lastVersion})`);
+				// ONE STANDING POSITION: still (its path run out), at rest, no hover on: on home
+				if (core.phase === 'rest' && !core.hovering && core.path.segs.length && f >= core.path.end) {
+					stillChecks += 1;
+					const e = Math.abs(wrap180(core.path.pos(f) - RING_HOME));
+					if (e > 0.5) fail(`${method} r${round} t${turbo} ${reg}: still at ${f.toFixed(0)} ms ${e.toFixed(2)} degrees off home`);
+				}
 				if (core.version !== lastVersion) {
 					lastVersion = core.version;
 					checkPath(core, `${method} r${round} t${turbo} ${reg}`);
 					checkKeyframes(core, f, `${method} r${round} t${turbo} ${reg}`, worst);
 				}
 			};
-			// the frames before the press, the press (HudSpin's Play to Stop effect starts the ring at once, not on a frame),
-			// then the frames until the board is at rest and a little after (the next round, if any, follows)
-			while (nextF < p) {
-				step(nextF);
-				nextF = nextFrame(nextF, reg);
+			// the events between frames, in time order: the press (HudSpin's Play to Stop effect starts the ring at once, not
+			// on a frame) and a desktop hover's enter and leave (pointer events, not on a frame): anywhere from the end of the
+			// last round to this one's end, so at rest, across the press, during the spin or the brake
+			const ev = [];
+			if (pressed && !reduced) ev.push({ t: p, k: 'press' });
+			if (!reduced && rnd() < 0.4) {
+				const hIn = U(now, until);
+				ev.push({ t: hIn, k: 'in' }, { t: Math.min(until - 0.01, hIn + pick([U(5, 60), U(60, 700), U(700, 2500)])), k: 'out' });
 			}
-			if (pressed && !reduced) {
-				core.start(p, turbo, aDom(p));
-				started = true;
+			ev.sort((x, y) => x.t - y.t);
+			const doEv = (e) => {
+				if (e.k === 'press') {
+					core.start(e.t, turbo, aDom(e.t));
+					started = true;
+				} else core.hover(e.t, e.k === 'in', aDom(e.t));
 				if (core.version !== lastVersion) {
 					lastVersion = core.version;
-					checkPath(core, `${method} r${round} press`);
+					checkPath(core, `${method} r${round} ${e.k}`);
+					checkKeyframes(core, e.t, `${method} r${round} ${e.k}`, worst);
 				}
-			}
+			};
 			while (nextF < until) {
+				while (ev.length && ev[0].t <= nextF) doEv(ev.shift());
 				step(nextF);
 				nextF = nextFrame(nextF, reg);
 			}
+			while (ev.length) doEv(ev.shift());
 			now = until;
 			t = until;
 			if (reduced) {
@@ -201,6 +229,35 @@ function run(method) {
 		tally[key] = (tally[key] ?? 0) + 1;
 		if (r.err > worst.err) worst.err = r.err;
 		if (r.err > 0.5) fail(`${method} round ${r.n} (${r.kind}, t${r.turbo}): rests ${r.err.toFixed(3)} degrees off home`);
+		// THE BOUNCE on every arrival (a hover's graze springs straight back instead)
+		const graze = r.kind === 'hover' && r.shape === 'snap';
+		if (graze) arrivals.grazes += 1;
+		else {
+			arrivals.n += 1;
+			arrivals.overMin = Math.min(arrivals.overMin, r.over);
+			arrivals.overMax = Math.max(arrivals.overMax, r.over);
+			arrivals.msMin = Math.min(arrivals.msMin, r.bounceMs);
+			arrivals.msMax = Math.max(arrivals.msMax, r.bounceMs);
+			if (!(r.over >= 6 && r.over <= 10 && r.bounceMs >= 180 && r.bounceMs <= 260)) fail(`${method} round ${r.n} (${r.kind}): bounce ${r.over} degrees over ${r.bounceMs} ms`);
+			// forward only on the way home (the steer's every end; 'fixed' may swing back by design)
+			if (method !== 'fixed') {
+				arrivals.backMin = Math.min(arrivals.backMin, r.back);
+				if (r.back < -1e-6) fail(`${method} round ${r.n} (${r.kind}/${r.shape}, t${r.turbo}): turns back on its way home (${r.back.toFixed(3)} x the loop's)`);
+			}
+		}
+		if (r.kind === 'hover') {
+			arrivals.hovers += 1;
+			continue;
+		}
+		if (r.kind === 'halt') {
+			arrivals.stops += 1;
+			arrivals.stopMax = Math.max(arrivals.stopMax, r.brakeMs - r.todayMs);
+			if (r.brakeMs - r.todayMs > HOME_EXTRA_MS + 1e-6) arrivals.stopPast150 += 1;
+			arrivals.stopPeak = Math.max(arrivals.stopPeak, r.peak);
+			stopPeaks.push(r.peak);
+		}
+		if (method === 'steer' && r.brakeMs > r.boundMs + 1e-6) fail(`steer round ${r.n} (${r.kind}, t${r.turbo}): brake ${Math.round(r.brakeMs)} ms over its bound ${Math.round(r.boundMs)} (today's ${Math.round(r.todayMs)})`);
+		if (method === 'steer' && r.boundMs > r.todayMs + (r.kind === 'halt' ? STOP_EXTRA_MS : HOME_EXTRA_MS) + 1e-6) widened += 1;
 		const over = r.brakeMs - r.todayMs;
 		if (over > worst.over) {
 			worst.over = over;
@@ -216,11 +273,10 @@ function run(method) {
 		B.peak = Math.max(B.peak, r.peak);
 		B.low = Math.min(B.low, r.low);
 		B.steer.push(r.steer);
-		if (method === 'steer' && over > HOME_EXTRA_MS + 1e-6) fail(`steer round ${r.n} (${r.kind}, t${r.turbo}): brake ${Math.round(r.brakeMs)} ms, today's ${Math.round(r.todayMs)} + ${HOME_EXTRA_MS}`);
 		if (method === 'steer' && r.steer > STEER_CAP + 1e-6) fail(`steer round ${r.n}: cruise speed ${Math.round(r.steer * 100)} % off the loop's`);
 		worst.steer = Math.max(worst.steer, r.steer);
 	}
-	return { method, checked, reducedRounds, unseen, worst, tally, byTurbo, byKind };
+	return { method, checked, reducedRounds, unseen, worst, tally, byTurbo, byKind, stillChecks, arrivals, widened, stopPeaks };
 }
 // (the core keeps its last 60 rounds; the test keeps every one)
 const ALL = new WeakMap();
@@ -228,15 +284,17 @@ function allRounds(core) {
 	return ALL.get(core) ?? core.rounds;
 }
 // collect every round: wrap the core's push
-const origStart = RingCore.prototype.start;
-RingCore.prototype.start = function (...args) {
-	const r = origStart.apply(this, args);
-	if (!ALL.has(this)) ALL.set(this, []);
-	const last = this.rounds[this.rounds.length - 1];
-	const all = ALL.get(this);
-	if (last && all[all.length - 1] !== last) all.push(last);
-	return r;
-};
+for (const name of ['start', 'hover']) {
+	const orig = RingCore.prototype[name];
+	RingCore.prototype[name] = function (...args) {
+		const r = orig.apply(this, args);
+		if (!ALL.has(this)) ALL.set(this, []);
+		const last = this.rounds[this.rounds.length - 1];
+		const all = ALL.get(this);
+		if (last && all[all.length - 1] !== last) all.push(last);
+		return r;
+	};
+}
 
 const pct = (xs, q) => {
 	const s = [...xs].sort((a, b) => a - b);
@@ -250,7 +308,10 @@ for (const m of methods) {
 	const ok = failCount === before;
 	if (m === 'steer') steerOk = ok;
 	console.log(`\n== ${m}: ${R.checked} rounds braked and checked (+ ${R.reducedRounds} reduced motion, ${R.unseen} autoplay rounds shorter than one frame), ${ok ? 'no failures' : `${failCount - before} failures`}`);
-	console.log(`   worst rest error ${R.worst.err.toFixed(4)} degrees; keyframes worst ${R.worst.kf.toFixed(4)} degrees off the path`);
+	console.log(`   worst rest error ${R.worst.err.toFixed(4)} degrees; keyframes worst ${R.worst.kf.toFixed(4)} degrees off the path; ${R.stillChecks} still frames all on home`);
+	const A = R.arrivals;
+	console.log(`   bounce on ${A.n} arrivals: ${A.overMin} to ${A.overMax} degrees over, back in ${A.msMin} to ${A.msMax} ms (${A.grazes} hover grazes spring straight back); ${A.hovers} hover returns; slowest speed on the way home ${A.backMin.toFixed(3)} x the loop's`);
+	console.log(`   stop presses: ${A.stops}, worst ${Math.round(A.stopMax)} ms over today's stop (${A.stopPast150} past +150), fastest ${A.stopPeak.toFixed(2)} x the loop's (median ${pct(R.stopPeaks, 0.5).toFixed(2)}, 90th ${pct(R.stopPeaks, 0.9).toFixed(2)}); bounds widened past today's + 150 / + 250 by a short brake and the bounce: ${R.widened}`);
 	console.log(`   worst brake against today's: ${R.worst.over >= 0 ? '+' : ''}${Math.round(R.worst.over)} ms (${R.worst.overKind}); largest cruise speed change ${Math.round(R.worst.steer * 100)} %`);
 	for (const t of [0, 1, 2]) {
 		const o = R.byTurbo[t].over;

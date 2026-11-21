@@ -171,6 +171,26 @@
 			lastWin = w;
 		});
 	});
+	// THE HOVER (Corey 2026-11-20: "hover over and progress it"): a desktop pointer over the key turns the ring a quarter
+	// forward; when it leaves (or the key is disabled under it) the ring goes on forward to home and bounces; a press
+	// during it simply starts the spin from where the ring is. Never on touch, never under reduced motion (ui/hud/ringPlan.ts
+	// RingCore.hover; it took the place of the CSS quarter turn on .rh, which came back the other way)
+	const finePointer = () => typeof matchMedia !== 'undefined' && matchMedia('(hover: hover) and (pointer: fine)').matches;
+	const hoverOn = (e: PointerEvent) => {
+		if (e.pointerType !== 'mouse' || reduced || disabled || !finePointer()) return;
+		driver.hover(true);
+	};
+	const hoverOff = (e: PointerEvent) => {
+		if (e.pointerType !== 'mouse') return;
+		driver.hover(false);
+	};
+	$effect(() => {
+		if (disabled) untrack(() => driver.hover(false));
+	});
+	// reduced motion switched on: nothing turns, the ring simply at home (the driver's animations cancelled)
+	$effect(() => {
+		if (reduced) untrack(() => driver.stop());
+	});
 	// DEV: THE REST METHOD by hand and the ring's rounds as planned (the main repo's tools/manticore/hud_probe.js section
 	// `home`; the method stays through a rebuilt HUD). Not in a production build.
 	if (import.meta.env.DEV && typeof window !== 'undefined') {
@@ -284,6 +304,8 @@
 	style:--d="{d}px"
 	{disabled}
 	onclick={replay ? () => replayState.start?.() : controls.spin}
+	onpointerenter={hoverOn}
+	onpointerleave={hoverOff}
 	aria-label={label}
 >
 	<i class="halo"></i>
