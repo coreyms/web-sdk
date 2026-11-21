@@ -565,14 +565,16 @@ export const LED_SIGN = {
 	 *  game/ledWildsSpec.ts face): eye and ear PATCHES (a rectangle of a whole face frame, baked as the face is and copied
 	 *  over its LEDs) and the breath PUFFS drawn over it. game/landing/ledScreens.ts screenFace.
 	 *  `position`: its place in the cycle ('first'; 'beforeSanta': after the max win; 'last').
-	 *  `art`: the two fixes after the mock (2026-11-21, tools/build_led_face_art.py) or the mock's own pictures, both on
-	 *  the sheet: lids 'fur' (the brow's fur, a soft crease, the lash line only at the bottom) or 'mock' (the flat fill in
-	 *  the whole outline); puffs 'nostril' (out of the nostrils, never over the nose's rim) or 'mock' (beside the nose).
+	 *  The lids and puffs are the two fixes after the mock (tools/build_led_face_art.py): furred lids (the brow's fur, a
+	 *  soft crease, the lash line only at the bottom) and puffs out of the nostrils, never over the nose's rim (Corey
+	 *  2026-11-21: "Eyelid puff sheet looks good"; the mock's own lids and puffs are off the sheet since).
 	 *  `script` (s of the screen): each sentence lands (dropping `dropDots` into place over `dropS`), the snort's puffs and
 	 *  the ears' flick, the glance at Santa from glanceAt held glanceHoldS, `between` of glare, the glance at Grandma held
 	 *  as long, then the blink blinkAfter later. `blink`: half, closed, half over totalS (closed from halfS to openS);
 	 *  `flick`: the ears at 5, 12 and 5 degrees over totalS (12 from upS to downS); `puff`: frames 0 to 3 to the ends in
-	 *  `frames`, the last fading out from fadeFromS to fadeToS (the draw's alpha).
+	 *  `frames`, the last fading out from fadeFromS to fadeToS (the draw's alpha); frame 1 (still on the nose) hands over
+	 *  to frame 2 (past the rim) by a cross fade over `blendS` centred on the change (2026-11-21, so the breath does not
+	 *  hop across the rim in one board frame; 0: the plain cut).
 	 *  `pics`: Santa and Grandma beside the line: the biggest box of their shape in each bottom corner up to sizeCap of the
 	 *  board's height (at least minDots), `clearDots` clear of the line, the face's drawn dots and the puffs' reach, under
 	 *  the light string, `edgeDots` inside the board's edge and above the strip's snow; a box low beside the line scores
@@ -582,7 +584,6 @@ export const LED_SIGN = {
 	 *  where the face keeps 60% of the board, else 1) or '3', '2', '1' (that size where it fits). */
 	face: {
 		position: 'first' as 'first' | 'beforeSanta' | 'last',
-		art: { lids: 'fur' as 'fur' | 'mock', puffs: 'nostril' as 'nostril' | 'mock' },
 		blink: true,
 		glance: true,
 		earTwitch: true,
@@ -593,7 +594,7 @@ export const LED_SIGN = {
 		script: { land1: 0.5, land2: 1.2, dropDots: 2, dropS: 0.1, snort: 0.62, flick: 0.66, glanceAt: 1.42, between: 0.18, blinkAfter: 0.3 },
 		blinkTiming: { halfS: 0.04, openS: 0.11, totalS: 0.16 },
 		flickTiming: { upS: 0.04, downS: 0.15, totalS: 0.22 },
-		puffTiming: { frames: [0.07, 0.16, 0.27], fadeFromS: 0.33, fadeToS: 0.51 },
+		puffTiming: { frames: [0.07, 0.16, 0.27], fadeFromS: 0.33, fadeToS: 0.51, blendS: 0.06 },
 		pics: { on: true, santaSide: 'left' as 'left' | 'right', crop: 'bust' as 'bust' | 'head', santa: 'cutout' as 'cutout' | 'tile', sizeCap: 0.23, minDots: 10, clearDots: 2, edgeDots: 3, raisePenalty: 0.25 },
 		layout: { scale: 1, offsetDots: 0, textScale: 'auto' as 'auto' | '3' | '2' | '1', trimMax: 0.015 },
 	},

@@ -37,27 +37,29 @@ of the Wild pictures (the Wild pictures keep their places, so their bakes do not
             from the face only inside it (its changed pixels' box plus MARGIN px), cut from that frame scaled whole to the
             tier, so it registers with the face exactly; the eyes split at the face's middle (x 836). The glances and the
             ears are the mock's layers (led_intro_face_screen_r2_2026-11-21/layers); the half and closed lids are the
-            furred ones (tools/build_led_face_art.py, led_intro_face_built_2026-11-21/layers), the mock's flat lids kept as
-            eye_<l|r>_<half|closed>_mock (LED_SIGN.face.art.lids 'mock')
-  puffs     puff_n0 to puff_n3: the breath out of the nostrils (tools/build_led_face_art.py); the mock's puff_0 to puff_3
-            kept (LED_SIGN.face.art.puffs 'mock')
+            furred ones (tools/build_led_face_art.py, led_intro_face_built_2026-11-21/fix_2026-11-21/layers). The mock's own flat lids
+            and puffs left the sheet on 2026-11-21 (Corey approved the built look: "Eyelid puff sheet looks good").
+  puffs     puff_n0 to puff_n3: the breath out of the nostrils (tools/build_led_face_art.py)
 The spec's `face` holds the patches' rectangles and the puffs' boxes as shares of the face, the face's drawn extent per 1%
 band of its height (every ear frame with it: the pictures beside it keep clear), the nostril and the nostrils' middle, the
 nose's rim as boxes (the probes: no puff over it), and each tier's `places` (each patch's corner in the face frame, px).
 
 Writes static/assets/landing/led-wilds-full.webp and led-wilds-phone.webp (quality 90, alpha lossless: the LED punch keys
-on alpha) and src/game/ledWildsSpec.ts (generated).
+on alpha) and src/game/ledWildsSpec.ts (generated), and tools/led_face_check_data.json: the face screen's pieces as the
+game decodes them from the sheets just written (each puff's alpha), so the node check tools/led_face_check.mjs bakes them through the board's own math without a browser.
 
 Run with the math env's Python (Pillow, numpy, scipy):
     nice -n 19 math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_led_face_art.py   (the face's two fixes)
     nice -n 19 math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_led_wilds.py
 Then `node scripts/stamp-assets.mjs` (pnpm dev and pnpm build run it for you).
 """
+import base64
 import json
 import math
 import os
 import re
 import sys
+import zlib
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -87,7 +89,7 @@ BOARDS = {
 # THE FACE SCREEN's sources (see above)
 FACE_SRC = os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_reindeer_face_r4_2026-11-21/face_2_no_smoke.png")
 FACE_MOCK = os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_face_screen_r2_2026-11-21/layers")
-FACE_BUILT = os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_face_built_2026-11-21/layers")
+FACE_BUILT = os.environ.get("LED_FACE_LAYERS") or os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_face_built_2026-11-21/fix_2026-11-21/layers")
 FACE_CROP = (77, 0, 1595, 941)  # the face's drawn width (alpha x 85 to 1587) with 8 px either side; full height
 FACE_TIER_W = {"full": 1518, "phone": 922}
 FACE_MID = 836  # the eye patches: the left eye's from x under it, the right eye's from x at or over it
@@ -98,7 +100,6 @@ for _st in ("gaze_l", "gaze_r"):
     FACE_PATCHES += [(f"eye_l_{_st}", f"eyes_{_st}.png", FACE_MOCK, "l"), (f"eye_r_{_st}", f"eyes_{_st}.png", FACE_MOCK, "r")]
 for _st in ("half", "closed"):
     FACE_PATCHES += [(f"eye_l_{_st}", f"eyes_{_st}_fur.png", FACE_BUILT, "l"), (f"eye_r_{_st}", f"eyes_{_st}_fur.png", FACE_BUILT, "r")]
-    FACE_PATCHES += [(f"eye_l_{_st}_mock", f"eyes_{_st}.png", FACE_MOCK, "l"), (f"eye_r_{_st}_mock", f"eyes_{_st}.png", FACE_MOCK, "r")]
 for _side in "lr":
     for _deg in (5, 12):
         FACE_PATCHES.append((f"ear_{_side}_{_deg}", f"ears_{_side}_{_deg}.png", FACE_MOCK, None))
@@ -308,17 +309,11 @@ def face_parts():
     nose = json.load(open(os.path.join(FACE_BUILT, "nose.json")))
     axis = nose["axis"] - FACE_CROP[0]
     nostril = nose["nostrils"][0]["c"]
-    sets = {
-        "nostril": (json.load(open(os.path.join(FACE_BUILT, "puffs_nostril.json"))), FACE_BUILT),
-        "mock": (json.load(open(os.path.join(FACE_MOCK, "puffs_info.json"))), FACE_MOCK),
-    }
-    puffs, puff_ims = {}, {}
-    for key, (lst, folder) in sets.items():
-        puffs[key] = [{"frame": p["frame"], "x": round((p["x"] - FACE_CROP[0]) / fw, 5), "y": round(p["y"] / fh, 5), "w": round(p["w"] / fw, 5), "h": round(p["h"] / fh, 5)} for p in lst]
-        for p in lst:
-            puff_ims[p["frame"]] = Image.open(os.path.join(folder, p["frame"] + ".png")).convert("RGBA")
-    # the puffs' reach, both nostrils, both sets (the pictures beside the face keep clear of it)
-    allp = [q for v in puffs.values() for q in v]
+    lst = json.load(open(os.path.join(FACE_BUILT, "puffs_nostril.json")))
+    puffs = [{"frame": p["frame"], "x": round((p["x"] - FACE_CROP[0]) / fw, 5), "y": round(p["y"] / fh, 5), "w": round(p["w"] / fw, 5), "h": round(p["h"] / fh, 5)} for p in lst]
+    puff_ims = {p["frame"]: Image.open(os.path.join(FACE_BUILT, p["frame"] + ".png")).convert("RGBA") for p in lst}
+    # the puffs' reach, both nostrils (the pictures beside the face keep clear of it)
+    allp = puffs
     ax = axis / fw
     spec = {
         "frame": "face",
@@ -329,7 +324,7 @@ def face_parts():
         "puffBox": [round(min(q["x"] for q in allp), 4), round(min(q["y"] for q in allp), 4), round(max(2 * ax - q["x"] for q in allp), 4), round(min(1, max(q["y"] + q["h"] for q in allp)), 4)],
         "patches": {n: [round(r[0] / fw, 5), round(r[1] / fh, 5), round(r[2] / fw, 5), round(r[3] / fh, 5)] for n, r in rects.items()},
         "puffs": puffs,
-        "rim": [[round((b[0] - FACE_CROP[0]) / fw, 5), round(b[1] / fh, 5), round((b[2] - FACE_CROP[0]) / fw, 5), round(b[3] / fh, 5)] for b in nose["rimBoxes"]],
+        "rim": [[round((b[0] - FACE_CROP[0]) / fw, 4), round(b[1] / fh, 4), round((b[2] - FACE_CROP[0]) / fw, 4), round(b[3] / fh, 4)] for b in nose["rimBoxes"]],
     }
     return face, rects, variants, puff_ims, spec
 
@@ -413,6 +408,23 @@ def pack_more(frames, size, face, pieces):
     return out, (W, H)
 
 
+CHECK_DATA = os.path.join(HERE, "led_face_check_data.json")
+
+
+def face_check_data(path, frames):
+    """the face screen's puffs as the game decodes them from the sheet at `path` (tools/led_face_check.mjs bakes them
+    onto the dot board): each puff frame's alpha, bytes row by row, deflated, base64. (The patches need no pixels there:
+    the check takes every pixel the game puts in as changed, ledScreens.ts patchBake, and follows how far the bake
+    carries it.)"""
+    im = np.array(Image.open(path).convert("RGBA"))
+    pack = lambda a: base64.b64encode(zlib.compress(np.ascontiguousarray(a, np.uint8).tobytes(), 9)).decode()
+    out = {}
+    for name, f in frames.items():
+        if name.startswith("puff_n"):
+            out[name] = {"w": f["w"], "h": f["h"], "a": pack(im[f["y"]:f["y"] + f["h"], f["x"]:f["x"] + f["w"], 3])}
+    return {"puffs": out}
+
+
 def main():
     meta = json.load(open(os.path.join(SRC, "src.json")))
     texts = led_text()
@@ -424,6 +436,7 @@ def main():
     shares = {}
     parts = face_parts()
     spec["face"] = parts[4]
+    check_data = {}
     for tier in ("full", "phone"):
         size = target_px(tier)
         pieces = {}
@@ -465,6 +478,7 @@ def main():
         path = os.path.join(APP, "static", "assets", file)
         sheet.save(path, "WEBP", **WEBP)
         spec["tiers"][tier] = {"file": file, "width": W, "height": H, "kb": round(os.path.getsize(path) / 1024, 1), "frames": frames, "facePlaces": fplaces}
+        check_data[tier] = face_check_data(path, frames)
         print(tier, (W, H), spec["tiers"][tier]["kb"], "KB", {k: v for k, v in size.items()})
     # each part's box: its measured centre, the piece's own size (both looks share the stripes' box)
     for k in pics:
@@ -480,6 +494,9 @@ def main():
         f.write("// growing box's color, `text` the number baked; tiers: each picture's place on its sheet in px. face: the face\n")
         f.write("// screen's patches and puffs as shares of the face (tools/build_led_face_art.py), each tier's facePlaces in px.\n")
         f.write("export const LED_WILDS = " + json.dumps(spec, indent="\t") + " as const;\n")
+    with open(CHECK_DATA, "w") as f:
+        json.dump({"note": "AUTO-GENERATED by tools/build_led_wilds.py for tools/led_face_check.mjs (see face_check_data)", "tiers": check_data}, f)
+    print("check data", round(os.path.getsize(CHECK_DATA) / 1024, 1), "KB")
 
 
 if __name__ == "__main__":

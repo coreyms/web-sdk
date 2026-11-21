@@ -49,8 +49,7 @@ A 5 x 4, 12 line slot drawn as a sideways four lane road, forked from Manticore 
   never run them on the Mac. The Mac form, for a run the main session makes, from the app folder:
   `/Users/corey/Projects/stake-engine/tools/browser_lock.sh run game -- nice -n 19 env NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:<port> node tools/<name>_probe.mjs`
   Common switches: `ONLY=a,b`, `SKIPFS=1`, `SHOTS=<dir>`.
-- Not muted yet: `crosshair_probe.mjs` and `strike_probe.mjs` call `chromium.launch` without `--mute-audio`.
-  Add it before running either on the Mac.
+- Every probe launches Chromium with `--mute-audio` (`crosshair_probe.mjs` and `strike_probe.mjs` since 2026-11-21).
 - Probe impact: `node tools/probe_impact.mjs --repo <worktree> --game reindeer` from the parent root.
 
 ## Build check

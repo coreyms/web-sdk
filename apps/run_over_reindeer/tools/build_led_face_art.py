@@ -13,15 +13,18 @@ game/landing/ledScreens.ts screenFace). Plain image work on the approved face (n
   NOSTRIL PUFFS the mock's puffs sit beside the nose and its first frames cover the nose's lower rim. Here the breath comes
                 OUT of each nostril: the first frame small on the nostril's opening, the second swelling down and out
                 inside the nose's red, then, past the rim, out and down over the muzzle, growing and breaking up as it fades.
-                No frame touches the nose's rim (its dark outline, grown by RIM_MARGIN px: checked here pixel by pixel for
-                both nostrils, the right nostril's frames mirrored about the nostrils' own middle). The look is the game's
+                No frame touches the nose's rim: no pixel of a frame inside the rim's BOXES (the boxes the game and its
+                probes test, one per RIM_STEP px column of the rim) grown by RIM_MARGIN px, for both nostrils, the right
+                nostril's frames mirrored about the nostrils' own middle. (Until 2026-11-21 this was the rim's own pixels
+                grown by 4 px: frame 1 passed here but lit 1 to 3 LEDs on the board's rim boxes. The node check
+                tools/led_face_check.mjs bakes every frame onto the dot board at every face size and is the judge.) The look is the game's
                 breath (tools/build_roam.py candidate_fx look A: four soft lobes, a top lit fill, the dark ink rim), drawn
                 with the mock's own recipe (led_intro_face_screen_r2_2026-11-21/_build/art/puffs_build.py).
 
 Writes full size face frames (1672 x 941, only the eyes changed) eyes_half_fur.png and eyes_closed_fur.png, the puff frames
 puff_n0.png to puff_n3.png with puffs_nostril.json (each frame's top left in the face picture's px and its size), and
 nose.json (the nostrils, the mirror axis, the nose's rim as boxes for the probes) into
-~/Desktop/Run Over Reindeer/led_intro_face_built_2026-11-21/layers/. tools/build_led_wilds.py packs them with the mock's
+~/Desktop/Run Over Reindeer/led_intro_face_built_2026-11-21/fix_2026-11-21/layers/. tools/build_led_wilds.py packs them with the mock's
 other layers (the glances and the ears) into the press screen's Wild sheets.
 
 Run with the math env's Python (Pillow, numpy, scipy):
@@ -35,7 +38,8 @@ from PIL import Image, ImageFilter
 from scipy import ndimage
 
 FACE_SRC = os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_reindeer_face_r4_2026-11-21/face_2_no_smoke.png")
-OUT = os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_face_built_2026-11-21/layers")
+# (since 2026-11-21 the fix round's folder: frame 1 moved off the rim's boxes; the first build's layers/ stay as they were)
+OUT = os.environ.get("LED_FACE_LAYERS") or os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_face_built_2026-11-21/fix_2026-11-21/layers")
 
 # ---- the eyes' geometry (the mock's _build/art/eyegeom.py, unchanged) ---------------------------------------------------
 EYE_BOXES = [(500, 360, 770, 540), (900, 360, 1172, 540)]
@@ -256,7 +260,8 @@ PUFF_FRAMES = [
     {"c": (650, 876), "d": 96, "spread": 1.05, "size": 0.97},
     {"c": (574, 868), "d": 132, "spread": 1.2, "size": 0.84},
 ]
-RIM_MARGIN = 4  # px every frame keeps off the nose's rim (its dark outline)
+RIM_STEP = 4  # px: the rim's boxes, one per run of rim rows in each RIM_STEP px wide column (the game's and probes' rim)
+RIM_MARGIN = 4  # px every frame keeps off the rim's boxes
 
 
 def puff(d, spread, shrink, ink_px):
@@ -334,11 +339,13 @@ def rim_boxes(rim, step=12):
 def nostril_puffs(im):
     H, W = im.shape[:2]
     ball, rim, nostrils, axis = nose_geometry(im)
-    keep_off = ndimage.binary_dilation(rim, iterations=RIM_MARGIN)
-    boxes = rim_boxes(keep_off)
+    boxes = rim_boxes(rim, RIM_STEP)
+    keep_off = np.zeros_like(rim)
+    for b in boxes:
+        keep_off[max(0, b[1] - RIM_MARGIN):b[3] + RIM_MARGIN, max(0, b[0] - RIM_MARGIN):b[2] + RIM_MARGIN] = True
 
-    def rim_hits(a, x, y):
-        """the frame's pixels (alpha over 0) on the rim grown by RIM_MARGIN, both nostrils"""
+    def rim_hits(a, x, y, mask=keep_off):
+        """the frame's pixels (alpha over 0) on `mask` (the rim's boxes grown by RIM_MARGIN), both nostrils"""
         hits = 0
         for side in "lr":
             x0 = x if side == "l" else int(round(2 * axis - x - a.shape[1]))
@@ -347,7 +354,7 @@ def nostril_puffs(im):
             ys = ys + y
             xs = xs + x0
             ok = (xs >= 0) & (xs < W) & (ys >= 0) & (ys < H)
-            hits += int(keep_off[ys[ok], xs[ok]].sum())
+            hits += int(mask[ys[ok], xs[ok]].sum())
         return hits
 
     def rect_hits(x, y, w, h):
@@ -387,8 +394,8 @@ def nostril_puffs(im):
         assert y + img.height <= H, f"puff {i} below the picture"
         pics.append(img)
         frames.append({"frame": f"puff_n{i}", "x": x, "y": y, "w": img.width, "h": img.height, "ink": round(ink, 1)})
-        report.append({"frame": f"puff_n{i}", "nudgedPx": step, "rimPx": rim_hits(a, x, y), "rimBoxesHit": rect_hits(x, y, img.width, img.height), "onTheNose": inside})
-    return frames, pics, {"nostrils": nostrils, "axis": round(axis, 2), "rimMargin": RIM_MARGIN, "rimBoxes": rim_boxes(rim), "check": report}
+        report.append({"frame": f"puff_n{i}", "nudgedPx": step, "rimPx": rim_hits(a, x, y), "rimOwnPx": rim_hits(a, x, y, rim), "rimBoxesHit": rect_hits(x, y, img.width, img.height), "onTheNose": inside})
+    return frames, pics, {"nostrils": nostrils, "axis": round(axis, 2), "rimStep": RIM_STEP, "rimMargin": RIM_MARGIN, "rimBoxes": boxes, "check": report}
 
 
 def main():

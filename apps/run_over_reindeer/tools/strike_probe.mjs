@@ -243,7 +243,7 @@ const analyse = (rows, { side, cell, strict = true }) => {
 };
 
 const main = async () => {
-	const browser = await chromium.launch({ headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+	const browser = await chromium.launch({ headless: true, args: ['--mute-audio', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 	const report = { at: new Date().toISOString(), sweep: SWEEP, layouts: [] };
 	try {
 		for (const L of LAYOUTS) {

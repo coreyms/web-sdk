@@ -1879,20 +1879,20 @@ async function wildGrowChecks(p, tag) {
  *  ONE REINDEER. lands, the snort's puffs and the ears' flick with it, TWO GRUDGES. lands, the glance at Santa (his side),
  *  glare, the glance at Grandma, the blink, glare to the end; each frame draws exactly the patches its pose asks for (the
  *  lids in the look in force), every patch inside the face's clip and joining the face's bake (its border LEDs within
- *  FACE_SEAM levels of the face's), no puff LED lit on the nose's rim, the line and the two pictures inside the board, the
- *  patches all baked before the screen ends (one a step), and the mock's own lids and puffs (LED_SIGN.face.art 'mock')
- *  still drawn when asked for. */
+ *  FACE_SEAM levels of the face's on the sides where it joins the face: a side on the face bake's own edge joins nothing;
+ *  the worst one named with its pose, time and both LEDs), no puff LED lit on the nose's rim (its boxes on the face's
+ *  drawn LEDs, each holding the LEDs whose centres fall in it), the line and the two pictures inside the board, and the
+ *  patches all baked before the screen ends (one a step). (The mock's own lids and puffs left the sheet on 2026-11-21,
+ *  Corey: "Eyelid puff sheet looks good"; their check with them.) The node check tools/led_face_check.mjs bakes the same
+ *  puffs and patches offline on these boards at every LEDs per dot. */
 const FACE_TOL = 70;
 const FACE_SEAM = 2;
 async function faceScreenChecks(p, tag) {
 	const run = await R(p, () => {
 		const h = window.__reindeer;
 		const F = h.tune.ledSign.face;
-		const keep = { ...F.art };
 		h.ledFaceAudit(true);
-		const pass = (look) => {
-			F.art.lids = look;
-			F.art.puffs = look === 'mock' ? 'mock' : 'nostril';
+		const pass = () => {
 			let x = h.pressScreenJump('face', 20);
 			const got = [];
 			let last = -1;
@@ -1906,15 +1906,12 @@ async function faceScreenChecks(p, tag) {
 			}
 			return got;
 		};
-		const fur = pass('fur');
-		const mock = pass('mock');
-		F.art.lids = keep.lids;
-		F.art.puffs = keep.puffs;
+		const fur = pass();
 		h.ledFaceAudit(false);
 		h.scoreboardManual(false);
-		return { fur, mock, names: h.pressScreens(), F: JSON.parse(JSON.stringify(F)) };
+		return { fur, names: h.pressScreens(), F: JSON.parse(JSON.stringify(F)) };
 	});
-	const { fur, mock, names, F } = run;
+	const { fur, names, F } = run;
 	const S = F.script;
 	check(names[0] === 'face' && names.join(',') === 'face,win,sleigh,car', `${tag}: FACE: the face screen is the cycle's first (${names.join(' > ')})`);
 	check(fur.length > 60 && fur[0].t < 80 && fur[fur.length - 1].t > 3300, `${tag}: FACE: ${fur.length} frames of the face screen read, ${fur[0]?.t} to ${fur[fur.length - 1]?.t} ms (${fur[0]?.W} x ${fur[0]?.H} dots, ${fur[0]?.k} LEDs per dot)`);
@@ -1941,26 +1938,31 @@ async function faceScreenChecks(p, tag) {
 	for (const f of fur) if (order[order.length - 1] !== f.pose.note) order.push(f.pose.note);
 	const wantOrder = ['glare', 'snort', 'glare', 'glance at Santa', 'glare', 'glance at Grandma', 'glare', 'blink', 'glare'];
 	check(off.length === 0 && JSON.stringify(order) === JSON.stringify(wantOrder) && fur.some((f) => f.pose.eye === 'closed') && fur.some((f) => f.pose.earL === 12), `${tag}: FACE: the script's beats (ms, got and wanted): ${Object.entries(beats).map(([k, [v, w]]) => `${k} ${v}/${w}`).join(', ')}; in order ${order.join(' > ')}`, { off, order });
-	// each frame draws the patches its pose asks for, in the look in force
-	const wantPatches = (f, look) => {
+	// each frame draws the patches its pose asks for
+	const wantPatches = (f) => {
 		const out = [];
 		if (f.pose.earL) out.push(`ear_l_${f.pose.earL}`);
 		if (f.pose.earR) out.push(`ear_r_${f.pose.earR}`);
-		if (f.pose.eye !== 'centre') for (const e of ['l', 'r']) out.push(`eye_${e}_${f.pose.eye}${look === 'mock' && (f.pose.eye === 'half' || f.pose.eye === 'closed') ? '_mock' : ''}`);
+		if (f.pose.eye !== 'centre') for (const e of ['l', 'r']) out.push(`eye_${e}_${f.pose.eye}`);
 		return out.sort().join(',');
 	};
-	const wrong = fur.filter((f) => f.patches.map((q) => q.name).sort().join(',') !== wantPatches(f, 'fur'));
+	const wrong = fur.filter((f) => f.patches.map((q) => q.name).sort().join(',') !== wantPatches(f));
 	check(wrong.length === 0, `${tag}: FACE: every frame draws the patches its pose asks for (the furred lids), ${fur.filter((f) => f.patches.length).length} frames with patches`, wrong.slice(0, 3).map((f) => ({ t: f.t, pose: f.pose, drawn: f.patches.map((q) => q.name) })));
 	const outside = [];
 	let seam = 0;
+	let worst = null;
 	for (const f of fur) {
 		const c = { x: Math.round(f.clip.x * f.k), y: Math.round(f.clip.y * f.k), w: Math.round(f.clip.w * f.k), h: Math.round(f.clip.h * f.k) };
 		for (const q of f.patches) {
-			seam = Math.max(seam, q.seam);
+			if (q.seam > seam || !worst) {
+				seam = Math.max(seam, q.seam);
+				// (the worst patch: its name, the frame's time and pose, its LED in the face bake, its side, both colours)
+				worst = { name: q.name, t: f.t, pose: { eye: f.pose.eye, earL: f.pose.earL, earR: f.pose.earR, puff: f.pose.puff?.i ?? null }, seam: q.seam, at: q.seamAt };
+			}
 			if (q.x < c.x || q.y < c.y || q.x + q.w > c.x + c.w || q.y + q.h > c.y + c.h) outside.push({ t: f.t, q, c });
 		}
 	}
-	check(outside.length === 0 && seam <= FACE_SEAM, `${tag}: FACE: every patch inside the face's clip, joining the face's bake (worst border LED ${seam} of 255 levels; ${FACE_SEAM} allowed)`, outside.slice(0, 3));
+	check(outside.length === 0 && seam <= FACE_SEAM, `${tag}: FACE: every patch inside the face's clip, joining the face's bake (worst joining border LED ${seam} of 255 levels, ${worst ? `${worst.name} at ${worst.t} ms` : 'none'}; ${FACE_SEAM} allowed)`, { worst, outside: outside.slice(0, 3) });
 	const puffs = fur.flatMap((f) => f.puffs.map((q) => ({ t: f.t, ...q })));
 	const onRim = puffs.filter((q) => q.onRim > 0);
 	check(puffs.length > 8 && onRim.length === 0 && fur.every((f) => f.rim.length > 10) && puffs.every((q) => q.frame.startsWith('puff_n')), `${tag}: FACE: the breath out of the nostrils: ${puffs.length} puff draws (${[...new Set(puffs.map((q) => q.frame))].join(', ')}), none lighting an LED on the nose's rim (${fur[0].rim.length} rim boxes)`, onRim.slice(0, 4));
@@ -1970,10 +1972,6 @@ async function faceScreenChecks(p, tag) {
 	check(rowsIn && picsIn && lastF.rows.map((r) => r.text).join(' ') === 'ONE REINDEER. TWO GRUDGES.', `${tag}: FACE: the line (${lastF.rows.map((r) => `${r.text} s${r.s} at ${r.x},${r.y}`).join('; ')}) and Santa and Grandma (${lastF.pics.map((b) => `${b.who} ${b.w}x${b.h} at ${b.x},${b.y}`).join('; ')}) inside the board`, { rows: lastF.rows, pics: lastF.pics });
 	const flickAt = fur.find((f) => f.pose.earL > 0);
 	check(!!flickAt && flickAt.warmed >= 4 && lastF.warmed === 12, `${tag}: FACE: the patches baked one a step ahead of need (${flickAt?.warmed} by the ear flick at ${flickAt?.t} ms, ${lastF.warmed} of 12 by the end)`);
-	// the mock's own pictures behind LED_SIGN.face.art
-	const mockLids = mock.filter((f) => f.pose.eye === 'half' || f.pose.eye === 'closed');
-	const mockPuffs = mock.flatMap((f) => f.puffs);
-	check(mockLids.length > 0 && mockLids.every((f) => f.patches.some((q) => q.name.endsWith('_mock'))) && mockPuffs.length > 0 && mockPuffs.every((q) => /^puff_\d$/.test(q.frame)), `${tag}: FACE: LED_SIGN.face.art 'mock' draws the mock's own lids and puffs (${mockLids.length} lid frames, puffs ${[...new Set(mockPuffs.map((q) => q.frame))].join(', ')})`);
 }
 /** the press screen's Wilds on the boards the press section's sizes do not cover: the upright tablets, and the desktop at
  *  2x (the finer grid's 1.5 LEDs per dot) */
