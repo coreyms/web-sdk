@@ -695,9 +695,10 @@ async function tipsJudge(p, S, T, name, bookEvents, { wild = [], end = 'edge' } 
 			const wb = place(c1, P[P.length - 1], P[P.length - 2]);
 			check(Math.hypot(a.x - wa.x, a.y - wa.y) < 0.6, `${tag}: line ${k + 1} start nail past cell ${c0}'s ${wild.includes(c0) ? 'Wild frame' : 'art'} along the line (${a.x}, ${a.y}; want ${r1(wa.x)}, ${r1(wa.y)})`);
 			check(Math.hypot(b.x - wb.x, b.y - wb.y) < 0.6, `${tag}: line ${k + 1} end nail past cell ${c1}'s ${wild.includes(c1) ? 'Wild frame' : 'art'} along the line (${b.x}, ${b.y}; want ${r1(wb.x)}, ${r1(wb.y)})`);
-			// a line that starts or ends level: the ring just clears the art sideways, as before
-			if (Math.abs(P[1].y - P[0].y) < 0.5) check(a.x + ringOuter <= colX(c0) - halfOf(c0) + 1.01 && a.x + ringOuter >= colX(c0) - halfOf(c0) - 2, `${tag}: line ${k + 1} start nail just left of cell ${c0}'s art (ring right ${r1(a.x + ringOuter)}, art left ${r1(colX(c0) - halfOf(c0))})`);
-			if (Math.abs(P[P.length - 1].y - P[P.length - 2].y) < 0.5) check(b.x - ringOuter >= colX(c1) + halfOf(c1) - 1.01 && b.x - ringOuter <= colX(c1) + halfOf(c1) + 2, `${tag}: line ${k + 1} end nail just right of cell ${c1}'s art (ring left ${r1(b.x - ringOuter)}, art right ${r1(colX(c1) + halfOf(c1))})`);
+			// a line that starts or ends level: the ring just clears the art sideways, as before (0.6: the art's half width read
+			// from the board's sprites, the nails' places rounded to 0.1 road px)
+			if (Math.abs(P[1].y - P[0].y) < 0.5) check(a.x + ringOuter <= colX(c0) - halfOf(c0) + ST.ends.ringOverlap + 0.6 && a.x + ringOuter >= colX(c0) - halfOf(c0) - 2, `${tag}: line ${k + 1} start nail just left of cell ${c0}'s art (ring right ${r1(a.x + ringOuter)}, art left ${r1(colX(c0) - halfOf(c0))})`);
+			if (Math.abs(P[P.length - 1].y - P[P.length - 2].y) < 0.5) check(b.x - ringOuter >= colX(c1) + halfOf(c1) - ST.ends.ringOverlap - 0.6 && b.x - ringOuter <= colX(c1) + halfOf(c1) + 2, `${tag}: line ${k + 1} end nail just right of cell ${c1}'s art (ring left ${r1(b.x - ringOuter)}, art right ${r1(colX(c1) + halfOf(c1))})`);
 		} else {
 			check(Math.abs(a.x - colX(c0)) < 0.2 && Math.abs(b.x - colX(c1)) < 0.2, `${tag}: line ${k + 1} nails on the symbols' centres (${a.x}, ${b.x})`);
 		}
@@ -706,8 +707,9 @@ async function tipsJudge(p, S, T, name, bookEvents, { wild = [], end = 'edge' } 
 			const d = Math.hypot(w.x - e.x, w.y - e.y);
 			check(Math.abs(d - N.ring) < 0.5 && w.y <= e.y + 0.5, `${tag}: line ${k + 1} cord meets its wrap on the ring (${r1(d)} from the nail's centre, want ${N.ring}), over its top half`);
 		}
-		// on the board: inside the tunnel mouths and above the board's bottom lane line (the LED strip is under it)
-		for (const e of [a, b]) check(e.x - ringOuter >= 51 && e.x + ringOuter <= 1483 && e.y + ringOuter <= 851.01, `${tag}: line ${k + 1} nail at ${e.x}, ${e.y} stays on the road (mouths 51 / 1483, bottom line 851)`);
+		// on the board: inside the tunnel mouths and above the board's bottom lane line (the LED strip is under it; 0.06: the
+		// nail's place rounded to 0.1 road px, a ring held exactly on the line by strand.ends insideLanes)
+		for (const e of [a, b]) check(e.x - ringOuter >= 51 && e.x + ringOuter <= 1483 && e.y + ringOuter <= 851.06, `${tag}: line ${k + 1} nail at ${e.x}, ${e.y} stays on the road (mouths 51 / 1483, bottom line 851)`);
 		// THE MIDDLE NAILS: the cord draped over the top (its top edge above the nail's centre, its centerline above the
 		// shank), never wrapped (no ring, the path turns less than half a turn round it)
 		const mids = l.nails.filter((q) => q.kind !== 'end');
