@@ -683,8 +683,12 @@
 		height: 150cqh;
 		margin: -75cqh 0 0 -75cqh;
 		opacity: 0.4;
+		/* (the rays are decoration and never take a press: with the Super plate one row shorter the hero grew, and on the
+		   upright phone this box reached over the Close; the probe host, 2026-11-20) */
+		pointer-events: none !important;
 	}
 	.rays {
+		pointer-events: none !important;
 		display: block;
 		width: 100%;
 		height: 100%;
@@ -1292,6 +1296,8 @@
 	.up .close {
 		grid-area: head;
 		justify-self: end;
+		position: relative;
+		z-index: 3;
 		width: 44px;
 		height: 44px;
 		border-width: 2px !important;
