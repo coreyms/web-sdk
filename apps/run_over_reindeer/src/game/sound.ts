@@ -88,7 +88,12 @@ export type SoundEffectName =
 	| 'sfx_topup'
 	| 'sfx_card_in'
 	| 'sfx_card_out'
-	| 'amb_road';
+	| 'amb_road'
+	// THE BONUS ENTRANCE (Corey 2026-11-21, S10 for both entries; game/bonusEntrance.ts, constants REINDEER_SOUND.entrance):
+	// the hit as the entry card lands, the build loop under it, the drop on its dismissal with the bonus music
+	| 'sfx_bonus_entrance_hit'
+	| 'sfx_bonus_entrance_build'
+	| 'sfx_bonus_entrance_drop';
 
 export type SoundName = MusicName | SoundEffectName;
 
@@ -215,6 +220,42 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
 		musicDiag: () => sound.diag(),
 		musicLoop: () => (sound.players.music as unknown as { loopState?: unknown }).loopState ?? null,
 		musicPlay: (name: MusicName) => sound.players.music.play({ name }),
+		/** THE MUSIC TAP (the sound probe, the bonus entrance's cut and swap): from the first call, every play, stop and fade
+		 *  the music player itself is asked for (the track, and a fade's from, to and ms), with performance.now() and the
+		 *  board's frame, oldest first; clear = true empties it. Null until the music player is in. */
+		musicTap: (clear = false) => {
+			const mp = sound.players?.music as unknown as TappedMusic | undefined;
+			if (!mp || !('levelPath' in mp)) return null;
+			if (!mp.__tap) {
+				const log: MusicTapEntry[] = [];
+				const frame = () => Number((window as unknown as { __reindeer?: { frame?: () => number } }).__reindeer?.frame?.() ?? -1);
+				const push = (what: MusicTapEntry['what'], name: string, detail?: string) => {
+					// (the game's stop and fade go to the music player for every name, the sprite's too: the tracks only)
+					if (!name.startsWith('bgm_')) return;
+					log.push({ t: performance.now(), frame: frame(), what, name, detail });
+					if (log.length > 2000) log.splice(0, 1000);
+				};
+				const play = mp.play.bind(mp);
+				const stop = mp.stop.bind(mp);
+				const fade = mp.fade.bind(mp);
+				mp.play = (o) => {
+					push('play', o.name);
+					return play(o);
+				};
+				mp.stop = (o) => {
+					push('stop', o.name);
+					return stop(o);
+				};
+				mp.fade = (o) => {
+					push('fade', o.name, `${o.from.toFixed(2)}>${o.to.toFixed(2)} ${o.duration}ms`);
+					return fade(o);
+				};
+				mp.__tap = { log };
+			}
+			const out = mp.__tap.log.slice();
+			if (clear) mp.__tap.log.length = 0;
+			return { log: out };
+		},
 		/** THE EFFECTS TAP (the sound probe): from the first call, every play, stop, fade, rate and end on the effects sprite's
 		 *  Howl, with performance.now() and the board's frame (__reindeer.frame), oldest first; clear = true empties it.
 		 *  `playing` lists the sprite names sounding now. Null until the sprite has loaded. */
@@ -268,6 +309,13 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
 	});
 }
 type TapEntry = { t: number; frame: number; what: 'play' | 'stop' | 'fade' | 'end' | 'rate'; id: number; name: string; detail?: string };
+type MusicTapEntry = { t: number; frame: number; what: 'play' | 'stop' | 'fade'; name: string; detail?: string };
+type TappedMusic = {
+	play: (o: { name: MusicName; loop?: boolean }) => unknown;
+	stop: (o: { name: MusicName }) => unknown;
+	fade: (o: { name: MusicName; from: number; to: number; duration: number }) => Promise<unknown>;
+	__tap?: { log: MusicTapEntry[] };
+};
 type TappedHowl = {
 	state: () => string;
 	playing: (id?: number) => boolean;

@@ -36,7 +36,8 @@ export async function pressRoundCards(ctx) {
 			const now = performance.now();
 			const rec = seen.get(s.id) ?? { at: now, pressed: false };
 			seen.set(s.id, rec);
-			const after = s.kind === 'total' ? 6000 : 4000;
+			// (2026-11-21: a probe may hold the entries longer, window.__entryPressAfterMs; the sound probe's bonus entrance cases)
+			const after = s.kind === 'total' ? 6000 : (window.__entryPressAfterMs ?? 4000);
 			if (rec.pressed || s.phase !== 'waits' || now - rec.at < after) return;
 			rec.pressed = true;
 			window.__cardPresses.push({ kind: s.kind, upMs: Math.round(now - rec.at) });

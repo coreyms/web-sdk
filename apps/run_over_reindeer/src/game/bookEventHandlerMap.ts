@@ -24,6 +24,7 @@ import { presentWheelDone } from './road/present';
 import type { Board } from './types';
 import type { BookEvent, BookEventOfType, BookEventContext } from './typesBookEvent';
 import { bonusEntered, bonusLeft } from './bonusStockRules';
+import { entranceCard, entranceCut, entranceDrop } from './bonusEntrance';
 
 const ROWS = 4;
 
@@ -89,8 +90,10 @@ const spinPays = (bookEvents: BookEvent[], from: number): boolean => {
 	return false;
 };
 
-/** the feature trigger's own state, with nothing shown (a live trigger, and a resumed round's rebuild) */
-const enterBonus = (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
+/** the feature trigger's own state, with nothing shown (a live trigger, and a resumed round's rebuild). `music` false: the
+ *  bonus music is left to the entrance's drop (a live trigger with its entry card, game/bonusEntrance.ts); a resumed
+ *  round that skips the card swaps it here at once, as before */
+const enterBonus = (bookEvent: BookEventOfType<'freeSpinTrigger'>, music = true) => {
 	stateGame.bonusMode = bookEvent.bonusType === 'super' ? 'super' : 'bonus';
 	stateGame.gameType = 'freegame';
 	stateGame.totalFs = bookEvent.totalFs;
@@ -102,6 +105,9 @@ const enterBonus = (bookEvent: BookEventOfType<'freeSpinTrigger'>) => {
 	// THE STOCK RULES (game/bonusStockRules.ts): every bonus round starts at regular speed (a live trigger, a bought round
 	// and a resumed one all come through here), and autoplay's Stop on Free Games ends the run with this round
 	bonusEntered();
+	// (the sound probe: the frame the feature is entered, the road's ambience fades out on it, components/Sound.svelte)
+	devMark('bonusMode', stateGame.bonusMode ?? '');
+	if (!music) return;
 	eventEmitter.broadcast({ type: 'soundMusic', name: stateGame.bonusMode === 'super' ? 'bgm_super' : 'bgm_bonus' });
 	devMark('music', stateGame.bonusMode === 'super' ? 'bgm_super' : 'bgm_bonus');
 };
@@ -262,11 +268,18 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		openingLanded = false;
 		// the marimba family's success (2026-11-17), one sound for Free Spins and Super Free Spins, where the tier fanfares played
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_scatter_success' });
+		// THE BONUS ENTRANCE (2026-11-21, constants REINDEER_SOUND.entrance, game/bonusEntrance.ts): with the success the base
+		// music cuts to near silence; the hit lands with the entry card, the build waits under it, and the card's dismissal
+		// brings the drop and the bonus music. Off: the music swaps here, as before.
+		const entrance = REINDEER_SOUND.entrance.on;
+		if (entrance) entranceCut();
 		await eventEmitter.broadcastAsync({ type: 'boardPulse', cells: bookEvent.cells, ms: ROUND.triggerPulseMs });
-		enterBonus(bookEvent);
+		enterBonus(bookEvent, !entrance);
+		if (entrance) entranceCard();
 		// (2026-11-20, Corey: "Real trigger count": the presents the LED entry pops are the scatters this round triggered with,
 		// the book's own cells; the math gives Free Spins 3, Super 4 or 5)
 		await showCard({ kind: 'intro', bonus: stateGame.bonusMode ?? 'bonus', spins: bookEvent.totalFs, presents: bookEvent.cells.length });
+		if (entrance) entranceDrop(stateGame.bonusMode === 'super' ? 'bgm_super' : 'bgm_bonus');
 	},
 	freeSpinRetrigger: async (bookEvent: BookEventOfType<'freeSpinRetrigger'>) => {
 		eventEmitter.broadcast({ type: 'soundOnce', name: 'sfx_scatter_success' });

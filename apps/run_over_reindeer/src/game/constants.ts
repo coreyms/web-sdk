@@ -1329,7 +1329,8 @@ export const REINDEER_SOUND = {
 	//              its idle begins. A base game column (it leaves at the next press) plays none.
 	//   cards      sfx_card_in on the frame a bonus round card comes up (its pop starts), sfx_card_out on the frame it
 	//              goes (it has no exit animation). (sfx_topup, the top-up beat, stays in the sprite unplayed since math
-	//              2026.11.20: no round is topped up)
+	//              2026.11.20: no round is topped up.) Since 2026-11-21 the wrap-up card only: the entry card's sounds are
+	//              the bonus entrance's (entrance below)
 	//   lines      sfx_line_show ONCE PER LINE, on the frame that line starts to light (the lines light one after another,
 	//              constants LINE_WIN lights); the symbol's own sound stays one per win, with the first line
 	//   ambience   amb_road, a 10.000 s loop in the sprite (the house pattern for an effects loop: the traffic, the cloud,
@@ -1404,6 +1405,43 @@ export const REINDEER_SOUND = {
 	columnWin: { reindeer: 'sfx_column_win_reindeer', santa: 'sfx_column_win_santa', grandma: 'sfx_column_win_grandma' } as Record<'reindeer' | 'santa' | 'grandma', string>,
 	/** the bonus round cards (ui/RoundCard.svelte) */
 	cards: { in: 'sfx_card_in', out: 'sfx_card_out' },
+	/** THE BONUS ENTRANCE (Corey 2026-11-21, "I like S10 for both": the Super draft 10, police whoop, at the Free Spins AND the
+	 *  Super entry; game/bonusEntrance.ts plays it). His reason: a player not looking must hear that something big is
+	 *  happening, and the music swap alone "almost just sounds like a different loop". The shape, as the draft demo:
+	 *    cut    on the trigger's success (the same frame), the base music ducks to `duck.to` of its level over `duck.ms`
+	 *    hit    sfx_bonus_entrance_hit (3.71 s: sirens whoop, then the big band hit `hitImpactMs` into the file), started so
+	 *           the band hit lands as the entry card does: the LED back board seated (LED_BOARD.rise backAtMs + riseMs,
+	 *           620 ms after the card comes up), or the HTML card's pop at its end (`cardPopMs`)
+	 *    build  sfx_bonus_entrance_build, a 12.000 s seamless loop, `buildAfterMs` after the hit starts (the demo's: the hit
+	 *           has fallen 12 dB from its peak by 1.0 s, the demo's floor 1.2 s), faded in over `buildInMs`. A card left
+	 *           waiting: after one whole pass (`holdAfterMs`) the loop eases to `holdLevel` over `holdFadeMs` and keeps
+	 *           looping there until the press (a quieter tail, never a stop: no dead cut and no restart click)
+	 *    drop   on the card's dismissal (the press, or Autoplay Bonuses' own continue): sfx_bonus_entrance_drop and the
+	 *           bonus music from its start on the same moment; the build fades out over `buildOutMs`; a press while the hit
+	 *           still sounds fades the hit out over `hitOutMs` (the drop takes over); the base music, stopped by the swap,
+	 *           gets its own level back for the wrap-up
+	 *  The entry card's own card in and card out sounds (cards above) do not play: the hit and the drop are its sounds. The
+	 *  wrap-up card keeps them. A resumed round that skips the card (createBonusSnapshot) swaps the music at once, as before.
+	 *  All in real ms: a bonus always enters at regular speed. `on` false: the old entry (the music swaps at the trigger). */
+	entrance: {
+		on: true,
+		hit: 'sfx_bonus_entrance_hit',
+		build: 'sfx_bonus_entrance_build',
+		drop: 'sfx_bonus_entrance_drop',
+		duck: { to: 0.05, ms: 40 },
+		hitImpactMs: 560,
+		hitMs: 3711,
+		cardPopMs: 260,
+		buildAfterMs: 1200,
+		buildInMs: 250,
+		holdAfterMs: 12000,
+		holdLevel: 0.4,
+		holdFadeMs: 3000,
+		buildOutMs: 30,
+		hitOutMs: 120,
+		/** the base music's level back, after the swap has stopped it (ms) */
+		restoreMs: 20,
+	},
 	/** the road's ambience under the base game: faded in over inMs when it starts, out over outMs when a feature starts */
 	ambience: { name: 'amb_road', inMs: 1200, outMs: 600 },
 	snort: {

@@ -268,6 +268,19 @@
 		"sfx_intro_jingle_short": [
 			123120,
 			700
+		],
+		"sfx_bonus_entrance_hit": [
+			124820,
+			3711
+		],
+		"sfx_bonus_entrance_build": [
+			129540,
+			12000,
+			true
+		],
+		"sfx_bonus_entrance_drop": [
+			142540,
+			1466
 		]
 	},
 	"config": {
@@ -468,10 +481,19 @@
 		},
 		"sfx_intro_jingle_short": {
 			"volume": 1
+		},
+		"sfx_bonus_entrance_hit": {
+			"volume": 1
+		},
+		"sfx_bonus_entrance_build": {
+			"volume": 1
+		},
+		"sfx_bonus_entrance_drop": {
+			"volume": 1
 		}
 	},
 	"src": [
-		"./assets/audio/sounds.ogg?v=b2cbb225",
-		"./assets/audio/sounds.m4a?v=c7586218"
+		"./assets/audio/sounds.ogg?v=ff4269cf",
+		"./assets/audio/sounds.m4a?v=64f15754"
 	]
 }
