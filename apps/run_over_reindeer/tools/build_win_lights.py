@@ -25,7 +25,10 @@ reduced (premultiplied). Every picture has an even ink outline (a stroke of one 
              colors), its tie round the cord, the collar (ribbed, a sheen), the seam where the glass meets the collar and
              the glass highlight (white on any color). The same frame and anchor as the body.
   - HEAD     the silver nail head (shadow side, body, lit rim, highlight) with its ink ring. Untinted, centred.
-  - RING     one turn of the cord round an end nail's shank (the wrap's centerline radius, the cord's widths, colors and
+  - WRAP     (round 2, 2026-11-20: "shrink it and hide part of it from under the nail") the end wrap: one turn of the
+             cord round the shank under the head, wrapRadiusShare of the head's radius, dropped below the head's centre
+             so the head (drawn over it) covers wrapCover of it: a crescent shows below and to the sides of the head.
+  - RING     (no longer drawn since the WRAP) one turn of the cord round an end nail's shank (the wrap's centerline radius, the cord's widths, colors and
              highlight). The head goes over its inner part. Deeper turns are the same frame, offset and tinted darker.
   - SHADOW   the nail's soft contact shadow on the board (black at SHADOW_ALPHA), its anchor the nail's centre.
   - CORD     the cord's cross section as a strip: a margin, the ink, the green core with its highlight toward the top
@@ -86,7 +89,9 @@ STRAND = {
     "headRoadPx": 6.6,  # the head's radius at nail size 1
     "shankShare": 0.36,  # the shank's radius, a share of the head's
     "nailColor": "silver",
-    "wrapSize": 0.15,  # the end wrap: tight on the shank (0) to loose
+    "wrapSize": 0.15,  # (the first end ring's size, the RING frame; no longer drawn since the WRAP, 2026-11-20 round 2)
+    "wrapRadiusShare": 1.45,  # THE WRAP: its outer edge's radius, a share of the head's radius
+    "wrapCover": 0.7,  # the share of the wrap's area the head covers (the wrap drops below the head's centre to show it)
     "shadow": [2.6, 4.0, 0.38],  # dx, dy, alpha
 }
 S_INK = (11, 12, 15, 255)
@@ -120,6 +125,42 @@ def wrap_r():
     """the end wrap's centerline radius (the mock's wrapR): tight on the shank, wrapSize loosens it"""
     W, ink = STRAND["wire"], STRAND["ink"]
     return shank_r() + W / 2 + ink * 0.6 + STRAND["wrapSize"] * W * 0.9
+
+
+def lens(a, b, d):
+    """the area two circles of radii a and b, d apart, share"""
+    if a <= 0 or b <= 0 or d >= a + b:
+        return 0.0
+    if d <= abs(a - b):
+        return math.pi * min(a, b) ** 2
+    x = (d * d + a * a - b * b) / (2 * d * a)
+    y = (d * d + b * b - a * a) / (2 * d * b)
+    k = (-d + a + b) * (d + a - b) * (d - a + b) * (d + a + b)
+    return a * a * math.acos(max(-1, min(1, x))) + b * b * math.acos(max(-1, min(1, y))) - 0.5 * math.sqrt(max(0, k))
+
+
+def wrap_geo():
+    """THE WRAP (2026-11-20 round 2, Corey: "shrink it and hide part of it from under the nail"): one turn of the cord round
+    the shank under the head, seen from the front. Its outer radius is wrapRadiusShare of the head's radius, its inner the
+    outer less the cord (none when the cord fills it); it drops below the head's centre until the head (with its ink)
+    covers wrapCover of its area, so what shows is a crescent below and to the sides of the head. Returns (outer, inner,
+    drop) in road px (game/road/winLights.ts strandGeometry does the same sum)."""
+    W, ink = STRAND["wire"], STRAND["ink"]
+    ro = STRAND["wrapRadiusShare"] * head_r()
+    ri = max(0.0, ro - W - 2 * ink)
+    hb = head_r() + ink
+    area = math.pi * (ro * ro - ri * ri)
+    cover = lambda d: (lens(ro, hb, d) - lens(ri, hb, d)) / area
+    lo, hi = 0.0, ro + hb
+    if cover(0) <= STRAND["wrapCover"]:
+        return ro, ri, 0.0
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        if cover(mid) > STRAND["wrapCover"]:
+            lo = mid
+        else:
+            hi = mid
+    return ro, ri, (lo + hi) / 2
 
 
 class Pen:
@@ -345,6 +386,22 @@ def strand_ring(ppr):
     return p.done(), {"radius": rc, "outer": rc + W / 2 + ink}
 
 
+def strand_wrap(ppr):
+    """THE WRAP (round 2): the cord's turn round the shank as the head leaves it showing, drawn whole (the head goes over
+    it at run time): an ink edge round the cord's green, a short highlight on its lower left. Its anchor is the nail's
+    centre (the drop is in the picture)."""
+    W, ink = STRAND["wire"], STRAND["ink"]
+    ro, ri, drop = wrap_geo()
+    ext = drop + ro + STRAND_MARGIN
+    n = int(math.ceil(2 * ext * ppr))
+    p = Pen(n, n, ppr, n / 2, n / 2)
+    p.annulus(0, drop, ri, ro, S_INK)
+    p.annulus(0, drop, ri + ink if ri > 0 else 0, ro - ink, rgba(STRAND["cordColor"]))
+    rh = ro - ink - W * 0.3
+    p.stroke(arc_pts(0, drop, rh, math.pi * 0.58, math.pi * 0.82), W * 0.22, rgba(STRAND["cordHighlight"]))
+    return p.done(), {"outer": ro, "inner": ri, "drop": drop}
+
+
 def strand_shadow(ppr):
     """the nail's contact shadow (the mock's drawNailShadow), its anchor the nail's centre"""
     dx, dy, alpha = STRAND["shadow"]
@@ -509,6 +566,7 @@ def main():
     top, bottom, half, off = c7_frame()
     spec["strand"] = {"bakedFor": dict(STRAND), "head": {"radius": head_r(), "outer": head_r() + STRAND["ink"], "shank": shank_r()},
                       "ring": {"radius": wrap_r(), "outer": wrap_r() + STRAND["wire"] / 2 + STRAND["ink"]},
+                      "wrap": dict(zip(("outer", "inner", "drop"), wrap_geo())),
                       "c7": {"center": off + c7_shapes()["center"] * STRAND["bulbSize"], "lead": off, "top": top, "bottom": bottom, "half": half}}
     for tier, k in DENSITY.items():
         ppr = k * POP
@@ -516,9 +574,10 @@ def main():
         body, over, c7spec = c7(ppr)
         head, _ = strand_head(ppr)
         ring, _ = strand_ring(ppr)
+        wrap, _ = strand_wrap(ppr)
         shadow, _ = strand_shadow(ppr)
         cord, cspec = strand_cord(ppr)
-        items = [("glow", g), ("bulb", b), ("nail", nl), ("c7Body", body), ("c7Over", over), ("head", head), ("ring", ring), ("shadow", shadow), ("cord", cord)]
+        items = [("glow", g), ("bulb", b), ("nail", nl), ("c7Body", body), ("c7Over", over), ("head", head), ("ring", ring), ("wrap", wrap), ("shadow", shadow), ("cord", cord)]
         pos, W, H = pack(items, 1024 if tier == "full" else 400)
         sheet = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         for nm, im in items:

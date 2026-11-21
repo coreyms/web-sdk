@@ -1097,7 +1097,15 @@ export const LINE_WIN = {
 			 *  past the symbol's art: the ring's outer edge ringOverlap road px over the art's edge (today's 1: "just past the
 			 *  art"; LINE_WIN.lights.tips end 'center' puts it on the symbol's centre). insideLanes: the ring is kept between
 			 *  the board's top and bottom lane lines (a line starting on a diagonal at the top or bottom lane). */
-			ends: { wrapTurns: 1, wrapSize: 0.15, turnStep: [0.16, 0.3] as [number, number], turnDarken: 0.14, hookRad: 2.5, ringOverlap: 1, insideLanes: true },
+			//   THE WRAP, round 2 (Corey 2026-11-20 on the built ring, a full green ring with the head inside it: "shrink it and
+			//   hide part of it from under the nail"; before, "the corder around the nails should bisibly smaller like it's
+			//   partially behind a nail thread"): the wrap is one turn of the cord round the shank UNDER the head, seen from the
+			//   front. wrapRadiusShare: its outer edge's radius, a share of the head's radius; wrapCover: the share of its area
+			//   the head (drawn over it) covers; it drops below the head's centre until it does, so a crescent shows below and
+			//   to the sides of the head (baked: the sheet's wrap frame). The cord comes in over the top of the nail as at a
+			//   middle nail (resting on the shank), runs on overRad past its contact and dives behind the head to the shank.
+			//   wrapSize and hookRad are NOT IN USE since (the first ring's).
+			ends: { wrapTurns: 1, wrapSize: 0.15, wrapRadiusShare: 1.45, wrapCover: 0.7, overRad: 0.5, turnStep: [0.16, 0.3] as [number, number], turnDarken: 0.14, hookRad: 2.5, ringOverlap: 1, insideLanes: true },
 			/** A VALLEY (a nail the line turns upward at: the middle of a V, a zigzag's low points): Corey on the round 2 loop,
 			 *  "when there's a big dip like the middle V shape the hanging over the center nail is way too aggresive". 'drape'
 			 *  (the default): the cord passes over the top of the nail with a slight rise (drapeRise road px from the shallow dip

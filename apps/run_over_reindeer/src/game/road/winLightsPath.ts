@@ -10,9 +10,9 @@
 // a parabola (the chord plus 4 sag u (1 - u)); the sag is the sag for a two reel span, in proportion to the span.
 //
 // WHERE THE CORD MEETS A NAIL:
-//   - an END nail: the cord comes over the top of the shank and goes round it (the wrap ring is a sprite drawn over
-//     it, a small tight ring the head covers in part); the path itself only hooks hookRad round the wrap's circle so
-//     its square end is under the ring.
+//   - an END nail: the cord comes over the top of the shank (as at a middle nail), runs on endOver past its contact and
+//     dives behind the head to the shank, its square end under the head (since 2026-11-20 round 2; the wrap, one turn of
+//     the cord round the shank under the head, is a sprite the head is drawn over).
 //   - a PEAK, a SHOULDER or a SUPPORT (both spans hang away below the nail): draped over the top of the shank, behind
 //     the head, on a circle of the shank's radius plus half the cord (the head covers the cord's lower edge).
 //   - a VALLEY (both spans rise away, a V's bottom): 'sit', a round bottomed V resting on the top of the shank; or
@@ -58,10 +58,15 @@ export type StrandOpts = {
 	sagMax: number;
 	hang: 'bends' | 'every';
 	bendRad: number;
-	/** the radii: the drape (a middle nail: the shank plus half the cord), the end wrap's centerline, its outer edge */
+	/** the radii: the drape (a middle nail: the shank plus half the cord), the circle the cord comes over at an end nail
+	 *  (since the wrap of round 2, 2026-11-20: the drape's, the cord resting on the shank), the end nail's whole reach (its
+	 *  head or its wrap, whichever reaches further: its place and the lanes) */
 	drapeR: number;
 	wrapR: number;
 	ringOuter: number;
+	/** at an end nail the cord runs on endOver rad over the top past its contact, then dives behind the head to the shank
+	 *  (the wrap is a sprite under the head) */
+	endOver: number;
 	/** end nails on (false: the cord ends square on the symbols' centres), how far past the symbol's half width the nail's
 	 *  centre goes (null: on the symbol's centre), the hook round the wrap's circle (rad), and the lanes the end nails'
 	 *  rings stay inside (road y, or null) */
@@ -278,12 +283,26 @@ export function buildStrand(points: Pt[], cells: (number | string)[], half: numb
 		const N = sup[j];
 		nails.push({ x: N.x, y: N.y, kind: N.kind as NailKind, joint: joint[j], key: N.key, s: (s0 + s1) / 2, half: (s1 - s0) / 2, cordY: NaN, sweep: 0, rise: 0, turn: 0, ...extra });
 	};
-	// the start: the cord hooks over the top of the shank from behind the ring (its end under the ring)
+	// a dive behind an end nail's head: a curve from the shank (the nail's centre) to the point at angle `a` on the circle
+	// the cord comes over, meeting it along the circle's clockwise tangent (or the reverse, `out`)
+	const dive = (N: Pt, a: number, out: boolean) => {
+		const P = { x: N.x + Math.cos(a) * re, y: N.y + Math.sin(a) * re };
+		const g = { x: -Math.sin(a), y: Math.cos(a) };
+		const L = re * 0.7;
+		const C = out ? { x: P.x + g.x * L, y: P.y + g.y * L } : { x: P.x - g.x * L, y: P.y - g.y * L };
+		const [p0, p2] = out ? [P, N] : [N, P];
+		for (let i = out ? 1 : 0; i <= 12; i++) {
+			const u = i / 12;
+			const v = 1 - u;
+			push(v * v * p0.x + 2 * v * u * C.x + u * u * p2.x, v * v * p0.y + 2 * v * u * C.y + u * u * p2.y);
+		}
+	};
+	// the start: the cord comes up from the shank behind the head and over the top of the nail
 	if (joint[0] === 'end') {
 		const N = sup[0];
 		const a1 = Math.atan2(cOut[0].y - N.y, cOut[0].x - N.x);
-		const a0 = a1 - o.hookRad;
-		push(N.x + Math.cos(a0) * re, N.y + Math.sin(a0) * re);
+		const a0 = a1 - o.endOver;
+		dive(N, a0, false);
 		arc(N, re, a0, a1);
 		nailAt(0, 0, 0);
 	}
@@ -330,11 +349,12 @@ export function buildStrand(points: Pt[], cells: (number | string)[], half: numb
 		const v = val[k];
 		nailAt(k, s0, s1, { cordY: top, sweep: Math.abs(sweep), rise: v?.rise ?? 0, turn: v?.turn ?? Math.acos(clamp(dIn[k].x * dOut[k].x + dIn[k].y * dOut[k].y, -1, 1)) });
 	}
-	// the end: over the top and round the shank, its end under the ring
+	// the end: over the top of the nail and down behind the head to the shank
 	if (joint[ns - 1] === 'end') {
 		const N = sup[ns - 1];
 		const a0 = Math.atan2(cIn[ns - 1].y - N.y, cIn[ns - 1].x - N.x);
-		arc(N, re, a0, a0 + o.hookRad);
+		arc(N, re, a0, a0 + o.endOver);
+		dive(N, a0 + o.endOver, true);
 	}
 	const total = S[S.length - 1] ?? 0;
 	if (joint[ns - 1] === 'end') nailAt(ns - 1, total, total);

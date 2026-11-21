@@ -33,7 +33,8 @@
 //     'edge', each end nail along the line's own direction with its ring just past its symbol's art or a Wild's frame
 //     (a line ending on a 5x Grandma Wild, one starting on a 10x), kept between the top and bottom lane lines, a level
 //     end's ring just clear of the art sideways as before; the cord leaving each wrap on its ring's upper half (over the
-//     top), on the road; the sheet baked for the strand's numbers; the nails silver; at every middle nail (a bend or a
+//     top; since round 2 on the drape's circle, then behind the head), on the road; the sheet baked for the strand's
+//     numbers; the end wrap behind the head, its size and the share the head covers (round 2); the nails silver; at every middle nail (a bend or a
 //     support) the cord's top edge above the nail's centre and its centerline above the shank, no full wrap (no ring,
 //     under half a turn round it), a valley in the chosen style with a rise no more than the rule's; a support nail on
 //     every run over strand.support minSpanReels reels (and none on a shorter one); every end nail with its wrap; one
@@ -663,11 +664,16 @@ async function tipsJudge(p, S, T, name, bookEvents, { wild = [], end = 'edge' } 
 	// THE STRAND (2026-11-20, constants LINE_WIN lights strand): the sheet's pictures were baked for today's numbers
 	if (name === 'one') {
 		const bk = N.bakedFor ?? {};
-		const want = { wire: ST.cord.width, ink: ST.cord.ink, cordColor: ST.cord.color, cordHighlight: ST.cord.highlight, bulbSize: ST.bulbs.size, leadRoadPx: ST.bulbs.leadRoadPx, nailSize: ST.nail.size, headRoadPx: ST.nail.headRoadPx, shankShare: ST.nail.shankShare, nailColor: ST.nail.color, wrapSize: ST.ends.wrapSize };
+		const want = { wire: ST.cord.width, ink: ST.cord.ink, cordColor: ST.cord.color, cordHighlight: ST.cord.highlight, bulbSize: ST.bulbs.size, leadRoadPx: ST.bulbs.leadRoadPx, nailSize: ST.nail.size, headRoadPx: ST.nail.headRoadPx, shankShare: ST.nail.shankShare, nailColor: ST.nail.color, wrapSize: ST.ends.wrapSize, wrapRadiusShare: ST.ends.wrapRadiusShare, wrapCover: ST.ends.wrapCover };
 		const off = Object.entries(want).filter(([k, v]) => bk[k] !== v);
 		check(off.length === 0, `${S.name} strand: the sheet was baked for constants LINE_WIN lights strand (tools/build_win_lights.py STRAND)`, off);
 		// the nails stay silver (Corey 2026-11-20: "the nails should be staying silver")
 		check(N.color === 'silver' && bk.nailColor === 'silver', `${S.name} strand: the nails are silver (constants ${N.color}, baked ${bk.nailColor})`);
+		// THE END WRAP (round 2, Corey 2026-11-20: "shrink it and hide part of it from under the nail"): under the head's
+		// layer, its outer radius wrapRadiusShare of the head's, dropped so the head covers wrapCover of it (a crescent
+		// shows below the head), and smaller than the first ring (whose outer edge was the head's plus the cord's width)
+		const headR = ST.nail.headRoadPx * ST.nail.size;
+		check(N.wrapUnderHead && Math.abs(N.ring - ST.ends.wrapRadiusShare * headR) < 0.01 && Math.abs(N.wrapCovered - ST.ends.wrapCover) < 0.01 && N.wrapDrop > 0 && N.ringOuter < N.head + ST.cord.width, `${S.name} strand: the end wrap is behind the head, radius ${N.ring} (${ST.ends.wrapRadiusShare} of the head's ${r1(headR)}), dropped ${N.wrapDrop}, the head covering ${N.wrapCovered} of it (want ${ST.ends.wrapCover}), reaching ${N.ringOuter} road px`, { under: N.wrapUnderHead, ring: N.ring, covered: N.wrapCovered, drop: N.wrapDrop, reach: N.ringOuter });
 	}
 	// THE BOARD'S BOXES: a symbol's drawn art (its sprite's width at rest), a Wild cell's box to its outer dark line (the
 	// cell, RED_BOX.inset 4 in, its dark line 3 out: 250 / 2 - 4 + 3 road px either side of the column's centre)
@@ -702,10 +708,11 @@ async function tipsJudge(p, S, T, name, bookEvents, { wild = [], end = 'edge' } 
 		} else {
 			check(Math.abs(a.x - colX(c0)) < 0.2 && Math.abs(b.x - colX(c1)) < 0.2, `${tag}: line ${k + 1} nails on the symbols' centres (${a.x}, ${b.x})`);
 		}
-		// the cord leaves each end wrap on the wrap's circle, on its upper half (it comes over the top of the nail)
+		// the cord comes in over the top of each end nail: it meets the nail on the circle it rests on over the shank (the
+		// drape's, round 2), on its upper half (then dives behind the head to the wrap)
 		for (const [e, w] of [[a, l.wire[0]], [b, l.wire[1]]]) {
 			const d = Math.hypot(w.x - e.x, w.y - e.y);
-			check(Math.abs(d - N.ring) < 0.5 && w.y <= e.y + 0.5, `${tag}: line ${k + 1} cord meets its wrap on the ring (${r1(d)} from the nail's centre, want ${N.ring}), over its top half`);
+			check(Math.abs(d - N.over) < 0.5 && w.y <= e.y + 0.5, `${tag}: line ${k + 1} cord comes over the top of its end nail (${r1(d)} from the nail's centre, want ${N.over}), on its upper half`);
 		}
 		// on the board: inside the tunnel mouths and above the board's bottom lane line (the LED strip is under it; 0.06: the
 		// nail's place rounded to 0.1 road px, a ring held exactly on the line by strand.ends insideLanes)
