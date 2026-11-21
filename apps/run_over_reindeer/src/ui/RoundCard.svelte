@@ -43,9 +43,14 @@
 		context.eventEmitter.broadcast({ type: 'soundOnce', name: name as SoundEffectName });
 	};
 
+	// THE ENTRY CARD'S SOUNDS ARE THE BONUS ENTRANCE'S (2026-11-21, constants REINDEER_SOUND.entrance, game/bonusEntrance.ts):
+	// its hit lands with the card and its drop plays on the dismissal, so the intro plays no card in or card out of its own.
+	// The wrap-up keeps both.
+	const ownSounds = !(kind === 'intro' && REINDEER_SOUND.entrance.on);
+
 	onMount(() => {
 		// THE CARD'S SOUNDS (constants REINDEER_SOUND cards): it comes up on this frame (its pop starts with the mount)
-		voice(REINDEER_SOUND.cards.in);
+		if (ownSounds) voice(REINDEER_SOUND.cards.in);
 		// Space belongs to the card while it is up (ui/Chrome.svelte holds its own Space hotkey off)
 		context.stateGame.pressGates += 1;
 		const arm = setTimeout(() => (armed = true), ROUND.armMs);
@@ -101,7 +106,7 @@
 			window.removeEventListener('keydown', key);
 			context.stateGame.pressGates = Math.max(0, context.stateGame.pressGates - 1);
 			// it goes on this frame (no exit animation)
-			voice(REINDEER_SOUND.cards.out);
+			if (ownSounds) voice(REINDEER_SOUND.cards.out);
 		};
 	});
 
