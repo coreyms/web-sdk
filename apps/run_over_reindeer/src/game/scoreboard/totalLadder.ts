@@ -12,7 +12,7 @@
 import { drawText, textW } from '../landing/ledScreens';
 import { LED_BOARD } from '../constants';
 import { amountAtCount, ladderBars, winSizeOf, type Show } from './show';
-import { boardTitle, burst, centeredRow, cornerFireworks, drawRow, fitCap, fitScale, gallop, noteFlash, oneShot, perimeter, perimeterDots, rowInfo, sceneT, showTotalScene, titleGapKnob, titleScale, TOTAL_BLINK_DIM, type Face } from './scoreboardDraw';
+import { boardClassNow, boardTitle, burst, rowInkV, centeredRow, cornerFireworks, drawRow, fitCap, fitScale, gallop, noteFlash, oneShot, perimeter, perimeterDots, rowInfo, sceneT, showTotalScene, titleGapKnob, titleScale, TOTAL_BLINK_DIM, type Face } from './scoreboardDraw';
 import { dotAt, ledN } from './ledGrid';
 import { box, clamp, ease, lerp, noteIdea, type Ctx } from './ideasKit';
 
@@ -62,6 +62,39 @@ function reachOf(s: Show, v: number) {
 }
 /** a rung's label: its bar in play multiples, as the game writes a multiple (7,777X) */
 export const rungLabel = (bar: number) => `${bar.toLocaleString('en-US')}X`;
+
+/** THE MARKS' SCALE (the labels' dot scale z, the lamps' and the runner's factor f, the runner's height) for a face: 1 except
+ *  on board size d's desktop and tablet face, where a label's height comes to the share of the amount's cap it has on today's
+ *  upright phone board for the same amount (LED_BOARD.sizeD.ladderPhoneFace), cut back until the labels clear each other and
+ *  the border's bottom row and the runner clears the amount's lowest lit row (its stems and comma included) */
+function ladderMarks(H: number, s: Show, L: Lay, fy: number, n: number, span: number, fine: boolean) {
+	const ink = rowInkV(s.finalStr, L.cap);
+	const amount = { y0: L.numY + ink.t, y1: L.numY + ink.b + 1 };
+	const border = 1;
+	const rh0 = Math.max(7, Math.round(L.band * 0.5));
+	const base = { f: 1, z: 1, rh: rh0, amount, border, ratio: Math.round((7 / L.cap) * 1000) / 1000, limited: false, want: 1 };
+	if (!(boardClassNow() === 'desktop' && LED_BOARD.size === 'd')) return base;
+	const gap = span / (n + 0.15);
+	const labels = ladderBars().map(rungLabel);
+	// the target: today's upright phone board's proportion for the same amount (its face, sizeD.ladderPhoneFace, lays out the
+	// same Total Win: a rung label of 7 dots against its amount's cap), so the factor is this cap over the phone's cap
+	const [pw, ph] = LED_BOARD.sizeD.ladderPhoneFace;
+	const want = Math.max(1, L.cap / totalLay(pw, ph, s).cap);
+	for (let f = want; f >= 1; f -= 0.05) {
+		// (the labels' dot scale: the factor itself on the finer grid, where the 5 x 7 face is redrawn at any size; today's
+		// grid draws whole scales only)
+		const z = fine ? Math.round(f * 100) / 100 : Math.max(1, Math.round(f));
+		const lampH = Math.max(2, Math.round(L.band * 0.13 * f));
+		// the labels inside the face, a dot above the border's bottom row, and clear of each other by 3 dots
+		if (fy + 3 + lampH + 2 + 7 * z > H - border - 1) continue;
+		if (Math.max(...labels.map((l) => textW(l, z))) > gap - 3) continue;
+		// the runner as much larger as the room under the amount allows (its top, a hop of 2 included, a dot under the
+		// amount's lowest lit row), never smaller than today's
+		const rh = Math.max(rh0, Math.min(Math.round(L.band * 0.5 * f), fy - 1 - 2 - (amount.y1 + 1)));
+		return { f: Math.round(f * 100) / 100, z, rh, amount, border, ratio: Math.round(((7 * z) / L.cap) * 1000) / 1000, limited: f < want - 1e-6, want: Math.round(want * 100) / 100 };
+	}
+	return base;
+}
 
 export function ladderTotal(F: Face, s: Show) {
 	// (a Total Win without its multiple, none in the game: today's scene)
@@ -113,11 +146,16 @@ export function ladderTotal(F: Face, s: Show) {
 	const fy = top + Math.round(L.band * 0.18);
 	box(g, xL, fy, xR - xL, 1, '#3a2a14');
 	box(g, xL, fy, Math.max(0, fx - xL), 1, '#ffd23a');
-	const lampW = Math.max(3, Math.round(L.band * 0.2));
-	const lampH = Math.max(2, Math.round(L.band * 0.13));
+	// THE LADDER'S MARKS AT BOARD SIZE d (Corey 2026-11-20: "Yes" to enlarging them; desktop and tablet only): the rung labels,
+	// the lamps and the runner scale with the amount over them, in the proportion they have on today's phone board (a label's
+	// height against the amount's cap, LED_BOARD.sizeD.ladderPhoneFace), as far as they stay clear of the amount above, of each
+	// other and of the border's bottom row; phones and today's size keep 1
+	const M = ladderMarks(H, s, L, fy, bars.length, xR - xL, F.k > 1);
+	const lampW = Math.max(3, Math.round(L.band * 0.2 * M.f));
+	const lampH = Math.max(2, Math.round(L.band * 0.13 * M.f));
 	const ly = fy + 3;
 	const play = s.amount / X;
-	const rec: { bar: number; label: string; lit: boolean; x: number }[] = [];
+	const rec: { bar: number; label: string; lit: boolean; x: number; box: { x0: number; x1: number; y0: number; y1: number } }[] = [];
 	bars.forEach((b, i) => {
 		// (the time each rung was reached: on the pacer the bar a segment ends on; the cap's rung as the count lands)
 		const at = X >= b * (1 - 1e-9) ? Math.min(reachOf(s, b * play), s.countEnd) : Infinity;
@@ -127,7 +165,7 @@ export function ladderTotal(F: Face, s: Show) {
 		box(g, rx[i] - lampW - 1, ly, lampW, lampH, col);
 		box(g, rx[i] + 1, ly, lampW, lampH, col);
 		const lab = rungLabel(b);
-		drawText(g, lab, Math.round(rx[i] - textW(lab, 1) / 2), ly + lampH + 2, 1, lit ? RUNG_COLS[i % RUNG_COLS.length] : '#5a6170');
+		drawText(g, lab, Math.round(rx[i] - textW(lab, M.z) / 2), ly + lampH + 2, M.z, lit ? RUNG_COLS[i % RUNG_COLS.length] : '#5a6170');
 		if (lit && s.t - at < 450) burst(g, rx[i], ly + 1, (s.t - at) / 450, Math.round(L.band * 0.5));
 		// the board flashes as a rung lights (LED_BOARD.strobe.ladderFlash: soft, a fade of the wash at softStrength)
 		const wash = lit ? oneShot('ladderFlash', s.t - at, 120) : 0;
@@ -138,14 +176,14 @@ export function ladderTotal(F: Face, s: Show) {
 			g.fillRect(0, 0, W, H);
 			g.globalAlpha = 1;
 		}
-		rec.push({ bar: b, label: lab, lit, x: Math.round(rx[i]) });
+		rec.push({ bar: b, label: lab, lit, x: Math.round(rx[i]), box: { x0: Math.round(rx[i] - textW(lab, M.z) / 2), x1: Math.round(rx[i] - textW(lab, M.z) / 2) + textW(lab, M.z), y0: ly + lampH + 2, y1: ly + lampH + 2 + 7 * M.z } });
 	});
 	// the reindeer runs the fuse (hops at a rung)
-	const rh = Math.max(7, Math.round(L.band * 0.5));
+	const rh = M.rh;
 	const near = bars.findIndex((b) => Math.abs(posOf(mNow) - posOf(b)) < 3 && X >= b);
 	gallop(g, fx - rh * 0.9, fy - 1 - (near >= 0 ? 2 : 0), rh, s.t);
 	// the spark at the fuse's tip
 	if (!landed) dot(g, fx + 1, fy - (Math.floor(s.t / 60) % 2), '#ffffff');
 	if (landed && size !== 'small') cornerFireworks(g, W, H, since, size === 'max' ? ['#ffd23a', '#ff3a2e', '#ffffff'] : ['#ffd23a', '#ffffff'], L.Hm);
-	noteIdea(g.canvas, 'ladder', { size, x: Math.round(X * 100) / 100, rungs: rec, fuse: Math.round(fx), multiple: Math.round(mNow * 100) / 100 });
+	noteIdea(g.canvas, 'ladder', { size, x: Math.round(X * 100) / 100, rungs: rec, fuse: Math.round(fx), multiple: Math.round(mNow * 100) / 100, marks: { f: Math.round(M.f * 100) / 100, z: M.z, lampW, lampH, lampY: ly, runner: { h: rh, y0: fy - 1 - rh - 2, y1: fy - 1 }, amount: M.amount, cap: L.cap, band: L.band, W, H, border: M.border, ratio: M.ratio, limited: M.limited, want: M.want } });
 }

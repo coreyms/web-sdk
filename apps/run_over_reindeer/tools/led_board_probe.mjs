@@ -89,6 +89,11 @@
 // soft fade's strength and length, never more than 3 starts in any second among them, in the Super entry, the Free Spins
 // entry, a Total Win up its ladder and a Max win (and at full strength with the knob back at today, so the record is real);
 // the strip's dissolve to a message is checked in M4
+// THE LADDER'S MARKS (section ladderMarks, 2026-11-20, Corey "Yes"): the Total Win ladder's rung labels, lamps and runner at
+// each layout (upright and sideways phones, 1280 x 720, 1280 x 800, 1440 x 900, 1920 x 1080, 1180 x 820, 1024 x 768) for a
+// 2,500x Total Win and the cap (MAX WIN, $7,777,000.00): phones unchanged; on board size d's desktop and tablet face a
+// label against the amount's cap as on the upright phone for the same amount; every mark clear of the amount, each other
+// and the border
 // M4 (section m4, desktop and upright, 2026-11-19, driven by hand): the strip's scan to a message leaves the old picture alone
 //   right of its line (never the two drawn at once); the Total Win's amount is lit whenever its title is, the landing blink too
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=desktop,...] [SECTIONS=rule,rise,gag,race,round,scenes,cards,titles] node tools/led_board_probe.mjs
@@ -105,7 +110,7 @@ const { PNG } = require('playwright-core/lib/utilsBundle');
 
 const APP = process.env.APP || 'http://localhost:3014';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
-const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes,bonusStrip,explain,currency,m4,density,ledAnim,ledIdeas,look').split(',');
+const SECTIONS = (process.env.SECTIONS || 'press,rule,rise,gag,race,round,scenes,cards,titles,dim,raceCard,strip,scatter,gagModes,bonusStrip,explain,currency,m4,density,ledAnim,ledIdeas,look,ladderMarks').split(',');
 const SEC = (s) => SECTIONS.includes(s);
 // the intro card's sentence, exactly (game/constants.ts INTRO_LINE, which ui/RoundCard.svelte shows too)
 const INTRO = (() => {
@@ -2041,6 +2046,75 @@ async function lookChecks(browser) {
 		}
 	}
 }
+/** THE LADDER'S MARKS AT BOARD SIZE d (2026-11-20, Corey "Yes": the rung labels, lamps and runner enlarged on the desktop and
+ *  tablet face, LED_BOARD.sizeD.ladderPhoneFace): at each layout, a 2,500x Total Win at $1 and the cap at $1,000 (MAX WIN) at the
+ *  landing; phones keep today's marks (factor 1, labels size 1); on desktop and tablet the labels' height against the
+ *  amount's cap comes to the phone board's ratio (to the label's whole dot scale) unless the room stops it, and every mark
+ *  clears the amount above (the runner's top, its hop included), the border's bottom row and the next label */
+const LADDER_CASES = [
+	{ name: 'ladder upright', vp: { width: 390, height: 844 }, dpr: 3, phone: true, d: false },
+	{ name: 'ladder sideways', vp: { width: 844, height: 390 }, dpr: 3, phone: true, d: false },
+	{ name: 'ladder 1280x720', vp: { width: 1280, height: 720 }, dpr: 2, phone: false, d: true },
+	{ name: 'ladder 1280x800', vp: { width: 1280, height: 800 }, dpr: 2, phone: false, d: true },
+	{ name: 'ladder 1440x900', vp: { width: 1440, height: 900 }, dpr: 2, phone: false, d: true },
+	{ name: 'ladder 1920x1080', vp: { width: 1920, height: 1080 }, dpr: 1, phone: false, d: true },
+	{ name: 'ladder 1180x820', vp: { width: 1180, height: 820 }, dpr: 2, phone: false, d: true },
+	{ name: 'ladder 1024x768', vp: { width: 1024, height: 768 }, dpr: 2, phone: false, d: true },
+];
+async function ladderMarkChecks(browser) {
+	// today's upright phone board's ratio of a rung label's height to the amount's cap, per amount (the first case reads it)
+	const phoneRatio = {};
+	for (const S of LADDER_CASES) {
+		const tag = S.name;
+		const { ctx, p, errs } = await boot(browser, S);
+		try {
+			const r = await R(p, () => {
+				const h = window.__reindeer;
+				h.scoreboardManual(true);
+				h.scoreboardStep(100, 20);
+				const out = { size: h.tune.ledBoard.size, rows: {} };
+				for (const [k, o] of [['2,500x', { x: 2500, play: 1 }], ['cap', { x: 7777, play: 1000, title: 'MAX WIN', capped: true }]]) {
+					h.scoreboardCard('total', o);
+					let s = h.scoreboardStep(0);
+					for (let i = 0; i < 900; i++) {
+						s = h.scoreboardStep(20);
+						if (s.show && s.show.t > s.show.countEnd + 1300) break;
+					}
+					const f = h.scoreboardFace('back');
+					out.rows[k] = { cls: s.cls, str: s.show.finalStr, marks: f.ideas?.ladder?.marks ?? null, labels: (f.ideas?.ladder?.rungs ?? []).map((x) => x.box) };
+					h.scoreboardCardEnd();
+					h.scoreboardLower();
+					h.scoreboardStep(100, 30);
+				}
+				h.scoreboardManual(false);
+				return out;
+			});
+			for (const [k, row] of Object.entries(r.rows)) {
+				const M = row.marks;
+				const lb = row.labels;
+				if (!M || !lb.length) {
+					check(false, `${tag} ${k}: the ladder's record`, row);
+					continue;
+				}
+				const apart = lb.every((b, i) => i === 0 || b.x0 >= lb[i - 1].x1 + 2);
+				const inside = lb.every((b) => b.y1 <= M.H - M.border - 1 && b.x0 >= M.border + 1 && b.x1 <= M.W - M.border - 1);
+				const runnerClear = M.runner.y0 >= M.amount.y1 + 1;
+				if (S.name === 'ladder upright') phoneRatio[k] = M.ratio;
+				if (!S.d) check(M.f === 1 && M.z === 1, `${tag} ${k}: PHONES KEEP TODAY'S LADDER MARKS (factor ${M.f}, labels size ${M.z}, ${M.lampW} x ${M.lampH} lamps, runner ${M.runner.h} dots; the label against the amount's cap ${M.ratio})`, M);
+				else {
+					const pr = phoneRatio[k];
+					check(M.f > 1 && !!pr && (Math.abs(M.ratio - pr) <= pr * 0.06 || M.limited), `${tag} ${k} (${row.str}): THE LADDER'S MARKS SCALE WITH THE AMOUNT: a label against the amount's cap ${M.ratio}, the upright phone's ${pr} for the same amount (factor ${M.f}, labels size ${M.z}, ${M.lampW} x ${M.lampH} lamps, runner ${M.runner.h} dots${M.limited ? ', cut back by the room' : ''})`, M);
+				}
+				check(apart && inside && runnerClear, `${tag} ${k} (${row.str}): the marks clear: the labels apart (${lb.map((b) => `${b.x0}..${b.x1}`).join(' ')}) and inside the face above its border (bottom ${Math.max(...lb.map((b) => b.y1))} of ${M.H}), the runner's top ${M.runner.y0} under the amount's lowest row ${M.amount.y1}`, { M, lb });
+			}
+			check(errs.length === 0, `${tag}: no page errors`, errs);
+		} catch (e) {
+			check(false, `${tag}: the ladder mark checks ran to their end`, String(e?.stack ?? e).slice(0, 600));
+		} finally {
+			await ctx.close();
+		}
+	}
+}
 /** THE FINER GRID (2026-11-19): the density rule per layout at the device's own pixel ratio, a clean switch on a rotation and
  *  on the tune panel, a one dot border the same LEDs all round, the cost; M4 and the currency check again at 1.5 */
 const DENSITY_CASES = [
@@ -2666,11 +2740,11 @@ async function ideasChecks(browser) {
 				check(litOf('small') === '00000' && litOf('big') === '11100' && litOf('huge') === '11110' && litOf('max') === '11111', `${tag}: LADDER: lit at the landing: 1x ${litOf('small')}, 125x ${litOf('big')}, 6,250x ${litOf('huge')}, the cap ${litOf('max')}`, L.rows.map((r) => ({ k: r.key, size: r.land?.size })));
 				const ms = L.I.totalBySize.on ? L.I.totalBySize.ms : { small: L.flat, big: L.flat, huge: L.flat, max: L.flat };
 				const len = (k) => L.rows.find((r) => r.key === k)?.countMs;
-				const okLen = Math.abs(len('small') - ms.small) <= 1 && Math.abs(len('big') - ms.big) <= 1 && Math.abs(len('huge') - ms.huge) <= 1 && Math.abs(len('max') - ms.max) <= 1 && Math.abs(len('max turbo') - ms.max / 2) <= 1 && Math.abs(len('top-up line') - ms.big) <= 1;
+				const okLen = Math.abs(len('small') - ms.small) <= 1 && Math.abs(len('big') - ms.big) <= 1 && Math.abs(len('huge') - ms.huge) <= 1 && Math.abs(len('max') - ms.max) <= 1 && Math.abs(len('max turbo') - ms.max / 2) <= 1; // (no top-up row since math 2026.11.20: the game has no top-up)
 				check(okLen, `${tag}: COUNT BY SIZE (${L.I.totalBySize.on ? 'on' : 'off'}): small ${len('small')}, big ${len('big')}, huge ${len('huge')}, max ${len('max')} ms, max at a turbo rate of 2 ${len('max turbo')} ms`, L.rows.map((r) => ({ k: r.key, ms: r.countMs })));
 				const pa = (k) => L.rows.find((r) => r.key === k)?.pressAfter;
 				const hold = L.I.capPageHold.on ? L.I.capPageHold.ms : 0;
-				check(pa('max') === hold && pa('max autoplay') === 0 && pa('other line') === 0 && pa('big') === L.after, `${tag}: THE CAP'S HOLD (${L.I.capPageHold.on ? 'on' : 'off'}): the cap's page ${pa('max')} ms after the landing (${hold}), with Autoplay Bonuses continuing it ${pa('max autoplay')}, a top-up's line ${pa('top-up line')}, a plain Total Win's press line ${pa('big')}`, L.rows.map((r) => ({ k: r.key, after: r.pressAfter })));
+				check(pa('max') === hold && pa('max autoplay') === 0 && pa('other line') === 0 && pa('big') === L.after, `${tag}: THE CAP'S HOLD (${L.I.capPageHold.on ? 'on' : 'off'}): the cap's page ${pa('max')} ms after the landing (${hold}), with Autoplay Bonuses continuing it ${pa('max autoplay')}, a plain Total Win's press line ${pa('big')}`, L.rows.map((r) => ({ k: r.key, after: r.pressAfter })));
 				const big = L.rows.find((r) => r.key === 'big');
 				const first = big ? `$${(15 * 2).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : null;
 				check(L.I.total !== 'ladder' || big?.atFirst === first, `${tag}: THE PACER: 125x at $2 reads ${big?.atFirst} as its first rung's segment ends (want ${first}: 15x)`, big);
@@ -2867,6 +2941,7 @@ async function ideasChecks(browser) {
 		}
 		if (SEC('density')) await densityChecks(browser);
 		if (SEC('look')) await lookChecks(browser);
+		if (SEC('ladderMarks')) await ladderMarkChecks(browser);
 		if (SEC('ledAnim')) await ledAnimChecks(browser);
 		if (SEC('ledIdeas')) await ideasChecks(browser);
 	} finally {
