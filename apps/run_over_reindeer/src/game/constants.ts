@@ -1944,8 +1944,11 @@ export const LED_BOARD = {
 	size: 'd' as 'd' | 'today',
 	/** board size d's taste pass (desktop and tablet only): the win titles' largest dot scale (today's list stops at 5, which
 	 *  left BIG to MAX WIN at 0.17 of the bigger face against today's 0.23; 7 gives 0.24); the press screen's figure's
-	 *  (WIN UP TO 7,777X: today's stops at 6) */
-	sizeD: { winTitleMax: 7, pressScaleMax: 8 },
+	 *  (WIN UP TO 7,777X: today's stops at 6); the Total Win ladder's marks (Corey 2026-11-20 "Yes"): the rung labels, lamps and
+	 *  runner keep the proportion today's upright phone board gives them against the amount (its back face, ladderPhoneFace,
+	 *  259 x 189 dots at 390 x 844, laying out the same Total Win: a label of 7 dots against a $2,500.00 of 31, 0.226; against
+	 *  $7,777,000.00 of 21, 0.333), as far as they stay clear of the amount, each other and the border */
+	sizeD: { winTitleMax: 7, pressScaleMax: 8, ladderPhoneFace: [259, 189] as [number, number] },
 	grid: { shape: 'round' as 'round' | 'square' | 'soft', fill: 0.73, rowScale: 1, gapDark: 1, litOver: 0, snap: false, unlit: true },
 	/** THE FACES' MOVING EFFECTS (Corey 2026-11-20, led_board_size_r1_2026-11-20 round 2, his settings; game/scoreboard/
 	 *  scoreboard.ts drawBack and drawStrip, scoreboardDraw.ts borderGlint). Each keeps today's choice selectable:

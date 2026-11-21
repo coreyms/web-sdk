@@ -473,6 +473,8 @@ export const setBoardClass = (cls: string) => {
 	boardClass = cls === 'phone' ? 'phone' : cls === 'portrait' ? 'portrait' : 'desktop';
 };
 const titleKnobs = () => LED_BOARD.titles[boardClass];
+/** the layout class the back board is drawn for now (the Total Win ladder's size d labels) */
+export const boardClassNow = (): BoardClass => boardClass;
 /** the dots added between a title and its amount, and the bounce's strength (LED_BOARD.titles, live) */
 const titleGapKnob = () => Math.round(LED_BOARD.titles.gap);
 const bounceK = () => Math.max(0, LED_BOARD.titles.bounce);
@@ -2067,5 +2069,5 @@ export { chaseBorder, drawRow, fireworks, fitCap, rowInfo, sprite, sparkles, bur
 export { boardTitle, drawFit, lineInk, BULBS };
 // (2026-11-19, the round 1 LED ideas Corey picked: game/scoreboard/entryScenes.ts, totalLadder.ts, ambient.ts draw with the
 // same helpers as the scenes here)
-export { gallop, centeredRow, perimeter, perimeterDots, cornerFireworks, slamRow, marchAt, flash, entryNumberLayout, titleScale, fitScale, snowDots, RUN_FW, RUN_FH, size as artSize, art, sceneT, TOTAL_BLINK_DIM, titleGapKnob, fitVehicle, vehicleOf, noteRec };
+export { rowInkV, gallop, centeredRow, perimeter, perimeterDots, cornerFireworks, slamRow, marchAt, flash, entryNumberLayout, titleScale, fitScale, snowDots, RUN_FW, RUN_FH, size as artSize, art, sceneT, TOTAL_BLINK_DIM, titleGapKnob, fitVehicle, vehicleOf, noteRec };
 export type { ArtName };
