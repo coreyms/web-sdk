@@ -13,6 +13,7 @@
 	import ChromeStyles from './ChromeStyles.svelte';
 	import HudStyles from './hud/HudStyles.svelte';
 	import { hudFrame, readSafeInsets, portraitBoardBottoms } from './hud/hudLayout';
+	import { readOdoDev } from './hud/winOdometer';
 	import ChromeLandscape from './ChromeLandscape.svelte';
 	import ChromePortrait from './ChromePortrait.svelte';
 	import ChromePhone from './ChromePhone.svelte';
@@ -73,6 +74,10 @@
 			// the run's stops as amounts (ui/controls.svelte.ts startLoadout): fast_lane_probe's autofeature reads them
 			autoLimits: () => ({ loss: stateBet.autoSpinsLossLimitAmount, win: stateBet.autoSpinsSingleWinLimitAmount, count: stateBet.autoSpinsCounter }),
 			emit: (event: any) => context.eventEmitter.broadcast(event),
+			// THE WIN ODOMETER's state (ui/hud/winOdometer.ts; tools/hud_probe.mjs section `cards`): its mode, the total, what
+			// the readout reads now (locked digits, '#' for a moving one), the show and the show ms it drew at, the count's
+			// end, when it went plain and whether by a skip, the pops played
+			winOdometer: () => readOdoDev(),
 		};
 	}
 

@@ -55,7 +55,7 @@
 	{#if !replay && !controls.jurisdiction().disabledBuyFeature}<HudFeature {controls} x={G.arm.x} y={G.arm.y} w={G.arm.w} h={G.arm.h} shape="pill" />{/if}
 	<HudKey kind="menu" {controls} x={G.menu.x} y={G.menu.y} d={G.menu.d} />
 	{#each G.hl as h, i (i)}<i class="hl" class:wn={h.wn} style:left="{h.x}px" style:top="{h.y}px"></i>{/each}
-	<HudReadout label="WIN" pre={hs.winPre()} value={controls.winText()} x={G.win.x} y={G.win.y} w={G.win.w} h={G.win.h} nominal={nominal.win} cls="win {hs.winPre() ? 'fsw' : ''} {lit ? 'is-lit' : ''} {hs.winBig() ? 'is-big' : ''}" hud="win" keep />
+	<HudReadout label="WIN" pre={hs.winPre()} value={controls.winText()} odo={controls.winOdoText()} x={G.win.x} y={G.win.y} w={G.win.w} h={G.win.h} nominal={nominal.win} cls="win {hs.winPre() ? 'fsw' : ''} {lit ? 'is-lit' : ''} {hs.winBig() ? 'is-big' : ''}" hud="win" keep />
 	{#if !replay && !controls.jurisdiction().disabledAutoplay}<HudKey kind="auto" {controls} x={G.auto.x} y={G.auto.y} d={G.auto.d} />{/if}
 	{#if !controls.jurisdiction().disabledTurbo}<HudKey kind="turbo" {controls} x={G.turbo.x} y={G.turbo.y} d={G.turbo.d} />{/if}
 	<HudSpin {controls} x={G.spin.x} y={G.spin.y} d={G.spin.d} />

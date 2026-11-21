@@ -324,6 +324,16 @@ export const createControls = () => {
 	// bet; Corey 2026-10-21 "Yes, unless the final win is a fraction that need to carry decimals, like player betting .01
 	// cents"): cents normally, more only when the final win itself carries them; the last frame is the book's amount
 	const winText = () => bookEventAmountToCurrencyString(Math.round(winTween.current), { fractionDigitsOfBookAmount: stateBet.winBookEventAmount });
+	// THE WIN ODOMETER (2026-11-21, Corey: "Odomoter roll defaults works for me"; ui/hud/winOdometer.ts): while the bonus
+	// round's Total Win card is up on the LED board, WIN rolls and lands with the card's own count instead of showing the
+	// total at once. This is the total it lands on, formatted as winText formats WIN (the card's amount, the book's round
+	// total), or null when the readout is today's: no card, an entry card, the HTML card (no board), a total of 0, and the
+	// capped wrap-up (the max win screen hides the bar: nothing rolls behind it)
+	const winOdoText = () => {
+		const c = context.stateGame.roundCard;
+		if (!c || c.kind !== 'outro' || !c.board || c.capped || !(c.amount > 0)) return null;
+		return bookEventAmountToCurrencyString(Math.round(c.amount), { fractionDigitsOfBookAmount: c.amount });
+	};
 	// SPIN readout = the full price of the next press, whatever is armed: with a 300× feature loaded
 	// the SDK's betCost() still reported the base amount here while the button charged 300× (Stake
 	// review 2026-09-05). betCostFull covers every mode, replay included.
@@ -351,7 +361,7 @@ export const createControls = () => {
 		bonusDisabled, bonusPress, activateMode, buyMode, jurisdiction,
 		betOptions, betDisabled, openDenom, setBet,
 		menuPress, openGameInfo,
-		balanceText, winText, betText, betLabel, hasWin, winAmount, freeSpin,
+		balanceText, winText, winOdoText, betText, betLabel, hasWin, winAmount, freeSpin,
 		sound,
 	};
 };

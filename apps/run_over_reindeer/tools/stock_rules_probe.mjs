@@ -5,6 +5,7 @@
 // WATCHES: ; baseTurboLevel, turboLevel, autoStopOnFreeGames, autoPlayBonuses, data-l, data-round-card, .hudp, .fold-row, .go, button.catch, .hud-held
 // WATCHES: apps/run_over_reindeer/src/{ui/SpinHotkey.svelte,ui/Chrome.svelte}; isSpaceHold
 // WATCHES: apps/run_over_reindeer/src/game/scoreboard/show.ts; LED_BOARD.ideas, motionFor
+// WATCHES: apps/run_over_reindeer/src/{ui/hud/HudReadout.svelte,ui/hud/winOdometer.ts}; __reindeer.hud.winOdometer
 // WATCHES: apps/run_over_reindeer/src/ui/RoundCard.svelte; ROUND.introWaitsForPress, ROUND.lineOutroWaitsForPress, ROUND.autoplayMs, ROUND.introAutoMs, ROUND.outroAutoMs, ROUND.wrapAutoHoldMs, __reindeer.scoreboard
 // THE STOCK RULES PROBE (game/bonusStockRules.ts, 2026-11-18): turbo and autoplay around a bonus round, the owner's
 // standing rule for all his games. Every pause and level is read from the game (__reindeer.stockRules: the module's own
@@ -538,6 +539,7 @@ async function sectionAutoCards(browser) {
 		let landedAt = null;
 		let outroGoneAfter = null;
 		let totalShow = null;
+		let odoAtLand = null;
 		const t1 = Date.now();
 		// (the wrap-up's own wait, unpressed: with the option off it waits for the press (Manticore's rule, 2026-11-18),
 		// so the loop gives up ROUND.outroAutoMs + 1.5 s after it came up, the old self-continue's time and more)
@@ -560,7 +562,14 @@ async function sectionAutoCards(browser) {
 			// its amount landed: the LED board's Total Win count is done (or the HTML card is up)
 			if (c === 'outro' && landedAt === null) {
 				const ph = await p.evaluate(() => window.__reindeer.scoreboard?.()?.show?.phase ?? 'show');
-				if (ph !== 'count' && ph !== 'rising' && ph !== 'switching') landedAt = Date.now();
+				if (ph !== 'count' && ph !== 'rising' && ph !== 'switching') {
+					landedAt = Date.now();
+					// (2026-11-21, the WIN odometer: the bar's WIN lands with the card's count, at whatever rate it counted)
+					odoAtLand = await p.evaluate(() => {
+						const s = window.__reindeer.scoreboard?.()?.show;
+						return { odo: window.__reindeer.hud.winOdometer?.() ?? null, countEnd: s?.countEnd ?? null, capped: !!s?.capped, skipped: !!s?.skipped };
+					});
+				}
 			}
 			if (outroAt !== null && c !== 'outro') {
 				outroGoneAfter = Date.now() - outroAt;
@@ -570,6 +579,13 @@ async function sectionAutoCards(browser) {
 			await sleep(50);
 		}
 		const stillUp = (await card()) === 'outro';
+		// THE WIN ODOMETER (2026-11-21): the bar's WIN went plain on the total as the card's count ended (within 120 ms of the
+		// board's clock: a frame or two of a loaded headless page), at the rate the card counted at; the capped wrap-up never runs it
+		if (odoAtLand) {
+			const o = odoAtLand.odo;
+			const ok = odoAtLand.capped ? !!o && o.mode === 'off' : !!o && o.mode === 'done' && o.doneT !== null && o.doneT >= odoAtLand.countEnd && o.doneT - odoAtLand.countEnd <= 120;
+			check(ok, `${tag}: the bar's WIN odometer lands with the card's count (${odoAtLand.capped ? 'capped: off' : `plain at ${o?.doneT} ms, the count's end ${odoAtLand.countEnd} ms`})`, odoAtLand);
+		}
 		// THE COUNT BY SIZE in a real wrap-up (Corey 2026-11-19: "yes on the total count wins"): the board's count is its size's
 		// length at one of the turbo levels' rates, and the cap's hold is not used when Autoplay Bonuses continues the card
 		if (totalShow) {

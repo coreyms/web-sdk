@@ -44,6 +44,8 @@
 
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { scoreboardDev } from '../../game/scoreboard/scoreboard';
+	import { odoDev, odoDigits, odoFace, odoPos, odoSeed, odoTransform, planOdometer, type OdoPlan } from './winOdometer';
 	// A READOUT (BALANCE, WIN, the amount per spin): a fixed box (contain: layout, so a changing number never reflows the
 	// HUD), a small spaced word over a tabular number. The probes' contract is kept: a .stat (a button, disabled unless it
 	// opens something) holding a .label whose text is the word and a .value.
@@ -67,10 +69,17 @@
 		keep?: boolean;
 		/** the room the fit leaves beside the number (mock px; the round 6 portrait boxes are sized to the number itself) */
 		pad?: number;
+		/** THE WIN ODOMETER (hud="win" only; controls.winOdoText): the total the readout rolls to and lands on with the Total
+		 *  Win card's own count, null or absent: today's readout */
+		odo?: string | null;
 	};
-	const { label, value, pre = '', x, y, w, h, cls = '', nominal, onclick, disabled = false, ariaLabel, hud, lit = false, keep = false, pad = 12 }: Props = $props();
+	const { label, value, pre = '', x, y, w, h, cls = '', nominal, onclick, disabled = false, ariaLabel, hud, lit = false, keep = false, pad = 12, odo = null }: Props = $props();
 	const interactive = $derived(!!onclick && !disabled);
-	const font = $derived(fitted(value, nominal, w - pad));
+	const odoOn = $derived(hud === 'win' && !!odo);
+	/** the text the readout is fitted to: the odometer's total while it plays (its zeros, its windows and its landing all
+	 *  have the total's shape, so one fit and one width throughout) */
+	const fitText = $derived(odoOn ? (odo as string) : value);
+	const font = $derived(fitted(fitText, nominal, w - pad));
 
 	// ---- the WIN readout's sunburst (only hud="win"; the chromes' own classes say which screen and when a win shows) ----
 	const burst = $derived(hud === 'win');
@@ -93,10 +102,14 @@
 	};
 	// light up, count, land, hold, fade: from the readout's own lit class and its number (the count itself is the HUD's
 	// 550 ms tween, untouched: the number standing still for 120 ms is the landing)
+	// (while the odometer plays, the odometer drives the count and the landing below; when the card leaves with WIN on the
+	// same number it landed on, the landing is not played a second time)
+	let odoAfter: string | null = null;
 	$effect(() => {
 		if (!burst) return;
 		const on = winLit;
-		void value;
+		const v = value;
+		const odoing = odoOn;
 		clear();
 		const was = untrack(() => phase);
 		if (!on) {
@@ -106,6 +119,17 @@
 			}
 			return;
 		}
+		if (odoing) {
+			odoAfter = v;
+			if (was === 'off' || was === 'out') phase = 'cnt';
+			return;
+		}
+		if (odoAfter !== null) {
+			const same = v === odoAfter;
+			odoAfter = null;
+			if (same && (was === 'land' || was === 'hold')) return;
+		}
+		landByOdo = false;
 		if (was !== 'cnt') phase = 'cnt';
 		quiet = window.setTimeout(() => {
 			phase = 'land';
@@ -118,6 +142,8 @@
 		if (!burst || !valEl || !statEl) return;
 		void value;
 		void font;
+		void odoOn;
+		void odoMode;
 		tablet = !!statEl.closest('.v-tablet');
 		const vx = valEl.offsetLeft;
 		const vw = valEl.offsetWidth;
@@ -136,6 +162,138 @@
 	const rays = $derived({ wide: wedges(R0, 0.13), thin: wedges(R0, 0.055) });
 	/** the landing's pop: 7.5 % at most, never past the readout's box (it paints inside it) */
 	const pop = $derived(vm.w > 0 ? Math.max(1, Math.min(1.075, (w - 1) / vm.w)) : 1);
+
+	// ---- THE WIN ODOMETER (ui/hud/winOdometer.ts; Corey's pick from the mock bar_win_count_r1, its defaults) ----
+	// While the Total Win card counts, each digit of WIN rolls in a window of its own (the tabular digit's width, its own
+	// overflow clip, no mask) and the digits lock from the left, the last as the card's count ends; the separators and the
+	// currency marker stand still. DRIVEN BY THE CARD'S OWN COUNT: every frame reads the scoreboard's Total Win show
+	// (Scoreboard.totalCount: its clock, its count's start and end), never a timer of its own, so a slow frame, a turbo
+	// rate or a press that lands the card (its countEnd moves to the press) lands the readout with it. At the count's end
+	// (or the press) the windows go and the total is plain characters of the same widths, with the landing's pop on the
+	// whole WIN cell (the mock's: 7.5 %, the upright readout from its left) and the sunburst's flare, once a show. Reduced
+	// motion: no roll, the total's zeros until the count ends, then the total, no pop. One transform per digit a frame, no
+	// text measured. The readout's name for assistive tech is the total itself throughout.
+	const STRIP = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+	/** wait: the card is up, its count not read yet; roll; still: reduced motion; done: the total */
+	let odoMode = $state<'wait' | 'roll' | 'still' | 'done'>('wait');
+	/** the landing's pop on the WIN cell (odo-pop) and whether the sunburst's landing came from the odometer (the number's
+	 *  own wb-land pop then stays off: one pop) */
+	let odoPop = $state(false);
+	let landByOdo = $state(false);
+	const odoChars = $derived(odoOn ? [...(odo as string)].map((c) => ({ c, d: c >= '0' && c <= '9' })) : []);
+	/** how long the card's count is looked for before the readout gives up and shows the total (the board starts the
+	 *  show in the same broadcast that puts the card up, so this is a safety net only) */
+	const ODO_FIND_MS = 1500;
+	const ODO_POP_MS = 460;
+	let odoRaf = 0;
+	let odoPopTimer = 0;
+	let odoHoldTimer = 0;
+	$effect(() => {
+		if (!odoOn) {
+			untrack(() => {
+				odoMode = 'wait';
+				if (hud === 'win') odoDev.mode = 'off';
+			});
+			return;
+		}
+		const total = odo as string;
+		untrack(() => runOdo(total));
+		return () => {
+			cancelAnimationFrame(odoRaf);
+			odoRaf = 0;
+		};
+	});
+	const runOdo = (total: string) => {
+		cancelAnimationFrame(odoRaf);
+		odoRaf = 0;
+		const digits = odoDigits(total);
+		const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const started = performance.now();
+		let plan: OdoPlan | null = null;
+		let planId = -1;
+		let els: HTMLElement[] = [];
+		let last: number[] = [];
+		odoMode = 'wait';
+		Object.assign(odoDev, { mode: 'wait', text: total, reduced, doneT: null, skipped: false, plan: null, showId: -1, t: 0, countEnd: 0 });
+		const finish = (s: { id: number; t: number; skipped: boolean } | null, popOk: boolean) => {
+			cancelAnimationFrame(odoRaf);
+			odoRaf = 0;
+			odoMode = 'done';
+			odoDev.mode = 'done';
+			odoDev.doneT = s ? s.t : null;
+			odoDev.skipped = !!s?.skipped;
+			if (s) odoDev.t = s.t;
+			if (popOk && s && !reduced && odoDev.poppedId !== s.id) {
+				odoDev.poppedId = s.id;
+				odoDev.pops++;
+				odoPop = false;
+				clearTimeout(odoPopTimer);
+				// (a frame apart, so a pop class still on from a landing just before restarts its animation)
+				requestAnimationFrame(() => {
+					odoPop = true;
+					odoPopTimer = window.setTimeout(() => (odoPop = false), ODO_POP_MS + 40);
+				});
+				if (burst && winLit) {
+					clear();
+					landByOdo = true;
+					phase = 'land';
+					clearTimeout(odoHoldTimer);
+					odoHoldTimer = window.setTimeout(() => {
+						if (phase === 'land') phase = 'hold';
+					}, 720);
+				}
+			} else if (burst && winLit && phase === 'cnt') phase = 'hold';
+		};
+		const step = () => {
+			odoRaf = 0;
+			const b = scoreboardDev.board?.totalCount() ?? null;
+			const s = b && b.t < b.exitAt ? b : null;
+			if (!s) {
+				// no Total Win on the board (yet): the zeros for a moment, then the total (never stuck on the windows)
+				if (plan || performance.now() - started > ODO_FIND_MS) return finish(null, false);
+				odoRaf = requestAnimationFrame(step);
+				return;
+			}
+			if (plan && s.id !== planId) return finish(null, false);
+			if (s.t >= s.countEnd) return finish(s, !!plan);
+			if (!plan) {
+				// a count of no length shows the total at once (no roll, no pop)
+				if (s.countEnd - s.countStart <= 0) return finish(s, false);
+				plan = planOdometer(digits, s.countStart, s.countEnd, odoSeed(s.amount, digits.length));
+				planId = s.id;
+				odoDev.plans++;
+				odoDev.plan = plan;
+				odoDev.showId = s.id;
+				odoMode = reduced ? 'still' : 'roll';
+				odoDev.mode = odoMode;
+				if (burst && winLit) {
+					landByOdo = false;
+					phase = 'cnt';
+				}
+			}
+			odoDev.t = s.t;
+			odoDev.countEnd = s.countEnd;
+			if (!reduced) {
+				// the windows' strips (in the readout once the roll is drawn: looked up again only while they are not)
+				if (els.length !== plan.cols.length || !els[0]?.isConnected) {
+					els = valEl ? [...valEl.querySelectorAll<HTMLElement>('.ods')] : [];
+					last = [];
+				}
+				if (els.length === plan.cols.length)
+					for (let i = 0; i < els.length; i++) {
+						const f = odoFace(odoPos(plan, plan.cols[i], s.t));
+						if (f !== last[i]) {
+							els[i].style.transform = odoTransform(f);
+							last[i] = f;
+						}
+					}
+			}
+			odoRaf = requestAnimationFrame(step);
+		};
+		step();
+	};
+	/** the readout's name while the odometer plays: the total, never the rolling digits */
+	const odoAria = $derived(odoOn ? `${pre ? pre + ' ' : ''}${label} ${odo}` : undefined);
 </script>
 
 {#if burst}
@@ -171,7 +329,8 @@
 	type="button"
 	class="stat {cls}"
 	class:sb={burst}
-	class:wb-land={burst && phase === 'land'}
+	class:wb-land={burst && phase === 'land' && !landByOdo}
+	class:odo-pop={odoPop}
 	class:slot-btn={interactive}
 	class:hg={interactive}
 	class:press={interactive}
@@ -180,7 +339,7 @@
 	data-hud-lit={lit ? '' : undefined}
 	disabled={!interactive}
 	{onclick}
-	aria-label={ariaLabel}
+	aria-label={odoAria ?? ariaLabel}
 	style:left="{x}px"
 	style:top="{y}px"
 	style:width="{w}px"
@@ -188,5 +347,6 @@
 	style:--wb-pop={burst ? pop : undefined}
 >
 	<span class="lbw">{#if pre}<span class="pre">{pre}</span>{/if}<span class="label">{label}</span></span>
-	<span class="value" bind:this={valEl} style:font-size={font !== nominal ? `${font}px` : undefined}>{value}</span>
+	<!-- (the odometer's markup is one line: a space between its boxes would widen the number) -->
+	<span class="value" class:odo={odoOn} bind:this={valEl} style:font-size={font !== nominal ? `${font}px` : undefined} aria-hidden={odoOn ? 'true' : undefined} data-odo={odoOn ? odoMode : undefined}>{#if !odoOn}{value}{:else if odoMode === 'roll'}{#each odoChars as ch}{#if ch.d}<span class="od"><span class="odz">0</span><span class="ods">{#each STRIP as dd}<i>{dd}</i>{/each}</span></span>{:else}<span class="oc">{ch.c}</span>{/if}{/each}{:else}{#each odoChars as ch}<span class="oc">{ch.d && odoMode !== 'done' ? '0' : ch.c}</span>{/each}{/if}</span>
 </button>

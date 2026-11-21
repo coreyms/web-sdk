@@ -729,6 +729,14 @@ export class Scoreboard {
 		if (!s || !isCard(s)) return true;
 		return s.t >= s.contentAt && s.t >= s.countEnd;
 	}
+	/** THE TOTAL WIN'S OWN COUNT (2026-11-21, the bar's WIN odometer, ui/hud/winOdometer.ts): the Total Win card while it is
+	 *  the board's show, else null. Its clock (t), its count's start and end (a press that lands it, landCard, or its end,
+	 *  endShow, moves countEnd to the moment) and its amount: the HUD's WIN readout reads it each frame and never keeps a
+	 *  timer of its own. Read only. */
+	totalCount(): Readonly<Pick<Show, 'id' | 't' | 'countStart' | 'countEnd' | 'exitAt' | 'amount' | 'skipped' | 'capped'>> | null {
+		const s = this.show;
+		return s && s.kind === 'total' ? s : null;
+	}
 	/** the card was dismissed: the board powers down and lowers */
 	endCard() {
 		const s = this.show;

@@ -1,6 +1,8 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,ui/hud/hudLayout.ts,ui/Chrome.svelte,ui/RoundCard.svelte,game/bookEventHandlerMap.ts};
 // WATCHES: ; hudHeld, .hud-held, button.catch, data-round-card, data-skip, __reindeer.scoreboard
+// WATCHES: apps/run_over_reindeer/src/{ui/hud/HudReadout.svelte,ui/hud/winOdometer.ts,ui/controls.svelte.ts,game/scoreboard/scoreboard.ts};
+// WATCHES: ; __reindeer.hud.winOdometer, data-odo, .od, .oc, .odo-pop, winOdoText, totalCount
 // WATCHES: ; __reindeer.skipHud, data-skip, __reindeer.atRest, __reindeer.boardLayout, __reindeer.fixtures, __reindeer.gameType, __reindeer.hud, __reindeer.scene
 // WATCHES: ; data-title-sign, data-hud, data-hud-step, data-st, .hudp, .landing, .fb, .lb, .am-ui, .lbw, .value, .mp, .is-open, .mpsh, .layer
 // WATCHES: ; .modals, .panel, .sweep, .go, .spin, .cg, .rr, .rw, .rs, .fx, .halo, data-face, data-run
@@ -58,6 +60,14 @@
 //     844 x 390 and 1440 x 900, the HUD is held on screen (hud-held, inert, not hud-off), BALANCE and WIN readable, every
 //     key on screen, nothing focusable, the Spin's spot takes the card's press; on the wrap-up WIN holds the round's total
 //     (the card's amount); after it the HUD is live again
+//     THE WIN ODOMETER (2026-11-21, Corey: "Odomoter roll defaults works for me"; ui/hud/winOdometer.ts): every frame of
+//     the wrap-up is sampled in the page (the board's show, __reindeer.hud.winOdometer, the WIN readout's box): WIN never
+//     reads the total (nor goes plain) before the card's count ends, goes plain on the total within two frames of the
+//     end, its width does not move through the roll (0.25 px, the pop's frames aside), no digit window is left after the
+//     lock, the landing pops once, the readout's aria name is the total throughout; on the desktop run the card is pressed
+//     40 % into its count (the skip): plain within two frames of the press, one pop; with reduced motion (1440 x 900)
+//     nothing rolls (the total's zeros, then the total, no pop); the capped wrap-up (max_win, 390 x 844, the bar hidden)
+//     never runs the odometer; after the wrap-up the readout is today's plain text
 //   · the words: no character outside printable ASCII in the HUD's and the Autoplay menu's visible text; in social mode
 //     (?social=true) also no restricted word (bet, buy, cash, money, paid, credit, gamble, wager, stake), aria included
 // With SHOTS=<dir> it saves the idle and the spinning HUD at each size (phones at device pixel ratio 3, the rest at 2).
@@ -1196,8 +1206,115 @@ async function cardsHud(browser) {
 	const SIZES_CARDS = [
 		{ name: 'cards-portrait', vp: { width: 390, height: 844 }, touch: true, phone: true, family: 'portrait', ownPress: true },
 		{ name: 'cards-landscape', vp: { width: 844, height: 390 }, touch: true, phone: true, family: 'landscape', ownPress: true },
-		{ name: 'cards-desktop', vp: { width: 1440, height: 900 }, touch: false, phone: false, family: 'desktop', ownPress: true },
+		{ name: 'cards-desktop', vp: { width: 1440, height: 900 }, touch: false, phone: false, family: 'desktop', ownPress: true, skip: true },
+		// (2026-11-21, the WIN odometer: reduced motion rolls nothing; the capped wrap-up hides the bar, nothing rolls)
+		{ name: 'cards-reduced', vp: { width: 1440, height: 900 }, touch: false, phone: false, family: 'desktop', ownPress: true, reduced: true },
+		{ name: 'cards-max', vp: { width: 390, height: 844 }, touch: true, phone: true, family: 'portrait', ownPress: true, fixture: 'max_win', capped: true },
 	];
+	// THE WIN ODOMETER'S WATCH (2026-11-21): from the entry's press on, every frame while the wrap-up card is up, in the
+	// page: the board's show (its clock, its count's start and end), the odometer's own read and the WIN readout's box.
+	// `skip`: the card is pressed 40 % into its count (the press lands it, landCard).
+	const armOdo = (p, skip) =>
+		p.evaluate((skip) => {
+			const W = (window.__odoWatch = { samples: [], press: null, pops0: window.__reindeer.hud.winOdometer().pops, on: true });
+			const tick = () => {
+				if (!W.on) return;
+				if (document.querySelector('[data-round-card="outro"]')) {
+					const s = window.__reindeer.scoreboard?.()?.show;
+					const o = window.__reindeer.hud.winOdometer();
+					const v = document.querySelector('.hudp [data-hud="win"] .value');
+					const st = v?.closest('.stat');
+					if (skip && !W.press && s && s.kind === 'total' && o.mode === 'roll' && s.t >= s.countStart + 0.4 * (s.countEnd - s.countStart) && s.t < s.countEnd) {
+						document.querySelector('button.catch:not([data-wheel-gate])')?.click();
+						W.press = { t: s.t, at: performance.now(), countEnd: s.countEnd };
+					}
+					W.samples.push({
+						at: Math.round(performance.now()),
+						kind: s?.kind ?? null,
+						t: s?.t ?? null,
+						cs: s?.countStart ?? null,
+						ce: s?.countEnd ?? null,
+						skipped: !!s?.skipped,
+						finalStr: s?.finalStr ?? null,
+						mode: o.mode,
+						reading: o.reading,
+						text: o.text,
+						hudT: o.t,
+						doneT: o.doneT,
+						data: v?.getAttribute('data-odo') ?? null,
+						windows: v ? v.querySelectorAll('.od').length : -1,
+						shown: v ? v.textContent : null,
+						w: v ? Math.round(v.getBoundingClientRect().width * 100) / 100 : null,
+						ow: v ? v.offsetWidth : null,
+						pop: !!st?.classList.contains('odo-pop'),
+						popAnim: st ? st.getAnimations().some((a) => a.animationName === 'wb-pop-cell') : false,
+						aria: st?.getAttribute('aria-label') ?? null,
+					});
+					if (W.samples.length > 4000) W.samples.shift();
+				}
+				requestAnimationFrame(tick);
+			};
+			requestAnimationFrame(tick);
+		}, skip);
+	const readOdo = (p) =>
+		p.evaluate(() => {
+			const W = window.__odoWatch;
+			W.on = false;
+			return { samples: W.samples, press: W.press, pops: window.__reindeer.hud.winOdometer().pops - W.pops0, now: window.__reindeer.hud.winOdometer() };
+		});
+	const digitsOf = (t) => String(t ?? '').replace(/[^0-9]/g, '');
+	/** the odometer judged from its watch */
+	const judgeOdo = (W, S, tag) => {
+		const X = W.samples.filter((x) => x.kind === 'total' && x.t !== null);
+		console.log(`  INFO ${tag}: ${X.length} frames of the wrap-up sampled; modes ${[...new Set(X.map((x) => x.mode))].join(', ')}; the count ${X[0]?.cs} to ${X[X.length - 1]?.ce} ms${W.press ? `, pressed at ${Math.round(W.press.t)} ms` : ''}; the odometer went plain at ${W.now.doneT} ms; pops ${W.pops}`);
+		if (S.capped) {
+			const on = W.samples.filter((x) => x.mode !== 'off' || x.data !== null || x.windows > 0 || x.pop);
+			check(X.length > 0 && on.length === 0 && W.pops === 0, `${tag}: the capped wrap-up (the bar hidden) never runs the odometer (${on.length} of ${W.samples.length} frames with it on, ${W.pops} pops)`, on.slice(0, 3));
+			return;
+		}
+		check(X.length >= 10, `${tag}: the wrap-up's frames sampled (${X.length})`);
+		if (X.length < 10) return;
+		const text = X.find((x) => x.text)?.text ?? '';
+		const ce = X[X.length - 1].ce;
+		check(!!text && digitsOf(text) === digitsOf(X[0].finalStr), `${tag}: the odometer lands on the card's total (${text} against the board's ${X[0].finalStr})`);
+		// never the total, never plain, before the count's end (the show's clock as the page read it; the readout reads the
+		// same clock, never ahead of it)
+		const early = X.filter((x) => x.t < x.ce && (x.mode === 'done' || x.reading === x.text || (x.shown && x.mode !== 'roll' && x.shown === x.text)));
+		check(early.length === 0, `${tag}: WIN never shows the total before the count ends (${early.length} frames)`, early.slice(0, 3));
+		// plain on the total within two frames of the end (or of the press)
+		const iEnd = X.findIndex((x) => x.t >= x.ce);
+		const late = iEnd < 0 ? null : X.slice(iEnd + 2).filter((x) => x.mode !== 'done');
+		check(iEnd >= 0 && late && late.length === 0 && X[Math.min(X.length - 1, iEnd + 2)].mode === 'done', `${tag}: WIN goes plain on the total within two frames of the count's end (the first frame at the end ${iEnd >= 0 ? X[iEnd].mode : 'none'}, ${late?.length ?? '?'} later frames not plain)`, late?.slice(0, 3));
+		// (two of the page's own frames at the end, in the board's ms, at least 50)
+		const steps = X.slice(Math.max(1, iEnd - 3), iEnd + 4).map((x, i, a) => (i ? x.t - a[i - 1].t : 0));
+		const twoFrames = Math.max(50, 2 * Math.max(0, ...steps));
+		const after = X.filter((x) => x.mode === 'done');
+		check(after.length > 0 && after.every((x) => x.windows === 0 && x.shown === x.text), `${tag}: after the lock no digit window is left, the readout reads ${text}`, after.filter((x) => x.windows !== 0 || x.shown !== x.text).slice(0, 3));
+		// the width: one width from the first odometer frame to the last (the pop's own frames aside)
+		const sized = X.filter((x) => x.mode !== 'off' && !x.pop && !x.popAnim && x.w !== null);
+		const ws = sized.map((x) => x.w);
+		const ows = [...new Set(sized.map((x) => x.ow))];
+		const spread = ws.length ? Math.max(...ws) - Math.min(...ws) : Infinity;
+		check(ws.length >= 5 && spread <= 0.25 && ows.length === 1, `${tag}: the readout's width does not move through the roll and the landing (${ws.length} frames, ${spread.toFixed(2)} px apart; layout widths ${ows.join(', ')})`, { min: Math.min(...ws), max: Math.max(...ws), ows });
+		check(X.every((x) => x.mode === 'off' || (x.aria ?? '').includes(text)), `${tag}: the readout's aria name carries the total throughout (${X.find((x) => x.aria)?.aria})`, X.filter((x) => x.mode !== 'off' && !(x.aria ?? '').includes(text)).slice(0, 2));
+		if (S.reduced) {
+			const moved = X.filter((x) => x.mode === 'roll' || x.windows > 0);
+			check(moved.length === 0 && W.pops === 0 && X.some((x) => x.mode === 'still'), `${tag}: reduced motion: nothing rolls (${moved.length} frames with windows), the total's zeros until the end, no pop (${W.pops})`, moved.slice(0, 2));
+			const zeros = X.filter((x) => x.mode === 'still' && x.shown !== text.replace(/[0-9]/g, '0'));
+			check(zeros.length === 0, `${tag}: reduced motion: the readout reads the total's zeros while the card counts`, zeros.slice(0, 2));
+			return;
+		}
+		const rolled = X.filter((x) => x.mode === 'roll');
+		check(rolled.length >= 5 && rolled.every((x) => x.windows === digitsOf(text).length), `${tag}: the digits roll in a window each while the card counts (${rolled.length} frames, ${rolled[0]?.windows} windows for ${digitsOf(text).length} digits)`);
+		check(W.pops === 1 && X.some((x) => x.pop), `${tag}: the landing pops once (${W.pops})`);
+		if (S.skip) {
+			check(!!W.press && X[X.length - 1].skipped, `${tag}: the card was pressed during its count and landed (skipped)`, W.press);
+			if (W.press) {
+				const i = X.findIndex((x) => x.at >= W.press.at && x.ce <= W.press.t + 1);
+				check(i >= 0 && X.slice(i + 2).every((x) => x.mode === 'done') && W.now.doneT !== null && W.now.doneT <= W.press.t + twoFrames, `${tag}: the press lands the readout at once (plain at ${W.now.doneT} ms, pressed at ${Math.round(W.press.t)} ms, the count was to end at ${W.press.countEnd}; two frames ${Math.round(twoFrames)} ms)`);
+			}
+		} else check(W.now.doneT !== null && W.now.doneT >= ce && W.now.doneT - ce <= twoFrames, `${tag}: the readout went plain at the count's end (${W.now.doneT} against ${ce} ms; two frames ${Math.round(twoFrames)} ms)`);
+	};
 	const read = (p) =>
 		p.evaluate((C) => {
 			const layer = document.querySelector('.am-ui.layer:not(.modals)');
@@ -1271,7 +1388,7 @@ async function cardsHud(browser) {
 		const tag = `cards ${S.vp.width}x${S.vp.height}`;
 		const { ctx, p, errs } = await boot(browser, S);
 		await settle(p, S);
-		await p.evaluate(() => window.__reindeer.fixtures.next('natural_free_spins'));
+		await p.evaluate((f) => window.__reindeer.fixtures.next(f), S.fixture ?? 'natural_free_spins');
 		await spinOnce(p);
 		const intro = await waitCard(p, 'intro', 180000);
 		check(intro, `${tag}: the entry card is up and waiting for the press`);
@@ -1280,23 +1397,31 @@ async function cardsHud(browser) {
 			judge(await read(p), `${tag} entry`);
 		}
 		await p.evaluate(() => document.querySelector('button.catch:not([data-wheel-gate])')?.click());
+		await armOdo(p, !!S.skip);
 		const outro = await waitCard(p, 'outro', 300000);
 		check(outro, `${tag}: the wrap-up card is up and waiting for the press`);
 		if (outro) {
 			await sleep(900);
 			const r = await read(p);
-			judge(r, `${tag} wrap-up`);
-			// (the board's card amount is the formatted string it draws; WIN's own text carries the same digits)
-			const digits = (t) => String(t ?? '').replace(/[^0-9]/g, '');
-			check(r.show?.kind === 'total' && r.hudWin > 0 && !!digits(r.show.amount) && digits(r.show.amount) === digits(r.win?.text), `${tag} wrap-up: WIN holds the round's total, the card's amount (${r.win?.text} against ${r.show?.amount})`, r.show);
+			judgeOdo(await readOdo(p), S, `${tag} wrap-up odometer`);
+			// (the capped wrap-up hides the bar: Corey 2026-11-20, "Yes, hide the bar on the max win screen.")
+			if (!S.capped) {
+				judge(r, `${tag} wrap-up`);
+				// (the board's card amount is the formatted string it draws; WIN's own text carries the same digits)
+				const digits = (t) => String(t ?? '').replace(/[^0-9]/g, '');
+				check(r.show?.kind === 'total' && r.hudWin > 0 && !!digits(r.show.amount) && digits(r.show.amount) === digits(r.win?.text), `${tag} wrap-up: WIN holds the round's total, the card's amount (${r.win?.text} against ${r.show?.amount})`, r.show);
+			}
 		}
 		await p.evaluate(() => document.querySelector('button.catch:not([data-wheel-gate])')?.click());
 		await settle(p, S, 120000);
 		const after = await p.evaluate(() => {
 			const layer = document.querySelector('.am-ui.layer:not(.modals)');
-			return { held: !!layer?.classList.contains('hud-held'), off: !!layer?.classList.contains('hud-off'), inert: !!layer?.inert };
+			const v = document.querySelector('.hudp [data-hud="win"] .value');
+			return { held: !!layer?.classList.contains('hud-held'), off: !!layer?.classList.contains('hud-off'), inert: !!layer?.inert, odo: window.__reindeer.hud.winOdometer().mode, data: v?.getAttribute('data-odo') ?? null, boxes: v ? v.children.length : -1, text: v?.textContent ?? null, win: window.__reindeer.hud.win() };
 		});
 		check(!after.held && !after.off && !after.inert, `${tag}: after the wrap-up the HUD is live again`, after);
+		// (2026-11-21) after the card the readout is today's: plain text, no odometer
+		check(after.odo === 'off' && after.data === null && after.boxes === 0 && !!after.text && after.win > 0, `${tag}: after the wrap-up WIN is today's plain readout (${after.text})`, after);
 		check(errs.filter((x) => !/favicon/.test(x)).length === 0, `${tag}: no console errors`, errs.slice(0, 5));
 		await ctx.close();
 	}
