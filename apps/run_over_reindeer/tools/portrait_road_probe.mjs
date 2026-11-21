@@ -3,7 +3,8 @@
 // WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.scene, HUD_BED, PORTRAIT, ROAD, ROAD_LAYOUT.portrait, data-hud
 // WATCHES: ; data-title-sign, .hudp, .landing
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/scene/sceneLayers.ts,game/forestLineSpec.ts}; LOGO_SIGN.treeGapCss
-// WATCHES: ; LOGO_SIGN.boardGapCss, forestLineY, forestBox, __reindeer.sceneWant, logo.foot, logo.treeLine
+// WATCHES: ; LOGO_SIGN.boardGapCss, forestLineY, forestBox, __reindeer.sceneWant, __reindeer.sceneSwap, logo.foot, logo.treeLine
+// WATCHES: apps/run_over_reindeer/src/game/scene/sceneSwap.ts
 // THE PORTRAIT ROAD PROBE (Job 4, Corey 2026-11-15: "Move it down about half of that distance"): at each portrait size
 // it measures, in CSS px, the road picture's top and bottom (from __reindeer.boardLayout()), the title sign's bottom,
 // and the HUD's real top (the higher of the dark bed's top edge and the HUD's highest readout or key), then the snow
@@ -104,7 +105,9 @@ const r1 = (v) => Math.round(v * 10) / 10;
 					await p.evaluate((n) => window.__reindeer.sceneWant(n), preset);
 					let lg = null;
 					for (let i = 0; i < 80 && !lg; i++) {
-						lg = await p.evaluate((n) => { const s = window.__reindeer.scene(); return s.preset === n && s.layers.fade === null && s.layers.forest && s.logo ? s.logo : null; }, preset).catch(() => null);
+						// the swap over: the preset shown and no fade running (since 595423c2, 2026-11-19, the fade is one picture of
+						// the outgoing screen and the swap reports it, __reindeer.sceneSwap().fade; the scene layers keep no fade field)
+						lg = await p.evaluate((n) => { const s = window.__reindeer.scene(); const w = window.__reindeer.sceneSwap(); return s.preset === n && w.shown === n && w.fade === null && s.layers.forest && s.logo ? s.logo : null; }, preset).catch(() => null);
 						if (!lg) await sleep(250);
 					}
 					check(!!lg && lg.treeLine !== null && lg.foot >= lg.treeLine - 0.01 && lg.short < 0.01 && lg.css.y + lg.css.height < m.boardTop, `${name} ${preset}: the sign's foot (${lg ? r1(lg.foot) : '?'}) is on open ground, at or under the tree line (${lg ? r1(lg.treeLine) : '?'}); moved down ${lg ? r1(lg.drop) : '?'} road px; over the board`, lg && { foot: lg.foot, treeLine: lg.treeLine, drop: lg.drop, short: lg.short, bottom: lg.css.y + lg.css.height, boardTop: m.boardTop });

@@ -1,6 +1,6 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
-// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/policeLights.ts,game/road/roadSounds.ts};
-// WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.clock, __reindeer.fixtures, __reindeer.hud, __reindeer.police
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/policeLights.ts,game/road/roadSounds.ts,game/utils.ts};
+// WATCHES: ; __reindeer.atRest, __reindeer.pressReady, __reindeer.boardLayout, __reindeer.clock, __reindeer.fixtures, __reindeer.hud, __reindeer.police
 // WATCHES: ; __reindeer.road, __reindeer.roadSounds, __reindeer.roadSprites, __reindeer.step, __reindeer.tune, __reindeer.turbo, POLICE_LIGHTS
 // WATCHES: ; .landing, .hudp, .spin
 // THE POLICE LIGHTS PROBE (Corey 2026-11-15: the police car's light bar lights up in a win with it; constants
@@ -107,6 +107,20 @@ async function boot(browser, S) {
 
 const R = (p, fn, arg) => p.evaluate(fn, arg);
 
+/** THE PRESS MUST BE TAKEN (2026-11-20, the probe host: the cost section's "lit": [] at 1440x900 and 390x844): since
+ *  2da57cb (2026-11-18) a manual base round with a win stays open after its board is at rest until the LED count has
+ *  landed (game/utils.ts ledCountDone), and a Spin press in that window is the round's STOP, not a new round. The press
+ *  after a winning round then started nothing, the board was read as stopped at once and frozen, and the lines never
+ *  showed. Wait (real time, the clock running) until the game takes a press (__reindeer.pressReady), as
+ *  tools/rider_probe_lib.mjs stepRound does. */
+async function pressWhenReady(p) {
+	for (let i = 0; i < 80; i++) {
+		if (await R(p, () => (window.__reindeer.pressReady ? window.__reindeer.pressReady() : true))) break;
+		await sleep(100);
+	}
+	await p.click('.hudp button.spin');
+}
+
 /** the rule, written out again: which lens is lit `ms` into the win (null: none) */
 const expectLens = (T, ms) => {
 	const t = ms - T.onsetMs;
@@ -123,7 +137,7 @@ async function playWin(p, S, { turbo = 0, slamAt = null, frames = null, shots = 
 		h.roadSounds(true);
 		h.fixtures.queue(book, 1.5);
 	}, { book: BOOK, turbo });
-	await p.click('.hudp button.spin');
+	await pressWhenReady(p);
 	// let it run in real time until every lane has stopped, then freeze the board clock and step it to the frame the
 	// lines show (so the win is seen from its very first frame)
 	let shown = false;
@@ -232,7 +246,7 @@ try {
 			h.roadSounds(true);
 			h.fixtures.queue(book, 1.5);
 		}, { book: BOOK });
-		await p.click('.hudp button.spin');
+		await pressWhenReady(p);
 		// freeze once the lanes have stopped, then step to the frame the lines show (the win's first frame)
 		for (let i = 0; i < 800; i++) {
 			if (await R(p, () => window.__reindeer.road().lanesStopped.every(Boolean) && window.__reindeer.road().atRest)) break;
