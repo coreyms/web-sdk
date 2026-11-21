@@ -1066,7 +1066,7 @@ type FaceSpec = {
 	profile: (number[] | null)[];
 	puffBox: number[];
 	patches: Record<string, number[]>;
-	puffs: Record<'nostril' | 'mock', { frame: string; x: number; y: number; w: number; h: number }[]>;
+	puffs: { frame: string; x: number; y: number; w: number; h: number }[];
 	rim: number[][];
 };
 const FACE_SPEC = LED_WILDS.face as unknown as FaceSpec;
@@ -1117,13 +1117,12 @@ const afterSpace = (a: string, s: number) => textW(a + ' ', s) + (s >= 3 ? lette
 const faceFoot = () => Math.max(4, Math.ceil(FACE_CLEAR) + 2);
 /** the light string's lowest lit row at the tug's deepest swing (scoreboard/ambient.ts pressScreensLit: 2 + sag x 1.6 + bulb 2) */
 const stringFloor = (H: number) => Math.ceil(2 + Math.max(3, H * 0.05) * 1.6 + 1 + 2);
-const puffSet = () => FACE_SPEC.puffs[LED_SIGN.face.art.puffs] ?? FACE_SPEC.puffs.nostril;
 
 function faceLayout(W: number, H: number, T: LedText): FaceLay {
 	const F = LED_SIGN.face;
 	const Lo = F.layout;
 	const P = F.pics;
-	const key = `${W}x${H}|${Lo.scale}|${Lo.offsetDots}|${Lo.textScale}|${FACE_CLEAR}|${P.on}|${P.sizeCap}|${P.crop}|${P.santa}|${P.santaSide}|${F.puffSize}|${F.puffs}|${F.art.puffs}|${WILDS_TIER}|${T.face.head}|${T.face.body}`;
+	const key = `${W}x${H}|${Lo.scale}|${Lo.offsetDots}|${Lo.textScale}|${FACE_CLEAR}|${P.on}|${P.sizeCap}|${P.crop}|${P.santa}|${P.santaSide}|${F.puffSize}|${F.puffs}|${WILDS_TIER}|${T.face.head}|${T.face.body}`;
 	let r = faceLayCache.get(key);
 	if (r) return r;
 	const fr = WILDS?.frames[FACE_SPEC.frame];
@@ -1166,7 +1165,7 @@ function faceLayout(W: number, H: number, T: LedText): FaceLay {
 	const clip = { x: Math.max(0, x), y: Math.max(area.y, y), w: 0, h: 0 };
 	clip.w = Math.min(W, x + dw) - clip.x;
 	clip.h = Math.min(area.y + area.h, y + dh) - clip.y;
-	const puffRects = fr ? puffSet().flatMap((_, i) => (['l', 'r'] as const).map((s) => puffRect(face, i, s, area))) : [];
+	const puffRects = fr ? FACE_SPEC.puffs.flatMap((_, i) => (['l', 'r'] as const).map((s) => puffRect(face, i, s, area))) : [];
 	r = { area, face, clip, beats, textScale: ts, rows, pics: [], puffRects };
 	if (P.on && fr) placeFacePics(W, H, r);
 	if (faceLayCache.size > 200) faceLayCache.clear();
@@ -1174,19 +1173,71 @@ function faceLayout(W: number, H: number, T: LedText): FaceLay {
 	return r;
 }
 
-/** a puff frame's box in dots: its place in the face scaled about the nostril by LED_SIGN.face.puffSize, the right
- *  nostril's mirrored about the nostrils' middle; never below the face's area (the line is under it) */
-function puffRect(face: Rect, i: number, side: 'l' | 'r', area: Rect): Rect {
-	const P = puffSet()[i];
+/** a puff frame's centre as shares of the face: its place scaled about the nostril by LED_SIGN.face.puffSize, the
+ *  right nostril's mirrored about the nostrils' middle */
+function puffCentre(i: number, side: 'l' | 'r'): [number, number] {
+	const P = FACE_SPEC.puffs[i];
 	const size = LED_SIGN.face.puffSize;
 	const [nx, ny] = FACE_SPEC.nostril;
 	let cx = nx + (P.x + P.w / 2 - nx) * size;
 	const cy = ny + (P.y + P.h / 2 - ny) * size;
 	if (side === 'r') cx = 2 * FACE_SPEC.nose - cx;
+	return [cx, cy];
+}
+/** a puff frame's box in dots (the layout's reach: the pictures keep clear of it; the probes' record); never below the
+ *  face's area (the line is under it). It is drawn at facePuffLeds, straight in LEDs. */
+function puffRect(face: Rect, i: number, side: 'l' | 'r', area: Rect): Rect {
+	const P = FACE_SPEC.puffs[i];
+	const size = LED_SIGN.face.puffSize;
+	const [cx, cy] = puffCentre(i, side);
 	const w = Math.max(2, Math.round(P.w * size * face.w));
 	const h = Math.max(2, Math.round(P.h * size * face.h));
 	const y = Math.min(Math.round(face.y + cy * face.h - h / 2), area.y + area.h - h);
 	return { x: Math.round(face.x + cx * face.w - w / 2), y, w, h };
+}
+/** the face's bake on the board in LEDs: its corner where blit puts it (the LED nearest face.x, face.y) and its size
+ *  (art's: round(face.w x k) by round(face.h x k)) */
+export const faceLedBox = (face: Rect, k: number): Rect => ({ x: Math.round(face.x * k), y: Math.round(face.y * k), w: Math.max(1, Math.round(face.w * k)), h: Math.max(1, Math.round(face.h * k)) });
+/** THE PUFF'S PLACE IN LEDS (2026-11-21, the probe host's puff_n1 on the rim): its box straight from its shares on the
+ *  face's drawn LEDs, rounded once. (Rounded to dots first and then to LEDs, the right nostril's mirrored box landed up
+ *  to 1.1 LEDs further out than the mirror of the left's, onto the nose's rim.) Never below the face's area. */
+export function facePuffLeds(face: Rect, area: Rect, k: number, i: number, side: 'l' | 'r'): Rect {
+	const P = FACE_SPEC.puffs[i];
+	const size = LED_SIGN.face.puffSize;
+	const B = faceLedBox(face, k);
+	const [cx, cy] = puffCentre(i, side);
+	const w = Math.max(2, Math.round(P.w * size * B.w));
+	const h = Math.max(2, Math.round(P.h * size * B.h));
+	const y = Math.min(Math.round(B.y + cy * B.h - h / 2), Math.round((area.y + area.h) * k) - h);
+	return { x: Math.round(B.x + cx * B.w - w / 2), y, w, h };
+}
+/** THE NOSE'S RIM IN LEDS (the probes, tools/led_face_check.mjs): each of its boxes (shares of the face) on the face's
+ *  drawn LEDs, holding the LEDs whose centres fall inside it; a box that holds none is left out */
+export function faceRimLeds(face: Rect, k: number): Rect[] {
+	const B = faceLedBox(face, k);
+	const out: Rect[] = [];
+	for (const [a, b, c, d] of FACE_SPEC.rim) {
+		const x0 = Math.ceil(B.x + a * B.w - 0.5);
+		const x1 = Math.ceil(B.x + c * B.w - 0.5);
+		const y0 = Math.ceil(B.y + b * B.h - 0.5);
+		const y1 = Math.ceil(B.y + d * B.h - 0.5);
+		if (x1 > x0 && y1 > y0) out.push({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+	}
+	return out;
+}
+/** THE PATCH'S CUT (a patch's bake on a face bake of W x H LEDs): its rectangle `r` (shares) in LEDs plus `pad` all
+ *  round, inside the bake, and which of its sides JOIN the face's own LEDs (a side cut off at the bake's edge is the
+ *  face's own edge: nothing of the face lies beyond it, so it is not a join) */
+export const PATCH_PAD = 2;
+/** px of a patch frame's edge left out when it is put in (its outer margin is the face's own pixels again, so the
+ *  separately compressed copies of them can not move an LED outside the change); `fw` the tier's face frame width */
+export const patchInset = (fw: number) => Math.max(0, Math.floor((6 * fw) / 1518) - 1);
+export function patchCut(r: number[], W: number, H: number, pad = PATCH_PAD) {
+	const x = Math.max(0, Math.floor(r[0] * W) - pad);
+	const y = Math.max(0, Math.floor(r[1] * H) - pad);
+	const w = Math.min(W, Math.ceil(r[2] * W) + pad) - x;
+	const h = Math.min(H, Math.ceil(r[3] * H) + pad) - y;
+	return { x, y, w, h, joins: { l: x > 0, t: y > 0, r: x + w < W, b: y + h < H } };
 }
 
 /** THE PICTURES' PLACES: the biggest box of the picture's shape (up to sizeCap of the board's height) in each bottom corner
@@ -1277,11 +1328,16 @@ function faceBake(g: Ctx, L: FaceLay): Cv {
 	const name = `face~base~${WILDS_TIER}`;
 	return art(name, null, L.face.w, L.face.h, kOf(g), { image: cv, frames: { [name]: { x: 0, y: 0, w: cv.width, h: cv.height } } });
 }
-type PatchBake = { img: Cv; lx: number; ly: number; seam: number };
+/** the worst border LED of a patch's cut against the face's bake: its LED in the bake, its side, both colours (RGBA) */
+type SeamAt = { x: number; y: number; side: string; patch: number[]; face: number[] } | null;
+type PatchBake = { img: Cv; lx: number; ly: number; seam: number; seamAt: SeamAt };
 const patchCache = new Map<string, PatchBake>();
 const patchKey = (g: Ctx, L: FaceLay, name: string) => `${name}|${L.face.w}x${L.face.h}|${kOf(g)}|${WILDS_TIER}`;
 /** a patch's bake: the face picture with the patch put in, baked whole at the face's size (not kept), cut to the patch's
- *  LEDs plus 2; `seam` the largest difference from the face's own bake on the cut's border LEDs (0: it joins exactly) */
+ *  LEDs plus PATCH_PAD (patchCut); `seam` the largest difference from the face's own bake on the cut's border LEDs where
+ *  it JOINS the face (0: it joins exactly). A side cut off at the bake's own edge joins nothing (2026-11-21: on the
+ *  sideways phone at one LED per dot, 133 LEDs across, the bake's edge column holds the resting ear's tip, which the
+ *  turned ear leaves: that column differing is the ear moving, not a seam). */
 function patchBake(g: Ctx, L: FaceLay, name: string): PatchBake | null {
 	const k = kOf(g);
 	const key = patchKey(g, L, name);
@@ -1297,29 +1353,35 @@ function patchBake(g: Ctx, L: FaceLay, name: string): PatchBake | null {
 	tmp.ctx.drawImage(faceFrameCanvas(), 0, 0);
 	// (only the patch's inside goes in: its outer margin is the face's own pixels again, so the separately compressed copies
 	// of them can not move an LED outside the change)
-	const m = Math.max(0, Math.floor((6 * ff.w) / 1518) - 1);
+	const m = patchInset(ff.w);
 	tmp.ctx.clearRect(px + m, py + m, pf.w - 2 * m, pf.h - 2 * m);
 	tmp.ctx.drawImage(WILDS!.image, pf.x + m, pf.y + m, pf.w - 2 * m, pf.h - 2 * m, px + m, py + m, pf.w - 2 * m, pf.h - 2 * m);
 	const vname = `face~${name}~${WILDS_TIER}`;
 	const a = art(vname, null, L.face.w, L.face.h, k, { image: tmp, frames: { [vname]: { x: 0, y: 0, w: ff.w, h: ff.h } } }, false);
 	const base = faceBake(g, L);
-	const lx = Math.max(0, Math.floor(r[0] * a.width) - 2);
-	const ly = Math.max(0, Math.floor(r[1] * a.height) - 2);
-	const lw = Math.min(a.width, Math.ceil(r[2] * a.width) + 2) - lx;
-	const lh = Math.min(a.height, Math.ceil(r[3] * a.height) + 2) - ly;
+	const cut = patchCut(r, a.width, a.height);
+	const { x: lx, y: ly, w: lw, h: lh, joins } = cut;
 	const img = mk(lw, lh);
 	img.ctx.drawImage(a, lx, ly, lw, lh, 0, 0, lw, lh);
-	// the join: the cut's border LEDs against the face's bake
+	// the join: the cut's border LEDs on its joining sides against the face's bake
 	const A = img.ctx.getImageData(0, 0, lw, lh).data;
 	const B = base.ctx.getImageData(lx, ly, lw, lh).data;
 	let seam = 0;
+	let seamAt: SeamAt = null;
 	for (let yy = 0; yy < lh; yy++)
 		for (let xx = 0; xx < lw; xx++) {
-			if (yy > 0 && yy < lh - 1 && xx > 0 && xx < lw - 1) continue;
+			const side = (xx === 0 && joins.l ? 'l' : '') + (yy === 0 && joins.t ? 't' : '') + (xx === lw - 1 && joins.r ? 'r' : '') + (yy === lh - 1 && joins.b ? 'b' : '');
+			if (!side) continue;
 			const i = (yy * lw + xx) * 4;
-			for (let c = 0; c < 4; c++) seam = Math.max(seam, Math.abs(A[i + c] - B[i + c]));
+			for (let c = 0; c < 4; c++) {
+				const d = Math.abs(A[i + c] - B[i + c]);
+				if (d > seam) {
+					seam = d;
+					seamAt = { x: lx + xx, y: ly + yy, side, patch: [A[i], A[i + 1], A[i + 2], A[i + 3]], face: [B[i], B[i + 1], B[i + 2], B[i + 3]] };
+				}
+			}
 		}
-	p = { img, lx, ly, seam };
+	p = { img, lx, ly, seam, seamAt };
 	if (patchCache.size > 64) patchCache.clear();
 	patchCache.set(key, p);
 	return p;
@@ -1357,24 +1419,17 @@ function drawPatch(g: Ctx, L: FaceLay, name: string) {
 	if (r.w <= 0 || r.h <= 0) return;
 	clearP(g, r.x, r.y, r.w, r.h);
 	g.drawImage(p.img, r.sx, r.sy, r.w, r.h, r.x / k, r.y / k, r.w / k, r.h / k);
-	faceRec?.patches.push({ name, x: r.x, y: r.y, w: r.w, h: r.h, seam: p.seam });
-}
-/** the nose's rim as LED rectangles on the board (shares of the face, rounded inward) */
-function rimLeds(g: Ctx, L: FaceLay) {
-	const k = kOf(g);
-	return FACE_SPEC.rim.map(([a, b, c, d]) => {
-		const x0 = Math.ceil((L.face.x + a * L.face.w) * k);
-		const y0 = Math.ceil((L.face.y + b * L.face.h) * k);
-		return { x: x0, y: y0, w: Math.floor((L.face.x + c * L.face.w) * k) - x0, h: Math.floor((L.face.y + d * L.face.h) * k) - y0 };
-	});
+	faceRec?.patches.push({ name, x: r.x, y: r.y, w: r.w, h: r.h, seam: p.seam, seamAt: p.seamAt });
 }
 function drawPuff(g: Ctx, L: FaceLay, i: number, side: 'l' | 'r', alpha: number) {
 	const k = kOf(g);
-	const P = puffSet()[i];
+	const P = FACE_SPEC.puffs[i];
 	const box = puffRect(L.face, i, side, L.area);
-	const a = art(P.frame, null, box.w, box.h, k, WILDS);
-	const xP = Math.round(box.x * k);
-	const yP = Math.round(box.y * k);
+	const led = facePuffLeds(L.face, L.area, k, i, side);
+	// (baked at its LEDs: art's k of 1, the size already in LEDs)
+	const a = art(P.frame, null, led.w, led.h, 1, WILDS);
+	const xP = led.x;
+	const yP = led.y;
 	g.globalAlpha = alpha;
 	blitP(g, a, xP, yP, side === 'r');
 	g.globalAlpha = 1;
@@ -1383,7 +1438,7 @@ function drawPuff(g: Ctx, L: FaceLay, i: number, side: 'l' | 'r', alpha: number)
 	let onRim = 0;
 	if (faceAudit) {
 		const d = a.ctx.getImageData(0, 0, a.width, a.height).data;
-		for (const r of rimLeds(g, L)) {
+		for (const r of faceRimLeds(L.face, k)) {
 			const x0 = Math.max(r.x, xP);
 			const y0 = Math.max(r.y, yP);
 			const x1 = Math.min(r.x + r.w, xP + a.width);
@@ -1395,7 +1450,7 @@ function drawPuff(g: Ctx, L: FaceLay, i: number, side: 'l' | 'r', alpha: number)
 				}
 		}
 	}
-	faceRec.puffs.push({ frame: P.frame, side, x: box.x, y: box.y, w: box.w, h: box.h, alpha: Math.round(alpha * 100) / 100, onRim });
+	faceRec.puffs.push({ frame: P.frame, side, x: box.x, y: box.y, w: box.w, h: box.h, led, alpha: Math.round(alpha * 100) / 100, onRim });
 }
 function drawFacePic(g: Ctx, b: FacePicBox) {
 	const P = facePicOf(b.who);
@@ -1405,7 +1460,8 @@ function drawFacePic(g: Ctx, b: FacePicBox) {
 
 // ---- the clock: what shows at the screen's time t (s; the screen holds holdS, then dissolves over transS) ----
 type Eye = 'centre' | 'gaze_l' | 'gaze_r' | 'half' | 'closed';
-type FacePose = { eye: Eye; earL: 0 | 5 | 12; earR: 0 | 5 | 12; puff: { i: number; alpha: number } | null; show: [boolean, boolean]; drop: [number, number]; note: string };
+type PuffPose = { i: number; alpha: number; also?: { i: number; alpha: number } };
+type FacePose = { eye: Eye; earL: 0 | 5 | 12; earR: 0 | 5 | 12; puff: PuffPose | null; show: [boolean, boolean]; drop: [number, number]; note: string };
 /** a blink: half, closed, half */
 const blinkAt = (u: number): Eye | null => {
 	const B = LED_SIGN.face.blinkTiming;
@@ -1416,10 +1472,16 @@ const flickAt = (u: number): 0 | 5 | 12 => {
 	const E = LED_SIGN.face.flickTiming;
 	return u < 0 || u >= E.totalS ? 0 : u < E.upS || u >= E.downS ? 5 : 12;
 };
-/** a snort's puff: frames 0 to 3, the last fading out */
-const puffAt = (u: number): { i: number; alpha: number } | null => {
+/** a snort's puff: frames 0 to 3, the last fading out; frame 1 cross fades into frame 2 over blendS (`also`: the other
+ *  frame drawn with it) */
+const puffAt = (u: number): PuffPose | null => {
 	const P = LED_SIGN.face.puffTiming;
 	if (u < 0) return null;
+	const b = P.blendS / 2;
+	if (b > 0 && u >= P.frames[1] - b && u < P.frames[1] + b) {
+		const e = ease(span(u, P.frames[1] - b, P.frames[1] + b));
+		return u < P.frames[1] ? { i: 1, alpha: 1 - e, also: { i: 2, alpha: e } } : { i: 2, alpha: e, also: { i: 1, alpha: 1 - e } };
+	}
 	for (let i = 0; i < P.frames.length; i++) if (u < P.frames[i]) return { i, alpha: 1 };
 	if (u < P.fadeToS) return { i: P.frames.length, alpha: 1 - ease(span(u, P.fadeFromS, P.fadeToS)) };
 	return null;
@@ -1456,14 +1518,14 @@ export function facePoseAt(t: number): FacePose {
 	pose.note = pose.eye === santaGaze ? 'glance at Santa' : pose.eye === grandmaGaze ? 'glance at Grandma' : pose.eye !== 'centre' ? 'blink' : pose.puff ? 'snort' : pose.earL || pose.earR ? 'ear twitch' : 'glare';
 	return pose;
 }
-const lidName = (side: 'l' | 'r', eye: Eye) => `eye_${side}_${eye}${(eye === 'half' || eye === 'closed') && LED_SIGN.face.art.lids === 'mock' ? '_mock' : ''}`;
+const lidName = (side: 'l' | 'r', eye: Eye) => `eye_${side}_${eye}`;
 /** the warm up's order: the patches in the order the script first needs them */
 const warmOrder = (): string[] => ['ear_l_5', 'ear_r_5', 'ear_l_12', 'ear_r_12', ...(['gaze_l', 'gaze_r', 'half', 'closed'] as Eye[]).flatMap((e) => [lidName('l', e), lidName('r', e)])];
 
 /** what the last face screen frame drew (the probes): its time, pose, the face and its clip, each patch drawn (LEDs, its
- *  join), each puff (dots, its lit LEDs on the nose's rim when audited), the pictures, the line's rows shown, the rim in
+ *  join and its worst joining border LED), each puff (dots, its LEDs, its lit LEDs on the nose's rim when audited), the pictures, the line's rows shown, the rim in
  *  LEDs and the patches baked so far. faceAudit: the puffs' rim count is worked out (dev hook) */
-type FaceRec = { t: number; pose: FacePose; k: number; W: number; H: number; face: Rect; clip: Rect; patches: { name: string; x: number; y: number; w: number; h: number; seam: number }[]; puffs: { frame: string; side: string; x: number; y: number; w: number; h: number; alpha: number; onRim: number }[]; pics: FacePicBox[]; rows: FaceRow[]; rim: Rect[]; warmed: number };
+type FaceRec = { t: number; pose: FacePose; k: number; W: number; H: number; face: Rect; clip: Rect; patches: { name: string; x: number; y: number; w: number; h: number; seam: number; seamAt: SeamAt }[]; puffs: { frame: string; side: string; x: number; y: number; w: number; h: number; led: Rect; alpha: number; onRim: number }[]; pics: FacePicBox[]; rows: FaceRow[]; rim: Rect[]; warmed: number };
 let faceRec: FaceRec | null = null;
 let faceLast: FaceRec | null = null;
 let faceAudit = false;
@@ -1476,7 +1538,7 @@ function screenFace(g: Ctx, W: number, H: number, t: number, T: LedText) {
 	const L = faceLayout(W, H, T);
 	const P = facePoseAt(t);
 	const k = kOf(g);
-	faceRec = { t: Math.round(t * 1000), pose: P, k, W, H, face: L.face, clip: L.clip, patches: [], puffs: [], pics: L.pics, rows: [], rim: faceAudit ? rimLeds(g, L) : [], warmed: 0 };
+	faceRec = { t: Math.round(t * 1000), pose: P, k, W, H, face: L.face, clip: L.clip, patches: [], puffs: [], pics: L.pics, rows: [], rim: faceAudit ? faceRimLeds(L.face, k) : [], warmed: 0 };
 	drawFaceBase(g, L);
 	if (P.earL) drawPatch(g, L, `ear_l_${P.earL}`);
 	if (P.earR) drawPatch(g, L, `ear_r_${P.earR}`);
@@ -1484,7 +1546,12 @@ function screenFace(g: Ctx, W: number, H: number, t: number, T: LedText) {
 		drawPatch(g, L, lidName('l', P.eye));
 		drawPatch(g, L, lidName('r', P.eye));
 	}
-	if (P.puff) for (const s of ['l', 'r'] as const) drawPuff(g, L, P.puff.i, s, P.puff.alpha);
+	if (P.puff) {
+		// (the cross fade: the frame on its way out first, the one coming in over it)
+		const q = P.puff.also;
+		const order = !q ? [P.puff] : q.i < P.puff.i ? [q, P.puff] : [P.puff, q];
+		for (const f of order) if (f.alpha > 0) for (const s of ['l', 'r'] as const) drawPuff(g, L, f.i, s, f.alpha);
+	}
 	for (const b of L.pics) drawFacePic(g, b);
 	for (let i = 0; i < 2; i++) {
 		if (!P.show[i]) continue;

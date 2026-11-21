@@ -168,7 +168,7 @@ function judge(tag, C, tr, rate = 1) {
 }
 
 (async () => {
-	const browser = await chromium.launch();
+	const browser = await chromium.launch({ args: ['--mute-audio'] });
 	const summary = {};
 	try {
 		for (const S of SIZES) {
