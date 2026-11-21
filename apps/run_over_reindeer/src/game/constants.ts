@@ -544,8 +544,14 @@ export const LED_SIGN = {
 	 *    'solid'    the same letters, outline, shadow and shine, their stripes (Grandma's tinsel flecks) flattened to the
 	 *               stripes' mean color
 	 *    'today'    the pictures of before (the red box, the cloud, Santa's small picture, the plain red WILD and the
-	 *               yellow number on its black plate) */
-	wilds: { look: 'stripes' as 'stripes' | 'solid' | 'today' },
+	 *               yellow number on its black plate)
+	 *  `grow` (Corey 2026-11-21: "On the LED board intro the full column wild still grows with the old style then
+	 *  transforms to the new style, this needs to be fixed"): Santa's column grows from the struck cell in its own look from
+	 *  the first frame, on the old box's beat. The garland's top and bottom rows (`cap`, a share of the picture's height)
+	 *  ride the growing edges, the bottom rows of the hanging baubles with them (`corner`: their width and their reach down
+	 *  from the edge, shares of the picture), and the picture between them shows where it stands in the finished column, so
+	 *  the grown column is the whole picture with nothing swapped in. */
+	wilds: { look: 'stripes' as 'stripes' | 'solid' | 'today', grow: { cap: 0.042, corner: { w: 0.14, h: 0.052 } } },
 };
 
 // ---- THE SCATTER PRESENT (game/road/present.ts, tools/build_present.py; the 3D present Corey approved 2026-11-15) -------

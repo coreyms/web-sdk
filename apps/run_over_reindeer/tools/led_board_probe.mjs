@@ -1801,6 +1801,106 @@ async function explainBoards(p, S) {
 	}
 }
 
+/** THE WILDS GROW IN THEIR OWN LOOK (Corey 2026-11-21: "On the LED board intro the full column wild still grows with the
+ *  old style then transforms to the new style, this needs to be fixed"; constants LED_SIGN.wilds.grow). Every frame of the
+ *  sleigh and car screens is read by hand, 20 ms a step, in each look: in 'stripes' and 'solid' every frame that shows the
+ *  Wild draws from the Wild sheet only (no cloud, no plain or red box, no small Santa: the press state's wilds.old empty)
+ *  from its first frame, Santa's column from the struck cell to the whole column; the beats stand where they stood (the
+ *  Wild in at 1.45 s, Santa's column growing 1.70 to 2.15 s and his number at 2.60 s, Grandma's WILD at 1.70 s and her
+ *  number at 2.10 s; within two frames at the board's 30 fps). 'today' still draws the cloud and the box (the read works). */
+const WILD_BEATS = { in: 1450, growFrom: 1700, growTo: 2150, santaMult: 2600, word: 1700, grandmaMult: 2100, tol: 70 };
+async function wildGrowChecks(p, tag) {
+	const frames = await R(p, () => {
+		const h = window.__reindeer;
+		const keep = h.tune.ledSign.wilds.look;
+		const out = {};
+		h.scoreboardManual(true);
+		for (const look of ['stripes', 'solid', 'today']) {
+			h.tune.ledSign.wilds.look = look;
+			for (const want of [1, 2]) {
+				let x = h.scoreboardStep(20);
+				let n = 0;
+				while (x.press?.screen === want && n++ < 400) x = h.scoreboardStep(20);
+				n = 0;
+				while (x.press?.screen !== want && n++ < 1000) x = h.scoreboardStep(20);
+				// the whole hold, each new frame's record once (its own screen time `t`)
+				const kind = want === 1 ? 'sleigh' : 'car';
+				const got = [];
+				let last = -1;
+				for (let i = 0; i < 200 && x.press?.screen === want; i++) {
+					const w = x.press?.wilds;
+					if (w && w.kind === kind && w.t > last && w.t < 3600) {
+						got.push({ t: w.t, names: w.names, old: w.old, grow: w.grow });
+						last = w.t;
+					}
+					x = h.scoreboardStep(20);
+				}
+				out[`${look}:${kind}`] = got;
+			}
+		}
+		h.tune.ledSign.wilds.look = keep;
+		h.scoreboardManual(false);
+		return out;
+	});
+	const B = WILD_BEATS;
+	const near = (v, want) => v !== undefined && v >= want - B.tol && v <= want + B.tol;
+	for (const look of ['stripes', 'solid']) {
+		const sl = frames[`${look}:sleigh`] || [];
+		const okNames = new Set(['santa:picture', `santa_mult_${look}`]);
+		const bad = sl.filter((f) => f.old.length || !f.names.includes('santa:picture') || f.names.some((n) => !okNames.has(n)) || !(f.grow > 0));
+		check(sl.length > 40 && bad.length === 0, `${tag}: PRESS: look ${look}: the sleigh screen's ${sl.length} frames from the column's first draw Santa's column in its own look only (no cloud, no plain box: ${bad.length} frames otherwise)`, bad.slice(0, 4));
+		const g0 = sl[0]?.grow;
+		const growing = sl.find((f) => f.grow > g0);
+		const grown = sl.find((f) => f.grow === 1);
+		const mono = sl.every((f, i) => !i || f.grow >= sl[i - 1].grow);
+		const before = sl.filter((f) => f.t < B.growFrom).every((f) => f.grow === g0);
+		const mult = sl.find((f) => f.names.includes(`santa_mult_${look}`));
+		check(near(sl[0]?.t, B.in) && g0 > 0.15 && g0 < 0.45 && before && mono && near(growing?.t, B.growFrom) && near(grown?.t, B.growTo) && sl.filter((f) => f.t >= B.growTo + B.tol).every((f) => f.grow === 1) && near(mult?.t, B.santaMult), `${tag}: PRESS: look ${look}: the sleigh's beats as before: the column's cell in at ${sl[0]?.t} ms (${B.in}), ${g0} of the column until it grows from ${growing?.t} ms (${B.growFrom}) to the whole column at ${grown?.t} ms (${B.growTo}), never shrinking; his number at ${mult?.t} ms (${B.santaMult})`, { first: sl[0], growing, grown, mult, mono, before });
+		const car = frames[`${look}:car`] || [];
+		const carNames = new Set(['grandma:picture', `grandma_word_${look}`, `grandma_mult_${look}`]);
+		const cbad = car.filter((f) => f.old.length || !f.names.includes('grandma:picture') || f.names.some((n) => !carNames.has(n)));
+		const word = car.find((f) => f.names.includes(`grandma_word_${look}`));
+		const cmult = car.find((f) => f.names.includes(`grandma_mult_${look}`));
+		check(car.length > 40 && cbad.length === 0 && near(car[0]?.t, B.in) && near(word?.t, B.word) && near(cmult?.t, B.grandmaMult), `${tag}: PRESS: look ${look}: the car screen's ${car.length} frames draw the Grandma Wild in its own look only from its first (${cbad.length} frames otherwise), in at ${car[0]?.t} ms (${B.in}), her WILD at ${word?.t} ms (${B.word}), her number at ${cmult?.t} ms (${B.grandmaMult})`, { bad: cbad.slice(0, 4), first: car[0], word, cmult });
+	}
+	const ts = frames['today:sleigh'] || [];
+	check(ts.length > 0 && ts.every((f) => f.old.includes('cloud') && f.old.includes('box') && f.names.length === 0), `${tag}: PRESS: look today: the sleigh screen still draws the pictures of before (the cloud and the red box read as old: the read itself works)`, ts.slice(0, 2));
+}
+/** the press screen's Wilds on the boards the press section's sizes do not cover: the upright tablets, and the desktop at
+ *  2x (the finer grid's 1.5 LEDs per dot) */
+const WILD_GROW_EXTRA = [
+	{ name: 'wilds tabletUp', vp: { width: 820, height: 1180 }, dpr: 1, phone: false },
+	{ name: 'wilds tabletUp43', vp: { width: 768, height: 1024 }, dpr: 1, phone: false },
+	{ name: 'wilds desktop@2', vp: { width: 1440, height: 900 }, dpr: 2, phone: false },
+	{ name: 'wilds upright@3', vp: { width: 390, height: 844 }, dpr: 3, phone: true },
+].filter((s) => !ONLY.length || ONLY.includes('wilds') || ONLY.includes(s.name.split(' ')[1].split('@')[0]));
+async function wildGrowBoards(browser) {
+	for (const S of WILD_GROW_EXTRA) {
+		const tag = `${S.name} ${S.vp.width}x${S.vp.height}`;
+		const ctx = await browser.newContext({ viewport: S.vp, deviceScaleFactor: S.dpr, isMobile: S.phone, hasTouch: S.phone });
+		const p = await ctx.newPage();
+		const errs = [];
+		p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
+		try {
+			await p.goto(`${APP}/?lang=en&sessionID=ledwilds${Date.now()}${S.phone ? '&tier=phone' : ''}`, { waitUntil: 'domcontentloaded' });
+			let s = null;
+			for (let i = 0; i < 300; i++) {
+				s = await R(p, () => window.__reindeer?.scoreboard?.() ?? null).catch(() => null);
+				if (s?.press?.ready && s.show?.phase === 'hold' && s.show.t >= s.show.seatedAt) break;
+				await sleep(400);
+			}
+			const d = await R(p, () => window.__reindeer.scoreboard().density);
+			check(!!s?.press, `${tag}: PRESS: the press screen is up on the board (${d?.k} LEDs per dot, back face ${d?.backLeds})`, d);
+			if (s?.press) await wildGrowChecks(p, tag);
+			check(errs.length === 0, `${tag}: PRESS: no page errors`, errs);
+		} catch (e) {
+			check(false, `${tag}: PRESS wilds ran to its end`, String(e?.stack ?? e).slice(0, 600));
+		} finally {
+			await ctx.close();
+		}
+	}
+}
+
 /** THE PRESS SCREEN ON THE BOARD (2026-11-17, constants LED_SIGN.onBoard): a fresh page, the splash left to play out, then
  *  the board's own expanded state with the dim and the strip's line, the screens advancing, and the press lowering it */
 async function pressBoard(browser, S) {
@@ -1877,6 +1977,7 @@ async function pressBoard(browser, S) {
 				check(s1?.kind === 'sleigh' && s1.look === look && s1.names.includes('santa:picture') && s1.names.includes(`santa_mult_${look}`) && s2?.kind === 'car' && s2.look === look && ['grandma:picture', `grandma_word_${look}`, `grandma_mult_${look}`].every((n) => s2.names.includes(n)), `${tag}: PRESS: look ${look}: the sleigh screen draws Santa's column and his number (${s1?.names?.join(', ')}), the car screen the Grandma Wild, her WILD and her number (${s2?.names?.join(', ')})`, { s1, s2 });
 			}
 			check(drawn['today:1']?.look === 'today' && drawn['today:1'].names.length === 0 && drawn['today:2']?.names.length === 0, `${tag}: PRESS: look today: the pictures of before (nothing from the Wild sheet)`, { a: drawn['today:1'], b: drawn['today:2'] });
+			await wildGrowChecks(p, tag);
 		}
 		// ONE PROMPT ON THE DEMO PATH (2026-11-18, Corey's capture at 2000x945: the tune panel's Free Spins entry raised over
 		// the press screen showed the strip's line AND the press screen's HTML line): the press screen's line stays aside while
@@ -3032,6 +3133,7 @@ async function ideasChecks(browser) {
 			}
 		}
 		if (SEC('density')) await densityChecks(browser);
+		if (SEC('press')) await wildGrowBoards(browser);
 		if (SEC('look')) await lookChecks(browser);
 		if (SEC('ladderMarks')) await ladderMarkChecks(browser);
 		if (SEC('ledAnim')) await ledAnimChecks(browser);
