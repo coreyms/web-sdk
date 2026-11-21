@@ -17,7 +17,12 @@
 // the loop's speed; it turns once in 0.84 s at Regular, 1.7x at Turbo, 2.6x at Super Turbo; 570 ms before the board is at
 // rest (270 brake + 300 settle on the road clock; 160 settle at Super Turbo) it brakes on a Hermite curve from its speed
 // to rest, overshoots 6 degrees and swings back over the settle. A stop press: it brakes into the shortened rest of the
-// round (0.62 brake, 0.38 settle). One head, so it rests wherever its brake takes it.
+// round (0.62 brake, 0.38 settle). THE HOME POSE (Corey 2026-11-20, "Fix it"): one head, so every brake is planned to
+// end on the drawing's own angle, the pose at rest before the first press (ui/hud/ringPlan.ts: the cruise steer, and its
+// rule for a stop press).
+
+import { RingCore, type RingInputs, type RingPhase, type Turbo } from './ringPlan';
+export { RING_RATE, RING_P, ringMotion, RING_HOME, type RingPhase, type RestMethod, REST_METHODS } from './ringPlan';
 
 export type RingTheme = 'r' | 'm';
 
@@ -124,19 +129,14 @@ export const FILL_R = 41.5;
 export const FILL_C = 2 * Math.PI * FILL_R;
 
 // ---- the motion ----------------------------------------------------------------------------------------------------------
-/** the ring's rate per turbo level: the approved mock's numbers (Run Over Reindeer's road clock, ROAD_MOTION base,
- *  turbo1, turbo2), kept as approved; this game's board runs TURBO_SCALE (1, 2.2, 4), and the brake is timed from the
- *  board's own drop whatever the rate (game/boardPace.ts) */
-export const RING_RATE = [1, 1.7, 2.6] as const;
-/** seconds a turn at Regular */
-export const RING_P = 0.84;
-/** the ring's motion per turbo level, real ms (the cars': squat, launch, brakeMs, settleMs; the overshoot about half at
- *  Super Turbo, as overshootPx 13 and 6) */
-export const ringMotion = (t: 0 | 1 | 2) => ({ antic: 120 / RING_RATE[t], up: 260 / RING_RATE[t], brake: 270 / RING_RATE[t], settle: (t === 2 ? 160 : 300) / RING_RATE[t], os: t === 2 ? 0.5 : 1 });
+// The ring's path (its angle as one function of time, the wind-up, the cruise, the brake and the settle, and the HOME
+// POSE every brake lands on) is ui/hud/ringPlan.ts, pure and tested in node (tools/ring_home_test.mjs). This driver only
+// draws it: by the Web Animations API on .rw and .rr (transform only), each animation's start time pinned to the
+// path's own clock, so what the page shows at any frame is the path at that frame's time, whatever the frame rate.
 
 type Tracked = HTMLElement & { __an?: Animation[] };
 /** the element's computed rotation, degrees 0..360 */
-const ang = (el: Element): number => {
+export const ang = (el: Element): number => {
 	const m = getComputedStyle(el).transform;
 	const v = m && m.match(/matrix\(([^)]+)\)/);
 	if (!v) return 0;
@@ -149,152 +149,139 @@ const cancelOwn = (el: Tracked) => {
 	(el.__an ?? []).forEach((a) => a.cancel());
 	el.__an = [];
 };
-const anim = (el: Tracked, kf: Keyframe[], opt: KeyframeAnimationOptions) => {
+/** an animation on the path's clock: its start time is the path's moment t0 (document.timeline shares
+ *  performance.now()'s origin), so it never waits for the next frame to begin and a late frame shows it further on.
+ *  (The frame being drawn is a few ms older than t0: the animations hold their first keyframe until then, fill both.) */
+const anim = (el: Tracked, kf: Keyframe[], opt: KeyframeAnimationOptions, t0: number) => {
 	const a = el.animate(kf, opt);
+	try {
+		a.startTime = t0;
+	} catch {
+		// (a browser that will not take a start time plays it from its next frame, as before)
+	}
 	(el.__an ??= []).push(a);
 	return a;
 };
+const rot = (deg: number) => `rotate(${deg.toFixed(3)}deg)`;
 
-export type RingPhase = 'rest' | 'spin' | 'brake';
-
-/** THE RING'S DRIVER: the wind-up, the loop and the brake by the Web Animations API on .rw and .rr (transform only).
- *  `layer()` finds the face's wrappers now (the face is rebuilt when the key changes between its faces). */
+/** THE RING'S DRIVER: draws RingCore's path on the face's wrappers. `layer()` finds the face's wrappers now (the face is
+ *  rebuilt when the key changes between its faces). */
 export class RingDriver {
-	phase: RingPhase = 'rest';
-	private v = 0;
-	private up0 = 0;
-	private upEnd = 0;
-	private brakeEnd = 0;
-	/** the brake under way (its start, length and Hermite: start slope m0, end p1), for a spin that starts during it */
-	private bk: { t0: number; T: number; m0: number; p1: number } | null = null;
+	/** the round as the ring sees it, and its path (ui/hud/ringPlan.ts) */
+	core: RingCore;
+	private drawn = -1;
 	constructor(
 		private layer: () => { rw: Tracked; rr: Tracked } | null,
-		private onPhase: (p: RingPhase) => void,
-	) {}
-
-	private set(p: RingPhase) {
-		if (this.phase === p) return;
-		this.phase = p;
-		this.onPhase(p);
+		onPhase: (p: RingPhase) => void,
+	) {
+		this.core = new RingCore(onPhase);
 	}
 
-	/** the press (or a later spin's pull away): wind back, spin up, loop. A spin that begins while the last one is still
-	 *  braking (back to back, no gap: an autoplay or a feature's next spin) does not wind back: it speeds up again from
-	 *  the speed it has to the loop's over the spin-up's time, so there is no step and no reverse */
-	start(t: 0 | 1 | 2) {
+	get phase(): RingPhase {
+		return this.core.phase;
+	}
+
+	/** the press (or a later spin's pull away): wind back, spin up, loop (RingCore.start) */
+	start(t: Turbo) {
 		const L = this.layer();
 		if (!L) return;
-		const M = ringMotion(t);
 		const now = performance.now();
-		const vNow = this.brakeSpeedNow(now);
-		const a = ang(L.rw) + ang(L.rr);
-		cancelOwn(L.rw);
-		cancelOwn(L.rr);
-		const Peff = (RING_P * 1000) / RING_RATE[t];
-		const v = 360 / Peff;
-		this.v = v;
-		if (vNow > 0.05 * v) {
-			// from vNow to v over the spin-up's time: a Hermite through the angle (both end speeds given), sampled
-			const up = M.up;
-			const W = ((vNow + v) / 2) * up;
-			const kf: Keyframe[] = [];
-			for (let i = 0; i <= 16; i++) {
-				const u = i / 16;
-				const h = (u * u * u - 2 * u * u + u) * vNow * up + (-2 * u * u * u + 3 * u * u) * W + (u * u * u - u * u) * v * up;
-				kf.push({ offset: u, transform: `rotate(${(a + h).toFixed(3)}deg)` });
-			}
-			anim(L.rw, kf, { duration: up, fill: 'forwards' });
-			anim(L.rr, [{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }], { duration: Peff, iterations: Infinity, delay: up });
-			this.up0 = now;
-			this.upEnd = now + up;
-			this.bk = null;
-			this.set('spin');
+		this.core.start(now, t, ang(L.rw) + ang(L.rr));
+		this.draw(now);
+	}
+
+	/** HudSpin's tick: RingCore.frame (a new spin, the brake planned from the board), then the path drawn if it changed */
+	frame(inp: RingInputs, onStart: () => void) {
+		if (inp.reduced) {
+			if (this.core.phase !== 'rest') this.stop();
+			this.core.lastSerial = inp.serial;
 			return;
 		}
-		const back = 13 * M.os + 3;
-		// the second leg's easing ends with slope 2, so it hands over at exactly the loop's speed: W = v * up / 2 - back
-		const W = (v * M.up) / 2 - back;
-		anim(
-			L.rw,
-			[
-				{ transform: `rotate(${a}deg)`, easing: 'cubic-bezier(.3,.6,.4,1)' },
-				{ offset: M.antic / (M.antic + M.up), transform: `rotate(${a - back}deg)`, easing: 'cubic-bezier(.55,0,.75,.5)' },
-				{ transform: `rotate(${a + W}deg)` },
-			],
-			{ duration: M.antic + M.up, fill: 'forwards' },
-		);
-		anim(L.rr, [{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }], { duration: Peff, iterations: Infinity, delay: M.antic + M.up });
-		this.up0 = now + M.antic;
-		this.upEnd = now + M.antic + M.up;
-		this.bk = null;
-		this.set('spin');
-	}
-
-	/** the ring's speed now (deg / ms) while it brakes; 0 once the brake is in its settle, or not braking */
-	private brakeSpeedNow(now: number): number {
-		const b = this.bk;
-		if (this.phase !== 'brake' || !b) return 0;
-		const u = (now - b.t0) / b.T;
-		if (u < 0 || u >= 1) return 0;
-		return Math.max(0, ((3 * u * u - 4 * u + 1) * b.m0 + (-6 * u * u + 6 * u) * b.p1) / b.T);
-	}
-
-	/** brake from where it is to rest over T ms (Hermite: from its speed now to still), then the settle: an overshoot that
-	 *  swings back over Ts ms (0.75 of a swing, as the cars) */
-	brake(T: number, Ts: number, t: 0 | 1 | 2) {
-		const L = this.layer();
-		if (!L || this.phase !== 'spin') return;
 		const now = performance.now();
-		const M = ringMotion(t);
-		const a = (ang(L.rw) + ang(L.rr)) % 360;
-		let v = this.v;
-		if (now < this.upEnd) v *= Math.max(0, Math.min(1, (now - this.up0) / Math.max(1, this.upEnd - this.up0)));
-		cancelOwn(L.rw);
-		cancelOwn(L.rr);
-		// what the idle hop holds .rw at (paused while a round plays): the brake on .rr starts from the rest of the angle
-		const base = ang(L.rw);
-		const D = (v * T) / 2;
-		const o = 6 * M.os;
-		const m0 = v * T;
-		const p1 = D + o;
-		const tot = T + Ts;
-		const fr: Keyframe[] = [];
-		const N1 = 26;
-		const N2 = 12;
-		for (let i = 0; i <= N1; i++) {
-			const u = i / N1;
-			const h = (u * u * u - 2 * u * u + u) * m0 + (-2 * u * u * u + 3 * u * u) * p1;
-			fr.push({ offset: (u * T) / tot, transform: `rotate(${(a - base + h).toFixed(3)}deg)` });
-		}
-		for (let i = 1; i <= N2; i++) {
-			const u = i / N2;
-			const h = D + o * Math.cos(1.5 * Math.PI * u) * (1 - u);
-			fr.push({ offset: (T + u * Ts) / tot, transform: `rotate(${(a - base + h).toFixed(3)}deg)` });
-		}
-		fr[fr.length - 1].offset = 1;
-		anim(L.rr, fr, { duration: tot, fill: 'forwards' });
-		this.bk = { t0: now, T, m0, p1 };
-		this.brakeEnd = now + tot;
-		this.set('brake');
+		this.core.frame(now, inp, onStart);
+		this.draw(now);
 	}
 
-	/** the brake has run out: the ring is at rest (where it stopped) */
+	/** a brake from now over T ms and a settle of Ts (onto home, RingCore.brakeNow) */
+	brake(T: number, Ts: number, t: Turbo) {
+		if (this.core.phase !== 'spin') return;
+		const now = performance.now();
+		this.core.brakeNow(now, 'now', T, Ts, t);
+		this.draw(now);
+	}
+
+	/** the brake has run out: the ring is at rest (on home) */
 	settled(): boolean {
-		return this.phase === 'brake' && performance.now() >= this.brakeEnd;
+		return this.core.settled(performance.now());
 	}
 
+	/** the face is being rebuilt: its elements and this path go together */
 	rest() {
-		this.set('rest');
+		this.core.rest();
 	}
 
-	/** nothing turns: every animation of this driver cancelled, the ring where the idle hop holds it (reduced motion, a
-	 *  rebuilt face) */
+	/** nothing turns: every animation of this driver cancelled, the ring where the idle hop holds it (reduced motion) */
 	stop() {
 		const L = this.layer();
 		if (L) {
 			cancelOwn(L.rw);
 			cancelOwn(L.rr);
 		}
-		this.set('rest');
+		this.core.stop();
+		this.drawn = this.core.version;
+	}
+
+	/** THE DRAWING, once per new path. Open (no rest planned yet): the wind-up on .rw (today's two legs with their own
+	 *  easings, or the speed-up of a spin that starts while the ring still turns) and the endless loop on .rr. Planned:
+	 *  .rw left to the idle hop (paused through a round) and the whole path from now to its rest on .rr, less the hop's
+	 *  angle, sampled finely enough to stay within 0.04 degrees of it; it holds the rest when done. */
+	private draw(now: number) {
+		const C = this.core;
+		if (C.version === this.drawn) return;
+		const L = this.layer();
+		if (!L) return;
+		this.drawn = C.version;
+		cancelOwn(L.rw);
+		cancelOwn(L.rr);
+		const P = C.path;
+		const w = C.windUp;
+		if (C.open && w) {
+			const t0 = C.t0;
+			if (w.kind === 'wind') {
+				anim(
+					L.rw,
+					[
+						{ transform: rot(w.a), easing: 'cubic-bezier(.3,.6,.4,1)' },
+						{ offset: w.antic / (w.antic + w.up), transform: rot(w.a - w.back), easing: 'cubic-bezier(.55,0,.75,.5)' },
+						{ transform: rot(w.a + w.W) },
+					],
+					{ duration: w.antic + w.up, fill: 'both' },
+					t0,
+				);
+			} else
+				anim(
+					L.rw,
+					P.sample(t0, C.upEnd, 0).map((k) => ({ offset: k.offset, transform: rot(k.deg) })),
+					{ duration: C.upEnd - t0, fill: 'both' },
+					t0,
+				);
+			anim(L.rr, [{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }], { duration: 360 / C.v, iterations: Infinity, delay: C.upEnd - t0 }, t0);
+			return;
+		}
+		if (!P.segs.length) return;
+		// what the idle hop holds .rw at (paused while a round plays): .rr carries the rest of the angle
+		const base = ang(L.rw);
+		const end = P.end;
+		if (end > now && Number.isFinite(end)) {
+			anim(
+				L.rr,
+				P.keyframes(now, base).map((k) => ({ offset: k.offset, transform: rot(k.deg) })),
+				{ duration: end - now, fill: 'both' },
+				now,
+			);
+		} else {
+			const d = rot(P.pos(now) - base);
+			anim(L.rr, [{ transform: d }, { transform: d }], { duration: 1, fill: 'both' }, now);
+		}
 	}
 }
