@@ -15,6 +15,7 @@ import { LED_BOARD, LED_SIGN } from '../constants';
 import { LED_WILDS } from '../ledWildsSpec';
 import { AMOUNT_OUTLINES, SENTENCE_SIGNS, ledSignCanvas } from '../scoreboard/ledSigns';
 import { blit, blitP, clearP, dotAt, fillP, kOf, ledN, overpassReady, ringPts } from '../scoreboard/ledGrid';
+import { warmGate } from '../scoreboard/warmGate';
 
 export type Cv = HTMLCanvasElement & { ctx: CanvasRenderingContext2D };
 type Ctx = CanvasRenderingContext2D;
@@ -311,6 +312,7 @@ function maskAt(str: string, s: number, k: number): Cv {
 	const key = `${str}|${s}|${k}|${wt}`;
 	let m = fineCache.get(key);
 	if (m) return m;
+	warmGate();
 	m = s >= 3 ? vecMaskK(str, s, k) : cellMask(str, s, k, wt);
 	// (kept only once its face is in: never a fallback font for good)
 	if (!overpassReady(wt)) return m;
@@ -322,6 +324,7 @@ function textMask(str: string, s: number): Cv {
 	const key = str + '|' + s;
 	let m = maskCache.get(key);
 	if (m) return m;
+	warmGate();
 	if (s >= 3) {
 		m = vecMask(str, s);
 		maskCache.set(key, m);
@@ -356,6 +359,7 @@ export const textInk = (str: string, s: number): { l: number; r: number; t: numb
 	const key = str + '|' + s;
 	let k = inkCache.get(key);
 	if (k) return k;
+	warmGate();
 	const m = textMask(str, s);
 	const d = m.ctx.getImageData(0, 0, m.width, m.height).data;
 	let l = m.width;
@@ -386,6 +390,7 @@ export function drawText(g: Ctx, str: string, x: number, y: number, s: number, f
 		const key = `${str}|${s}|${fill}|${k}`;
 		let c = solidCache.get(key);
 		if (!c) {
+			warmGate();
 			c = mk(m.width, m.height);
 			c.ctx.drawImage(m, 0, 0);
 			c.ctx.globalCompositeOperation = 'source-in';

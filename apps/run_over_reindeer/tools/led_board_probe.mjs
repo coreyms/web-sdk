@@ -15,6 +15,7 @@
 // WATCHES: ; SHOWCASE_ROUNDS, sfx_win_*, sfx_win_big, sfx_win_epic, sfx_win_max, sfx_win_mega, sfx_win_super, data-round-card, data-round-board
 // WATCHES: ; .landing, .hudp, .spin, .am-ui, .wrap, .layer, .modals, .go
 // WATCHES: apps/run_over_reindeer/src/game/currency.ts;
+// WATCHES: apps/run_over_reindeer/src/{game/scoreboard/scoreboard.ts,game/scoreboard/warmGate.ts,game/scoreboard/cardFrames.ts,game/scoreboard/ledSigns.ts}; LED_BOARD.warm, __reindeer.cardFrames, __reindeer.scoreboardWarm
 // THE LED SCOREBOARD PROBE (part A, 2026-11-17; bigwin_led_r3_2026-11-16 "r3b"; constants LED_BOARD, game/scoreboard/). At each size:
 //   - THE STRIP'S RULE per layout class, worked out here from the game's own geometry (the road picture's place, the board,
 //     the HUD's layout functions): desktop and tablet 0.62 of the road picture, centred on the window, top the bottom lane
@@ -63,6 +64,15 @@
 //     a Mega win's amount on the big board is that text with its lit dots inside the face; no page errors
 //     (2026-11-18: and for USD, EUR, JPY and BRL a free spin's strip win with cents, 39.2x, counted at LINE_WIN.slam
 //     stripCountMs, ends on exactly the amount it counts to and never reads more on the way)
+// THE HITCH WINDOWS (section hitch, 2026-11-22, wip/ledhitch; constants LED_BOARD.warm, game/scoreboard/warmGate.ts,
+// __reindeer.cardFrames): on a fresh upright phone (390 x 844 at device scale 3) per CPU slowdown (HITCH_RATES, default 1, 4
+// and 6, through CDP), real bonus rounds played through (natural_free_spins and natural_super: each entry pressed once it
+// waits, each Total Win pressed), and for every show that came up (the Free Spins and Super entries, the Total Win, the small
+// and big wins) the longest animation frame from 1 s before it to 1 s after, its frames over 33, 50 and 100 ms, and how far
+// its card made ahead had got. Asserted: unthrottled, every card's window at most 33 ms and its warm done before it came up;
+// at 4x every card's window at most 100 ms; 6x and the small wins are reported (the HITCH table). HITCH_WARM=0 turns the
+// warm off for a run (the old way, to compare; the size searches stay fixed). Not in the default SECTIONS (six bonus rounds):
+//   ONLY=hitch SECTIONS=hitch [HITCH_RATES=1,4,6] [HITCH_WARM=0] node tools/led_board_probe.mjs
 // THE FINER GRID (section density, 2026-11-19, constants LED_BOARD.density, game/scoreboard/ledGrid.ts), at the device's own
 // pixel ratio: the rule (1.5 LEDs per dot where an LED stays at least 2 device px: 1440 x 900 at 2x, 1920 x 1080 at 1x, the
 // phones at 3x and a sideways phone at 2x; today's grid on a 1440 x 900 desktop at 1x and an upright phone at 2x), both faces
@@ -2332,6 +2342,70 @@ async function lookChecks(browser) {
  *  landing; phones keep today's marks (factor 1, labels size 1); on desktop and tablet the labels' height against the
  *  amount's cap comes to the phone board's ratio (to the label's whole dot scale) unless the room stops it, and every mark
  *  clears the amount above (the runner's top, its hop included), the border's bottom row and the next label */
+// ---- THE HITCH WINDOWS (section hitch; see the top of the file) ----
+const HITCH_RATES = (process.env.HITCH_RATES || '1,4,6').split(',').map(Number).filter((n) => n >= 1);
+const HITCH_LIMIT = { 1: 33.4, 4: 100 };
+async function hitchChecks(browser) {
+	const S = { name: 'hitch', vp: { width: 390, height: 844 }, dpr: 3, phone: true };
+	const table = [];
+	for (const rate of HITCH_RATES) {
+		const tag = `hitch upright@3 ${rate}x`;
+		const { ctx, p, errs } = await boot(browser, S);
+		try {
+			if (process.env.HITCH_WARM === '0') await R(p, () => (window.__reindeer.tune.ledBoard.warm.on = false));
+			await R(p, () => window.__reindeer.turbo(0));
+			const cdp = await ctx.newCDPSession(p);
+			await cdp.send('Emulation.setCPUThrottlingRate', { rate });
+			for (const name of ['natural_free_spins', 'natural_super']) {
+				let waitsAt = null;
+				let pressed = false;
+				const res = await playRound(p, name, {
+					limit: 150000 * Math.max(1, rate / 2),
+					during: async (s, ms) => {
+						// the entry waits for the press with no autoplay: pressed 0.8 s after its press line is up
+						if ((s.kind === 'fs' || s.kind === 'sfs') && s.phase === 'waits' && !pressed) {
+							waitsAt ??= ms;
+							if (ms - waitsAt > 800) {
+								pressed = true;
+								await p.mouse.click(S.vp.width / 2, S.vp.height * 0.3);
+							}
+						}
+					},
+				});
+				check(res.ok, `${tag}: ${name} played to its end (${Math.round(res.ms / 1000)} s)`, res.seen.slice(-4));
+			}
+			await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+			const marks = await R(p, () => window.__reindeer.cardFrames(1000, 1000));
+			const warm = await R(p, () => window.__reindeer.scoreboardWarm());
+			for (const m of marks) table.push({ rate, kind: m.kind, worstMs: m.worstMs, worstAfterMs: m.worstAfterMs, over33: m.over33, over50: m.over50, over100: m.over100, frames: m.frames, warm: m.warm });
+			const cards = marks.filter((m) => m.kind === 'fs' || m.kind === 'sfs' || m.kind === 'total');
+			check(cards.filter((m) => m.kind === 'total').length >= 2 && cards.some((m) => m.kind === 'fs') && cards.some((m) => m.kind === 'sfs'), `${tag}: the Free Spins entry, the Super entry and both Total Wins came up (${cards.map((m) => m.kind).join(', ')})`, marks.map((m) => m.kind));
+			const lim = HITCH_LIMIT[rate];
+			for (const m of cards) {
+				const say = `${tag}: ${m.kind}: the longest frame from 1 s before it came up to 1 s after ${m.worstMs} ms, ending ${m.worstAfterMs} ms after it (${m.over33} over 33 ms, ${m.over100} over 100 ms; made ahead: ${m.warm})`;
+				if (lim !== undefined) check(m.worstMs <= lim, `${say}, at most ${lim}`, m);
+				else console.log('INFO ' + say);
+				if (rate === 1 && process.env.HITCH_WARM !== '0') check(m.warm === 'done', `${tag}: ${m.kind}: its card was made ahead before it came up (${m.warm})`, warm);
+			}
+			for (const m of marks.filter((x) => x.kind === 'small' || x.kind === 'win')) console.log(`INFO ${tag}: ${m.kind} win: the longest frame round it ${m.worstMs} ms (${m.over33} over 33 ms)`);
+			// (the scene swap's own beats, to tell an entry's swap at its seat from the board's own work)
+			console.log(`INFO ${tag}: scene swap log ${JSON.stringify((await R(p, () => window.__reindeer.sceneSwap?.()?.log ?? null))?.slice?.(-12) ?? null)}`);
+			check(errs.length === 0, `${tag}: no page errors`, errs);
+		} catch (e) {
+			check(false, `${tag}: the section ran to its end`, String(e?.stack ?? e).slice(0, 600));
+		} finally {
+			await ctx.close();
+		}
+	}
+	// per rate and kind, the worst window (the table Decimus reports)
+	const worst = {};
+	for (const r of table) {
+		const k = `${r.rate}x ${r.kind}`;
+		worst[k] = Math.max(worst[k] ?? 0, r.worstMs);
+	}
+	console.log('HITCH ' + JSON.stringify(worst));
+}
+
 const LADDER_CASES = [
 	{ name: 'ladder upright', vp: { width: 390, height: 844 }, dpr: 3, phone: true, d: false },
 	{ name: 'ladder sideways', vp: { width: 844, height: 390 }, dpr: 3, phone: true, d: false },
@@ -3264,6 +3338,7 @@ async function ideasChecks(browser) {
 		if (SEC('ladderMarks')) await ladderMarkChecks(browser);
 		if (SEC('ledAnim')) await ledAnimChecks(browser);
 		if (SEC('ledIdeas')) await ideasChecks(browser);
+		if (SEC('hitch')) await hitchChecks(browser);
 	} finally {
 		await browser.close();
 	}

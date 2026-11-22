@@ -45,6 +45,9 @@
 		 *  with the book's amount); it waits until boardScoreboardCardEnd (the HTML card keeps the round and the press) */
 		| { type: 'boardScoreboardCard'; kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; capped?: boolean; presents?: number }
 		| { type: 'boardScoreboardCardEnd' }
+		/** THE CARDS MADE AHEAD (constants LED_BOARD.warm; game/bookEventHandlerMap.ts prepareCards): cards the book holds and
+		 *  that are still to come, each as boardScoreboardCard will ask for it; the board draws them ahead of time */
+		| { type: 'boardScoreboardPrepare'; cards: { kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; capped?: boolean; presents?: number }[] }
 		/** THE SUPER WHEEL (game/road/superWheel.ts): the round's opening shown by the wheel, which stops on the plan's own
 		 *  values (the book's); resolves when the wheel has left (or at once when it cannot play) */
 		| { type: 'boardSuperWheel'; plan: WheelPlan }
@@ -104,7 +107,8 @@
 	import type { SoundEffectName } from '../game/sound';
 	import { COLUMN_CLIPS } from '../game/columnClipSpec';
 	import { LANDING_POSE, landingColumns } from '../game/landingBoard';
-	import { Scoreboard, scoreboardDev, type CoverPiece, type ScatterRead } from '../game/scoreboard/scoreboard';
+	import { Scoreboard, scoreboardDev, type CardRequest, type CoverPiece, type ScatterRead } from '../game/scoreboard/scoreboard';
+	import { frameRecorder } from '../game/scoreboard/cardFrames';
 	import { scoreboardGeometry } from '../game/scoreboard/layout';
 	import { setScoreboardArt } from '../game/scoreboard/scoreboardDraw';
 	import { raceTally, raceTrace, newRace, reseedRace } from '../game/scoreboard/race';
@@ -229,6 +233,18 @@
 	/** the LED amount: the play currency's amount as the HUD writes it, its digits pinned to the final amount, the symbol
 	 *  drawn in LED glyphs, or the number alone for a currency the boards have no glyphs for (game/scoreboard/ledCurrency.ts) */
 	const ledAmount = (final: number) => (v: number) => ledAmountText(numberToCurrencyString(v, { fractionDigitsOf: final }), stateBet.currency);
+	/** A BONUS ROUND CARD'S REQUEST for the LED back board from the book's figures (its `amount` the book's): the card as it
+	 *  comes up (boardScoreboardCard) and the same card made ahead (boardScoreboardPrepare) */
+	const cardRequestOf = ({ kind, spins, amount, capped, presents }: { kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; capped?: boolean; presents?: number }): CardRequest => {
+		const value = bookEventAmountToNormalisedAmount(amount);
+		const fmt = ledAmount(value);
+		// a wrap-up's own lines, word for word as the HTML card said them (ui/RoundCard.svelte), for the strip: the cap (the
+		// card's social wording on every build: the board shows no betting words). (Math 2026.11.20: no top-up line, ever.)
+		const lines: string[] = [];
+		if (capped) lines.push(`${config.maxWin.toLocaleString('en-US')}x the play amount, the most a round can award.`);
+		// (2026-11-19: the round's multiple and the cap for the Total Win's ladder, LED_BOARD.ideas)
+		return { kind, spins, amount: value, fmt, rate: motionFor(stateGame.turboLevel).rate, title: capped ? 'MAX WIN' : null, line: lines.length ? lines.join('  ') : null, x: kind === 'total' ? bookEventAmountToBetAmountMultiplier(amount) : 0, capped: !!capped, auto: stateGame.autoPlayBonuses && stateBet.autoSpinsCounter > 0, presents: presents ?? 0 };
+	};
 	scoreboardDev.bet = () => bookEventAmountToNormalisedAmount(100);
 	scoreboardDev.fmt = (v: number) => ledAmountText(numberToCurrencyString(v), stateBet.currency);
 	/** the scoreboard over the logo (see above) */
@@ -955,17 +971,12 @@
 			const auto = stateBet.autoSpinsCounter > 0;
 			await scoreboard.win({ x: bookEventAmountToBetAmountMultiplier(amount), amount: value, bet: bookEventAmountToNormalisedAmount(100), fmt: ledAmount(value), rate: motionFor(stateGame.turboLevel).rate, auto, small });
 		},
-		boardScoreboardCard: ({ kind, spins, amount, capped, presents }) => {
+		boardScoreboardCard: (card) => {
 			if (!scoreboard) return;
-			const value = bookEventAmountToNormalisedAmount(amount);
-			const fmt = ledAmount(value);
-			// a wrap-up's own lines, word for word as the HTML card said them (ui/RoundCard.svelte), for the strip: the cap (the
-			// card's social wording on every build: the board shows no betting words). (Math 2026.11.20: no top-up line, ever.)
-			const lines: string[] = [];
-			if (capped) lines.push(`${config.maxWin.toLocaleString('en-US')}x the play amount, the most a round can award.`);
-			// (2026-11-19: the round's multiple and the cap for the Total Win's ladder, LED_BOARD.ideas)
-			scoreboard.card({ kind, spins, amount: value, fmt, rate: motionFor(stateGame.turboLevel).rate, title: capped ? 'MAX WIN' : null, line: lines.length ? lines.join('  ') : null, x: kind === 'total' ? bookEventAmountToBetAmountMultiplier(amount) : 0, capped: !!capped, auto: stateGame.autoPlayBonuses && stateBet.autoSpinsCounter > 0, presents: presents ?? 0 });
+			scoreboard.card(cardRequestOf(card));
 		},
+		// (the same requests, ahead of time: game/scoreboard/scoreboard.ts prepare)
+		boardScoreboardPrepare: ({ cards }) => scoreboard?.prepare(cards.map(cardRequestOf)),
 		boardScoreboardCardEnd: () => scoreboard?.endCard(),
 		// a Spin press while a big win counts or holds (the slam stop's event): lands the count, or ends the hold
 		stopButtonClick: () => {
@@ -999,6 +1010,8 @@
 
 	// THE DEV HOOK (house rule: one object on the window per game, extended and never replaced; the probes read it)
 	if (import.meta.env.DEV && typeof window !== 'undefined') {
+		// every animation frame's length (DEV only: cardFrames below)
+		const frames = frameRecorder();
 		Object.assign(((window as unknown as { __reindeer?: Record<string, unknown> }).__reindeer ??= {}), {
 			/** every tunable number, live: change one in the console and spin (game/constants.ts TUNE) */
 			tune: TUNE,
@@ -1218,6 +1231,18 @@
 			 *  waits on it unless awaited); the gag; the race (its own random source: tally n seeded runs, trace one); skip;
 			 *  driven by hand (manual, then step ms at a time); raise / lower the back board (a demo win that holds) */
 			scoreboard: () => scoreboard?.snapshot() ?? null,
+			/** THE FRAMES ROUND EACH SHOW (2026-11-22, game/scoreboard/cardFrames.ts; led_board_probe.mjs section hitch): for every
+			 *  show as it came up (a Free Spins or Super entry, a Total Win, a small or big win; the last 40), the longest animation
+			 *  frame from `before` ms before it to `after` ms after, the long frames' counts, and how far its card made ahead had
+			 *  got (constants LED_BOARD.warm: done, running n of m samples, none); `worstAfterMs` when the longest frame ended,
+			 *  after the show came up (an entry's scene swap starts as its board seats, about 700 ms in) */
+			cardFrames: (before = 1000, after = 1000) =>
+				(scoreboard?.showMarks() ?? []).map((m) => {
+					const w = frames.window(m.at - before, m.at + after);
+					return { ...m, ...w, worstAfterMs: Math.round(w.worstAt - m.at) };
+				}),
+			/** the cards made ahead (constants LED_BOARD.warm): queued, running and the last finished, with their samples and cost */
+			scoreboardWarm: () => scoreboard?.warmInfo() ?? [],
 			scoreboardWin: (x: number, opts: { auto?: boolean; rate?: number; small?: boolean; countMs?: number } = {}) => {
 				if (!scoreboard) return null;
 				const bet = bookEventAmountToNormalisedAmount(100);

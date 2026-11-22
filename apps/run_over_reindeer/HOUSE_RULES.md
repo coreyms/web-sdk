@@ -85,6 +85,14 @@ events (`game/bookEventHandlerMap.ts`). Every decision taken is one line in `doc
   (`game/road/roadBoard.ts` line 1035, `game/road/winLights.ts` line 1288), never per frame (rule R1).
 - The bonus Total Win counts on the LED scoreboard (`game/scoreboard/`); the HUD's WIN readout rolls as an odometer
   meanwhile (`ui/hud/winOdometer.ts`, 2026-11-21; `tools/win_odometer_test.mjs`).
+- LED pictures are made once and cached (glyphs, title masks, art bakes, currency sign dots). Two rules since
+  2026-11-22 (rule R7; the Total Win card's first frame was 400 ms on an upright phone at device scale 3, 1.8 s at 4x):
+  a size search asks widths only (`scoreboardDraw.ts` `advOf`, `ledSigns.ts` `signAdv`), never a glyph drawn per cap tried;
+  and a bonus card the book holds is drawn ahead on a scratch face (`LED_BOARD.warm`, `scoreboard.ts` `prepare` and
+  `warmStep`, `warmGate.ts`: 3 ms a frame, the entry from the trigger spin's reveal, the Total Win from the first free spin),
+  so its first frame draws from the caches. A new picture maker calls `warmGate()` first, before it touches a shared
+  canvas or a cache. `tools/led_warm_check.mjs` proves the cards dot for dot the same either way;
+  `led_board_probe.mjs` section `hitch` (`__reindeer.cardFrames`) measures the frames round each card.
 - Not built yet (README): win tiers and the big-win count-up, the max win scene. When they land they follow the
   recipe's house pacing and max win standard.
 

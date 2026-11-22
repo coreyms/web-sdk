@@ -17,7 +17,8 @@
 // size and text box the probes read is in today's dots. At k = 1 every path is exactly as before.
 import { SCOREBOARD_ART } from '../scoreboardArtSpec';
 import { LED_FONT, drawText, letterGap, mk, textInk, textW, type Cv } from '../landing/ledScreens';
-import { ledSignCanvas } from './ledSigns';
+import { ledSignCanvas, signAdv } from './ledSigns';
+import { warmGate } from './warmGate';
 import { INTRO_LINE, LED_BOARD } from '../constants';
 import { amountNow, tierNow, type Show } from './show';
 import { newRace, raceProgress, type Race } from './race';
@@ -116,6 +117,7 @@ function art(name: ArtName, src: number[] | null, dw: number, dh: number, k = 1)
 	const key = name + '|' + (src ? src.join(',') : '') + '|' + dw + 'x' + dh;
 	let c = artCache.get(key);
 	if (c) return c;
+	warmGate();
 	c = mk(dw, dh);
 	const f = frameOf(name);
 	if (!SHEET || !f) return c; // (not cached: drawn again once the sheet is in)
@@ -248,6 +250,30 @@ function gallop(g: Ctx, x: number, yBottom: number, h: number, t: number): numbe
 
 // ---- THE AMOUNT: a heavy face per glyph at the dot size, tabular digit cells (the mock's vglyph / drawRow) -------------------
 const vgCache = new Map<string, { c: Cv; adv: number }>();
+/** A GLYPH'S ADVANCE ALONE (2026-11-22, wip/ledhitch): exactly the `adv` vglyph gives it (a sign's from its outline,
+ *  ledSigns.ts signAdv; a letter's the font's measure at the cap, rounded up), without drawing the glyph. The size searches
+ *  (fitCap and the layouts' own loops) ask rowInfo's width at every cap they try; through vglyph each try drew ten digits
+ *  and counted a sign's dots, cap after cap (80 down to 30 for a Total Win on a phone), which was the Total Win card's
+ *  400 ms first frame and most of the entries' 117 to 150 ms. Now only the cap that is drawn makes its glyphs. */
+const advCache = new Map<string, number>();
+let advCtx: Ctx | null = null;
+function advOf(ch: string, cap: number): number {
+	const key = ch + '|' + cap;
+	const made = vgCache.get(key);
+	if (made) return made.adv;
+	let a = advCache.get(key);
+	if (a !== undefined) return a;
+	const sa = signAdv(ch, cap);
+	if (sa !== null) a = sa;
+	else {
+		advCtx ??= mk(4, 4).ctx;
+		advCtx.font = `900 ${cap / 0.72}px ${LED_FONT}`;
+		a = Math.ceil(advCtx.measureText(ch).width);
+	}
+	if (advCache.size > 4000) advCache.clear();
+	advCache.set(key, a);
+	return a;
+}
 function vglyph(ch: string, cap: number) {
 	const key = ch + '|' + cap;
 	let g = vgCache.get(key);
@@ -258,11 +284,11 @@ function vglyph(ch: string, cap: number) {
 		vgCache.set(key, sign);
 		return sign;
 	}
+	warmGate();
 	const px = cap / 0.72;
 	const font = `900 ${px}px ${LED_FONT}`;
-	const pr = mk(4, 4).ctx;
-	pr.font = font;
-	const adv = Math.ceil(pr.measureText(ch).width);
+	// (the advance the size searches measured for this glyph, when they did: advOf; the same measure otherwise)
+	const adv = advOf(ch, cap);
 	const h = Math.ceil(cap * 1.4) + 2;
 	const c = mk(adv + 2, h);
 	c.ctx.font = font;
@@ -284,6 +310,7 @@ function vglyphK(ch: string, cap: number, k: number, wt: number) {
 	const key = ch + '|' + cap + '|' + k + '|' + wt;
 	let g = vgkCache.get(key);
 	if (g) return g;
+	warmGate();
 	const capP = Math.round(cap * k);
 	const sign = ledSignCanvas(ch, capP);
 	if (sign) g = { c: sign.c as unknown as Cv, advP: sign.adv };
@@ -314,9 +341,9 @@ function rowInfo(str: string, cap: number) {
 	const key = str + '|' + cap;
 	let r = riCache.get(key);
 	if (r) return r;
-	const dcell = Math.max(...'0123456789'.split('').map((d) => vglyph(d, cap).adv));
+	const dcell = Math.max(...'0123456789'.split('').map((d) => advOf(d, cap)));
 	const sp = Math.max(1, Math.round(cap * 0.07));
-	const cells = [...str].map((ch) => (/\d/.test(ch) ? dcell : vglyph(ch, cap).adv));
+	const cells = [...str].map((ch) => (/\d/.test(ch) ? dcell : advOf(ch, cap)));
 	const w = cells.reduce((a, b) => a + b, 0) + sp * (cells.length - 1);
 	r = { dcell, sp, cells, w };
 	if (riCache.size > 2000) riCache.clear();
@@ -391,6 +418,7 @@ function drawRowK(g: Ctx, str: string, x: number, y: number, cap: number, style:
 	const key = pulse > 0 ? null : str + '|' + cap + '|' + k + '|' + wt + '|' + style;
 	let kept = key === null ? undefined : rowKept.get(key);
 	if (!kept && key !== null && rowSeen.has(key) && overpassReady(wt)) {
+		warmGate();
 		if (rowKeptBytes + w * h * 4 > ROW_KEEP_BYTES) {
 			rowKept.clear();
 			rowKeptBytes = 0;
@@ -585,6 +613,7 @@ const inkOfGlyph = (ch: string, cap: number) => {
 	const key = ch + '|' + cap;
 	let k = glyphInk.get(key);
 	if (k) return k;
+	warmGate();
 	const c = vglyph(ch, cap).c;
 	const d = c.ctx.getImageData(0, 0, c.width, c.height).data;
 	let l = c.width;
@@ -624,6 +653,7 @@ function rowInkV(str: string, cap: number, k = 1) {
 	const key = str + '|' + cap + '|' + k;
 	let v = inkVCache.get(key);
 	if (v) return v;
+	warmGate();
 	const ri = rowInfo(str, cap);
 	const c = mkFace(ri.w + 8, Math.ceil(cap * 1.4) + 8, k);
 	drawRow(c.ctx, str, 2, 2, cap, '#ffffff', 0);
