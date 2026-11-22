@@ -140,10 +140,20 @@ export const fractionDigitsFor = (value: number, minor: number) => {
 	return top;
 };
 
-/** the symbol on its side of an already formatted number: before it with no space, after it with one */
+/** THE SPACE BEFORE A TRAILING CODE IS A NO-BREAK SPACE (2026-11-21, wip/pricefit): an amount is one word wherever it
+ *  goes. Running text (the Fast Lane's ANTE sentence "Every spin uses 2.000000 BTC until you switch it off here", the
+ *  status lines, the session's NET, any sentence a later change builds round an amount) never breaks between the number
+ *  and its code; the browser and Pixi's word wrap (CanvasTextMetrics: U+00A0 is not a breaking space) both keep it
+ *  together. It draws exactly as a space in every face the game ships (Overpass, Outfit, Outfit Text, Sora all carry
+ *  U+00A0 at the space's width). Done here, not at the call sites, so a sentence added later cannot miss it. Readers of
+ *  the text: the LED rule (game/scoreboard/ledCurrency.ts) takes any space; the odometer rolls digits only. A symbol
+ *  before the number already touches it ("CA$10.00": no break between a letter, a currency sign and a digit). */
+export const AMOUNT_SPACE = '\u00a0';
+
+/** the symbol on its side of an already formatted number: before it with no space, after it with a no-break space */
 export const placeSymbol = (number: string, currency: string) => {
 	const meta = currencyMeta(currency);
-	return meta.symbolAfter ? `${number} ${meta.symbol}` : `${meta.symbol}${number}`;
+	return meta.symbolAfter ? `${number}${AMOUNT_SPACE}${meta.symbol}` : `${meta.symbol}${number}`;
 };
 
 const format = (value: number, digits: number) =>

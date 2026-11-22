@@ -13,8 +13,10 @@
 //      has lit dots at every cap from 5 to 80 and none cut off by its canvas
 //   4. THE COUNT: the count-up's row keeps its width (the faces' tabular cells) and the symbol its place, frame to frame
 //   5. THE FALLBACK: a made-up code (XQZ) and a symbol without glyphs give the number alone, the HUD's decimals, no throw
-//   6. SOCIAL: GC and SC as Stake's table writes them (en, the amount first, two decimals, a space, the code)
-//   7. THE FIT: the longest amount at the smallest cap (5) fits the narrowest face less the tag title (200 dots)
+//   6. SOCIAL: GC and SC as Stake's table writes them (en, the amount first, two decimals, a space, the code; the game's
+//      space is a no-break one, U+00A0, read here as Stake's plain space)
+//   7. THE FIT: the longest amount at the smallest cap (5) fits the narrowest face less the tag title (200 dots); so do the
+//      longest cap totals in every currency (tools/amount_fit_test.mjs LONGEST=1)
 //   node --experimental-strip-types --no-warnings tools/led_currency_check.mjs      (from apps/run_over_reindeer)
 // Pass: every line PASS, "0 fail" and exit 0.
 import { register } from 'node:module';
@@ -81,20 +83,27 @@ const STAKE_EXAMPLES = {
 	WRW: '10.00 SC',
 };
 state.setLocale('en');
+// (the game writes the space before a trailing code as a no-break space, U+00A0, so running text never breaks an amount
+// between its number and its code: game/currency.ts AMOUNT_SPACE, wip/pricefit 2026-11-21. Stake's examples write a
+// plain space; the comparisons below read U+00A0 as that space, and the check after the loop holds the no-break space.)
+const plain = (t) => t.replace(/\u00a0/g, ' ');
 const offTable = [];
+const breakable = [];
 for (const [code, want] of Object.entries(STAKE_EXAMPLES)) {
 	state.stateBet.currency = code;
 	for (const opts of [undefined, { fixed: true }, { fractionDigitsOf: 10 }]) {
 		const got = hud.numberToCurrencyString(10, opts);
-		if (got !== want) offTable.push({ code, opts, got, want });
+		if (plain(got) !== want) offTable.push({ code, opts, got, want });
+		if (/ /.test(got) || (want.includes(' ') && !got.includes('\u00a0'))) breakable.push({ code, got });
 	}
 }
+check(breakable.length === 0, 'every trailing code sits after a no-break space (U+00A0), never a breaking space', breakable.slice(0, 6));
 check(offTable.length === 0, `10 in each of Stake's ${Object.keys(STAKE_EXAMPLES).length} currencies reads its table example (free, fixed and pinned)`, offTable.slice(0, 6));
 check(Object.keys(STAKE_EXAMPLES).length === Object.keys(hud.CURRENCY_TABLE).length && Object.keys(STAKE_EXAMPLES).every((c) => c in hud.CURRENCY_TABLE), "the game's table has exactly Stake's currencies", { game: Object.keys(hud.CURRENCY_TABLE).length });
 const table = (code, v, want, opts) => {
 	state.setLocale('en');
 	state.stateBet.currency = code;
-	const got = hud.numberToCurrencyString(v, opts);
+	const got = plain(hud.numberToCurrencyString(v, opts));
 	check(got === want, `HUD ${code} ${v}${opts ? ' ' + JSON.stringify(opts) : ''}: "${got}"`, { want });
 };
 // the social coins ([78]: "10.00 SC" / "10.00 GC", no "$"); the reviewers' list ([219]: USD EUR CAD MXN JPY USDT BTC)
@@ -123,7 +132,7 @@ table('XQZ', 10, '10.00 XQZ');
 table('USD', 0.03000000000000000444, '$0.03');
 for (const code of ['XGC', 'XSC', 'XEC', 'XRC', 'WRW']) {
 	state.stateBet.currency = code;
-	const texts = [0, 0.2, 1, 12.5, 1234.5, 5e9].map((v) => hud.numberToCurrencyString(v));
+	const texts = [0, 0.2, 1, 12.5, 1234.5, 5e9].map((v) => plain(hud.numberToCurrencyString(v)));
 	check(texts.every((t) => !t.includes('$') && /^[0-9,]+\.\d{2,4} (GC|SC)$/.test(t)), `${code}: the amount first, two decimals, then the code, never a "$" (${texts.join(', ')})`, texts);
 }
 const curSrc = readFileSync(join(APP, 'src', 'game', 'currency.ts'), 'utf8');
@@ -314,6 +323,11 @@ spot('WRW', 12.5, '12.50 SC');
 const longest = ['999,999,999,999.00 GC', '999,999,999.000 TND', '9,999,999.000000 BTC', '999,999,999.0000 TRUMP', 'CA$999,999,999.9999', '₹99,99,99,999.99'];
 const over = longest.map((s) => ({ s, w: rowOf(s, 5).w })).filter((r) => r.w > 200);
 check(over.length === 0, `the longest amounts fit 200 dots at cap 5 (${longest.map((s) => rowOf(s, 5).w).join(', ')} dots)`, over);
+// the longest cap totals (7,777x the top bet) over Stake's 85 currencies, from tools/amount_fit_test.mjs (LONGEST=1, its
+// ladder model: the larger of the probe host's ladder and a $1,000 top bet), written as the LED rule writes them
+const capTotals = ['15,554,000,000.00 ARS', 'TSh21,775,600,000.00', '116,655,000.0000 CRO', '77,770,000.0000 DOGE', '933,240,000,000 SHIB', '2,333,100.0000 TRUMP', 'KSh1,088,780,000.00', '777,700.000000 BTC', '7,777,000,000.00 GC'];
+const overCap = capTotals.map((s) => ({ s, w: rowOf(s, 5).w })).filter((r) => r.w > 200);
+check(overCap.length === 0, `the longest cap totals in every currency fit 200 dots at cap 5 (${capTotals.map((s) => rowOf(s, 5).w).join(', ')} dots)`, overCap);
 
 console.log(`\nled_currency_check: ${pass} pass, ${fail} fail`);
 process.exit(fail ? 1 : 0);

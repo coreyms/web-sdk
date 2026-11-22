@@ -17,6 +17,7 @@
 	// was. Its rim: one soft even line, a little brighter along the top, fading round the corners (no hard ended lines).
 	import { stateSound, stateUi, stateBet, stateConfig } from 'state-shared';
 	import { numberToCurrencyString } from '../../game/currency';
+	import { fitFont, measureFitText, UI_TEXT_FACE } from '../../game/textFit';
 	import config from '../../game/config';
 	import { sound } from '../../game/sound';
 	import type { Controls } from '../controls.svelte';
@@ -58,6 +59,18 @@
 	});
 	const net = $derived(stateBet.balanceAmount - stateBet.sessionStartBalanceAmount);
 	const netText = $derived(`${net < 0 ? '-' : net > 0 ? '+' : ''}${numberToCurrencyString(Math.abs(net), { fixed: true })}`);
+	// THE NET FITS ITS LINE (2026-11-21, wip/pricefit): the strip wraps its readouts as whole items, and the amount is one
+	// word (game/currency.ts AMOUNT_SPACE), so a long net ("-7,777,000,000.00 GC", "-15,554,000,000.00 ARS") on the narrow
+	// tablet panel shrinks its type to the panel's line (hud.css .session: 9 px, 0.14 em tracking; the small landscape
+	// panel 7 px), measured from the string like the bar's readouts, never per frame
+	const SESSION = $derived(cls === 'pls' ? { px: 7, pad: 7 } : cls === 'nar' ? { px: 9, pad: 11 } : { px: 9, pad: 14 });
+	const netFont = $derived.by(() => {
+		const track = 0.14 * SESSION.px;
+		const label = measureFitText('NET', SESSION.px, 900, track, UI_TEXT_FACE) + 5;
+		const box = W - 2 * SESSION.pad - 8 - label;
+		const px = fitFont({ text: netText, nominal: SESSION.px, box, weight: 900, letterSpacing: track, face: UI_TEXT_FACE }) ?? SESSION.px;
+		return px < SESSION.px ? px : null;
+	});
 	const elapsedText = $derived.by(() => {
 		const s = Math.max(0, Math.floor((now - (stateBet.sessionStartedAt || now)) / 1000));
 		const two = (n: number) => String(n).padStart(2, '0');
@@ -139,7 +152,7 @@
 		{#if showSession}
 			<div class="session">
 				{#if j.displayRTP}<span><span class="sk2">RTP</span>{(config.rtp * 100).toFixed(2)}%</span>{/if}
-				{#if j.displayNetPosition}<span><span class="sk2">NET</span><span class:neg={net < 0} class:pos={net > 0}>{netText}</span></span>{/if}
+				{#if j.displayNetPosition}<span><span class="sk2">NET</span><span class:neg={net < 0} class:pos={net > 0} style:font-size={netFont ? `${netFont}px` : undefined} data-hud-net>{netText}</span></span>{/if}
 				{#if j.displaySessionTimer}<span><span class="sk2">TIME</span>{elapsedText}</span>{/if}
 				{#if audioDiag}<span><span class="sk2">AUDIO</span>{now ? sound.diag() : ''}</span>{/if}
 			</div>

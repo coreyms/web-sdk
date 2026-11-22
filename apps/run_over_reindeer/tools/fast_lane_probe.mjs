@@ -1,6 +1,8 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/{ui/FeatureMenu.svelte,ui/AutoplayModal.svelte,game/fastLaneMemory.ts};
 // WATCHES: ; loadAutoplay, buyMode, autoSpinCost, unloadedByAutoplay, autoFirst, data-fl-auto, data-auto-drop, autoLimits, __reindeer.fixtures
+// WATCHES: apps/run_over_reindeer/src/{ui/fitAmount.ts,game/currency.ts};
+// WATCHES: ; data-fit, data-fl-balance, data-fl-amount, data-fl-confirm-amount, data-fl-confirm-total, AMOUNT_SPACE, fitAmount
 // WATCHES: ; __reindeer.fastLane, __reindeer.hud, __reindeer.atRest, data-feature-menu, data-fl-confirm, data-fl-price
 // WATCHES: ; --fl-s, ::after, data-fl-step, data-squeeze, flSqueezeOff, anteOnShort, loadedShort, data-fl-low, data-fl-step, data-menu-foot, .note, .act, .price, .go, data-fl-status, data-act, data-card, data-lvl, data-piece, data-plate, .tile, .miles, .chip, .landing, .hudp
 // THE FAST LANE PROBE: the feature menu (ui/FeatureMenu.svelte, the redesign of 2026-11-17). At each size (desktop
@@ -31,6 +33,11 @@
 //     Then a run loaded first: the feature tiles refuse, and the Autoplay menu's UNLOAD frees them. Then the Ante 4x
 //     on: the menu and the HUD show its full price and the play request carries ANTE_4 at that price. With SHOTS the
 //     menu, the HUD and the requests are saved (autofeature_<tag>_*.png, autofeature_<tag>.json).
+//   · EVERY AMOUNT FITS (2026-11-21, ui/fitAmount.ts; ONLY=currency): at 1440 x 900, 844 x 390 and 390 x 844 in USD, EUR,
+//     CAD, MXN, JPY, USDT, BTC, XSC, XGC, TRUMP, KWD and IDR, at the default and the top of the ladder, on every tile and
+//     level and on the confirm card: no amount box (the price plate, BALANCE, PLAY AMOUNT, the card's amount and total)
+//     with scrollWidth over clientWidth, none on two lines, none under its floor in the reviewers' currencies, and the
+//     card's sentence keeps its amount on one line
 // With SHOTS=<dir> it saves each state at each size (<size>_<n>_<state>.png).
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3016 [ONLY=a,b] [SHOTS=dir] \
 //     node tools/fast_lane_probe.mjs
@@ -220,7 +227,8 @@ async function words(p, S, tag) {
 	});
 	const bad = t.match(BANNED);
 	check(!bad, `${S.name} ${tag}: no restricted word`, bad ? bad[0] : '');
-	const odd = [...t].filter((c) => !/[\x20-\x7e\n\t]/.test(c));
+	// (U+00A0 is the space game/currency.ts writes before a trailing code, so an amount never breaks: wip/pricefit)
+	const odd = [...t].filter((c) => !/[\x20-\x7e\n\t\u00a0]/.test(c));
 	check(odd.length === 0, `${S.name} ${tag}: printable ASCII only`, odd.slice(0, 6).join(' '));
 }
 
@@ -687,6 +695,108 @@ async function shortHeights(browser) {
 	}
 }
 
+// ---- EVERY AMOUNT FITS ITS BOX, IN EVERY CURRENCY (2026-11-21, wip/pricefit; ONLY=currency) ----------------------------
+// The probe host on dba8b786 read the price plate clipped in BTC ("100.000000 BT") and USDT, and the Ante card's sentence
+// broke "2.000000 / BTC". At 1440 x 900, 844 x 390 and 390 x 844, in Stake's reviewers' currencies (USD EUR CAD MXN JPY
+// USDT BTC, the social XSC and XGC) and three long ones (TRUMP: a five letter code, KWD: three decimals, IDR: no
+// decimals), at the fixture ladder's default and its top (100 units: "30,000.000000 BTC" for Super), on each tile and
+// Ante level: every amount box (the price plate, BALANCE, PLAY AMOUNT; on the confirm card its amount and total) has
+// scrollWidth <= clientWidth (never clipped) and one line (never wrapped); in the reviewers' currencies none is under its
+// floor (data-fit="under", ui/fitAmount.ts); the confirm card's sentence keeps its amount on one line. The fixture RGS
+// answers ?currency= (fixtures/fixtureRgs.ts: the same 0.01 to 100 ladder and 1,000 balance in every currency).
+const CURRENCY_RUN = [
+	['USD', false], ['EUR', false], ['CAD', false], ['MXN', false], ['JPY', false], ['USDT', false], ['BTC', false],
+	['XSC', true], ['XGC', true], ['TRUMP', false], ['KWD', false], ['IDR', false],
+];
+const REVIEWERS = new Set(['USD', 'EUR', 'CAD', 'MXN', 'JPY', 'USDT', 'BTC', 'XSC', 'XGC']);
+/** every amount box on screen now: its text, scroll and client widths, its lines, the fit's state; and each amount in
+ *  the confirm card's sentence with its line count */
+const amountBoxes = (p) =>
+	p.evaluate(() => {
+		const out = [];
+		const named = { flPrice: 'price', flBalance: 'balance', flAmount: 'amount', flConfirmAmount: 'card amount', flConfirmTotal: 'card total' };
+		for (const e of document.querySelectorAll('[data-fl-price], [data-fl-balance], [data-fl-amount], [data-fl-confirm-amount], [data-fl-confirm-total], [data-feature-menu] .amt')) {
+			const b = e.getBoundingClientRect();
+			if (!b.width || e.closest('[inert]')) continue;
+			const r = document.createRange();
+			r.selectNodeContents(e);
+			const lines = new Set([...r.getClientRects()].filter((q) => q.width > 0).map((q) => Math.round(q.top))).size;
+			const key = Object.keys(named).find((k) => k in e.dataset);
+			out.push({ name: key ? named[key] : 'amt', text: e.textContent.trim(), sw: e.scrollWidth, cw: e.clientWidth, lines, fit: e.dataset.fit ?? null, px: parseFloat(getComputedStyle(e).fontSize) });
+		}
+		for (const b of document.querySelectorAll('[data-fl-confirm] p b, [data-fl-status] b')) {
+			if (!/[0-9]/.test(b.textContent)) continue;
+			const lines = new Set([...b.getClientRects()].filter((q) => q.width > 0).map((q) => Math.round(q.top))).size;
+			out.push({ name: 'sentence', text: b.textContent.trim(), sw: 0, cw: 0, lines, fit: null, px: parseFloat(getComputedStyle(b).fontSize) });
+		}
+		return out;
+	});
+function judgeAmounts(boxes, tag, code, worst) {
+	const clipped = boxes.filter((b) => b.name !== 'sentence' && b.sw > b.cw + 0.5);
+	const wrapped = boxes.filter((b) => b.lines > 1);
+	check(clipped.length === 0, `${tag}: no amount box clipped (scrollWidth <= clientWidth)`, clipped.slice(0, 4));
+	check(wrapped.length === 0, `${tag}: every amount on one line (the sentence's too)`, wrapped.slice(0, 4));
+	if (REVIEWERS.has(code)) {
+		const under = boxes.filter((b) => b.fit === 'under');
+		check(under.length === 0, `${tag}: no amount under its floor in a reviewers' currency`, under.slice(0, 4));
+	}
+	for (const b of boxes) if (b.name !== 'sentence' && (!worst[b.name] || b.px < worst[b.name].px)) worst[b.name] = { px: b.px, text: b.text, tag };
+}
+async function currencyFit(browser) {
+	const sizes = SIZES.filter((s) => ['desk1440', 'side844', 'up844'].includes(s.name));
+	const worst = {};
+	for (const [code, social] of CURRENCY_RUN) {
+		for (const S of sizes) {
+			const tag0 = `currency ${code} ${S.name}`;
+			const { ctx, p, errs } = await boot(browser, { ...S, name: `${S.name}${code}` }, `&currency=${code}${social ? '&social=true' : ''}`);
+			try {
+				await p.evaluate(() => window.__reindeer.hud.setMode('BASE'));
+				for (const level of ['default', 'top']) {
+					if (level === 'top')
+						await p.evaluate(async (path) => {
+							const m = await import(path);
+							m.stateBet.betAmount = 100;
+						}, STATE_SHARED);
+					await openMenu(p);
+					for (const pick of ['ANTE_2', 'ANTE_4', 'ANTE_10', 'BONUS', 'SUPER']) {
+						if (pick.startsWith('ANTE')) {
+							await p.click('[data-card="ANTE"]').catch(() => {});
+							await sleep(250);
+							await p.click(`[data-lvl="${pick}"]`).catch(() => {});
+						} else await p.click(`[data-card="${pick}"]`).catch(() => {});
+						await sleep(450);
+						judgeAmounts(await amountBoxes(p), `${tag0} ${level} ${pick}`, code, worst);
+					}
+					// the confirm card where it can open: the Ante 10x (1,000 at the top of the ladder, the whole balance) and
+					// Super Free Spins at the default
+					for (const pick of level === 'top' ? ['ANTE_10'] : ['ANTE_10', 'SUPER']) {
+						if (pick.startsWith('ANTE')) {
+							await p.click('[data-card="ANTE"]').catch(() => {});
+							await sleep(250);
+							await p.click(`[data-lvl="${pick}"]`).catch(() => {});
+						} else await p.click(`[data-card="${pick}"]`).catch(() => {});
+						await sleep(350);
+						const canOpen = await p.evaluate(() => !document.querySelector('[data-act="activate"]')?.disabled);
+						if (!canOpen) continue;
+						await p.click('[data-act="activate"]');
+						for (let i = 0; i < 20 && !(await cardOpen(p)); i++) await sleep(50);
+						await sleep(350);
+						judgeAmounts(await amountBoxes(p), `${tag0} ${level} ${pick} confirm`, code, worst);
+						await p.click('[data-act="cancel"]').catch(() => {});
+						await sleep(300);
+					}
+					await p.keyboard.press('Escape');
+					await waitClosed(p);
+				}
+				check(errs.filter((e) => !/favicon/.test(e)).length === 0, `${tag0}: no page errors`, errs.slice(0, 3));
+			} finally {
+				await ctx.close();
+			}
+		}
+	}
+	console.log(`  INFO currency: the smallest size each box drew: ${Object.entries(worst).map(([k, w]) => `${k} ${w.px} px "${w.text}" (${w.tag})`).join('; ')}`);
+}
+
 const browser = await chromium.launch({ args: ['--mute-audio'] });
 try {
 	for (const S of SIZES) {
@@ -718,6 +828,13 @@ try {
 			await social(browser);
 		} catch (e) {
 			check(false, 'social: ran to the end', String(e).slice(0, 300));
+		}
+	}
+	if (!ONLY.length || ONLY.includes('currency')) {
+		try {
+			await currencyFit(browser);
+		} catch (e) {
+			check(false, 'currency: ran to the end', String(e).slice(0, 300));
 		}
 	}
 } finally {

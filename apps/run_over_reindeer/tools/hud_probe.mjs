@@ -73,7 +73,7 @@
 //     (?social=true) also no restricted word (bet, buy, cash, money, paid, credit, gamble, wager, stake), aria included
 //   · social coins (2026-11-21, Stake's table, game/currency.ts): with &currency=XSC and &currency=XGC at 390 x 844,
 //     844 x 390 and 1440 x 900 the bar's amounts read "1,000.00 SC" / "1,000.00 GC" (the amount first, two decimals, a
-//     space, the code), no "$" in the page's text, each amount whole inside its field
+//     no-break space, the code), no "$" in the page's text, each amount whole inside its field
 // With SHOTS=<dir> it saves the idle and the spinning HUD at each size (phones at device pixel ratio 3, the rest at 2).
 // With FLIP=<file.json> it also records the Spin's stop square popping in and out frame by frame at 1440 x 900 (both
 // directions).
@@ -736,7 +736,7 @@ async function runSize(browser, S) {
  *  [78]: with currency=XSC and currency=XGC the amounts read "10.00 SC" / "10.00 GC" and no "$" appears anywhere). The
  *  fixture RGS answers ?currency= (fixtures/fixtureRgs.ts). At 1440 x 900 the words of the HUD, the help menu and the
  *  Autoplay menu; at 390 x 844, 844 x 390 and 1440 x 900 the bar's amounts in each coin (the amount first, two decimals, a
- *  space, the code), no "$" in the page's text, and each amount whole inside its field. */
+ *  no-break space, the code), no "$" in the page's text, and each amount whole inside its field. */
 async function socialWords(browser) {
 	const S = SIZES.find((x) => x.name === 'desk1610');
 	for (const [cur, code] of [['XSC', 'SC'], ['XGC', 'GC']]) {
@@ -757,7 +757,8 @@ async function socialWords(browser) {
 				return { out, dollar: document.body.innerText.includes('$') };
 			}, READOUTS);
 			const shown = Object.entries(am.out).filter(([, v]) => v.text);
-			const coin = new RegExp(`^[0-9,]+\\.\\d{2,4} ${code}$`);
+			// (the space before the code is a no-break space, U+00A0: game/currency.ts AMOUNT_SPACE, wip/pricefit)
+			const coin = new RegExp(`^[0-9,]+\\.\\d{2,4}\\u00a0${code}$`);
 			check(shown.length >= 2 && shown.every(([k, v]) => k === 'win' ? v.text === '' || coin.test(v.text) : coin.test(v.text)), `${tag}: the bar's amounts read the amount first, two decimals, then ${code} (${shown.map(([k, v]) => `${k} "${v.text}"`).join(', ')})`, am.out);
 			check(!am.dollar, `${tag}: no "$" anywhere in the page's text`);
 			check(shown.every(([, v]) => v.left >= -0.5 && v.right >= -0.5), `${tag}: each amount whole inside its field`, am.out);
@@ -773,7 +774,7 @@ async function socialWords(browser) {
 				const w3 = await hudWords(p);
 				const aria = await p.evaluate(() => [...document.querySelectorAll('.hudp [aria-label]')].map((e) => e.getAttribute('aria-label')));
 				const all = [...w1, ...w2, ...w3];
-				const bad = all.filter((w) => BANNED.test(w) || /[^\x20-\x7e]/.test(w) || w.includes('$'));
+				const bad = all.filter((w) => BANNED.test(w) || /[^\x20-\x7e\u00a0]/.test(w) || w.includes('$'));
 				check(bad.length === 0, `social ${S.vp.width}x${S.vp.height}: the HUD, help menu and Autoplay menu words carry no restricted word, no symbol character and no "$"`, bad);
 				const badAria = aria.filter((w) => BANNED.test(w));
 				check(badAria.length === 0, `social: the HUD's spoken labels (aria) carry no restricted word`, badAria);
