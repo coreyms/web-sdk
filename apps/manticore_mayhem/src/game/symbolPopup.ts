@@ -8,7 +8,7 @@ import type * as PIXI from 'pixi.js';
 
 import config from './config';
 import { soc } from './social';
-import { gameInfoText, MODE_NAMES } from './gameInfoText';
+import { gameInfoText, MODE_NAMES, FEATURE_NAMES } from './gameInfoText';
 
 /** components/BoardTap.svelte calls `tap` with every tap or click on the board's opening (canvas px, and its own area
  *  container, which sits in the MainContainer's master units). components/SymbolPopup.svelte sets it while mounted;
@@ -68,7 +68,9 @@ export const popupContent = (code: PopupCode, amount: (x: number) => string, sup
 			rows: [
 				superAnte ? { k: '4', v: `${fs.super} ${MODE_NAMES.super}` } : { k: '4', v: `${fs.bonus} ${MODE_NAMES.bonus}` },
 				{ k: '5', v: `${fs.super} ${MODE_NAMES.super}` },
-				{ k: '6+', v: `${fs.epic} ${MODE_NAMES.epic}`, top: true },
+				// (Epic is a feature, not a mode, since the Epic buy left on 2026-11-21: its name is in FEATURE_NAMES. MODE_NAMES.epic
+				// read undefined and the popup showed "12 undefined"; found by Decimus's symbol_popup_probe)
+				{ k: '6+', v: `${fs.epic} ${FEATURE_NAMES.epic}`, top: true },
 			],
 			line: null,
 			note: null,
