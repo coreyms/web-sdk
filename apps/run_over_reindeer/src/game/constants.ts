@@ -2032,6 +2032,14 @@ export const LED_BOARD = {
 	fps: 30,
 	/** the halo's strength (the half size picture added over the face) */
 	halo: 0.3,
+	/** THE CARDS MADE AHEAD (2026-11-22, wip/ledhitch; game/scoreboard/warmGate.ts, scoreboard.ts prepare): a bonus card the
+	 *  book holds (the Free Spins or Super entry from the trigger spin's reveal, the Total Win from the round's start) is
+	 *  drawn ahead of time on a scratch face, `budgetMs` of real time a frame at most (one picture more may finish past it),
+	 *  so every glyph, title and picture it needs is made before it comes up and its first frame draws from the caches. It
+	 *  samples the card's own clock at every LED step from the rise to `tailMs` past its press line: every `coarseEvery`th step
+	 *  first, then the steps beside any sample that still made something. The card looks and counts exactly as before; off,
+	 *  the card makes its pictures as it comes up, as before. */
+	warm: { on: true, budgetMs: 3, coarseEvery: 4, tailMs: 3000 },
 	strip: {
 		desktop: { width: 0.62, topShare: 0.15, heightRoad: 125, heightShare: 0.85, roadY: 851, pad: 0, lanesW: 1535, backShare: 0.778 } as StripRule,
 		portrait: { width: 0.9, topShare: 0, heightRoad: 0, heightShare: 0.75, roadY: 948, pad: 0, lanesW: 0, backShare: 0.52 } as StripRule,

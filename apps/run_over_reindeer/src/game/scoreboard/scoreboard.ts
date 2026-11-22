@@ -33,7 +33,7 @@ import { C, faceDrawn, mk, setFaceClear, setScreenScaleMax, shimmer, wildsDrawn,
 import { renderResolutionFor } from '../deviceTier';
 import { clearP, copyFace, copyP, densityFor, fillP, ledN } from './ledGrid';
 import { type ScoreboardGeo, type Rect } from './layout';
-import { backScene, clearTitle, borderGlint, countBorder, dissolveFace, entryWaitOf, flashesOf, powerOnFace, plowOf, raceCardOf, ridersOf, titlesOf, gagWordsAt, setBoardClass, setBoardPitch, titleOf, makeFaceCanvases, maxRaceAtOf, maxRaceOf, powerOffFace, showCounter, showGag, showRibbon, showSmall, showWin, stripFlourish, type CartoonState, type Face } from './scoreboardDraw';
+import { backScene, clearTitle, showRibbon, borderGlint, countBorder, dissolveFace, entryWaitOf, flashesOf, powerOnFace, plowOf, raceCardOf, ridersOf, titlesOf, gagWordsAt, setBoardClass, setBoardPitch, titleOf, makeFaceCanvases, maxRaceAtOf, maxRaceOf, powerOffFace, showCounter, showGag, showSmall, showWin, stripFlourish, type CartoonState, type Face } from './scoreboardDraw';
 import { amountNow, backOffset, brightOf, dimAlpha, endShow, isCard, landCard, newCardShow, newPressShow, newShow, phaseOf, seatedAt, shakeAt, skipShow, tierNow, type Show } from './show';
 import { newRace, type RaceOutcome } from './race';
 import { pickStrip, type StripItem, type StripTruth } from './stripArbiter';
@@ -46,6 +46,7 @@ import { ladderTotal } from './totalLadder';
 import { clearIdeas, ideasOf } from './ideasKit';
 import type { LedText } from '../landing/ledScreens';
 import { clearExplain, explainOf, showExplain } from './explainDraw';
+import { warmRun } from './warmGate';
 
 const col = (hex: string) => Number.parseInt(hex.slice(1), 16);
 const GRILLE = { cells: 16, cellPx: 16 };
@@ -88,6 +89,38 @@ export type WinRequest = { x: number; amount: number; bet: number; fmt: (v: numb
  *  ladder and size class), `auto`: Autoplay Bonuses will continue it by itself (the cap page's hold is then off),
  *  `presents`: an entry's trigger scatter count (the book's freeSpinTrigger cells; 0 not known) */
 export type CardRequest = { kind: 'fs' | 'sfs' | 'total'; spins: number; amount: number; fmt: (v: number) => string; rate: number; title?: string | null; line?: string | null; x?: number; capped?: boolean; auto?: boolean; presents?: number };
+
+/** A CARD MADE AHEAD (constants LED_BOARD.warm, warmGate.ts; prepare / warmStep below): the card's request, its show and
+ *  two scratch faces the size and density of the real ones (CPU canvases only, never a texture; let go once it is done),
+ *  the card's clock at each LED step and the order they are drawn in, and its readouts for the dev hook */
+type WarmJob = {
+	kind: CardRequest['kind'];
+	req: CardRequest;
+	show: Show | null;
+	back: Face | null;
+	strip: Face | null;
+	/** the faces the scratch faces were made for (a new size or density starts the job again) */
+	faceKey: string;
+	times: number[];
+	order: number[];
+	next: number;
+	coarseDone: boolean;
+	/** what each sample (its index in times) made or stopped at, over its tries */
+	madeAt: Map<number, number>;
+	state: 'queued' | 'running' | 'done' | 'dropped' | 'failed';
+	why: string;
+	samples: number;
+	made: number;
+	ms: number;
+	frames: number;
+	maxFrameMs: number;
+	queuedAt: number;
+	doneAt: number | null;
+	/** its card has come up (a later card of its kind is not this one's) */
+	used: boolean;
+};
+/** a show as it came up (performance.now()), and how far its card's warm had got then (the dev hook's frame windows) */
+export type ShowMark = { kind: string; id: number; at: number; warm: string };
 
 /** THE TUNE PANEL'S AND THE DEV HOOK'S WAY IN (staging builds too: the panel cannot reach the DEV-only window hook) */
 export const scoreboardDev: { board: Scoreboard | null; bet: () => number; fmt: (v: number) => string } = { board: null, bet: () => 1, fmt: (v) => v.toFixed(2) };
@@ -210,6 +243,10 @@ export class Scoreboard {
 	backProgram: (F: Face, s: Show) => void = ideasBackScene;
 	/** the catcher's press (Board wires it to the skip) */
 	onPress: (() => void) | null = null;
+	/** THE CARDS MADE AHEAD (constants LED_BOARD.warm): the jobs queued, running and the last few finished */
+	private warmJobs: WarmJob[] = [];
+	/** the last shows as they came up (ShowMark) */
+	private marks: ShowMark[] = [];
 
 	constructor() {
 		this.root.eventMode = 'passive';
@@ -664,6 +701,12 @@ export class Scoreboard {
 		} else if (s.kind === 'win') this.cutGag('a win on the strip'); // a Big or Super message on the strip cuts the gag short
 		this.show = s;
 		this.mark('show', `${s.kind} ${s.final} ${s.arrive ? 'back' : 'strip'}`);
+		// (a card made ahead is let go as it comes up: what it made is in the caches; the readout keeps how far it got)
+		const job = isCard(s) ? this.warmJobs.find((j) => j.kind === s.kind && !j.used && (j.state === 'queued' || j.state === 'running' || j.state === 'done')) : undefined;
+		this.marks.push({ kind: s.kind, id: s.id, at: performance.now(), warm: !isCard(s) ? '-' : !job ? 'none' : job.state === 'done' ? 'done' : `${job.state} ${job.samples}/${job.order.length || job.times.length}` });
+		if (this.marks.length > 40) this.marks.splice(0, this.marks.length - 40);
+		if (job) job.used = true;
+		if (job && job.state !== 'done') this.warmEnd(job, 'dropped', 'the card came up first');
 		this.onBeat?.('start', s);
 	}
 	private release(id: number) {
@@ -725,6 +768,128 @@ export class Scoreboard {
 	card(o: CardRequest) {
 		if (!LED_BOARD.on) return;
 		this.start(newCardShow(o));
+	}
+	/** THE CARDS MADE AHEAD (constants LED_BOARD.warm; warmGate.ts): cards the book holds and that are still to come (the
+	 *  entry from the trigger spin's reveal, the Total Win from the round's start), each as card() will be asked for it.
+	 *  Each is drawn ahead of time on a scratch face, a little each frame (warmStep), so the pictures it needs are made before
+	 *  it comes up. A card asked for again replaces its job; nothing waits on a job and a card never waits for one. */
+	prepare(list: CardRequest[]) {
+		if (!LED_BOARD.on || !LED_BOARD.warm.on) return;
+		for (const req of list) {
+			for (const j of this.warmJobs) if (j.kind === req.kind && (j.state === 'queued' || j.state === 'running')) this.warmEnd(j, 'dropped', 'asked for again');
+			this.warmJobs.push({ kind: req.kind, req, show: null, back: null, strip: null, faceKey: '', times: [], order: [], next: 0, coarseDone: false, madeAt: new Map(), state: 'queued', why: '', samples: 0, made: 0, ms: 0, frames: 0, maxFrameMs: 0, queuedAt: performance.now(), doneAt: null, used: false });
+		}
+		// (the finished ones: the last six kept for the readout)
+		const old = this.warmJobs.filter((j) => j.state !== 'queued' && j.state !== 'running');
+		if (old.length > 6) {
+			const drop = new Set(old.slice(0, old.length - 6));
+			this.warmJobs = this.warmJobs.filter((j) => !drop.has(j));
+		}
+	}
+	/** a job's scratch faces and samples, for the faces as they are now */
+	private warmSetup(job: WarmJob) {
+		const B = this.back!.F;
+		const S = this.strip!.F;
+		const W = LED_BOARD.warm;
+		job.back = makeFaceCanvases(B.dotsW, B.dotsH, B.k);
+		job.strip = makeFaceCanvases(S.dotsW, S.dotsH, S.k);
+		job.faceKey = this.faceKey;
+		const s = (job.show = newCardShow(job.req));
+		// the card's clock at each LED step from the rise (the face is drawn from the first step the board shows) to tailMs past
+		// its press line (the explanation's wipe and page, the landing's blink and fireworks)
+		const step = 1000 / Math.max(1, LED_BOARD.fps);
+		const end = (s.pressLineAt ?? s.countEnd) + Math.max(0, W.tailMs);
+		job.times = [];
+		for (let t = LED_BOARD.rise.backAtMs + 1; t <= end; t += step) job.times.push(t);
+		const every = Math.max(1, Math.round(W.coarseEvery));
+		job.order = job.times.map((_, i) => i).filter((i) => i % every === 0 || i === job.times.length - 1);
+		job.next = 0;
+		job.coarseDone = false;
+		job.madeAt.clear();
+	}
+	/** one sample of a job: the card at its clock `t` on the scratch faces, back board and strip, as update() draws them */
+	private warmDraw(job: WarmJob, t: number) {
+		const s = job.show!;
+		s.t = t;
+		for (const F of [job.back!, job.strip!]) {
+			for (const c of [F.out, F.a, F.b]) {
+				c.ctx.globalAlpha = 1;
+				c.ctx.globalCompositeOperation = 'source-over';
+			}
+			F.out.ctx.clearRect(0, 0, F.dotsW, F.dotsH);
+			clearTitle(F.out.ctx.canvas);
+			clearIdeas(F.out.ctx.canvas);
+		}
+		this.paintBack(job.back!, s);
+		showRibbon(job.strip!, s);
+	}
+	/** a job ends: its scratch faces and show are let go (the readout keeps its numbers) */
+	private warmEnd(job: WarmJob, state: WarmJob['state'], why: string) {
+		job.state = state;
+		job.why = why;
+		job.back = null;
+		job.strip = null;
+		job.show = null;
+		job.doneAt ??= performance.now();
+		this.mark('warm', `${job.kind} ${state}: ${why} (${job.samples} samples, ${job.made} made, ${Math.round(job.ms)} ms over ${job.frames} frames)`);
+	}
+	/** THE FRAME'S SHARE OF A CARD MADE AHEAD: the first job still to do, sample by sample, until the frame's budget
+	 *  (LED_BOARD.warm.budgetMs less what this frame's own LED step took) is spent; a sample stopped at a picture to make
+	 *  is tried again next frame. The coarse steps first, then the steps beside any coarse one that still made something. */
+	private warmStep(spentMs: number) {
+		const W = LED_BOARD.warm;
+		if (!W.on || !this.back || !this.strip) return;
+		const job = this.warmJobs.find((j) => j.state === 'queued' || j.state === 'running');
+		if (!job) return;
+		const budget = W.budgetMs - spentMs;
+		if (budget <= 0.25) return;
+		const t0 = performance.now();
+		if (job.faceKey !== this.faceKey || !job.back) this.warmSetup(job);
+		job.state = 'running';
+		job.frames += 1;
+		const every = Math.max(1, Math.round(W.coarseEvery));
+		for (;;) {
+			if (job.next >= job.order.length) {
+				if (job.coarseDone) break;
+				// the steps beside every coarse sample that still made something
+				job.coarseDone = true;
+				const coarse = new Set(job.order);
+				const fine = new Set<number>();
+				for (const c of job.order)
+					if ((job.madeAt.get(c) ?? 0) > 0)
+						for (let d = 1; d < every; d++) for (const i of [c - d, c + d]) if (i >= 0 && i < job.times.length && !coarse.has(i)) fine.add(i);
+				job.order.push(...[...fine].sort((a, b) => a - b));
+				continue;
+			}
+			const left = budget - (performance.now() - t0);
+			if (left <= 0) break;
+			const i = job.order[job.next];
+			const r = warmRun(left, () => this.warmDraw(job, job.times[i]));
+			job.made += r.misses;
+			job.madeAt.set(i, (job.madeAt.get(i) ?? 0) + r.misses);
+			if (r.error) {
+				const ms = performance.now() - t0;
+				job.ms += ms;
+				this.warmEnd(job, 'failed', String((r.error as Error)?.message ?? r.error).slice(0, 120));
+				return;
+			}
+			if (!r.done) break;
+			job.samples += 1;
+			job.next += 1;
+		}
+		const ms = performance.now() - t0;
+		job.ms += ms;
+		job.maxFrameMs = Math.max(job.maxFrameMs, ms);
+		if (job.coarseDone && job.next >= job.order.length) this.warmEnd(job, 'done', 'every sample drawn');
+	}
+	/** DEV / probe: the cards made ahead (queued, running, the last finished) */
+	warmInfo() {
+		const now = performance.now();
+		return this.warmJobs.map((j) => ({ kind: j.kind, state: j.state, why: j.why, samples: j.samples, of: j.order.length, steps: j.times.length, made: j.made, ms: Math.round(j.ms * 10) / 10, frames: j.frames, maxFrameMs: Math.round(j.maxFrameMs * 10) / 10, agoMs: Math.round(now - j.queuedAt), tookMs: j.doneAt === null ? null : Math.round(j.doneAt - j.queuedAt), used: j.used, amount: j.req.amount, spins: j.req.spins }));
+	}
+	/** DEV / probe: the last shows as they came up (performance.now()) and how far their card's warm had got */
+	showMarks(): ShowMark[] {
+		return this.marks.map((m) => ({ ...m }));
 	}
 	/** a press on the card: true when it landed the scene (the card stays up), false when the press should continue */
 	cardPress(): boolean {
@@ -1000,7 +1165,10 @@ export class Scoreboard {
 		this.place();
 		// the dots' content: re-drawn and re-sent at LED_BOARD.fps (an LED controller's refresh), not every frame
 		const step = Math.floor((this.clock * LED_BOARD.fps) / 1000);
-		if (step === this.stepAt) return;
+		if (step === this.stepAt) {
+			this.warmStep(0);
+			return;
+		}
 		this.stepAt = step;
 		const t0 = performance.now();
 		this.drawStrip();
@@ -1008,8 +1176,11 @@ export class Scoreboard {
 		// (a hidden back board draws nothing: its last step's idea records go with it, so a read while it is down never
 		// reports the scene before; the probe host, 2026-11-20: the Super tease's red presents read on a Free Spins rise)
 		else if (this.back) clearIdeas(this.back.F.out.ctx.canvas);
-		this.cost.drawMs = Math.round((performance.now() - t0) * 100) / 100;
+		const drawn = performance.now() - t0;
+		this.cost.drawMs = Math.round(drawn * 100) / 100;
 		this.cost.steps += 1;
+		// a card made ahead, in what is left of the frame's share (LED_BOARD.warm.budgetMs)
+		this.warmStep(drawn);
 	}
 
 	/** THE SCATTER COUNT (constants LED_BOARD.scatterCount): it starts when the road says the spin is in anticipation, ticks
@@ -1252,6 +1423,12 @@ export class Scoreboard {
 		clearTitle(F.out.ctx.canvas);
 		clearIdeas(F.out.ctx.canvas);
 		if (!s) return this.publish(G, 1);
+		this.paintBack(F, s);
+		this.publish(G, brightOf(s));
+	}
+	/** THE BACK BOARD'S PICTURE of show `s` on face `F` (its records cleared first): the real face each step, and a card made
+	 *  ahead on its scratch face (warmStep), the same code for both */
+	private paintBack(F: Face, s: Show) {
 		// the press screen's explainer screens (2026-11-17), else the show's staged scene
 		clearExplain(F.out.ctx.canvas);
 		const X = LED_BOARD.explain;
@@ -1273,7 +1450,6 @@ export class Scoreboard {
 		if (s.t > s.exitAt) powerOffFace(F, Math.min(1, (s.t - s.exitAt) / LED_BOARD.rise.powerDownMs));
 		borderGlint(F, this.clock / 1000);
 		if (LED_BOARD.effects.band) shimmer(F.out.ctx, F.dotsW, F.dotsH, this.clock / 1000);
-		this.publish(G, brightOf(s));
 	}
 
 	/** the dots to the GPU: the face's picture, and its half size halo */
@@ -1377,12 +1553,15 @@ export class Scoreboard {
 			left: this.left,
 			cost: { ...this.cost },
 			gpuBytes: this.gpuBytes(),
+			/** THE CARDS MADE AHEAD (constants LED_BOARD.warm) */
+			warm: this.warmInfo(),
 			cover: { a: this.coverA.children.length, b: this.coverB.children.length, snap: this.coverSnap.children.length },
 			log: this.log.slice(-40),
 		};
 	}
 
 	destroy() {
+		for (const j of this.warmJobs) if (j.state === 'queued' || j.state === 'running') this.warmEnd(j, 'dropped', 'the board is gone');
 		for (const w of this.waits.values()) {
 			clearTimeout(w.timer);
 			w.resolve();

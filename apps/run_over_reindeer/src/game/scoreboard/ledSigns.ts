@@ -11,6 +11,8 @@
 //                     by hand in its 7 row cell (SENTENCE_SIGNS), read by ledScreens' grid1 when its own table has no letter.
 // Pure data and arithmetic: no DOM until a sign is asked for as a canvas (ledSignCanvas), no filter, shader, mask or blob URL.
 
+import { warmGate } from './warmGate';
+
 // ---- THE AMOUNT FACE: outlines in the font's units ------------------------------------------------------------------------
 /** a rectangle, a polygon, an elliptical ring's arc (centre, outer radii, the stroke across x and y, from a0 to a1 degrees
  *  counter clockwise from +x), a straight stroke of width w with square ends, a filled ellipse */
@@ -323,6 +325,19 @@ function gridFit(o: Outline, cap: number): Outline {
 /** the advance of a sign at a cap: the outline's in the font's scale (cap / 0.72 px to the em, as vglyph sets the font) */
 const advAt = (o: Outline, cap: number) => Math.ceil((o.adv * cap) / 0.72 / 1000);
 
+/** a hand set sign's advance at a cap (its own, else its widest row) */
+const handAdv = (hand: Hand) => hand.adv ?? Math.max(...hand.rows.map((r) => r.length));
+/** A SIGN'S ADVANCE ALONE at a cap (null: not one of the signs here), exactly signDots' `adv`, without counting a dot: the
+ *  amount's size searches (scoreboardDraw.ts rowInfo, fitCap) ask a width at every cap they try, and counting a sign's dots
+ *  at each of 40 caps was most of the Total Win card's 400 ms first frame (2026-11-22, wip/ledhitch) */
+export function signAdv(ch: string, cap: number): number | null {
+	const o = AMOUNT_OUTLINES[ch];
+	if (!o) return null;
+	cap = Math.max(1, Math.round(cap));
+	const hand = AMOUNT_HAND[ch]?.[cap];
+	return hand ? handAdv(hand) : advAt(o, cap);
+}
+
 const dotsCache = new Map<string, SignDots>();
 /** a sign's dots at a cap (null: not one of the signs here) */
 export function signDots(ch: string, cap: number): SignDots | null {
@@ -332,8 +347,10 @@ export function signDots(ch: string, cap: number): SignDots | null {
 	const key = ch + '|' + cap;
 	const got = dotsCache.get(key);
 	if (got) return got;
+	// (a dot count is the costly part: a card being made ahead of time yields here when its frame's time is up, warmGate.ts)
+	warmGate();
 	const hand = AMOUNT_HAND[ch]?.[cap];
-	const adv = hand?.adv ?? (hand ? Math.max(...hand.rows.map((r) => r.length)) : advAt(o, cap));
+	const adv = hand ? handAdv(hand) : advAt(o, cap);
 	const w = adv + 2;
 	const h = Math.ceil(cap * 1.4) + 2;
 	const a = new Uint8ClampedArray(w * h);
@@ -370,6 +387,8 @@ export function ledSignCanvas(ch: string, cap: number): { c: SignCv; adv: number
 	const key = ch + '|' + cap;
 	const got = cvCache.get(key);
 	if (got) return got;
+	if (!(ch in AMOUNT_OUTLINES)) return null;
+	warmGate();
 	const d = signDots(ch, cap);
 	if (!d) return null;
 	const c = document.createElement('canvas') as SignCv;

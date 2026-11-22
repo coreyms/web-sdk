@@ -114,6 +114,36 @@ const enterBonus = (bookEvent: BookEventOfType<'freeSpinTrigger'>, music = true)
 	devMark('music', stateGame.bonusMode === 'super' ? 'bgm_super' : 'bgm_bonus');
 };
 
+/** THE WRAP-UP'S TOTAL AND CAP as freeSpinEnd puts them on its card (see there), from the book: `cappedNow` the cap already
+ *  played (stateGame.capped); the card made ahead (below) reads the cap from the whole book, as the round will have played it */
+const wrapUpOf = (bookEvent: BookEventOfType<'freeSpinEnd'>, bookEvents: BookEvent[], cappedNow: boolean) => {
+	const after = bookEvents.slice(bookEvents.indexOf(bookEvent) + 1);
+	const capped = cappedNow || after.some((e) => e.type === 'wincap');
+	const fin = after.find((e) => e.type === 'finalWin');
+	return { amount: fin && fin.type === 'finalWin' ? fin.amount : bookEvent.amount, capped };
+};
+
+/** THE LED BOARD'S CARDS MADE AHEAD (constants LED_BOARD.warm, game/scoreboard/warmGate.ts): the book holds the bonus round's
+ *  cards before they come up; the board draws each ahead of time on a scratch face, a little each frame, so the pictures it
+ *  needs are made before it comes up (the Total Win card's first frame was 400 ms on a phone). The entry from the trigger
+ *  spin's reveal (its spins and presents are the trigger's), the Total Win from the first free spin's reveal (the bonus's
+ *  own speed by then; its amount and cap as freeSpinEnd will show them). Nothing waits on it. */
+let warmedBook: BookEvent[] | null = null;
+const prepareCards = (bookEvent: BookEventOfType<'reveal'>, bookEvents: BookEvent[] | undefined) => {
+	if (!bookEvents || !LED_BOARD.on || LED_BOARD.cards !== 'board' || !LED_BOARD.warm.on) return;
+	const trigger = bookEvents.find((e) => e.type === 'freeSpinTrigger');
+	const end = bookEvents.find((e) => e.type === 'freeSpinEnd');
+	if (!trigger || trigger.type !== 'freeSpinTrigger') return;
+	if (bookEvent.gameType === 'basegame') {
+		eventEmitter.broadcast({ type: 'boardScoreboardPrepare', cards: [{ kind: trigger.bonusType === 'super' ? 'sfs' : 'fs', spins: trigger.totalFs, amount: 0, presents: trigger.cells.length }] });
+		return;
+	}
+	if (warmedBook === bookEvents || !end || end.type !== 'freeSpinEnd') return;
+	warmedBook = bookEvents;
+	const w = wrapUpOf(end, bookEvents, bookEvents.slice(0, bookEvents.indexOf(end)).some((e) => e.type === 'wincap'));
+	eventEmitter.broadcast({ type: 'boardScoreboardPrepare', cards: [{ kind: 'total', spins: 0, amount: w.amount, capped: w.capped }] });
+};
+
 export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContext> = {
 	reveal: async (bookEvent: BookEventOfType<'reveal'>, context: BookEventContext) => {
 		// THE SCENE SWAP (game/scene/sceneSwap.ts): a base spin whose book holds a trigger starts loading its night scene now,
@@ -122,6 +152,7 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 			const trigger = (context?.bookEvents ?? []).find((e) => e.type === 'freeSpinTrigger');
 			if (trigger && trigger.type === 'freeSpinTrigger') sceneHooks.prefetch(presetForMode(trigger.bonusType === 'super' ? 'super' : 'bonus', stateScene.set));
 		}
+		prepareCards(bookEvent, context?.bookEvents);
 		// A SLAM STOP HURRIES ITS OWN SPIN ONLY (2026-11-17, Corey: "if you click on the board during free spins, or super
 		// free spins all of the free spins are speed up, instead of the current spin only"). The slam (ui/controls.svelte.ts
 		// stopButtonClick) sets the hurry and takes the stop for the rest of the round, and only the round's end
@@ -296,21 +327,19 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 	},
 	freeSpinEnd: async (bookEvent: BookEventOfType<'freeSpinEnd'>, { bookEvents }: BookEventContext) => {
 		// the book writes wincap AFTER freeSpinEnd: the card needs to know now
-		const after = bookEvents.slice(bookEvents.indexOf(bookEvent) + 1);
-		const capped = stateGame.capped || after.some((e) => e.type === 'wincap');
 		// THE WRAP-UP'S TOTAL IS THE ROUND'S (2026-11-17, the owner: the board read 45.20 while the HUD's WIN read 45.70):
 		// the book's own round total, finalWin (the trigger spin's win with the free spins', the figure the HUD's WIN ends
 		// on), not freeSpinEnd's (the free spins alone). Read from the book, never added up here; a book without a finalWin
-		// after this event keeps freeSpinEnd's.
-		const fin = after.find((e) => e.type === 'finalWin');
+		// after this event keeps freeSpinEnd's. (wrapUpOf, shared with the card made ahead)
+		const wrap = wrapUpOf(bookEvent, bookEvents, stateGame.capped);
 		// the last board alone for a beat before the Total Win: 350 ms on the road's pace; after a SKIP TO RESULT 350 ms of real
 		// time (Manticore's FEATURE_PACING.beforeWrapMs: the skip's slam hurry made the paced beat about 120 ms)
 		await (stateGame.skipTaken ? waitForTimeout(350) : pace(350));
 		await showCard({
 			kind: 'outro',
 			bonus: stateGame.bonusMode ?? 'bonus',
-			amount: fin && fin.type === 'finalWin' ? fin.amount : bookEvent.amount,
-			capped,
+			amount: wrap.amount,
+			capped: wrap.capped,
 		});
 		stateGame.gameType = 'basegame';
 		stateGame.bonusMode = null;
