@@ -69,6 +69,14 @@ for (const x of [15, 20, 24.99]) {
 }
 // the creature's clip tier (game/creatureLoad.ts: level - 6) is the plaque's tier
 for (const [x, want] of FEAT.filter(([, t]) => t >= 0)) check(W.getFeatureSpinWinLevelData({ bookEventAmount: book(x), mode: 'super' }).level - 6 === want, `free spin ${x}x creature clip tier ${want}`);
+// and on the BASE ladder (2026-11-21, after Decimus's texture fails on c12e9094): the clip a base book reads ahead
+// (winsOfBook: getWinLevelDataByBookEventAmount level - 6) is the tier the plaque's count stops on and cheers at
+// (Win.svelte tierIndexOfAlias -> StingerPlaque cap), so no sheet is loaded for a tier whose clip never plays; the
+// stinger_flow probe's synthetic amounts included (250x Super, 600x Mega, 2000x Epic, 10000x Max: no clip)
+for (const [x, want] of [...BASE.filter(([, t]) => t >= 0), [250, 1], [600, 2], [2000, 3]]) {
+	const d = W.getWinLevelDataByBookEventAmount({ bookEventAmount: book(x) });
+	check(d.level - 6 === want && W.tierIndexOfAlias(d.alias) === want, `base ${x}x creature clip tier ${want} is the plaque's tier`, { level: d.level, alias: d.alias });
+}
 
 // ---- the count, as StingerPlaque's flow.win and stepCount run it -----------------------------------------------------
 // returns the tiers the plaque shows in order (the opening one first), the amount at each step and the impact's clip
