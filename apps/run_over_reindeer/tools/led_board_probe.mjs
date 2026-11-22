@@ -15,7 +15,7 @@
 // WATCHES: ; SHOWCASE_ROUNDS, sfx_win_*, sfx_win_big, sfx_win_epic, sfx_win_max, sfx_win_mega, sfx_win_super, data-round-card, data-round-board
 // WATCHES: ; .landing, .hudp, .spin, .am-ui, .wrap, .layer, .modals, .go
 // WATCHES: apps/run_over_reindeer/src/game/currency.ts;
-// WATCHES: apps/run_over_reindeer/src/{game/scoreboard/scoreboard.ts,game/scoreboard/warmGate.ts,game/scoreboard/cardFrames.ts,game/scoreboard/ledSigns.ts}; LED_BOARD.warm, __reindeer.cardFrames, __reindeer.scoreboardWarm
+// WATCHES: apps/run_over_reindeer/src/{game/scoreboard/scoreboard.ts,game/scoreboard/warmGate.ts,game/scoreboard/cardFrames.ts,game/scoreboard/ledSigns.ts}; LED_BOARD.warm, __reindeer.cardFrames, __reindeer.scoreboardWarm, data-wheel-gate
 // THE LED SCOREBOARD PROBE (part A, 2026-11-17; bigwin_led_r3_2026-11-16 "r3b"; constants LED_BOARD, game/scoreboard/). At each size:
 //   - THE STRIP'S RULE per layout class, worked out here from the game's own geometry (the road picture's place, the board,
 //     the HUD's layout functions): desktop and tablet 0.62 of the road picture, centred on the window, top the bottom lane
@@ -2356,9 +2356,19 @@ async function hitchChecks(browser) {
 			await R(p, () => window.__reindeer.turbo(0));
 			const cdp = await ctx.newCDPSession(p);
 			await cdp.send('Emulation.setCPUThrottlingRate', { rate });
+			// THE WINDOWS ARE READ WHILE THE ROUNDS PLAY (2026-11-22, Decimus: the table read all zeros): the hook keeps the last
+			// 8192 frames (game/scoreboard/cardFrames.ts, about 136 s at 60 fps), so a window read only after both rounds had
+			// been written over. Each show's window is kept once it is 1.5 s old (its window closed), by the show's id.
+			const kept = new Map();
+			const readMarks = async () => {
+				const o = await R(p, () => ({ now: performance.now(), marks: window.__reindeer.cardFrames(1000, 1000) }));
+				for (const m of o.marks) if (!kept.has(m.id) && o.now - m.at > 1500) kept.set(m.id, m);
+			};
+			let lastRead = 0;
 			for (const name of ['natural_free_spins', 'natural_super']) {
 				let waitsAt = null;
 				let pressed = false;
+				let gateAt = null;
 				const res = await playRound(p, name, {
 					limit: 150000 * Math.max(1, rate / 2),
 					during: async (s, ms) => {
@@ -2370,17 +2380,37 @@ async function hitchChecks(browser) {
 								await p.mouse.click(S.vp.width / 2, S.vp.height * 0.3);
 							}
 						}
+						// THE SUPER WHEEL waits for its press after the Super entry (ui/WheelGate.svelte, as the scatter section
+						// presses it): pressed once it has waited 0.6 s, again each 1.5 s while it is still up
+						const gate = await R(p, () => !!document.querySelector('button[data-wheel-gate]'));
+						if (!gate) gateAt = null;
+						else {
+							gateAt ??= ms;
+							if (ms - gateAt > 600) {
+								await R(p, () => document.querySelector('button[data-wheel-gate]')?.click());
+								gateAt = ms + 900;
+							}
+						}
+						if (ms - lastRead > 2000) {
+							lastRead = ms;
+							await readMarks();
+						}
 					},
 				});
 				check(res.ok, `${tag}: ${name} played to its end (${Math.round(res.ms / 1000)} s)`, res.seen.slice(-4));
+				lastRead = 0;
+				await sleep(1600);
+				await readMarks();
 			}
 			await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
-			const marks = await R(p, () => window.__reindeer.cardFrames(1000, 1000));
+			const marks = [...kept.values()].sort((a, b) => a.at - b.at);
 			const warm = await R(p, () => window.__reindeer.scoreboardWarm());
 			for (const m of marks) table.push({ rate, kind: m.kind, worstMs: m.worstMs, worstAfterMs: m.worstAfterMs, over33: m.over33, over50: m.over50, over100: m.over100, frames: m.frames, warm: m.warm });
 			const cards = marks.filter((m) => m.kind === 'fs' || m.kind === 'sfs' || m.kind === 'total');
 			check(cards.filter((m) => m.kind === 'total').length >= 2 && cards.some((m) => m.kind === 'fs') && cards.some((m) => m.kind === 'sfs'), `${tag}: the Free Spins entry, the Super entry and both Total Wins came up (${cards.map((m) => m.kind).join(', ')})`, marks.map((m) => m.kind));
 			const lim = HITCH_LIMIT[rate];
+			// (a window with no frames recorded is no measurement: it never reads as a pass)
+			for (const m of marks) check(m.frames > 0, `${tag}: ${m.kind} (show ${m.id}): ${m.frames} frames recorded round it (a window of none is no measurement)`, m);
 			for (const m of cards) {
 				const say = `${tag}: ${m.kind}: the longest frame from 1 s before it came up to 1 s after ${m.worstMs} ms, ending ${m.worstAfterMs} ms after it (${m.over33} over 33 ms, ${m.over100} over 100 ms; made ahead: ${m.warm})`;
 				if (lim !== undefined) check(m.worstMs <= lim, `${say}, at most ${lim}`, m);
