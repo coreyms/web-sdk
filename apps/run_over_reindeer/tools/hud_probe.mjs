@@ -1630,7 +1630,8 @@ async function flip(browser) {
  *    round), a free spins round to its Total Win (SKIPFS=1 leaves it out), a press made in the frame the key turns from
  *    Stop to Spin, the Space bar, an autoplay run to its own end and a resumed round (Play Round)
  *  Pass, for every round: from the frame the board is at rest (__reindeer.atRest) the key reads Spin, and once the change
- *  is SPIN_TAIL.flipGraceMs old pressReady is true; the press there read Spin and pressReady and started the next round
+ *  is SPIN_TAIL.flipGraceMs old pressReady is true; a press inside the grace (the "+0" presses) started no
+ *  round and a later press did; otherwise the press read Spin and pressReady and started the next round
  *  (a play sent within 4 s); WIN at the press is the round's total as it was at rest (the book's); the strip's small
  *  count stands on its final amount after the press; the wallet took the round's win once (the fixture RGS's balance is
  *  the plays' sum, the end-rounds as many as the paying rounds) and BALANCE reads it; the old round's count is never seen
@@ -1774,7 +1775,17 @@ async function tailRound(p, S, c) {
 		check(false, `tail ${tag}: the board came to rest`);
 		return;
 	}
-	const press = await tailPress(p, rest.at, flipPress ? 100 : ms, key);
+	let press = await tailPress(p, rest.at, flipPress ? 100 : ms, key);
+	// THE GRACE (2026-11-22, Decimus's run of 88392637: the "+0" presses landed 1 to 2 ms after the change): a press inside
+	// SPIN_TAIL.flipGraceMs of the change from Stop to Spin was aimed at the Stop shown, so it lands the readout and starts
+	// no round; a press on Spin after it starts one. (A "+0" press on a machine already idle, no win, is an ordinary press.)
+	let grace = null;
+	if (!press.pre.idle && press.pre.tail?.tail && !press.pre.ready) {
+		grace = press;
+		await sleep(400);
+		grace.later = await p.evaluate(() => ({ plays: window.__reindeer.fixtures.log().plays.length, tail: window.__reindeer.spinTail?.() ?? null }));
+		press = await tailPress(p, rest.at, grace.pre.t + 400, key);
+	}
 	let started = false;
 	for (let i = 0; i < 80 && !started; i++) {
 		started = (await playsNow(p)) >= w0.plays.length + 2;
@@ -1792,7 +1803,11 @@ async function tailRound(p, S, c) {
 	const notReady = atRest.filter((r) => r.t >= rest.at + TAIL_GRACE + 20 && !r.ready);
 	check(notSpin.length === 0, `tail ${tag}: from the frame the board is at rest the key reads Spin (${atRest.length} frames before the press, ${atRest.filter((r) => !r.idle).length} of them in the tail)`, notSpin.slice(0, 3));
 	check(notReady.length === 0, `tail ${tag}: from ${TAIL_GRACE} ms after the change pressReady is true`, notReady.slice(0, 3));
-	// 2. the press read Spin and pressReady, and started the next round
+	if (grace) {
+		check(grace.pre.act === 'Spin' && !grace.pre.ready && grace.later.plays === w0.plays.length + 1 && !grace.later.tail?.kept, `tail ${tag}: the press ${Math.round(grace.pre.t)} ms after rest, inside the ${TAIL_GRACE} ms grace (pressReady false), started no round`, { pre: grace.pre, later: grace.later });
+		if (grace.led && grace.led.kind === 'small') check(grace.led.amount === grace.led.fin, `tail ${tag}: the grace press landed the strip's count on its amount (${grace.led.amount} of ${grace.led.fin})`, grace.led);
+	}
+	// 2. the press read Spin and pressReady, and started the next round (after a grace press: the later press)
 	check(press.pre.act === 'Spin' && press.pre.ready, `tail ${tag}: the press ${Math.round(press.pre.t)} ms after rest read Spin and pressReady (${press.pre.idle ? 'machine idle' : 'in the tail'}${key ? ', Space bar' : ''})`, press.pre);
 	check(started && !!p2 && p2.name === 'no_win_1', `tail ${tag}: the press started the next round`, { started, p2 });
 	// 3. the round's win: WIN at the press is its total as at rest; the strip's count stands on its amount
@@ -1848,7 +1863,6 @@ async function tailSection(browser) {
 	await sleep(300);
 	await p.click('.am-ui.layer.modals .go');
 	await sleep(700);
-	const count = await p.evaluate(() => window.__reindeer.hud.autoLimits().count);
 	await tailRecStart(p);
 	await p.click(CONTROLS.spin);
 	await sleep(1500);
@@ -1857,6 +1871,9 @@ async function tailSection(browser) {
 	await p.evaluate(() => window.__reindeer.fixtures.clear?.());
 	const arows = await tailRecStop(p);
 	const a1 = await wallet(p);
+	// (the loaded count: the run's counter is set by the Spin press that starts it, ui/controls.svelte.ts startLoadout, and
+	// counts down after each round, so its largest value over the run is the count loaded; before the press it reads 0)
+	const count = Math.max(0, ...arows.map((r) => r.auto));
 	const inRun = arows.filter((r) => r.auto > 0);
 	const spinInRun = inRun.filter((r) => actAt(r) === 'Spin');
 	check(inRun.length > 0 && spinInRun.length === 0, `tail autoplay: the key never read Spin while the run had spins left (${spinInRun.length} of ${inRun.length} frames)`, spinInRun.slice(0, 3));
