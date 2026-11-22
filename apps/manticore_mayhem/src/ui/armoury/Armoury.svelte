@@ -2404,6 +2404,27 @@
 	}
 	.arm.lay-desktop .tray {
 		justify-content: center;
+		isolation: isolate;
+	}
+	/* THE SLAB REACHES THE SCREEN EDGES (Corey 2026-11-22: "Make the Brown Bar under the feature bars go all the way to
+	   the screen edges"). The frame is 16:9 and centred, so on a wider window the slab stopped short at both sides. The
+	   same slab (fill, brass rules, inner shine) is drawn again behind the tiles, 4000 design px past each side; the
+	   window clips it. The tiles, their places and the frame are untouched */
+	.arm.lay-desktop .tray::before {
+		content: '';
+		position: absolute;
+		z-index: -1;
+		top: -2px;
+		bottom: -2px;
+		left: -4000px;
+		right: -4000px;
+		pointer-events: none;
+		background: linear-gradient(180deg, var(--tray-hi), var(--tray-lo));
+		border-top: 2px solid var(--brass-lo);
+		border-bottom: 2px solid var(--brass-deep);
+		box-shadow:
+			inset 0 3px 0 var(--iron-deep),
+			inset 0 4px 0 var(--shine-30);
 	}
 	.arm.lay-desktop .tile {
 		flex: none;
