@@ -180,10 +180,53 @@
 		}
 		active = current;
 	};
+	// THE TAB STRIP ON A SMALL WINDOW (layout survey 2026-11-22, Corey "AO Yes"): the seven tabs ran off the right edge
+	// at 400 x 225, 320 x 568 and 375 x 667 with nothing to say more were there. It stays ONE scrolling row (wrapped, it
+	// took three rows and a quarter of a small phone's height, against the compact header of COMPARISON.md fix 6) and
+	// shows a cue at each end that has more: a fade with the modal chevron in gold, which pages the strip when pressed;
+	// a mouse wheel scrolls it sideways too. The cue is measured on open, on a resize of the strip or a tab, and on its
+	// scroll, never per frame.
+	let cueL = $state(false);
+	let cueR = $state(false);
+	const readCue = () => {
+		if (!navEl) {
+			cueL = cueR = false;
+			return;
+		}
+		const max = navEl.scrollWidth - navEl.clientWidth;
+		cueL = max > 2 && navEl.scrollLeft > 2;
+		cueR = max > 2 && navEl.scrollLeft < max - 2;
+	};
+	const pageTabs = (dir: -1 | 1) => navEl?.scrollBy({ left: dir * Math.max(80, navEl.clientWidth * 0.6), behavior: 'smooth' });
+	$effect(() => {
+		const el = navEl;
+		void tabSize;
+		if (!el) return;
+		readCue();
+		const ro = new ResizeObserver(() => readCue());
+		ro.observe(el);
+		for (const t of el.querySelectorAll('.tab')) ro.observe(t);
+		// a vertical wheel over the one row strip scrolls it sideways (a mouse has no sideways wheel)
+		const onWheel = (e: WheelEvent) => {
+			if (el.scrollWidth <= el.clientWidth + 2 || Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
+			e.preventDefault();
+			el.scrollLeft += e.deltaY;
+		};
+		el.addEventListener('wheel', onWheel, { passive: false });
+		return () => {
+			ro.disconnect();
+			el.removeEventListener('wheel', onWheel);
+		};
+	});
+	// the active tab is brought into the strip's view as the page scrolls (only the strip moves: scrollIntoView would also
+	// move every scrollable box above it)
 	$effect(() => {
 		if (!navEl) return;
 		const tab = navEl.querySelector(`[data-tab="${active}"]`) as HTMLElement | null;
-		tab?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+		if (!tab) return;
+		// .tabs is positioned, so a tab's offsetLeft is in the strip's own scroll space
+		const left = tab.offsetLeft - (navEl.clientWidth - tab.offsetWidth) / 2;
+		navEl.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
 	});
 
 	const pad = $derived(short ? 10 : dense ? 14 : 28);
@@ -238,10 +281,14 @@
 			<button class="slot-btn x" onclick={close} style:width="{lowHead ? 30 : 40}px" style:height="{lowHead ? 30 : 40}px" aria-label="Close"><Icon name="close" s={lowHead ? 14 : dense ? 16 : 18} /></button>
 		</div>
 
-		<div class="tabs" bind:this={navEl} style:padding="4px {pad - 8}px">
-			{#each SECTIONS as s (s.id)}
-				<button class="slot-btn tab" class:on={active === s.id} data-tab={s.id} onclick={() => jump(s.id)} style:padding={lowHead ? '7px 8px 6px' : dense ? '9px 9px 8px' : '10px 12px 9px'} style:font-size="{tabSize}px">{s.label}</button>
-			{/each}
+		<div class="tabbar">
+			<div class="tabs" bind:this={navEl} onscroll={readCue} style:padding="4px {pad - 8}px">
+				{#each SECTIONS as s (s.id)}
+					<button class="slot-btn tab" class:on={active === s.id} data-tab={s.id} onclick={() => jump(s.id)} style:padding={lowHead ? '7px 8px 6px' : dense ? '9px 9px 8px' : '10px 12px 9px'} style:font-size="{tabSize}px">{s.label}</button>
+				{/each}
+			</div>
+			{#if cueL}<button class="slot-btn tcue l" tabindex="-1" aria-label="Earlier sections" onclick={() => pageTabs(-1)}><Icon name="chevronLeft" s={16} /></button>{/if}
+			{#if cueR}<button class="slot-btn tcue r" tabindex="-1" aria-label="More sections" onclick={() => pageTabs(1)}><Icon name="chevronRight" s={16} /></button>{/if}
 		</div>
 
 		<div class="content" class:dense bind:this={contentEl} onscroll={onScroll} style:padding="{short ? 12 : dense ? 16 : 22}px {pad}px 40px" style:gap="{short ? 24 : dense ? 36 : 52}px" style:font-size="{bodySize}px">
@@ -480,18 +527,57 @@
 	.x:hover {
 		background: var(--ui-glass-well-2);
 	}
-	/* tab strip: underlined text, gold on the active one — eleven fit in one row on desktop, scroll on portrait */
+	/* tab strip: underlined text, gold on the active one. One row; where it does not fit it scrolls sideways with a cue
+	   at each end that has more (.tcue) */
+	.tabbar {
+		position: relative;
+		flex: 0 0 auto;
+		border-bottom: 1px solid var(--rule);
+	}
 	.tabs {
+		position: relative;
 		display: flex;
 		gap: 2px;
-		flex: 0 0 auto;
 		overflow-x: auto;
 		overflow-y: hidden;
-		border-bottom: 1px solid var(--rule);
 		scrollbar-width: none;
 	}
 	.tabs::-webkit-scrollbar {
 		display: none;
+	}
+	/* the cue: 44 CSS px wide over the strip's end, the glass fading in over the tabs that run on, the gold chevron at
+	   the edge. Its touch area is 44 x 44 (::after), centred on the strip */
+	.tcue {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		width: 44px;
+		padding: 0 4px;
+		border: 0;
+		border-radius: 0;
+		display: flex;
+		align-items: center;
+		color: var(--gold);
+		z-index: 1;
+	}
+	.tcue::after {
+		content: '';
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 50%;
+		height: 44px;
+		transform: translateY(-50%);
+	}
+	.tcue.l {
+		left: 0;
+		justify-content: flex-start;
+		background: linear-gradient(90deg, rgba(12, 12, 16, 0.97) 45%, rgba(12, 12, 16, 0));
+	}
+	.tcue.r {
+		right: 0;
+		justify-content: flex-end;
+		background: linear-gradient(270deg, rgba(12, 12, 16, 0.97) 45%, rgba(12, 12, 16, 0));
 	}
 	.tab {
 		flex: 0 0 auto;

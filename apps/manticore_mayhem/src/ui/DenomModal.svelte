@@ -25,6 +25,8 @@
 
 	const open = $derived(stateModal.modal?.name === 'betAmountMenu');
 	const close = () => (stateModal.modal = null);
+	/** the grid's row gap, CSS px (the same as its column gap, GAP below) */
+	const GAP_Y = 6;
 	// state-shared's correctBetAmount clamps any pick to balance ÷ costMultiplier ('activate' modes
 	// only, mirroring its betCostMultiplier) — an unaffordable option would silently land on an
 	// off-menu amount that the next spin posts and the RGS rejects into a reload-only error. Grey
@@ -56,7 +58,16 @@
 	const cardWidth = $derived(Math.min(CARD_MAX, vw - 2 * MARGIN));
 	// touch: 44 CSS px rows everywhere a finger can reach them; only the tiny popout drops below
 	const rowH = $derived(tiny ? 30 : 44);
-	const gridMaxH = $derived(vh * (tiny ? 0.52 : 0.56));
+	// THE GRID'S HEIGHT LANDS ON A ROW (layout survey 2026-11-22, Corey "AO Yes"): a share of the window cut the fourth
+	// row in half at 400 x 225. The height is now a whole number of rows (the cut falls in a gap), and a gold chevron on
+	// the well's edge shows where more rows wait (`more`). On Stake's Popout S band the card takes what the window has
+	// (the window less the card's own chrome, TINY_CHROME), which buys the fourth row there; elsewhere the old share.
+	// TINY_CHROME mirrors the CSS: .tiny padding 8 + 8, the head 26 (the 26 px close), one 6 px gap, the well's border
+	// and padding 7 + 7, and 4 px of air.
+	const TINY_CHROME = 8 + 26 + 6 + 14 + 8 + 4;
+	const gridRoom = $derived(vh < 300 ? vh - 2 * MARGIN - TINY_CHROME : vh * (tiny ? 0.52 : 0.56));
+	const gridRows = $derived(Math.max(1, Math.floor((gridRoom + GAP_Y) / (rowH + GAP_Y))));
+	const gridMaxH = $derived(gridRows * rowH + (gridRows - 1) * GAP_Y);
 	const nominalFont = $derived(tiny ? 13 : tight ? 15 : 17);
 
 	// Card + tag geometry, mirroring the CSS below so the fit measures the REAL usable width inside
@@ -67,7 +78,7 @@
 	const GUTTER = 4; // .grid padding-right (scrollbar gutter)
 	const TAG = 4 + 1; // .opt padding-inline + border, per side
 	const AIR = 4; // breathing room either side of the label inside its tag
-	const GAP = 6;
+	const GAP = GAP_Y;
 	const WELL = $derived((tight ? 2 : 3) + 6); // .block border + padding, per side
 	const usable = $derived(cardWidth - 2 * CARD_PAD - 2 * WELL - GUTTER);
 
@@ -100,6 +111,32 @@
 	// 9 px is the hard floor the review set for modal text; the comfort walk above keeps the real
 	// size well over it for every ladder the RGS can send.
 	const labelFont = $derived(Math.max(9, Math.floor(fontFor(cols) * 10) / 10));
+
+	// the scroll cue: which edges of the grid have rows past them. Read on open, on a resize, when the ladder or the
+	// columns change and on the grid's scroll; never per frame
+	let gridEl: HTMLDivElement | undefined = $state();
+	let moreUp = $state(false);
+	let moreDown = $state(false);
+	const readMore = () => {
+		if (!gridEl) return;
+		const max = gridEl.scrollHeight - gridEl.clientHeight;
+		moreUp = max > 2 && gridEl.scrollTop > 2;
+		moreDown = max > 2 && gridEl.scrollTop < max - 2;
+	};
+	$effect(() => {
+		const el = gridEl;
+		void cols;
+		void gridMaxH;
+		void controls.betOptions().length;
+		if (!el) return;
+		const raf = requestAnimationFrame(readMore);
+		const ro = new ResizeObserver(() => readMore());
+		ro.observe(el);
+		return () => {
+			cancelAnimationFrame(raf);
+			ro.disconnect();
+		};
+	});
 </script>
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} zIndex={3}>
@@ -114,7 +151,7 @@
 			</div>
 
 			<div class="block">
-				<div class="grid" style:grid-template-columns="repeat({cols}, minmax(0, 1fr))" style:gap="{GAP}px" style:max-height="{gridMaxH}px">
+				<div class="grid" bind:this={gridEl} onscroll={readMore} style:grid-template-columns="repeat({cols}, minmax(0, 1fr))" style:gap="{GAP}px" style:max-height="{gridMaxH}px">
 					{#each controls.betOptions() as v (v)}
 						{@const selected = v === stateBet.betAmount}
 						{@const ok = affordable(v)}
@@ -124,6 +161,8 @@
 						</button>
 					{/each}
 				</div>
+				{#if moreUp}<i class="more up" aria-hidden="true"><Icon name="chevronRight" s={12} /></i>{/if}
+				{#if moreDown}<i class="more dn" aria-hidden="true"><Icon name="chevronRight" s={12} /></i>{/if}
 			</div>
 
 			<div class="cap">{soc('Amount per spin. Feature prices are multiples of this.', "Amount per play. Each mode's round is a multiple of this.")}</div>
@@ -194,10 +233,40 @@
 		background: var(--ui-glass-well-2);
 	}
 	.block {
+		position: relative;
 		background: var(--ui-glass-well);
 		border: 1px solid var(--ui-rule);
 		border-radius: 12px;
 		padding: 6px;
+	}
+	/* THE SCROLL CUE: a small chip on the well's top or bottom edge, a gold chevron pointing to the rows past it. It sits
+	   on the well's border and padding, never over a row, and takes no press (the grid scrolls by wheel, swipe or bar) */
+	.more {
+		position: absolute;
+		left: 50%;
+		width: 26px;
+		height: 14px;
+		margin-left: -13px;
+		border: 1px solid var(--ui-rule);
+		border-radius: 7px;
+		background: #141418;
+		color: var(--ui-gold);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		pointer-events: none;
+	}
+	.more.dn {
+		bottom: -7px;
+	}
+	.more.up {
+		top: -7px;
+	}
+	.more :global(svg) {
+		transform: rotate(90deg);
+	}
+	.more.up :global(svg) {
+		transform: rotate(-90deg);
 	}
 
 	/* ── the price tags ── */
