@@ -2058,7 +2058,8 @@ async function pressBoard(browser, S) {
 			const carMult = /carMult: '([^']+)'/.exec(consts)?.[1];
 			const P = W.pictures;
 			const tierFrames = [W.tiers.full.frames, W.tiers.phone.frames];
-			const want = ['santa', 'grandma', 'santa_mult_stripes', 'santa_mult_solid', 'grandma_mult_stripes', 'grandma_mult_solid', 'grandma_word_stripes', 'grandma_word_solid'];
+			// (santa_band: the grow's band strip over his right band, 2026-11-21)
+			const want = ['santa', 'santa_band', 'grandma', 'santa_mult_stripes', 'santa_mult_solid', 'grandma_mult_stripes', 'grandma_mult_solid', 'grandma_word_stripes', 'grandma_word_solid'];
 			check(P.santa.set === santaSet && P.grandma.set === cellSet && P.grandma.wordLook === wordLook && P.santa.text === sleighMult?.toLowerCase() && P.grandma.text === carMult?.toLowerCase() && tierFrames.every((f) => want.every((n) => f[n]?.w > 0)), `${tag}: PRESS: the Wild sheet holds Santa's column and the Grandma Wild with their numbers in the road's colors (${P.santa.set} ${P.santa.text}, ${P.grandma.set} ${P.grandma.text}; WILD_MULT ${santaSet}, ${cellSet}) and the ${P.grandma.wordLook} WILD (GRANDMA_BRAWL.word.look ${wordLook}), both looks, both tiers`, { pictures: P, santaSet, cellSet, wordLook });
 			const drawn = await R(p, () => {
 				const h = window.__reindeer;
@@ -2087,6 +2088,18 @@ async function pressBoard(browser, S) {
 				const s2 = drawn[`${look}:car`];
 				check(s1?.kind === 'sleigh' && s1.look === look && s1.names.includes('santa:picture') && s1.names.includes(`santa_mult_${look}`) && s2?.kind === 'car' && s2.look === look && ['grandma:picture', `grandma_word_${look}`, `grandma_mult_${look}`].every((n) => s2.names.includes(n)), `${tag}: PRESS: look ${look}: the sleigh screen draws Santa's column and his number (${s1?.names?.join(', ')}), the car screen the Grandma Wild, her WILD and her number (${s2?.names?.join(', ')})`, { s1, s2 });
 			}
+			// THE PICTURES WHOLE (2026-11-21, Corey: "not cut off Santa's Elbow? same on the wild ... some cropping on the
+			// bottom and right sides"; ledScreens.ts wildDrawRect, the node check tools/led_wild_cut_check.mjs bakes it on
+			// every board): standing, each picture's drawn pixels (its tinsel fuzz, baubles, Santa's elbow past the frame) are
+			// inside the board, one dot in, and one dot clear of the words beside or under it
+			for (const look of ['stripes', 'solid'])
+				for (const want of ['sleigh', 'car']) {
+					const w = drawn[`${look}:${want}`];
+					const ink = w?.ink;
+					const inside = !!ink && ink.x >= 1 - 1e-6 && ink.y >= 1 - 1e-6 && ink.x + ink.w <= w.W - 1 + 1e-6 && ink.y + ink.h <= w.H - 1 + 1e-6;
+					const hit = (w?.words || []).filter((r) => ink && ink.x < r.x + r.w + 1 && r.x < ink.x + ink.w + 1 && ink.y < r.y + r.h + 1 && r.y < ink.y + ink.h + 1);
+					check(inside && hit.length === 0, `${tag}: PRESS: look ${look}: the ${want} screen's standing Wild drawn whole inside the ${w?.W} x ${w?.H} dot board (its drawn pixels ${ink ? `${ink.x.toFixed(1)},${ink.y.toFixed(1)} ${ink.w.toFixed(1)} x ${ink.h.toFixed(1)}` : 'not recorded'}), clear of the words`, { ink, words: w?.words, W: w?.W, H: w?.H });
+				}
 			check(drawn['today:sleigh']?.look === 'today' && drawn['today:sleigh'].names.length === 0 && drawn['today:car']?.names.length === 0, `${tag}: PRESS: look today: the pictures of before (nothing from the Wild sheet)`, { a: drawn['today:sleigh'], b: drawn['today:car'] });
 			await wildGrowChecks(p, tag);
 			await faceScreenChecks(p, tag);

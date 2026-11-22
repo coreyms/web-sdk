@@ -18,7 +18,11 @@ THE PICTURES' SOURCE: the game's own render of each Wild (no new art, no image g
 server at 1920 x 1080 with the renderer at 3 device px per CSS px (?rescap=3), the Wild's number, word and twinkles set
 not to render, cropped to its frame's outer edge (Desktop/Run Over Reindeer/led_intro_wilds_built_2026-11-20: tools/
 capture.cjs, tools/prep_sources.py write src/). The same capture with them drawn gives the places: the number and the
-word are where the two captures differ, as shares of the picture.
+word are where the two captures differ, as shares of the picture's outer edge. Since 2026-11-21 the pictures themselves come
+WHOLE from tools/build_led_wild_sources.py (Desktop/Run Over Reindeer/led_intro_lines_crop_2026-11-21/src): the same
+pixels inside the outer edge, plus what the game draws past it (the tinsel's fuzz, the baubles, Santa's elbow) on a
+transparent margin, and `santa_band`, the strip the column's grow shows over his right band while he is not yet standing
+clear (ledScreens.ts wildGrow). The spec gives each picture's outer edge, its drawn pixels and the strip's place as shares.
 
 THE DENSITY: 3 px per CSS px at the largest draw. The desktop tier is sized for the strike screens on the big desktop
 board (LED_BOARD.size 'd' at 1440 x 900: 362 x 203 dots, 2.4835 CSS px each); the phone tier for the larger of the two
@@ -71,7 +75,13 @@ sys.path.insert(0, HERE)
 import build_wild_mult as bwm  # noqa: E402  (the multiplier's candy recipe, read only)
 import build_wild_word as bww  # noqa: E402  (the WILD word's, read only)
 
-SRC = os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_wilds_built_2026-11-20/src")
+# THE PICTURES WHOLE (2026-11-21, Corey: "not cut off Santa's Elbow? same on the wild ... some cropping on the bottom and
+# right sides"): tools/build_led_wild_sources.py rebuilt the two captures with what the game draws past the frame's outer
+# edge (the tinsel's fuzz, the baubles, Santa's elbow) and a transparent margin round it; its src.json gives each picture's
+# outer edge inside it. The number's and the word's places are still read from the first captures (CAPTURE_SRC), as shares
+# of the outer edge.
+SRC = os.environ.get("LED_WILD_SRC") or os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_lines_crop_2026-11-21/src")
+CAPTURE_SRC = os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_wilds_built_2026-11-20/src")
 OUT = os.path.join(APP, "static", "assets", "landing")
 SPEC = os.path.join(APP, "src", "game", "ledWildsSpec.ts")
 CONSTANTS = os.path.join(APP, "src", "game", "constants.ts")
@@ -149,8 +159,8 @@ def target_px(tier):
 def places(kind, meta):
     """the number's (and the word's) box as shares of the picture: where its full and bare captures differ, inside the
     frame's band (the twinkles on the band are left out)"""
-    full = np.asarray(Image.open(os.path.join(SRC, f"{kind}_full.png")).convert("RGB")).astype(np.int16)
-    bare = np.asarray(Image.open(os.path.join(SRC, f"{kind}.png")).convert("RGB")).astype(np.int16)
+    full = np.asarray(Image.open(os.path.join(CAPTURE_SRC, f"{kind}_full.png")).convert("RGB")).astype(np.int16)
+    bare = np.asarray(Image.open(os.path.join(CAPTURE_SRC, f"{kind}.png")).convert("RGB")).astype(np.int16)
     h, w = bare.shape[:2]
     d = np.abs(full - bare).max(axis=2) > 40
     band = int(round(meta["bandPx"] * 0.8))
@@ -409,6 +419,15 @@ def pack_more(frames, size, face, pieces):
 
 
 CHECK_DATA = os.path.join(HERE, "led_face_check_data.json")
+CUT_DATA = os.path.join(HERE, "led_wild_cut_data.json")
+
+
+def wild_cut_data(path, frames):
+    """the Wild pictures' alpha as the game decodes them from the sheet at `path` (tools/led_wild_cut_check.mjs bakes them
+    onto the dot board, as led_face_check does the puffs): each frame's alpha, bytes row by row, deflated, base64"""
+    im = np.array(Image.open(path).convert("RGBA"))
+    pack = lambda a: base64.b64encode(zlib.compress(np.ascontiguousarray(a, np.uint8).tobytes(), 9)).decode()
+    return {n: {"w": f["w"], "h": f["h"], "a": pack(im[f["y"]:f["y"] + f["h"], f["x"]:f["x"] + f["w"], 3])} for n, f in frames.items() if n in ("santa", "grandma", "santa_band")}
 
 
 def face_check_data(path, frames):
@@ -426,25 +445,46 @@ def face_check_data(path, frames):
 
 
 def main():
-    meta = json.load(open(os.path.join(SRC, "src.json")))
+    meta = json.load(open(os.path.join(CAPTURE_SRC, "src.json")))
+    whole = json.load(open(os.path.join(SRC, "src.json")))["pictures"]
     texts = led_text()
     pics = {k: Image.open(os.path.join(SRC, f"{k}.png")).convert("RGBA") for k in ("santa", "grandma")}
+    bands = {k: Image.open(os.path.join(SRC, f"{k}_band.png")).convert("RGBA") for k in pics if "band" in whole[k]}
     where = {k: places(k, meta[k]) for k in pics}
-    spec = {"source": meta.get("note", ""), "pictures": {}, "tiers": {}}
+    spec = {"source": meta.get("note", "") + "; whole (fuzz, baubles, Santa's elbow): tools/build_led_wild_sources.py", "pictures": {}, "tiers": {}}
     for k in pics:
-        spec["pictures"][k] = {"frame": k, "plain": PLAIN[k], "set": MULT_SET[k], "text": texts[k], **({"wordLook": "candy"} if k == "grandma" else {}), **{p: {q: round(v, 4) for q, v in s.items()} for p, s in where[k].items()}}
+        W0, H0 = whole[k]["size"]
+        ox, oy, ow, oh = whole[k]["outer"]
+        ix0, iy0, ix1, iy1 = whole[k]["ink"]
+        # (shares of the picture: `outer` its frame's outer edge (x, y, w, h; the box the screens lay out), `ink` its drawn
+        # pixels (x0, y0, x1, y1), `band` the grow's band strip's place (x, y, w, h: frame <kind>_band), `bandClear` where the grow's picture is
+        # cleared from before the strip goes over it)
+        geo = {"outer": [round(ox / W0, 5), round(oy / H0, 5), round(ow / W0, 5), round(oh / H0, 5)], "ink": [round(ix0 / W0, 5), round(iy0 / H0, 5), round(ix1 / W0, 5), round(iy1 / H0, 5)]}
+        if k in bands:
+            bx, by, bw, bh = whole[k]["band"]
+            geo["band"] = [round(bx / W0, 5), round(by / H0, 5), round(bw / W0, 5), round(bh / H0, 5)]
+            geo["bandClear"] = round(whole[k]["bandClear"] / W0, 5)
+        spec["pictures"][k] = {"frame": k, "plain": PLAIN[k], "set": MULT_SET[k], "text": texts[k], **({"wordLook": "candy"} if k == "grandma" else {}), **{p: {q: round(v, 4) for q, v in s.items()} for p, s in where[k].items()}, **geo}
     shares = {}
     parts = face_parts()
     spec["face"] = parts[4]
     check_data = {}
+    cut_data = {}
     for tier in ("full", "phone"):
         size = target_px(tier)
         pieces = {}
         for k, im in pics.items():
+            # (the target is the OUTER box's px: the whole picture at the same px per source px, its band strip likewise)
             tw, th = size[k]
-            pieces[k] = im.resize((tw, th), Image.LANCZOS) if (tw, th) != im.size else im
-            if tw > im.width or th > im.height:
-                print(f"NOTE {tier} {k}: the source {im.size} is under the target {tw} x {th} (scaled up)")
+            ox, oy, ow, oh = whole[k]["outer"]
+            fx, fy = tw / ow, th / oh
+            pw, ph = int(round(im.width * fx)), int(round(im.height * fy))
+            pieces[k] = im.resize((pw, ph), Image.LANCZOS) if (pw, ph) != im.size else im
+            if k in bands:
+                b = bands[k]
+                pieces[f"{k}_band"] = b.resize((max(1, int(round(b.width * fx))), max(1, int(round(b.height * fy)))), Image.LANCZOS)
+            if tw > ow or th > oh:
+                print(f"NOTE {tier} {k}: the source's outer box {ow} x {oh} is under the target {tw} x {th} (scaled up)")
             for look in ("stripes", "solid"):
                 for part in ("mult", "word"):
                     if part not in where[k]:
@@ -479,6 +519,7 @@ def main():
         sheet.save(path, "WEBP", **WEBP)
         spec["tiers"][tier] = {"file": file, "width": W, "height": H, "kb": round(os.path.getsize(path) / 1024, 1), "frames": frames, "facePlaces": fplaces}
         check_data[tier] = face_check_data(path, frames)
+        cut_data[tier] = wild_cut_data(path, frames)
         print(tier, (W, H), spec["tiers"][tier]["kb"], "KB", {k: v for k, v in size.items()})
     # each part's box: its measured centre, the piece's own size (both looks share the stripes' box)
     for k in pics:
@@ -497,6 +538,9 @@ def main():
     with open(CHECK_DATA, "w") as f:
         json.dump({"note": "AUTO-GENERATED by tools/build_led_wilds.py for tools/led_face_check.mjs (see face_check_data)", "tiers": check_data}, f)
     print("check data", round(os.path.getsize(CHECK_DATA) / 1024, 1), "KB")
+    with open(CUT_DATA, "w") as f:
+        json.dump({"note": "AUTO-GENERATED by tools/build_led_wilds.py for tools/led_wild_cut_check.mjs (see wild_cut_data)", "tiers": cut_data}, f)
+    print("cut data", round(os.path.getsize(CUT_DATA) / 1024, 1), "KB")
 
 
 if __name__ == "__main__":
