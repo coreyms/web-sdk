@@ -16,6 +16,7 @@
 // WATCHES: ; .landing, .hudp, .spin, .am-ui, .wrap, .layer, .modals, .go
 // WATCHES: apps/run_over_reindeer/src/game/currency.ts;
 // WATCHES: apps/run_over_reindeer/src/{game/scoreboard/scoreboard.ts,game/scoreboard/warmGate.ts,game/scoreboard/cardFrames.ts,game/scoreboard/ledSigns.ts}; LED_BOARD.warm, __reindeer.cardFrames, __reindeer.scoreboardWarm, data-wheel-gate
+// WATCHES: apps/run_over_reindeer/src/{game/road/winLabelText.ts,game/road/winLights.ts}; LINE_WIN.slam.ahead, LED_BOARD.warm.small, __reindeer.lightsFrames, __reindeer.winLabels, __reindeer.winTextCompare, __reindeer.scoreboardSmallWarm
 // THE LED SCOREBOARD PROBE (part A, 2026-11-17; bigwin_led_r3_2026-11-16 "r3b"; constants LED_BOARD, game/scoreboard/). At each size:
 //   - THE STRIP'S RULE per layout class, worked out here from the game's own geometry (the road picture's place, the board,
 //     the HUD's layout functions): desktop and tablet 0.62 of the road picture, centred on the window, top the bottom lane
@@ -72,7 +73,19 @@
 // its card made ahead had got. Asserted: unthrottled, every card's window at most 33 ms and its warm done before it came up;
 // at 4x every card's window at most 100 ms; 6x and the small wins are reported (the HITCH table). HITCH_WARM=0 turns the
 // warm off for a run (the old way, to compare; the size searches stay fixed). Not in the default SECTIONS (six bonus rounds):
-//   ONLY=hitch SECTIONS=hitch [HITCH_RATES=1,4,6] [HITCH_WARM=0] node tools/led_board_probe.mjs
+//   ONLY=hitch SECTIONS=hitch [HITCH_RATES=1,4,6] [HITCH_WARM=0] [HITCH_LIGHTS=0] [HITCH_BASE=0] node tools/led_board_probe.mjs
+// THE LINE WINS (2026-11-22, wip/winlights; constants LINE_WIN.slam.ahead, game/road/winLabelText.ts, LED_BOARD.warm.small):
+// in the same pages, ordinary winning base spins played through after the bonus rounds (plain_line_win, base_one_column with
+// its 5x column, base_grandma_strike, tier_grandma: one line, a multiplier line, a Grandma strike), and for every line win
+// of every round (the free spins' too) the longest frame from 0.2 s before it started to 2.5 s after (its lights, their
+// amounts popping in and the strip's small win all fall inside; __reindeer.lightsFrames), with its lines, a multiplier and
+// the turbo level; the small wins' own windows as before, with how far each was made ahead. Asserted: unthrottled, no label
+// picture was made on the frame it showed (every one made ahead: __reindeer.winLabels dueNow 0) and each small win's warm was
+// done before it came up; at every rate, the amounts drawn as AheadText are the old Text's pictures pixel for pixel, for 14
+// amounts in the currencies' forms at the upright phone's label scale and at 1 (__reindeer.winTextCompare: the same quad,
+// the same size, no byte different). Reported: the LIGHTS table (the worst line win window per rate, with and without a
+// multiplier). HITCH_LIGHTS=0 turns the amounts made ahead off (each made on the frame it shows: the old timing) and the small
+// win's warm off, to compare; HITCH_BASE=0 skips the base spins.
 // THE FINER GRID (section density, 2026-11-19, constants LED_BOARD.density, game/scoreboard/ledGrid.ts), at the device's own
 // pixel ratio: the rule (1.5 LEDs per dot where an LED stays at least 2 device px: 1440 x 900 at 2x, 1920 x 1080 at 1x, the
 // phones at 3x and a sideways phone at 2x; today's grid on a 1440 x 900 desktop at 1x and an upright phone at 2x), both faces
@@ -2345,6 +2358,10 @@ async function lookChecks(browser) {
 // ---- THE HITCH WINDOWS (section hitch; see the top of the file) ----
 const HITCH_RATES = (process.env.HITCH_RATES || '1,4,6').split(',').map(Number).filter((n) => n >= 1);
 const HITCH_LIMIT = { 1: 33.4, 4: 100 };
+// the base game's ordinary line wins (fixtures/showcaseBooks.ts): one line, a 5x column's line, a Grandma strike's, a Grandma tier
+const HITCH_BASE = process.env.HITCH_BASE === '0' ? [] : ['plain_line_win', 'base_one_column', 'base_grandma_strike', 'tier_grandma'];
+// the amounts the line labels are compared on (the currency table's forms: a sign before, a code after, 0 to 8 decimals)
+const HITCH_TEXTS = ['$0.40', '$12.40', '$1,234.50', '$7,777,000.00', '€7.20', '¥1,234', 'R$12.40', '₹99.99', 'KD10.000', 'CA$3.10', '0.00012345 BTC', '10.00 USDT', '12.40 GC', '12.40 SC'];
 async function hitchChecks(browser) {
 	const S = { name: 'hitch', vp: { width: 390, height: 844 }, dpr: 3, phone: true };
 	const table = [];
@@ -2353,6 +2370,11 @@ async function hitchChecks(browser) {
 		const { ctx, p, errs } = await boot(browser, S);
 		try {
 			if (process.env.HITCH_WARM === '0') await R(p, () => (window.__reindeer.tune.ledBoard.warm.on = false));
+			if (process.env.HITCH_LIGHTS === '0')
+				await R(p, () => {
+					window.__reindeer.tune.lineWin.slam.ahead.on = false;
+					window.__reindeer.tune.ledBoard.warm.small = false;
+				});
 			await R(p, () => window.__reindeer.turbo(0));
 			const cdp = await ctx.newCDPSession(p);
 			await cdp.send('Emulation.setCPUThrottlingRate', { rate });
@@ -2360,9 +2382,11 @@ async function hitchChecks(browser) {
 			// 8192 frames (game/scoreboard/cardFrames.ts, about 136 s at 60 fps), so a window read only after both rounds had
 			// been written over. Each show's window is kept once it is 1.5 s old (its window closed), by the show's id.
 			const kept = new Map();
+			const keptLights = new Map();
 			const readMarks = async () => {
-				const o = await R(p, () => ({ now: performance.now(), marks: window.__reindeer.cardFrames(1000, 1000) }));
+				const o = await R(p, () => ({ now: performance.now(), marks: window.__reindeer.cardFrames(1000, 1000), lights: window.__reindeer.lightsFrames(200, 2500) }));
 				for (const m of o.marks) if (!kept.has(m.id) && o.now - m.at > 1500) kept.set(m.id, m);
+				for (const m of o.lights) if (!keptLights.has(m.id) && o.now - m.at > 3000) keptLights.set(m.id, m);
 			};
 			let lastRead = 0;
 			for (const name of ['natural_free_spins', 'natural_super']) {
@@ -2402,6 +2426,22 @@ async function hitchChecks(browser) {
 				await sleep(1600);
 				await readMarks();
 			}
+			// THE BASE GAME'S ORDINARY LINE WINS (see the top of the file)
+			for (const name of HITCH_BASE) {
+				const res = await playRound(p, name, {
+					limit: 60000 * Math.max(1, rate / 2),
+					during: async (s, ms) => {
+						if (ms - lastRead > 2000) {
+							lastRead = ms;
+							await readMarks();
+						}
+					},
+				});
+				check(res.ok, `${tag}: ${name} played to its end (${Math.round(res.ms / 1000)} s)`, res.seen.slice(-4));
+				lastRead = 0;
+			}
+			await sleep(3200);
+			await readMarks();
 			await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
 			const marks = [...kept.values()].sort((a, b) => a.at - b.at);
 			const warm = await R(p, () => window.__reindeer.scoreboardWarm());
@@ -2417,7 +2457,31 @@ async function hitchChecks(browser) {
 				else console.log('INFO ' + say);
 				if (rate === 1 && process.env.HITCH_WARM !== '0') check(m.warm === 'done', `${tag}: ${m.kind}: its card was made ahead before it came up (${m.warm})`, warm);
 			}
-			for (const m of marks.filter((x) => x.kind === 'small' || x.kind === 'win')) console.log(`INFO ${tag}: ${m.kind} win: the longest frame round it ${m.worstMs} ms (${m.over33} over 33 ms)`);
+			for (const m of marks.filter((x) => x.kind === 'small' || x.kind === 'win')) console.log(`INFO ${tag}: ${m.kind} win: the longest frame round it ${m.worstMs} ms (${m.over33} over 33 ms; made ahead: ${m.warm})`);
+			// THE LINE WINS: every line win's window, the label pictures made ahead or on their frame, the small wins' warm
+			const lights = [...keptLights.values()].sort((a, b) => a.at - b.at);
+			const ahead = process.env.HITCH_LIGHTS !== '0';
+			check(lights.length >= HITCH_BASE.length + 2, `${tag}: ${lights.length} line wins recorded (the base spins' and the free spins')`, lights.length);
+			for (const m of lights) {
+				check(m.frames > 0, `${tag}: line win ${m.id}: ${m.frames} frames recorded round it`, m);
+				console.log(`INFO ${tag}: line win ${m.id} (${m.lines} line(s)${m.multi ? ', a multiplier' : ''}${m.strip ? ', a strip total' : ''}): the longest frame from 0.2 s before to 2.5 s after ${m.worstMs} ms, ending ${m.worstAfterMs} ms in (${m.over33} over 33 ms, ${m.over50} over 50 ms)`);
+				table.push({ rate, kind: m.multi ? 'lights x' : 'lights', worstMs: m.worstMs, over33: m.over33, over50: m.over50, over100: m.over100, frames: m.frames });
+			}
+			const labels = await R(p, () => window.__reindeer.winLabels());
+			console.log(`INFO ${tag}: the line amounts' pictures: ${labels?.pieces ?? 0} pieces made ahead over ${labels?.frames ?? 0} frames (the longest frame's share ${labels?.maxMs ?? 0} ms), ${labels?.dueNow ?? 0} made on the frame they showed`);
+			if (rate === 1 && ahead) {
+				check(!!labels && labels.dueNow === 0 && labels.pieces > 0, `${tag}: every line amount's picture was made ahead, none on the frame it showed (${labels?.pieces} pieces ahead, ${labels?.dueNow} on their frame)`, labels);
+				// (a line win's strip total is made ahead; a trigger spin's win so far, shown by freeSpinTrigger, is not: 'none')
+				const smalls = marks.filter((x) => x.kind === 'small');
+				const asked = smalls.filter((m) => m.warm !== 'none');
+				if (process.env.HITCH_WARM !== '0') check(asked.length >= HITCH_BASE.length && asked.every((m) => m.warm === 'done'), `${tag}: every line win's small win on the strip was made ahead before it came up (${asked.length} of ${smalls.length} small wins: ${asked.map((m) => m.warm).join(', ')})`, smalls);
+			}
+			// THE SAME PICTURES: the amounts as AheadText against the old Text, pixel for pixel, at both label scales
+			for (const scale of [null, 1]) {
+				const cmp = await R(p, ([t, sc]) => window.__reindeer.winTextCompare(t, sc), [HITCH_TEXTS, scale]);
+				const off = (cmp ?? []).filter((c) => c.bytesDiffer !== 0 || c.quadOld[0] !== c.quadNew[0] || c.quadOld[1] !== c.quadNew[1] || Math.abs(c.sizeOld[0] - c.sizeNew[0]) > 1e-6 || Math.abs(c.sizeOld[1] - c.sizeNew[1]) > 1e-6);
+				check(!!cmp && cmp.length === HITCH_TEXTS.length * 2 && off.length === 0, `${tag}: the line amounts at label scale ${scale ?? 'phone'}: ${cmp?.length ?? 0} pictures (${HITCH_TEXTS.length} amounts, the amount and its shadow) the old Text's pixel for pixel, the same quad and size (largest ${cmp?.[0]?.px?.join(' x ')} px)`, off.slice(0, 4));
+			}
 			// (the scene swap's own beats, to tell an entry's swap at its seat from the board's own work)
 			console.log(`INFO ${tag}: scene swap log ${JSON.stringify((await R(p, () => window.__reindeer.sceneSwap?.()?.log ?? null))?.slice?.(-12) ?? null)}`);
 			check(errs.length === 0, `${tag}: no page errors`, errs);
@@ -2434,6 +2498,8 @@ async function hitchChecks(browser) {
 		worst[k] = Math.max(worst[k] ?? 0, r.worstMs);
 	}
 	console.log('HITCH ' + JSON.stringify(worst));
+	// (the line wins alone: the worst window per rate, a multiplier line apart; the old timing with HITCH_LIGHTS=0)
+	console.log(`LIGHTS ${process.env.HITCH_LIGHTS === '0' ? 'old' : 'ahead'} ` + JSON.stringify(Object.fromEntries(Object.entries(worst).filter(([k]) => /lights|small/.test(k)))));
 }
 
 const LADDER_CASES = [

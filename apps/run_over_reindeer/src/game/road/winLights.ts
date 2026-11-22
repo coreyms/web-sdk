@@ -19,7 +19,8 @@
 // sprites), each bulb four sprites of the lights' sheet (the glow, added, under everything; the body, tinted per bulb;
 // its socket, lead and highlight, never tinted; a hot core, added), each nail its shadow, its wrap ring (end nails) and
 // its head. No filter, mask, shader or blur. Layers for every line together: the glows (added), the nails' shadows, the
-// cords, the end rings, the nail heads, the bulbs, the hot cores (added), the amounts (Text).
+// cords, the end rings, the nail heads, the bulbs, the hot cores (added), the amounts (treatment B: AheadText, Pixi's own text
+// pictures drawn and sent to the GPU in the frames before each shows, game/road/winLabelText.ts; the old way: Text).
 //
 // THE NAILS are shared: one per key (an end nail: its symbol, its side and the line's first step, since the nail stands
 // along the line's own direction; a middle nail: its symbol), up from the first of its lines to the last (a pool made at
@@ -29,6 +30,7 @@ import * as PIXI from 'pixi.js';
 import { LINE_WIN } from '../constants';
 import { WIN_LIGHTS_ART } from '../winLightsSpec';
 import { NumberLabel } from './roadFeatures';
+import { AheadText, aheadResolution, labelDues, slamTextStyle } from './winLabelText';
 import { buildStrand, type StrandNail, type StrandOpts } from './winLightsPath';
 
 const L = LINE_WIN.lights;
@@ -134,7 +136,7 @@ type LineNail = StrandNail & { in: number; out: number };
 type Nail = { sprite: PIXI.Sprite; shadow: PIXI.Sprite; rings: PIXI.Sprite[]; key: string; kind: string; x: number; y: number; ups: { in: number; out: number }[]; lines: number[]; scale: number; turns: number };
 
 /** one line's slam label: the plain amount and the line's win (each with its shadow), the multiplier and its two shadows */
-type SlamLabel = { root: PIXI.Container; plain: PIXI.Text; plainSh: PIXI.Text; win: PIXI.Text; winSh: PIXI.Text; badge: NumberLabel; badgeSh: NumberLabel[] };
+type SlamLabel = { root: PIXI.Container; plain: AheadText; plainSh: AheadText; win: AheadText; winSh: AheadText; badge: NumberLabel; badgeSh: NumberLabel[] };
 
 /** the slam's options for one win: the label scale (1, or the phone's), the phone rule, the road's inner edges and the top
  *  lane line (road px); `floor`: the lowest road y an amount may reach (the LED strip's snow cap or the HUD, whichever is
@@ -363,6 +365,12 @@ export class WinLights {
 	private slamOpts: SlamOpts | null = null;
 	/** the atlas digits' lookup (the multiplier's NumberLabel) */
 	private readonly numTex: (frame: string) => PIXI.Texture | undefined;
+	/** THE LABELS' PICTURES STILL TO MAKE (constants LINE_WIN.slam.ahead, game/road/winLabelText.ts): every label picture of
+	 *  this win with the win clock ms it first shows, soonest first; `fresh`: the win started on this frame (its own frame
+	 *  makes none ahead); the readout: pieces made ahead, pictures made on the frame they showed, the longest frame's share */
+	private ahead: { text: AheadText; due: number }[] = [];
+	private aheadFresh = false;
+	private aheadStats = { pieces: 0, dueNow: 0, maxMs: 0, frames: 0 };
 
 	constructor(sheet: PIXI.Texture | undefined, tier: 'full' | 'phone', numTex: (frame: string) => PIXI.Texture | undefined = () => undefined) {
 		this.numTex = numTex;
@@ -621,12 +629,17 @@ export class WinLights {
 				lab.badgeSh.forEach((b) => b.set(multText, bh, 0x000000));
 				for (const t of [lab.plain, lab.win]) t.scale.set(1);
 				lab.badge.root.scale.set(1);
-				s.wPlain = lab.plain.width;
-				s.wProd = lab.win.width;
+				// (the sizes a PIXI.Text of the same words reports: AheadText measures as the Text did)
+				s.wPlain = lab.plain.textWidth();
+				s.wProd = lab.win.textWidth();
 				s.wBadge = s.multi ? lab.badge.root.width : 0;
 				const gap = X.gap * o.scale;
 				const w = s.multi ? Math.max(s.wProd, s.wPlain + gap + s.wBadge) : s.wProd;
-				const h = Math.max(lab.plain.height, lab.win.height);
+				const h = Math.max(lab.plain.textHeight(), lab.win.textHeight());
+				// the label's pictures, each when it first shows (drawSlam): made ahead of then (aheadStep)
+				const due = labelDues(plan.full[k], s.multi, s.f, slamProductAt());
+				if (due.plain !== null) this.ahead.push({ text: lab.plain, due: due.plain }, { text: lab.plainSh, due: due.plain });
+				this.ahead.push({ text: lab.win, due: due.win }, { text: lab.winSh, due: due.win });
 				const full = plan.full[k];
 				const until = plan.off[k] + (o.phone ? 0.3 : 1) * s.down;
 				const alive = timed.filter((q) => q.from < plan.off[k] + s.down && full < q.to).map((q) => q.r);
@@ -673,7 +686,50 @@ export class WinLights {
 			if (s.amount) s.amount.visible = false;
 		}
 		this.placeNails();
+		this.ahead.sort((a, b) => a.due - b.due);
+		this.aheadFresh = true;
 		this.root.visible = this.active > 0;
+	}
+
+	/** THE LABELS MADE AHEAD (constants LINE_WIN.slam.ahead): in the frames before each label shows, its pictures are drawn
+	 *  and sent to the GPU, soonest first, one piece (a draw or an upload) at a time while the frame's budget lasts and at
+	 *  least one a frame; never on the win's first frame (its strands are built then). A label still not ready when it shows
+	 *  is made on that frame (drawSlam), as the Text was, so no time of the win moves. */
+	private aheadStep() {
+		const A = X.ahead;
+		if (this.aheadFresh) {
+			this.aheadFresh = false;
+			return;
+		}
+		if (!A.on || !this.ahead.length) return;
+		const res = aheadResolution();
+		const t0 = performance.now();
+		let did = 0;
+		// (each picture finished, drawn then sent, before the next is started)
+		outer: for (const j of this.ahead)
+			while (j.text.step(res)) {
+				did += 1;
+				if (performance.now() - t0 >= A.budgetMs) break outer;
+			}
+		if (!did) {
+			this.ahead.length = 0;
+			return;
+		}
+		this.aheadStats.pieces += did;
+		this.aheadStats.frames += 1;
+		this.aheadStats.maxMs = Math.max(this.aheadStats.maxMs, Math.round((performance.now() - t0) * 100) / 100);
+	}
+	/** a label picture that shows now: made now if it is not yet (counted: the readout's dueNow) */
+	private showNow(t: AheadText) {
+		const res = aheadResolution();
+		if (t.ready(res)) return;
+		this.aheadStats.dueNow += 1;
+		t.ensure(res);
+	}
+	/** DEV / probes: the labels' pictures of this win (when each shows, ready or not) and the counts since the page loaded */
+	aheadSnapshot() {
+		const res = aheadResolution();
+		return { on: X.ahead.on, budgetMs: X.ahead.budgetMs, res, left: this.ahead.filter((j) => !j.text.ready(res)).length, jobs: this.ahead.map((j) => ({ due: Math.round(j.due * 10) / 10, ...j.text.info() })), ...this.aheadStats };
 	}
 
 	/** when each nail of a line comes and goes, ms into the line: the start nail as the line starts (before its cord) until
@@ -872,6 +928,7 @@ export class WinLights {
 
 	/** the win's clock: `t` ms into the win */
 	update(t: number) {
+		if (this.slam) this.aheadStep();
 		if (this.nailCount) this.updateNails(t, this.slots[0]?.pace ?? 1);
 		const B = L.bulb;
 		const C = L.chase;
@@ -995,6 +1052,8 @@ export class WinLights {
 		for (const n of this.nails) this.showNail(n, false);
 		this.nailCount = 0;
 		this.active = 0;
+		this.ahead.length = 0;
+		this.aheadFresh = false;
 		this.slam = null;
 		this.slamOpts = null;
 		this.root.visible = false;
@@ -1036,6 +1095,7 @@ export class WinLights {
 		const plain = (x: number, sx: number, sy: number, alpha: number) => {
 			for (const t of [lab.plainSh, lab.plain]) {
 				t.visible = alpha > 0.001;
+				if (t.visible) this.showNow(t);
 				t.scale.set(sx, sy);
 				t.alpha = t === lab.plain ? alpha : alpha * X.shadow.alpha;
 			}
@@ -1045,6 +1105,7 @@ export class WinLights {
 		const win = (x: number, sx: number, sy: number, alpha: number, flash: number) => {
 			for (const t of [lab.winSh, lab.win]) {
 				t.visible = alpha > 0.001;
+				if (t.visible) this.showNow(t);
 				t.scale.set(sx, sy);
 				t.alpha = t === lab.win ? alpha : alpha * X.shadow.alpha;
 			}
@@ -1118,7 +1179,7 @@ export class WinLights {
 		return (X.capRatio * L.amount.size * scale) / X.faceShare;
 	}
 
-	private setText(t: PIXI.Text, text: string) {
+	private setText(t: AheadText, text: string) {
 		if (t.text !== text) t.text = text;
 	}
 
@@ -1127,20 +1188,21 @@ export class WinLights {
 		const A = L.amount;
 		const size = A.size * scale;
 		const edge = A.strokeWidth * scale;
-		const style = (fill: number, stroke: number, width: number) => ({ fontFamily: 'Overpass, sans-serif', fontWeight: '900' as const, fontSize: size, fill, stroke: { color: stroke, width, join: 'round' as const }, align: 'center' as const });
+		const style = (fill: number, stroke: number, width: number) => slamTextStyle(size, fill, stroke, width);
 		if (!s.lab) {
-			const text = (fill: number, stroke: number, width: number) => {
-				const t = new PIXI.Text({ text: '', style: style(fill, stroke, width) });
+			const text = (fill: number, stroke: number, width: number, tag: string) => {
+				const t = new AheadText(style(fill, stroke, width));
 				t.anchor.set(0.5);
+				t.tag = tag;
 				return t;
 			};
 			const h = this.badgeH(scale);
 			const lab: SlamLabel = {
 				root: new PIXI.Container(),
-				plain: text(X.amountFill, A.stroke, edge),
-				plainSh: text(0x000000, 0x000000, edge + X.shadow.extra * scale),
-				win: text(X.amountFill, A.stroke, edge),
-				winSh: text(0x000000, 0x000000, edge + X.shadow.extra * scale),
+				plain: text(X.amountFill, A.stroke, edge, 'plain'),
+				plainSh: text(0x000000, 0x000000, edge + X.shadow.extra * scale, 'plainShadow'),
+				win: text(X.amountFill, A.stroke, edge, 'win'),
+				winSh: text(0x000000, 0x000000, edge + X.shadow.extra * scale, 'winShadow'),
 				badge: new NumberLabel(this.numTex, h, X.multTint),
 				badgeSh: [new NumberLabel(this.numTex, h, 0x000000), new NumberLabel(this.numTex, h, 0x000000)],
 			};
@@ -1152,9 +1214,9 @@ export class WinLights {
 		}
 		const lab = s.lab;
 		// (a resize to or from the phone's size: the sizes again)
-		if (lab.plain.style.fontSize !== size) {
-			for (const t of [lab.plain, lab.win]) t.style = style(X.amountFill, A.stroke, edge);
-			for (const t of [lab.plainSh, lab.winSh]) t.style = style(0x000000, 0x000000, edge + X.shadow.extra * scale);
+		if (lab.plain.fontSize !== size) {
+			for (const t of [lab.plain, lab.win]) t.setStyle(style(X.amountFill, A.stroke, edge));
+			for (const t of [lab.plainSh, lab.winSh]) t.setStyle(style(0x000000, 0x000000, edge + X.shadow.extra * scale));
 		}
 		return lab;
 	}
@@ -1189,7 +1251,7 @@ export class WinLights {
 							multiplier: s.multi && s.lab.badge.root.visible,
 							multi: s.multi,
 							f: Math.round(s.f * 1000) / 1000,
-							fontSize: s.lab.win.style.fontSize,
+							fontSize: s.lab.win.fontSize,
 							/** the label as drawn now (the amount, the multiplier and their shadows), canvas CSS px */
 							box: s.lab.root.visible ? (() => { const b = s.lab!.root.getBounds(); return { x: Math.round(b.x * 10) / 10, y: Math.round(b.y * 10) / 10, w: Math.round(b.width * 10) / 10, h: Math.round(b.height * 10) / 10 }; })() : null,
 						}
@@ -1219,6 +1281,8 @@ export class WinLights {
 			if (!c.visible) return;
 			for (const ch of c.children) {
 				if (!ch.visible) continue;
+				// (the amounts are not counted: an AheadText is a Sprite now, the Text it replaced never was)
+				if (ch instanceof AheadText) continue;
 				if (ch instanceof PIXI.Sprite) n += 1;
 				else walk(ch as PIXI.Container);
 			}

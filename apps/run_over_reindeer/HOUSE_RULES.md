@@ -81,8 +81,16 @@ events (`game/bookEventHandlerMap.ts`). Every decision taken is one line in `doc
 ## Win presentation
 
 - Line wins: `LINE_WIN` (line 1000): lead in 120 ms, all lines shown together for 1300 ms, `holdShare [1, 0.6, 0.35]`
-  by turbo, symbols pulse to 1.12 twice, others dim to 0.38. The amounts are Pixi Text set once per win
-  (`game/road/roadBoard.ts` line 1035, `game/road/winLights.ts` line 1288), never per frame (rule R1).
+  by turbo, symbols pulse to 1.12 twice, others dim to 0.38. The amounts are set once per win, never per frame (rule R1).
+  Since 2026-11-22 (wip/winlights) each line's slam label is four `AheadText` (`game/road/winLabelText.ts`): Pixi's own
+  text painter (`CanvasTextSystem.renderTextToCanvas`, the same style and resolution, so the Text's pixels, quad and size)
+  on a canvas each label keeps, drawn and sent to the GPU in the frames before it shows (`LINE_WIN.slam.ahead`, 3 ms a
+  frame, at least one piece a frame) instead of on its own frame; a label still not ready when it shows is made then. The
+  old Text cost two canvas text draws and two uploads (2048 x 512 power of two canvases on the upright phone) on the frame
+  each amount popped in. A new label text on the board follows the same rule. The strip's small win is drawn ahead from
+  the win's start (`LED_BOARD.warm.small`, `scoreboard.ts` `prepareSmall`). Proofs: `tools/win_text_check.mjs` (node: the
+  same drawing calls as the Text), `tools/led_warm_check.mjs` (the small win dot for dot), `led_board_probe.mjs` section
+  `hitch` (`__reindeer.lightsFrames`, `winLabels`, `winTextCompare`: pixel for pixel in a browser).
 - The bonus Total Win counts on the LED scoreboard (`game/scoreboard/`); the HUD's WIN readout rolls as an odometer
   meanwhile (`ui/hud/winOdometer.ts`, 2026-11-21; `tools/win_odometer_test.mjs`).
 - LED pictures are made once and cached (glyphs, title masks, art bakes, currency sign dots). Two rules since

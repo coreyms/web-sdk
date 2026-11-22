@@ -1180,6 +1180,9 @@ export class RoadBoard {
 			/** THE NAILS at the wires' ends (constants LINE_WIN lights tips) */
 			nails: this.winFx?.nailSnapshot() ?? null,
 			sprites: this.winFx?.spriteCount() ?? 0,
+			/** THE AMOUNTS MADE AHEAD (constants LINE_WIN.slam.ahead, game/road/winLabelText.ts): this win's label pictures and
+			 *  the counts (pieces made ahead, pictures made on the frame they showed) */
+			labels: this.winFx?.aheadSnapshot() ?? null,
 			lightsOn: this.lightsOn,
 			linesVoiced: this.linesVoiced,
 			/** the cells whose symbol is swollen by the win pulse now */
