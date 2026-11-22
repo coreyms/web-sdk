@@ -1,5 +1,5 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
-// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadSounds.ts,game/road/shadows.ts,game/scene/logoSign.ts};
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadSounds.ts,game/road/shadows.ts,game/scene/logoSign.ts};, __reindeer.pressReady
 // WATCHES: ; __reindeer.atRest, __reindeer.board, __reindeer.boardLayout, __reindeer.clock, __reindeer.column, __reindeer.crosshairStrike
 // WATCHES: ; __reindeer.fixtures, __reindeer.hud, __reindeer.logoHold, __reindeer.road, __reindeer.roadSounds, __reindeer.roadSprites
 // WATCHES: ; __reindeer.runMemory, __reindeer.seatTime, __reindeer.setBoard, __reindeer.shadows, __reindeer.step, __reindeer.tune, ROUND
@@ -546,12 +546,26 @@ async function slamCheck(p, S, out) {
 	out.slam = { c, f };
 	// the next press clears the column: its shadow goes with it
 	await R(p, () => window.__reindeer.fixtures.queue([{ index: 0, type: 'reveal', gameType: 'basegame', board: [['L4', 'H3', 'L2', 'H2'], ['L3', 'S', 'L4', 'L5'], ['L3', 'L5', 'W', 'L4'], ['H4', 'L4', 'S', 'L4'], ['H3', 'L1', 'L4', 'H1']] }, { index: 1, type: 'finalWin', amount: 0 }], 0));
+	// (2026-11-22: after a slam stopped column round the board reads atRest() while the key is still the round's Stop key
+	// (the LED total is finishing), so this press was sometimes spent as a Stop, no spin ran and the standing column was
+	// read as a leftover: 5 of 9 cases on 9b46ba74, 5 of 12 on 48d852ca (Decimus). Wait until the game takes a press,
+	// then for the spin to really start (not at rest) before waiting for its rest.)
+	for (let i = 0; i < 80; i++) {
+		if (await R(p, () => (window.__reindeer.pressReady ? window.__reindeer.pressReady() : true))) break;
+		await sleep(100);
+	}
 	await p.click('.hudp button.spin');
+	let spun = false;
+	for (let i = 0; i < 40 && !spun; i++) {
+		spun = !(await R(p, () => window.__reindeer.atRest()));
+		if (!spun) await sleep(50);
+	}
 	for (let i = 0; i < 120; i++) {
 		if (await R(p, () => window.__reindeer.atRest())) break;
 		await sleep(150);
 	}
 	await sleep(800);
+	check(spun, `${S.name}: the next spin: the press on a ready key started a spin`, { spun });
 	const g = await R(p, () => window.__reindeer.shadows().features);
 	const c2 = await R(p, TWIN_CHECK);
 	check(g.columns.length === 0 && g.layers.feet === 0 && c2.badCount === 0 && c2.shown === 20, `${S.name}: the next spin: the column and its shadow gone, 20 symbols with 20 twins`, { g, c2 });
