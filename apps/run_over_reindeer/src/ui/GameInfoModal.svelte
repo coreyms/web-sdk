@@ -5,6 +5,8 @@
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import { stateBet, stateConfig, stateModal, stateUrlDerived } from 'state-shared';
 	import { numberToCurrencyString } from '../game/currency';
+	import { measureFitText, UI_TEXT_FACE } from '../game/textFit';
+	import { fitAmount } from './fitAmount';
 
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';
@@ -138,6 +140,26 @@
 	const iconBox = $derived(short ? 34 : dense ? 40 : 48);
 	const statSize = $derived(dense ? 15 : 17);
 	const payFont = $derived(dense ? 13 : 16);
+	// THE PAYS' ROOM (2026-11-21, wip/pricefit). A row is the picture, the name and three pays side by side; the pays keep
+	// their width and the name gives. With Stake's currency table a pay can be long ("2,500.000000 BTC", "150,000.0000
+	// SAND"), and three of them pushed the name to nothing and the pays past the row's edge on a phone. When the widest
+	// row's three pays, measured in their own face (canvas metrics, on a currency, amount or width change, never per
+	// frame), would leave the name less than its longest word, every row stacks: the pays go under the picture and the name, one per line,
+	// the count left and the amount right, fitted to the row (ui/fitAmount.ts). USD at usual amounts keeps the old row.
+	const PAY_GAP = 14;
+	/** the inside of one paytable row: the paytable grid's own width (bind:clientWidth, a ResizeObserver: read on a
+	 *  resize, never per frame; the grid's width is the reading column's, never its content's), one or two rows to a
+	 *  line, less the row's padding and border; before it is known, the CSS's own numbers (the column capped at 880) */
+	let gridW = $state(0);
+	const rowInner = $derived.by(() => {
+		const grid = gridW > 0 ? gridW : Math.min(880, vw - 2 * pad);
+		return (narrow ? grid : (grid - 8) / 2) - 2 * 12 - 2;
+	});
+	/** the name's least room: its longest word at the name's size and tracking (.row-name: Outfit 800, 1.5 px) */
+	const nameMin = $derived(paying.reduce((m, sym) => Math.max(m, ...config.symbols[sym as keyof typeof config.symbols].name.toUpperCase().split(' ').map((w) => measureFitText(w, dense ? 12.5 : 14, 800, 1.5, UI_TEXT_FACE))), 0));
+	/** the widest row's three pays side by side (each at least the .pay cell's 44) */
+	const paysWidest = $derived(social ? 0 : paying.reduce((m, sym) => Math.max(m, pays(sym).reduce((w, p) => w + Math.max(44, measureFitText(payText(p), payFont, 700)), 0)), 0));
+	const stackPays = $derived(!social && tileSize + 14 + nameMin + 14 + paysWidest + 2 * PAY_GAP > rowInner + 0.5);
 	// the 20 line pictures: how many to a row
 	const lineCols = $derived(narrow ? 4 : 6);
 </script>
@@ -162,17 +184,17 @@
 			<section bind:this={sectionEls.paytable}>
 				<h2>{soc('Paytable', 'Symbols')}</h2>
 				<p>{@render rich(T.paytable.intro)}</p>
-				<div class="pay-grid" style:grid-template-columns={narrow ? '1fr' : '1fr 1fr'}>
+				<div class="pay-grid" style:grid-template-columns={narrow ? '1fr' : '1fr 1fr'} bind:clientWidth={gridW}>
 					{#each paying as sym (sym)}
-						<div class="row">
+						<div class="row" class:stack={stackPays} data-pays-stacked={stackPays ? '' : undefined}>
 							<img class="tile" src={pictureOf(sym)} alt={config.symbols[sym].name} style:width="{tileSize}px" style:height="{tileSize}px" />
 							<div class="row-main">
 								<div class="row-name" style:color={SYMBOL_COLOR[sym]} style:font-size="{dense ? 12.5 : 14}px">{config.symbols[sym].name}</div>
 								<div class="row-kind">{config.symbols[sym].tier === 'PREMIUM' ? 'Premium' : config.symbols[sym].tier === 'HIGH' ? 'High' : 'Low'}</div>
 							</div>
-							<div class="pays">
+							<div class="pays" style:--pay-font="{payFont}px">
 								{#each pays(sym) as p, i}
-									<div class="pay"><div class="pay-k">{T.paytable.kinds[config.payKinds[i]]}</div><div class="slot-num pay-v" style:font-size="{payFont}px">{payText(p)}</div></div>
+									<div class="pay"><div class="pay-k">{T.paytable.kinds[config.payKinds[i]]}</div><div class="slot-num pay-v" use:fitAmount={{ text: payText(p), floor: 9, off: !stackPays }} data-gi-pay>{payText(p)}</div></div>
 								{/each}
 							</div>
 						</div>
@@ -533,10 +555,35 @@
 		text-transform: uppercase;
 	}
 	.pay-v {
-		font-size: 16px;
+		font-size: var(--pay-font, 16px);
 		color: var(--ink);
 		font-weight: 700;
 		white-space: nowrap;
+	}
+	/* the stacked row (stackPays above): the pays under the picture and the name, one per line, the count left and the
+	   amount right, fitted to what is left of the line */
+	.row.stack {
+		flex-wrap: wrap;
+		row-gap: 8px;
+	}
+	.row.stack .pays {
+		flex: 1 0 100%;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+	}
+	.row.stack .pay {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 12px;
+		min-width: 0;
+	}
+	.row.stack .pay-v {
+		flex: 1 1 0;
+		min-width: 0;
+		overflow: hidden;
+		text-align: right;
 	}
 	/* mode cards: the per-mode colour is a 3px left rail and the name only */
 	.modes {

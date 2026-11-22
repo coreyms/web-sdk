@@ -16,6 +16,7 @@
 	// arithmetic the win counter uses during the round.
 	import { stateBet, stateUrlDerived, type BetToResume } from 'state-shared';
 	import { numberToCurrencyString } from '../game/currency';
+	import { fitAmount } from './fitAmount';
 
 	import { getContext } from '../game/context';
 	import { betModeMeta, modeShortLabel } from '../game/betModeMeta';
@@ -96,16 +97,16 @@
 
 			{#if replayBet}
 				<div class="block">
-					<div class="row"><span class="k">MODE</span><span class="v mode">{modeLabel}</span></div>
-					<div class="row"><span class="k">{soc('BASE BET', 'BASE PLAY')}</span><span class="v slot-num">{numberToCurrencyString(base)}</span></div>
-					<div class="row"><span class="k">{soc('BET MULTIPLIER', 'PLAY MULTIPLIER')}</span><span class="v slot-num">{xText(costMultiplier)}</span></div>
-					<div class="row"><span class="k">{soc('TOTAL BET', 'TOTAL PLAY')}</span><span class="v slot-num">{numberToCurrencyString(totalPlay)}</span></div>
+					<div class="row"><span class="k">MODE</span><span class="v mode" use:fitAmount={modeLabel}>{modeLabel}</span></div>
+					<div class="row"><span class="k">{soc('BASE BET', 'BASE PLAY')}</span><span class="v slot-num" use:fitAmount={{ text: numberToCurrencyString(base), floor: 10 }} data-replay-amount>{numberToCurrencyString(base)}</span></div>
+					<div class="row"><span class="k">{soc('BET MULTIPLIER', 'PLAY MULTIPLIER')}</span><span class="v slot-num" use:fitAmount={xText(costMultiplier)}>{xText(costMultiplier)}</span></div>
+					<div class="row"><span class="k">{soc('TOTAL BET', 'TOTAL PLAY')}</span><span class="v slot-num" use:fitAmount={{ text: numberToCurrencyString(totalPlay), floor: 10 }} data-replay-amount>{numberToCurrencyString(totalPlay)}</span></div>
 				</div>
 				<div class="block one">
-					<div class="row"><span class="k">MULTIPLIER</span><span class="v slot-num">{xText(multiplier)}</span></div>
+					<div class="row"><span class="k">MULTIPLIER</span><span class="v slot-num" use:fitAmount={xText(multiplier)}>{xText(multiplier)}</span></div>
 				</div>
 				<div class="block one win" class:zero={totalWin === 0}>
-					<div class="row"><span class="k">TOTAL WIN</span><span class="v slot-num big">{numberToCurrencyString(totalWin)}</span></div>
+					<div class="row"><span class="k">TOTAL WIN</span><span class="v slot-num big" use:fitAmount={{ text: numberToCurrencyString(totalWin), floor: 12 }} data-replay-amount>{numberToCurrencyString(totalWin)}</span></div>
 				</div>
 			{:else}
 				<div class="loading">Fetching the round…</div>
@@ -201,19 +202,24 @@
 		border-top: 1px solid var(--ui-rule);
 	}
 	.k {
+		flex: none;
 		font-size: clamp(9px, 2.5vmin, 12px);
 		font-weight: 800;
 		letter-spacing: 3px;
 		color: var(--muted);
 		white-space: nowrap;
 	}
+	/* a value takes the row's rest and its text fits it (ui/fitAmount.ts, 2026-11-21): one line, never broken (it was
+	   overflow-wrap: anywhere, which broke a long BTC or GC total in the middle of its digits) */
 	.v {
+		flex: 1 1 0;
 		font-size: clamp(12px, 3.4vmin, 17px);
 		font-weight: 800;
 		color: var(--ink);
 		text-align: right;
 		min-width: 0;
-		overflow-wrap: anywhere;
+		white-space: nowrap;
+		overflow: hidden;
 	}
 	.v.mode {
 		letter-spacing: 2px;

@@ -208,7 +208,7 @@ async function checkContent(p, code, label, wording = 'standard', coinMark = nul
 	const want = await H(p, (m) => m.map((x) => window.__reindeer.symbolPopup.fmt(x * window.__reindeer.symbolPopup.bet())), PAYTABLE[code]);
 	const rule = await H(p, (m) => m.map((x) => window.__reindeer.symbolPopup.payText(x)), PAYTABLE[code]);
 	const numeric = got.every((v, i) => Math.abs(num(v) - PAYTABLE[code][i] * bet) < 0.0051) && !got.some((v) => /x$/.test(v));
-	const coin = !coinMark || got.every((v) => v.endsWith(coinMark) && /^[0-9,]+\.\d{2,4} [A-Z]{2}$/.test(v) && !v.includes('$'));
+	const coin = !coinMark || got.every((v) => v.endsWith(coinMark) && /^[0-9,]+\.\d{2,4}\u00a0[A-Z]{2}$/.test(v) && !v.includes('$'));
 	ok(JSON.stringify(keys) === JSON.stringify(KINDS) && JSON.stringify(got) === JSON.stringify(want) && JSON.stringify(got) === JSON.stringify(rule) && numeric && coin, `${label}: ${code} at ${bet} == paytable x play amount in the HUD's formatter (${got.join(' / ')})`, { keys, got, want, rule, bet, coinMark });
 	ok(JSON.stringify(s.head) === JSON.stringify(HEAD[wording]) && s.rows[2]?.top === true, `${label}: heading ${JSON.stringify(s.head)}, the 5 in a row in the accent`, { head: s.head, rows: s.rows });
 	return s;
@@ -244,7 +244,7 @@ async function shot(p, name) {
 async function words(p, label, social = false) {
 	const t = await popupText(p);
 	const hits = t.match(social ? SOCIAL_BANNED : BANNED) || [];
-	ok(hits.length === 0 && /^[\x20-\x7e\n]*$/.test(t), `${label}: no restricted word, plain ASCII`, { hits, t });
+	ok(hits.length === 0 && /^[\x20-\x7e\n\u00a0]*$/.test(t), `${label}: no restricted word, plain ASCII (and an amount's no-break space)`, { hits, t });
 	return t;
 }
 
@@ -651,7 +651,8 @@ async function social() {
 		// a stake.us session plays in Stake Cash or Gold Coins: the play currency set by the dev hook (the fixtures
 		// answer USD), the popup's amounts read in that coin as Stake's table writes it, the amount first, two decimals,
 		// then the code ("1.50 SC", "2.00 GC"; game/currency.ts, 2026-11-21)
-		for (const [cur, mark] of [['XSC', ' SC'], ['XGC', ' GC']]) {
+		// (the code after a no-break space, U+00A0: game/currency.ts AMOUNT_SPACE, wip/pricefit)
+		for (const [cur, mark] of [['XSC', '\u00a0SC'], ['XGC', '\u00a0GC']]) {
 			await H(p, (code) => window.__reindeer.ledCurrency(code), cur);
 			await sleep(150);
 			for (const [key, [code, reel, row]] of Object.entries(SPOTS)) {

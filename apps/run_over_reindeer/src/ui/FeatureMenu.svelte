@@ -34,6 +34,7 @@
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import { stateBet, stateConfig, stateModal } from 'state-shared';
 	import { numberToCurrencyString } from '../game/currency';
+	import { fitAmount } from './fitAmount';
 
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';
@@ -333,21 +334,17 @@
 		if ((e.target as Element | null)?.closest?.('[data-piece]')) e.stopPropagation();
 	};
 
-	// ---- fit: a long amount shrinks its type to its box, never overflows ---------------------------------------------
-	const fit = (node: HTMLElement, _text: unknown) => {
-		const run = () => {
-			node.style.fontSize = '';
-			const cw = node.clientWidth;
-			const sw = node.scrollWidth;
-			if (cw > 0 && sw > cw) {
-				const base = parseFloat(getComputedStyle(node).fontSize);
-				node.style.fontSize = `${Math.max(9, Math.floor(((base * cw) / sw) * 0.97))}px`;
-			}
-		};
-		run();
-		document.fonts?.ready.then(run);
-		return { update: run };
-	};
+	// ---- fit: a long amount shrinks its type to its box, never clips or wraps (ui/fitAmount.ts) -----------------------
+	// (the old fit here measured the element's own text inside the action's update, which Svelte runs before it writes
+	// the new text, so each fit was one change behind: "100.000000 BTC" drawn at the size fitted to "10.000000 BTC" clipped
+	// on the probe host, 2026-11-21. fitAmount measures the text it is given and re-reads the box on a resize.)
+	// THE FLOORS (design px, the box's own scale on top; tools/amount_fit_test.mjs holds every box's worst string over
+	// Stake's 85 currencies against them): the price plate 20 on the desk, 12 on a phone; BALANCE and PLAY AMOUNT 14 on the
+	// desk, 9 on a phone (the hard floor Stake's review set for modal text, as the price list's); the card's rows 10, its
+	// total 11. Under a floor the fit still shrinks (never a clip) and marks the element data-fit="under".
+	const FLOOR = $derived(
+		lay === 'desk' ? { price: 20, hud: 14, row: 10, total: 11 } : { price: 12, hud: 9, row: 10, total: 11 },
+	);
 
 	// ---- motion: transform and opacity only ---------------------------------------------------------------------------
 	const passIn = (_n: Element) => ({
@@ -406,7 +403,7 @@
 			<div class="title" data-piece><i></i><span>{T.name}</span><i></i></div>
 
 			<div class="hud" data-piece>
-				<div class="bal"><div class="lab">{X.balance}</div><div class="val slot-num" use:fit={controls.balanceText()} data-fl-balance>{controls.balanceText()}</div></div>
+				<div class="bal"><div class="lab">{X.balance}</div><div class="val slot-num" use:fitAmount={{ text: controls.balanceText(), floor: FLOOR.hud }} data-fl-balance>{controls.balanceText()}</div></div>
 				<div class="amt-block">
 					<div class="lab">{X.amount}</div>
 					<div class="amt-row">
@@ -416,7 +413,7 @@
 							controls.sound('soundPressGeneral');
 							controls.setBet(v, { silent: true });
 						}} data-fl-step="minus"><HudIcon name="minus" /></button>
-						<div class="val slot-num" use:fit={stateBet.betAmount} data-fl-amount>{money(stateBet.betAmount)}</div>
+						<div class="val slot-num" use:fitAmount={{ text: money(stateBet.betAmount), floor: FLOOR.hud }} data-fl-amount>{money(stateBet.betAmount)}</div>
 						<button class="step" disabled={betStepTarget(1) === undefined || busy} aria-label={X.raise} onclick={() => {
 							const v = betStepTarget(1);
 							if (v === undefined) return;
@@ -451,7 +448,7 @@
 			<div class="plate" data-piece data-plate={key}>
 				<div class="top">
 					<div class="kick">{isAnte ? T.perSpin + X.kickAnteTail : X.kickFeature}</div>
-					<h2 use:fit={nameOf(key)}>{nameOf(key)}</h2>
+					<h2 use:fitAmount={nameOf(key)}>{nameOf(key)}</h2>
 				</div>
 				{#if status}
 					<div class="status" data-fl-status>{@render rich(status)}</div>
@@ -473,7 +470,7 @@
 					{/each}
 				</div>
 				<div class="act">
-					<div class="price"><div class="amt slot-num" use:fit={money(cost)} data-fl-price>{money(cost)}</div><div class="lab">{isAnte ? T.perSpin : T.total}</div></div>
+					<div class="price"><div class="amt slot-num" use:fitAmount={{ text: money(cost), floor: FLOOR.price }} data-fl-price>{money(cost)}</div><div class="lab">{isAnte ? T.perSpin : T.total}</div></div>
 					{#if on}
 						<button class="go off" bind:this={actBtn} data-act="off" onclick={switchOff}>{isAnte ? T.cards.ANTE.switchOff : T.unload}</button>
 					{:else}
@@ -503,9 +500,9 @@
 		<div class="card c-{lay}" style:transform="scale({box.s})" role="dialog" aria-modal="true" aria-labelledby="fl-confirm-title" tabindex="-1" data-fl-confirm onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
 			<h3 id="fl-confirm-title">{X.confirmTitle.replace('{name}', nameOf(key))}</h3>
 			<div class="rows">
-				<div>{X.amount}</div><div class="slot-num">{money(stateBet.betAmount)}</div>
-				<div>{nameOf(key)}</div><div class="slot-num">{mult(key)}</div>
-				<div class="tot">{isAnte ? X.everySpin : T.total}</div><div class="tot slot-num" use:fit={money(cost)} data-fl-confirm-total>{money(cost)}</div>
+				<div>{X.amount}</div><div class="slot-num" use:fitAmount={{ text: money(stateBet.betAmount), floor: FLOOR.row }} data-fl-confirm-amount>{money(stateBet.betAmount)}</div>
+				<div>{nameOf(key)}</div><div class="slot-num" use:fitAmount={mult(key)}>{mult(key)}</div>
+				<div class="tot">{isAnte ? X.everySpin : T.total}</div><div class="tot slot-num" use:fitAmount={{ text: money(cost), floor: FLOOR.total }} data-fl-confirm-total>{money(cost)}</div>
 			</div>
 			<p>{@render rich(runs(isAnte ? X.confirmAnte : X.confirmFeature, { name: nameOf(key), amount: money(cost) }))}</p>
 			<div class="btns">
@@ -1641,7 +1638,9 @@
 		font-size: 15px;
 		font-family: var(--disp);
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
+		/* the words at their own width, the amounts in the rest, fitted (ui/fitAmount.ts): a long amount shrinks, the words
+		   are never cut (with the amounts' column sized by the amount, "SUPER FREE SPINS" was clipped by a long BTC total) */
+		grid-template-columns: auto minmax(0, 1fr);
 	}
 	.card .rows div {
 		padding: 7px 0 5px;

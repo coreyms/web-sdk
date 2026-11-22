@@ -174,11 +174,13 @@ check(mockCompared > 200 && mockSame === mockCompared, `the mock's positions (${
 	check(odoLocked(P.cols[0], P.cols[0].E) && !odoLocked(P.cols[1], P.cols[0].E), 'the first lock before the second');
 }
 // a trailing code (Stake's table, game/currency.ts: "10.00 GC", "10.00 SC", "0.000120 BTC") stays plain at the right end
-// while the digits roll, and the reading lands on the exact text, code included
-for (const text of ['1,234.00 GC', '10.00 SC', '0.000120 BTC', '10.00 USDT']) {
+// while the digits roll, and the reading lands on the exact text, code included; the game writes the space before the
+// code as a no-break space (U+00A0, AMOUNT_SPACE, wip/pricefit): both spellings are checked
+const NBSP = String.fromCharCode(160);
+for (const text of ['1,234.00 GC', '10.00 SC', '0.000120 BTC', '10.00 USDT'].flatMap((t) => [t, t.replace(' ', NBSP)])) {
 	const P = planOdometer(odoDigits(text), C0, C0 + 3000, odoSeed(Number(text.replace(/[^0-9.]/g, '')), odoDigits(text).length));
 	const rolling = odoReading(text, P, C0 + 100);
-	const code = text.slice(text.indexOf(' '));
+	const code = text.slice(Math.max(text.indexOf(' '), text.indexOf(NBSP)));
 	check(rolling === text.replace(/[0-9]/g, '#') && rolling.endsWith(code), `${text}: the code stays plain while it rolls ("${rolling}")`);
 	check(odoReading(text, P, C0 + 3000) === text, `${text}: it lands on the exact text`, odoReading(text, P, C0 + 3000));
 	check(P.cols.length === odoDigits(text).length, `${text}: one window per digit, none for the code`);
