@@ -10,6 +10,7 @@
 	// an abbreviation. The grid scrolls when the ladder is taller than the card.
 	//
 	// Geometry is in CSS px: ModalShell's frame is the viewport now (FIX 5), not the design master.
+	import { tick } from 'svelte';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import { stateBet, stateBetDerived, stateModal } from 'state-shared';
 	import { numberToCurrencyString } from '../game/currency';
@@ -56,7 +57,12 @@
 	const cardWidth = $derived(Math.min(CARD_MAX, vw - 2 * MARGIN));
 	// touch: 44 CSS px rows everywhere a finger can reach them; only the tiny popout drops below
 	const rowH = $derived(tiny ? 30 : 44);
-	const gridMaxH = $derived(vh * (tiny ? 0.52 : 0.56));
+	// THE CUT (2026-11-22, the small sizes fix, Corey "AO Yes"): the grid's height was a share of the window, so a row
+	// could show half cut (the fourth at 400 x 225: 117 px of room, rows of 30 and gaps of 6). It is a whole number of rows
+	// now, the most that fit in that share (at least one), and while rows lie below it a small chevron on the well's
+	// bottom edge says so (`more`)
+	const gridRows = $derived(Math.max(1, Math.floor((vh * (tiny ? 0.52 : 0.56) + 6) / (rowH + 6))));
+	const gridMaxH = $derived(gridRows * rowH + (gridRows - 1) * 6);
 	const nominalFont = $derived(tiny ? 13 : tight ? 15 : 17);
 
 	// Card + tag geometry, mirroring the CSS below so the fit measures the REAL usable width inside
@@ -100,6 +106,17 @@
 	// 9 px is the hard floor the review set for modal text; the comfort walk above keeps the real
 	// size well over it for every ladder the RGS can send.
 	const labelFont = $derived(Math.max(9, Math.floor(fontFor(cols) * 10) / 10));
+
+	// the scroll cue: read on open, on a change of the grid's shape and on the grid's own scroll (never per frame)
+	let gridEl = $state<HTMLDivElement>();
+	let more = $state(false);
+	const readMore = () => {
+		if (gridEl) more = gridEl.scrollHeight - gridEl.scrollTop - gridEl.clientHeight > 1;
+	};
+	$effect(() => {
+		void [open, cols, rowH, gridMaxH, labels.length, gridEl];
+		tick().then(readMore);
+	});
 </script>
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} zIndex={3}>
@@ -114,7 +131,7 @@
 			</div>
 
 			<div class="block">
-				<div class="grid" style:grid-template-columns="repeat({cols}, minmax(0, 1fr))" style:gap="{GAP}px" style:max-height="{gridMaxH}px">
+				<div class="grid" bind:this={gridEl} onscroll={readMore} style:grid-template-columns="repeat({cols}, minmax(0, 1fr))" style:gap="{GAP}px" style:max-height="{gridMaxH}px">
 					{#each controls.betOptions() as v (v)}
 						{@const selected = v === stateBet.betAmount}
 						{@const ok = affordable(v)}
@@ -124,6 +141,7 @@
 						</button>
 					{/each}
 				</div>
+				{#if more}<span class="more" aria-hidden="true"><Icon name="chevronRight" s={tiny ? 11 : 13} /></span>{/if}
 			</div>
 
 			<div class="cap">{soc('Amount per spin. Feature prices are multiples of this.', "Amount per play. Each mode's round is a multiple of this.")}</div>
@@ -194,10 +212,31 @@
 		background: var(--ui-glass-well-2);
 	}
 	.block {
+		position: relative;
 		background: var(--ui-glass-well);
 		border: 1px solid var(--ui-rule);
 		border-radius: 12px;
 		padding: 6px;
+	}
+	/* more amounts below: a small gold tab on the well's bottom edge, its chevron pointing down; half of it sits in the
+	   well's 6 px bottom padding, half in the gap under the well, so it covers no tag. Gone at the end of the list. */
+	.more {
+		position: absolute;
+		left: 50%;
+		bottom: 0;
+		transform: translate(-50%, 50%);
+		width: 26px;
+		height: 12px;
+		border-radius: 999px;
+		background: var(--ui-gold);
+		color: var(--ui-gold-ink);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		pointer-events: none;
+	}
+	.more :global(svg) {
+		transform: rotate(90deg);
 	}
 
 	/* ── the price tags ── */

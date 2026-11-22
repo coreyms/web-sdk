@@ -3,6 +3,7 @@
 // WATCHES: ; __reindeer.hud, __reindeer.atRest, __reindeer.stockRules, AUTOPLAY_RESUME_PAUSE_MS, data-gameinfo, data-guide, data-guide-row, data-tab
 // WATCHES: ; AUTO_PLAYS_BASE, FEATURE_NOT_IN_AUTO, loadAutoplay
 // WATCHES: ; .content, .tabs, .guide-row, .guide-icon, .guide-name, GuideId, guideRowShown
+// WATCHES: ; tabPad, tabSize, .wrap, narrow, lowHead
 // THE GAME INFO PROBE (2026-11-18): the rules page's UI GUIDE section (ui/GameInfoModal.svelte, game/gameInfoText.ts
 // guide), at every size the game is shown at, Stake's two popouts included (S 400 x 225, L 800 x 450):
 //   · the page opens from the menu's GAME INFO; the UI Guide tab is there; a press on it scrolls the guide to the top of
@@ -21,7 +22,12 @@
 //     round is triggered, the Autoplay Bonuses start
 //   · the words: printable ASCII only, no em dash, in the standard session; in a social session (?social=true) also no
 //     restricted word (bet, buy, cash, money, paid, credit, gamble, wager, stake) anywhere on the page
-// With SHOTS=<dir> it saves the guide at each size (<w>x<h>_guide.png).
+//   - THE TAB STRIP (2026-11-22, wip/smallsizes, Corey "AO Yes"; ONLY=tabs runs it alone): at Stake's sizes and the
+//     phone browser's 390 x 620 (TAB_SIZES), every tab of the strip whole inside the window and the strip, none with
+//     its word cut, the strip never scrolling sideways, at most two rows, the words at 10 px or more (under 720 wide
+//     the strip wraps to two rows; at the 2026-11-22 survey GAME MODES, MAX WIN & RTP and LEGAL sat off the right edge
+//     at 320, 375 and 400 wide)
+// With SHOTS=<dir> it saves the guide at each size (<w>x<h>_guide.png) and the strip (<w>x<h>_tabs.png).
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=a,b] [SHOTS=dir] node tools/game_info_probe.mjs
 // Uses the dev server that is already running. One headless browser, muted. Wrap it in the shared browser lock:
 //   tools/browser_lock.sh run game -- node tools/game_info_probe.mjs
@@ -47,6 +53,18 @@ const SIZES = [
 	{ name: 'ipad', vp: { width: 820, height: 1180 }, touch: true },
 ];
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
+// the tab strip's sizes: Stake's player sizes (1200 x 675 to 320 x 568), its full screen 1920 x 1080 and the phone browser
+const TAB_SIZES = [
+	{ name: 'tabs1200', vp: { width: 1200, height: 675 } },
+	{ name: 'tabs1024', vp: { width: 1024, height: 576 } },
+	{ name: 'tabs800', vp: { width: 800, height: 450 } },
+	{ name: 'tabs400', vp: { width: 400, height: 225 } },
+	{ name: 'tabs1920', vp: { width: 1920, height: 1080 } },
+	{ name: 'tabs425', vp: { width: 425, height: 812 }, touch: true },
+	{ name: 'tabs375', vp: { width: 375, height: 667 }, touch: true },
+	{ name: 'tabs320', vp: { width: 320, height: 568 }, touch: true },
+	{ name: 'tabs390', vp: { width: 390, height: 620 }, touch: true },
+];
 const ROWS = ['feature', 'spin', 'boardTap', 'skip', 'autoplay', 'turbo', 'menu', 'sound', 'amount', 'readouts', 'symbols', 'keyboard', 'replay'];
 const BANNED = /\b(bets?|buy|buys|bought|cash|money|paid|credits?|gamble|gambling|wager|wagers|stake)\b/i;
 
@@ -182,9 +200,43 @@ async function runSize(browser, S, social = false) {
 	await ctx.close();
 }
 
+/** THE TAB STRIP at one size, standard and social (the social strip says SYMBOLS for PAYTABLE) */
+async function tabStrip(browser, S) {
+	for (const social of [false, true]) {
+		const tag = `tabs ${S.vp.width}x${S.vp.height}${social ? ' social' : ''}`;
+		const { ctx, p, errs } = await boot(browser, S, social ? '&social=true' : '');
+		await openInfo(p);
+		const t = await p.evaluate(() => {
+			const nav = document.querySelector('[data-gameinfo] .tabs');
+			if (!nav) return null;
+			const nb = nav.getBoundingClientRect();
+			const tabs = [...nav.querySelectorAll('[data-tab]')].map((e) => {
+				const b = e.getBoundingClientRect();
+				return { id: e.dataset.tab, x0: b.left, x1: b.right, y0: b.top, y1: b.bottom, sw: e.scrollWidth, cw: e.clientWidth, px: parseFloat(getComputedStyle(e).fontSize) };
+			});
+			return { nav: { x0: nb.left, x1: nb.right, y0: nb.top, y1: nb.bottom, sw: nav.scrollWidth, cw: nav.clientWidth }, tabs, vw: innerWidth };
+		});
+		check(!!t && t.tabs.length === 7, `${tag}: the strip's seven tabs are there`, t?.tabs.map((x) => x.id));
+		if (t) {
+			const off = t.tabs.filter((x) => x.x0 < -0.5 || x.x1 > t.vw + 0.5 || x.x0 < t.nav.x0 - 0.5 || x.x1 > t.nav.x1 + 0.5 || x.y0 < t.nav.y0 - 0.5 || x.y1 > t.nav.y1 + 0.5).map((x) => `${x.id} ${Math.round(x.x0)}..${Math.round(x.x1)}`);
+			check(off.length === 0, `${tag}: every tab whole inside the window and the strip`, off);
+			const cut = t.tabs.filter((x) => x.sw > x.cw + 1).map((x) => `${x.id} ${x.sw}/${x.cw}`);
+			check(cut.length === 0, `${tag}: no tab's word cut`, cut);
+			check(t.nav.sw <= t.nav.cw + 1, `${tag}: the strip does not scroll sideways (${t.nav.sw} in ${t.nav.cw})`, t.nav);
+			const rows = new Set(t.tabs.map((x) => Math.round(x.y0))).size;
+			check(rows <= 2, `${tag}: the strip in at most two rows (${rows})`, rows);
+			check(t.tabs.every((x) => x.px >= 10 - 0.01), `${tag}: the tabs' words at 10 px or more`, t.tabs.map((x) => x.px));
+		}
+		if (SHOTS && !social) await p.screenshot({ path: join(SHOTS, `${S.vp.width}x${S.vp.height}_tabs.png`) });
+		check(errs.length === 0, `${tag}: no page errors`, errs.slice(0, 3));
+		await ctx.close();
+	}
+}
+
 const browser = await chromium.launch({ args: ['--mute-audio'] });
 try {
 	for (const S of SIZES.filter((s) => !ONLY.length || ONLY.includes(s.name))) await runSize(browser, S);
+	if (!ONLY.length || ONLY.includes('tabs')) for (const S of TAB_SIZES) await tabStrip(browser, S);
 	for (const S of SIZES.filter((s) => (!ONLY.length || ONLY.includes(s.name)) && ['desk1440', 'phone', 'popoutS'].includes(s.name))) await runSize(browser, S, true);
 } catch (e) {
 	fail++;

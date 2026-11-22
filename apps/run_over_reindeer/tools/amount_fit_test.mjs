@@ -235,6 +235,11 @@ const BOXES = [
 	{ id: 'popup.pay', el: 'Symbol popup 5 IN A ROW pay (236 x 0.86 wide, pad 12, border 3; less "5" and 0.8 em: 152)', kind: 'pay', f: OV(900), nominal: 14, box: 152, floor: null, how: 'fixed width, nowrap (checked: fits at nominal)' },
 	{ id: 'menu.net', el: 'Menu panel NET, tablet (narrow panel 178 less 22 padding and 8; 9 px, 0.14 em tracking)', kind: 'net', f: { face: 'Outfit', weight: 900, trackPx: 1.26 }, nominal: 9, box: 156 - measure('NET', 9, 900, 1.26 * 3, 'Outfit') - 5, floor: null, how: 'fitFont to the panel line (HudMenuPanel netFont; was no fit)' },
 	{ id: 'auto.total', el: 'Autoplay TOTAL, upright (fitFont floor 12 into 0.58 of 384)', kind: 'autoTotal', f: OUT, nominal: 18, box: 0.58 * 384, floor: 12, how: 'fitFont floor 12' },
+	// the Autoplay menu at Stake's 400 x 225 popout (ui/AutoplayModal.svelte LOW, 2026-11-22, wip/smallsizes): the right
+	// column is (392 less 2 border, 20 padding and the 10 gap) / 2.25 = 160. A long total takes that column's own line
+	// (less 4), LOAD's amount the button's inside (less 2 border and 16 padding; letter-spacing 0.04 em, here as none)
+	{ id: 'auto.total.low', el: 'Autoplay TOTAL, 400 x 225 (LOW: its own line, 156)', kind: 'autoTotal', f: OUT, nominal: 14, box: 156, floor: 11, how: 'fitFont floor 11' },
+	{ id: 'auto.go.low', el: "Autoplay LOAD's amount, 400 x 225 (LOW: under the words, 142)", kind: 'autoTotal', f: OUT, nominal: 12, box: 142 - 20 * 0.48, floor: 8.5, how: 'fitFont floor 8.5' },
 ];
 // the confirm card's value column is the inside less its label's own width (computed here from the face)
 const CARD_WORDS = Math.max(measure('SUPER FREE SPINS', 15, 700, 0, 'Overpass'), measure('PLAY AMOUNT', 15, 700, 0, 'Overpass'), measure('EVERY SPIN', 20, 900, 0, 'Overpass'));

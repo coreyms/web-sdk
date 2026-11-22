@@ -22,7 +22,7 @@
 	import { numberToCurrencyString } from '../game/currency';
 
 	import { modeChipData } from '../game/modeChipData';
-	import { fitFont, UI_TEXT_FACE } from '../game/textFit';
+	import { fitFont, measureFitText, UI_TEXT_FACE } from '../game/textFit';
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';
 	import BetAdjuster from './BetAdjuster.svelte';
@@ -40,6 +40,13 @@
 	const vw = $derived(innerWidth.current ?? 1280);
 	const vh = $derived(innerHeight.current ?? 720);
 	const tiny = $derived(vh < 300 || vw < 360);
+	// LOW (2026-11-22, the small sizes fix, Corey "AO Yes"): the phone-sideways panel at Popout S height (400x225, `wide` and
+	// `tiny` together). The 68vh sheet over the 54 px stepper left the last chip row cut, LOAD's label ran out of its
+	// button and the 100 to unlimited chips had no room for their price lines. In LOW the sheet fits with no scroll: the
+	// spin counts take the wider left column (1.25 : 1), the right column holds STOP OPTIONS, the total (two lines) and
+	// LOAD (its words over its amount), the stepper's own padding tightens, and the sheet takes what height is left
+	// (a loaded feature's line or a parked run's UNLOAD still scroll inside it).
+	const low = $derived(wide && tiny);
 	// the armed-mode pill reads "MYSTERY · $300.00 / SPIN", not "MYSTERY SPIN · $300.00 / SPIN":
 	// the mode word alone, since "/ SPIN" already says the rest and the long labels clipped the
 	// pill on phones (Corey 2026-09-15)
@@ -89,13 +96,38 @@
 	const perSpinText = $derived(numberToCurrencyString(perSpin));
 	// chip cell width, mirroring the CSS: panel width − padding − 3 gaps, over 4 columns, less the
 	// chip's own side padding
-	const panelW = $derived(wide ? Math.min(560, vw * 0.94) : Math.min(portrait ? 412 : 480, vw * (portrait ? 1 : 0.94)));
-	// (HUD round 5: the chips in the panel's glass, the two-column phone panel's half width)
-	const chipW = $derived(wide ? ((panelW - 32 - 18) / 2 - 3 * 6) / 4 - 6 : (panelW - 2 * (portrait ? 14 : 20) - 3 * 8) / 4 - 6);
+	const panelW = $derived(low ? vw - 8 : wide ? Math.min(560, vw * 0.94) : Math.min(portrait ? 412 : 480, vw * (portrait ? 1 : 0.94)));
+	// LOW's two columns, mirroring its CSS: the panel less its 1 px border and 10 px padding a side, less the 10 px column
+	// gap, split 1.25 : 1
+	const lowInner = $derived(panelW - 2 - 20 - 10);
+	const lowLeft = $derived((lowInner * 1.25) / 2.25);
+	const lowRight = $derived(lowInner / 2.25);
+	// (HUD round 5: the chips in the panel's glass, the two-column phone panel's half width; LOW: 4 chips and 3 gaps of 5 in
+	// the left column, less each chip's border and 2 px side padding)
+	const chipW = $derived(low ? (lowLeft - 3 * 5) / 4 - 6 : wide ? ((panelW - 32 - 18) / 2 - 3 * 6) / 4 - 6 : (panelW - 2 * (portrait ? 14 : 20) - 3 * 8) / 4 - 6);
 	const subFont = (text: string) => fitFont({ text, nominal: wide ? 8 : 9, box: chipW, minScale: 0.9, weight: 900, letterSpacing: 0, face: UI_TEXT_FACE });
-	// the total row: label + value share the row, so the value gets a little over half of it
-	const totalBox = $derived(wide ? (panelW - 50) / 2 - 4 : panelW - 2 * (portrait ? 14 : 20) - 4);
-	const totalFont = $derived(fitFont({ text: totalText, nominal: wide ? 17 : portrait ? 18 : 20, box: totalBox * 0.58, floor: 12, weight: 900, face: UI_TEXT_FACE }) ?? 12);
+	// the total row: label + value share the row, so the value gets a little over half of it. LOW: the label has its own
+	// line, the value shares the second with the "25 x $1.00" line (.math, 9.5 px, 0.04em, 9 px gap)
+	const mathText = $derived(count === Infinity ? 'until stopped' : `${count} x ${perSpinText}`);
+	const totalBox = $derived(
+		low ? lowRight - 4 - measureFitText(mathText, 9.5, 900, 0.38, UI_TEXT_FACE) - 9 : wide ? (panelW - 50) / 2 - 4 : panelW - 2 * (portrait ? 14 : 20) - 4,
+	);
+	// (LOW: when a long amount cannot sit beside that line at 11 px, the line wraps above it and the amount takes the
+	// whole column)
+	const besideFont = $derived(low ? (fitFont({ text: totalText, nominal: 14, box: totalBox, weight: 900, face: UI_TEXT_FACE }) ?? 0) : 0);
+	const totalFont = $derived(
+		low
+			? besideFont >= 11
+				? besideFont
+				: (fitFont({ text: totalText, nominal: 14, box: lowRight - 4, floor: 11, weight: 900, face: UI_TEXT_FACE }) ?? 11)
+			: (fitFont({ text: totalText, nominal: wide ? 17 : portrait ? 18 : 20, box: totalBox * 0.58, floor: 12, weight: 900, face: UI_TEXT_FACE }) ?? 12),
+	);
+	// LOW's LOAD: the words on one line, the amount under them, each fitted to the button's inside (its 1 px border and
+	// 8 px padding a side), never clipped
+	const goWords = $derived(count === Infinity ? 'LOAD AUTO SPINS' : `LOAD ${countText(count)} AUTO SPINS`);
+	const goInner = $derived(lowRight - 2 - 16);
+	const goFont = $derived(fitFont({ text: goWords, nominal: 10.5, box: goInner, floor: 8.5, weight: 900, letterSpacing: 0.63, face: UI_TEXT_FACE }) ?? 8.5);
+	const goAmtFont = $derived(fitFont({ text: totalText, nominal: 12, box: goInner, floor: 8.5, weight: 900, letterSpacing: 0.48, face: UI_TEXT_FACE }) ?? 8.5);
 	// HEAD: the mode pill carries a price, so it is never clipped — and the AUTOPLAY title is never
 	// truncated either (review 2026-09-20). When the two cannot share the row the pill drops to its
 	// own line under the title. A canvas estimate of the three boxes ran ~23 px pessimistic and
@@ -130,9 +162,16 @@
 	const hasLoadout = $derived(controls.autoLoadout() !== null);
 </script>
 
+{#snippet totalRow()}
+	<div class="total">
+		<span class="k">{soc('TOTAL BET AMOUNT', 'TOTAL PLAY AMOUNT')}</span>
+		<span class="v-wrap"><span class="slot-num v" style:font-size="{totalFont}px">{totalText}</span><span class="slot-num math">{mathText}</span></span>
+	</div>
+{/snippet}
+
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} dim="rgba(6,4,10,0.55)" zIndex={3}>
-	<div class="center" style:gap="{compact ? 10 : 14}px">
-		<div class="panel am-glass" class:compact class:portrait class:wide class:tiny onclick={(e) => e.stopPropagation()} role="presentation">
+	<div class="center" class:low style:gap="{low ? 4 : compact ? 10 : 14}px">
+		<div class="panel am-glass" class:compact class:portrait class:wide class:tiny class:low onclick={(e) => e.stopPropagation()} role="presentation">
 			<div class="head" class:stacked={!headFits} bind:this={headEl}>
 				<div class="title am-stencil" bind:this={titleEl}>AUTOPLAY</div>
 				<div class="pill" bind:this={pillEl}><span class="mode">{shortMode(pill.label)}</span><i class="dot"></i><span class="slot-num cost">{pill.cost}</span><span class="per">{pill.unit}</span></div>
@@ -148,19 +187,17 @@
 				<div class="chips four">
 					{#each COUNTS as c (c)}
 						{@const sub = c === Infinity ? 'until stopped' : numberToCurrencyString(c * perSpin)}
-						{@const sf = subFont(sub)}
+						{@const two = low && c === Infinity}
+						{@const sf = subFont(two ? 'stopped' : sub)}
 						<button class="slot-btn hg chip" class:on={count === c} onclick={() => (controls.sound('soundPressSub'), (count = c))}>
 							<span class="slot-num big">{#if c === Infinity}<svg class="inf" viewBox="0 0 34 16" aria-label="until stopped"><path d="M17 8C14.2 4.4 11.9 2.6 9 2.6a5.4 5.4 0 0 0 0 10.8c2.9 0 5.2-1.8 8-5.4s5.1-5.4 8-5.4a5.4 5.4 0 0 1 0 10.8c-2.9 0-5.2-1.8-8-5.4z" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" /></svg>{:else}{countText(c)}{/if}</span>
-							{#if sf !== null}<span class="slot-num sub" style:font-size="{sf}px">{sub}</span>{/if}
+							{#if sf !== null}<span class="slot-num sub" class:two style:font-size="{sf}px">{sub}</span>{/if}
 						</button>
 					{/each}
 				</div>
 			</div>
 
-			<div class="total">
-				<span class="k">{soc('TOTAL BET AMOUNT', 'TOTAL PLAY AMOUNT')}</span>
-				<span class="v-wrap"><span class="slot-num v" style:font-size="{totalFont}px">{totalText}</span><span class="slot-num math">{count === Infinity ? 'until stopped' : `${count} x ${perSpinText}`}</span></span>
-			</div>
+			{#if !low}{@render totalRow()}{/if}
 			</div><div class="c2">
 
 			<div class="fold" class:open={advanced}>
@@ -212,8 +249,15 @@
 				{/if}
 			</div>
 
+			<!-- LOW: the total sits over LOAD in the right column (the left one is the spin counts' whole height) -->
+			{#if low}{@render totalRow()}{/if}
+
 			<button class="slot-btn hg go" onclick={load}>
-				{#if count === Infinity}LOAD AUTO SPINS{:else}LOAD <span class="slot-num n">{countText(count)}</span> AUTO SPINS<i class="dot"></i><span class="slot-num n mv">{totalText}</span>{/if}
+				{#if low}
+					<!-- LOW: the same words and amount, the words over the amount, each fitted to the button -->
+					<span class="gl" style:font-size="{goFont}px">{#if count === Infinity}LOAD AUTO SPINS{:else}LOAD <span class="slot-num n">{countText(count)}</span> AUTO SPINS{/if}</span>
+					{#if count !== Infinity}<span class="slot-num n mv" style:font-size="{goAmtFont}px">{totalText}</span>{/if}
+				{:else if count === Infinity}LOAD AUTO SPINS{:else}LOAD <span class="slot-num n">{countText(count)}</span> AUTO SPINS<i class="dot"></i><span class="slot-num n mv">{totalText}</span>{/if}
 			</button>
 			<div class="cap">Loads to the Spin button. Pressing Spin starts the run; pressing again stops it.</div>
 			{#if hasLoadout}
@@ -850,6 +894,97 @@
 	.tiny .x {
 		width: 30px;
 		height: 30px;
+	}
+
+	/* LOW (the phone held sideways at Popout S height, 400x225: `wide` and `tiny`; see the script): no scroll. The sheet
+	   takes the height the stepper leaves (it shrinks and scrolls only for a loaded feature's line or a parked run's
+	   UNLOAD), the spin counts the wider left column, STOP OPTIONS, the total and LOAD the right one. Every size in px
+	   here is mirrored by the script's lowInner, chipW, totalBox and goInner. */
+	.center.low {
+		padding: 4px;
+	}
+	/* the stepper's own 8 px padding above and below its 38 px keys tightens to 2 (BetAdjuster writes it inline) */
+	.center.low .stepper :global(.adj) {
+		padding-top: 2px !important;
+		padding-bottom: 2px !important;
+	}
+	.panel.low {
+		width: 100%;
+		max-width: 100%;
+		max-height: none;
+		flex: 0 1 auto;
+		min-height: 0;
+		padding: 6px 10px;
+		gap: 4px;
+	}
+	.low .cols {
+		grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+		gap: 10px;
+	}
+	.low .c1,
+	.low .c2 {
+		gap: 4px;
+	}
+	.low .sec {
+		gap: 5px;
+	}
+	.low .chips.four {
+		gap: 5px;
+	}
+	.low .chip {
+		padding: 0 2px;
+	}
+	.low .chip .sub.two {
+		white-space: normal;
+		line-height: 1.05;
+		text-align: center;
+	}
+	.low .fold-row {
+		min-height: 36px;
+		gap: 6px;
+		padding: 0 8px 0 10px;
+	}
+	.low .fold-k {
+		font-size: 10px;
+		letter-spacing: 0.12em;
+	}
+	/* the closed row's summary had no room left at this width (it showed as a bare rule); the fold opens by itself
+	   whenever a stop is set, so nothing set is ever hidden */
+	.low .fold-sum {
+		display: none;
+	}
+	.low .chev {
+		margin-left: auto;
+	}
+	.low .total {
+		flex-direction: column;
+		flex-wrap: nowrap;
+		align-items: stretch;
+		gap: 2px;
+		padding: 2px;
+		border-bottom: 0;
+		line-height: 1.1;
+	}
+	.low .total .k {
+		font-size: 8.5px;
+		letter-spacing: 0.1em;
+	}
+	.low .total .math {
+		font-size: 9.5px;
+	}
+	.low .go {
+		flex-direction: column;
+		gap: 1px;
+		min-height: 40px;
+		padding: 0 8px;
+		line-height: 1.1;
+	}
+	.low .go .gl {
+		letter-spacing: 0.06em;
+		white-space: nowrap;
+	}
+	.low .go .mv {
+		letter-spacing: 0.04em;
 	}
 
 	/* ── portrait: a sheet that rises from the bottom, the bet stepper over it; no scroll ── */
