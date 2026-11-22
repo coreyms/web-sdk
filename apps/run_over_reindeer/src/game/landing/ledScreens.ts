@@ -506,6 +506,7 @@ export const setLedWildArt = (sheet: ArtSheet | null, tier: 'full' | 'phone' = '
 	WILDS = sheet;
 	WILDS_TIER = tier;
 	artCache.clear();
+	growCv = null;
 	faceReset();
 };
 const artCache = new Map<string, Cv>();
@@ -748,23 +749,20 @@ const cloudCell = (g: Ctx, box: Rect) => {
 	const a = art('cloud', [0, (chh - sh) / 2, cw, sh], box.w, box.h, kOf(g));
 	blit(g, a, Math.round(box.x), Math.round(box.y));
 };
-// (in LEDs: each rule one dot tall, the dashes three dots on and two off, whole LEDs on the face's grid)
-function lanes(g: Ctx, P: Rect, rowsTop: number, cellH: number, NR: number) {
+// THE LITTLE ROAD'S LANE LINES between its rows (in LEDs: each one dot tall, the dashes three dots on and two off, the
+// middle one yellow; whole LEDs on the face's grid), from x0 to x1 (dots). Its two outer edges draw NO line since
+// 2026-11-21 (Corey, on staging: "Can we remove these top and bottom gray lines"; they were solid gray rules at r 0 and NR).
+export function strikeLanes(g: Ctx, x0d: number, x1d: number, rowsTop: number, cellH: number, NR: number) {
 	const k = kOf(g);
 	const u = ledN(k, 1);
-	const x0 = Math.round(P.x * k);
-	const x1 = Math.round((P.x + P.w) * k);
+	const x0 = Math.round(x0d * k);
+	const x1 = Math.round(x1d * k);
 	const dash = ledN(k, 3);
 	const per = dash + ledN(k, 2);
-	for (let r = 0; r <= NR; r++) {
+	for (let r = 1; r < NR; r++) {
 		const y = Math.round((rowsTop + r * cellH) * k);
-		if (r === 0 || r === NR) {
-			g.fillStyle = 'rgba(200,215,235,0.30)';
-			fillP(g, x0, y, x1 - x0, u);
-		} else {
-			g.fillStyle = r * 2 === NR ? 'rgba(255,205,40,0.55)' : 'rgba(230,235,245,0.30)';
-			for (let x = x0; x < x1; x += per) fillP(g, x, y, dash, u);
-		}
+		g.fillStyle = r * 2 === NR ? 'rgba(255,205,40,0.55)' : 'rgba(230,235,245,0.30)';
+		for (let x = x0; x < x1; x += per) fillP(g, x, y, Math.min(dash, x1 - x), u);
 	}
 }
 function burst(g: Ctx, cx: number, cy: number, p: number, rMax: number) {
@@ -809,9 +807,10 @@ function multLabel(g: Ctx, str: string, cx: number, bottom: number, maxW: number
 	drawText(g, str, x, y, s, C.yellow);
 }
 // ---- THE WILD PICTURES (constants LED_SIGN.wilds; tools/build_led_wilds.py, game/ledWildsSpec.ts) ----
-// The game's own Wilds as they stand on the road: the picture (its frame, backdrop and character) stretched over the old
-// red box's outer edge, the WILD word and the number in their in-game places (shares of the picture), each baked at the
-// dots by art (the stepped downscale and the LED punch)
+// The game's own Wilds as they stand on the road: the picture (its frame, backdrop and character) with its frame's outer
+// edge on the old red box's outer edge and what the game draws past that edge round it (wildDrawRect), the WILD word and
+// the number in their in-game places (shares of the outer edge), each baked at the dots by art (the stepped downscale and
+// the LED punch)
 type WildKind = keyof typeof LED_WILDS.pictures;
 type WildPart = { cx: number; cy: number; w: number; h: number };
 /** the letters' look in force: 'stripes' or 'solid', or null for the pictures of before (LED_SIGN.wilds.look 'today', or
@@ -822,12 +821,60 @@ export const wildLook = (): 'stripes' | 'solid' | null => {
 };
 /** the picture's outer edge for a box framed `th` dots thick (the old red box's outer edge) */
 const wildOuter = (b: Rect, th: number): Rect => ({ x: b.x - th, y: b.y - th, w: b.w + 2 * th, h: b.h + 2 * th });
+/** THE PICTURE WHOLE (2026-11-21, Corey: "not cut off Santa's Elbow? same on the wild ... some cropping on the bottom and
+ *  right sides"): each picture carries what the game draws past its frame's outer edge (the tinsel's fuzz, the corner
+ *  baubles, Santa's elbow over his right band and on past the column) on a transparent margin (tools/
+ *  build_led_wild_sources.py). `outer` (x, y, w, h) is the outer edge as shares of the picture, `ink` (x0, y0, x1, y1) its
+ *  drawn pixels, `band` (x, y, w, h) the grow's strip over his right band. */
+type WildGeo = { frame: string; outer: readonly number[]; ink: readonly number[]; band?: readonly number[]; bandClear?: number };
+const wildGeo = (kind: WildKind) => LED_WILDS.pictures[kind] as unknown as WildGeo;
+/** the whole picture's rectangle (whole dots) for its outer edge `o` (dots): the outer edge lands within half a dot */
+export function wildDrawRect(kind: WildKind, o: Rect): Rect {
+	const [x, y, w, h] = wildGeo(kind).outer;
+	const dw = Math.max(1, Math.round(o.w / w));
+	const dh = Math.max(1, Math.round(o.h / h));
+	return { x: Math.round(o.x - x * dw), y: Math.round(o.y - y * dh), w: dw, h: dh };
+}
+/** the box of the picture's drawn pixels (dots) for its outer edge `o` */
+export function wildInkRect(kind: WildKind, o: Rect): Rect {
+	const D = wildDrawRect(kind, o);
+	const [x0, y0, x1, y1] = wildGeo(kind).ink;
+	return { x: D.x + x0 * D.w, y: D.y + y0 * D.h, w: (x1 - x0) * D.w, h: (y1 - y0) * D.h };
+}
 function wildPic(g: Ctx, kind: WildKind, box: Rect, alpha = 1) {
-	const a = art(LED_WILDS.pictures[kind].frame, null, box.w, box.h, kOf(g), WILDS);
+	const D = wildDrawRect(kind, box);
+	if (wildRec) wildRec.ink = wildInkRect(kind, box);
+	const a = art(wildGeo(kind).frame, null, D.w, D.h, kOf(g), WILDS);
 	g.globalAlpha = alpha;
-	blit(g, a, box.x, box.y);
+	blit(g, a, D.x, D.y);
 	g.globalAlpha = 1;
 	noteWild(g, kind + ':picture');
+}
+/** THE GROW'S PICTURE (2026-11-21): the whole picture with its band strip put in (over the rows he covers his right band:
+ *  the picture cleared from the band's outer fuzz to its right edge, then the strip, the band and its fuzz, drawn over
+ *  it, so he shows through the inner fuzz's gaps as the left band lets him and nothing past the band is left), so the
+ *  growing column shows its right band clean and no elbow (the game's entrance cuts him at the frame the same way; the
+ *  elbow comes out over the band once he stands, the column whole). Copied once per sheet at its own px, then baked as
+ *  any picture. null without a strip. */
+let growCv: { key: string; cv: Cv } | null = null;
+function growSheet(kind: WildKind): ArtSheet | null {
+	const G = wildGeo(kind);
+	const f = WILDS?.frames[G.frame];
+	const bf = WILDS?.frames[`${G.frame}_band`];
+	if (!G.band || !f || !bf) return null;
+	const name = `${G.frame}~grow~${WILDS_TIER}`;
+	const key = `${name}|${f.w}x${f.h}`;
+	if (!growCv || growCv.key !== key) {
+		const cv = mk(f.w, f.h);
+		cv.ctx.drawImage(WILDS!.image, f.x, f.y, f.w, f.h, 0, 0, f.w, f.h);
+		const bx = Math.round(G.band[0] * f.w);
+		const by = Math.round(G.band[1] * f.h);
+		const cx = Math.round((G.bandClear ?? G.band[0]) * f.w);
+		cv.ctx.clearRect(cx, by, f.w - cx, bf.h);
+		cv.ctx.drawImage(WILDS!.image, bf.x, bf.y, bf.w, bf.h, bx, by, bf.w, bf.h);
+		growCv = { key, cv };
+	}
+	return { image: growCv.cv, frames: { [name]: { x: 0, y: 0, w: f.w, h: f.h } } };
 }
 /** THE COLUMN GROWING IN ITS OWN LOOK (LED_SIGN.wilds.grow, Corey 2026-11-21): the finished column's picture `full`, shown
  *  in the growing window `win` (both outer edges, dots): the garland's top rows and the baubles' corners ride the window's
@@ -835,37 +882,69 @@ function wildPic(g: Ctx, kind: WildKind, box: Rect, alpha = 1) {
  *  column. Partial blits of the one baked picture (whole LEDs on the face's grid), no mask; grown, it is the whole picture. */
 function wildGrow(g: Ctx, kind: WildKind, full: Rect, win: Rect) {
 	const k = kOf(g);
-	const a = art(LED_WILDS.pictures[kind].frame, null, full.w, full.h, k, WILDS);
-	const W = a.width;
-	const H = a.height;
-	const Y0 = Math.round(full.y * k);
-	// (each edge measured from its own end of the column: the grown window is exactly the picture)
-	const top = clamp(Math.round((win.y - full.y) * k), 0, H);
-	const bot = clamp(H - Math.round((full.y + full.h - win.y - win.h) * k), top, H);
-	if (wildRec) wildRec.grow = Math.round(((bot - top) / H) * 1000) / 1000;
-	if (top === 0 && bot === H) return wildPic(g, kind, full);
-	const G = LED_SIGN.wilds.grow;
-	const half = Math.floor((bot - top) / 2);
-	const cap = Math.min(half, Math.round(G.cap * H));
-	const ch = Math.min(half, Math.max(cap, Math.round(G.corner.h * H)));
-	const cw = Math.min(Math.floor(W / 2), Math.round(G.corner.w * W));
-	const at = (row: number) => (Y0 + row) / k;
-	// the picture where it stands, between the two edges
-	if (bot - top > 2 * cap) blit(g, a, full.x, at(top + cap), 0, top + cap, W, bot - top - 2 * cap);
-	// the garland's top and bottom rows on the window's edges
-	if (cap > 0) {
-		blit(g, a, full.x, at(top), 0, 0, W, cap);
-		blit(g, a, full.x, at(bot - cap), 0, H - cap, W, cap);
-	}
-	// the baubles' rows below and above the garland, at the corners
-	if (ch > cap) {
-		const n = ch - cap;
-		for (const x of [0, W - cw]) {
-			blit(g, a, full.x + x / k, at(top + cap), x, cap, cw, n);
-			blit(g, a, full.x + x / k, at(bot - ch), x, H - ch, cw, n);
+	const plan = wildGrowPlan(kind, full, win, k);
+	if (wildRec) wildRec.grow = plan.grow;
+	if (plan.whole) return wildPic(g, kind, full);
+	const D = wildDrawRect(kind, full);
+	const gs = growSheet(kind);
+	const a = gs ? art(Object.keys(gs.frames)[0], null, D.w, D.h, k, gs) : art(wildGeo(kind).frame, null, D.w, D.h, k, WILDS);
+	for (const p of plan.blits) blit(g, a, D.x + p.dx / k, (plan.Y0 + p.dy) / k, p.sx, p.sy, p.sw, p.sh);
+	noteWild(g, kind + ':picture');
+}
+/** the grow's pieces at `k` LEDs per dot (pure: the node check follows them): the baked picture (D's size in LEDs) is cut
+ *  into partial blits, each `sx, sy, sw, sh` of the bake (LEDs) drawn at `dx` LEDs right of the picture's left and `dy`
+ *  LEDs below Y0 (the picture's top, LEDs). The window's edges are measured on the outer edge inside the picture, each from
+ *  its own end of the column (the grown window is exactly the picture). Its garland's top rows (with the margin over
+ *  them: the baubles' caps) ride the window's top edge, its bottom rows (and the margin under them) the bottom edge, the
+ *  baubles' rows at the corners (the side margins with them), and the picture between the edges stands where it
+ *  stands. */
+export function wildGrowPlan(kind: WildKind, full: Rect, win: Rect, k: number) {
+	const D = wildDrawRect(kind, full);
+	const W = Math.max(1, Math.round(D.w * k));
+	const H = Math.max(1, Math.round(D.h * k));
+	const [px, py, pw, ph] = wildGeo(kind).outer;
+	const ox0 = Math.round(px * W);
+	const ox1 = Math.round((px + pw) * W);
+	const oy0 = Math.round(py * H);
+	const oy1 = Math.round((py + ph) * H);
+	const OH = oy1 - oy0;
+	const OW = ox1 - ox0;
+	const top = oy0 + clamp(Math.round((win.y - full.y) * k), 0, OH);
+	const bot = clamp(oy1 - Math.round((full.y + full.h - win.y - win.h) * k), top, oy1);
+	const grow = Math.round(((bot - top) / OH) * 1000) / 1000;
+	const blits: { dx: number; dy: number; sx: number; sy: number; sw: number; sh: number; part: string }[] = [];
+	const Y0 = Math.round(D.y * k);
+	const whole = top === oy0 && bot === oy1;
+	if (!whole) {
+		const G = LED_SIGN.wilds.grow;
+		const half = Math.floor((bot - top) / 2);
+		const cap = Math.min(half, Math.round(G.cap * OH));
+		const ch = Math.min(half, Math.max(cap, Math.round(G.corner.h * OH)));
+		const cw = Math.min(Math.floor(OW / 2), Math.round(G.corner.w * OW));
+		const put = (part: string, dy: number, sx: number, sy: number, sw: number, sh: number) => {
+			if (sw > 0 && sh > 0) blits.push({ dx: sx, dy, sx, sy, sw, sh, part });
+		};
+		// the picture where it stands, from half way into the garland's top rows to half way into its bottom rows
+		// (2026-11-21: the garland is drawn over both ends, its core opaque there, so the figure shows through the gaps of
+		// the band's lumpy inner edge as it does standing, never cut by a straight edge)
+		const h0 = Math.floor(cap / 2);
+		if (bot - top > 2 * h0) put('middle', top + h0, 0, top + h0, W, bot - top - 2 * h0);
+		// the garland's top and bottom rows on the window's edges, the margins beyond them with them
+		if (cap > 0 || oy0 > 0) put('top', top - oy0, 0, 0, W, oy0 + cap);
+		if (cap > 0 || H > oy1) put('bottom', bot - cap, 0, oy1 - cap, W, H - oy1 + cap);
+		// the baubles' rows below and above the garland, at the corners (with the side margins)
+		if (ch > cap) {
+			const n = ch - cap;
+			for (const [x, w] of [
+				[0, ox0 + cw],
+				[ox1 - cw, W - ox1 + cw],
+			]) {
+				put('corner', top + cap, x, oy0 + cap, w, n);
+				put('corner', bot - ch, x, oy1 - ch, w, n);
+			}
 		}
 	}
-	noteWild(g, kind + ':picture');
+	return { whole, grow, top, bot, W, H, Y0, outer: { x0: ox0, x1: ox1, y0: oy0, y1: oy1 }, blits };
 }
 /** the word or the number of a Wild over its picture `box`, in the look; false when the sheet has no such picture (the
  *  number's text not the one baked: the caller draws today's) */
@@ -886,17 +965,26 @@ function wildPart(g: Ctx, kind: WildKind, part: 'word' | 'mult', look: 'stripes'
 }
 /** what the last strike screen drew from the Wild sheet (the probes): its screen, the look and the sheet frames; `old` the
  *  elements of the pictures of before it drew (the cloud, the red or plain box, Santa's small picture: 'today' only),
- *  `grow` the share of the column's picture shown (the sleigh), `t` the screen's time of that frame in ms */
-let wildRec: { kind: 'sleigh' | 'car'; look: string; names: string[]; old: string[]; grow: number | null; t: number } | null = null;
+ *  `grow` the share of the column's picture shown (the sleigh), `t` the screen's time of that frame in ms; `ink` the
+ *  standing picture's drawn pixels (dots), `words` the text's boxes, W x H the board (2026-11-21: led_board_probe judges
+ *  the picture inside the board and clear of the words) */
+let wildRec: { kind: 'sleigh' | 'car'; look: string; names: string[]; old: string[]; grow: number | null; t: number; W: number; H: number; ink: Rect | null; words: Rect[] } | null = null;
 function noteWild(_g: Ctx, name: string) {
 	if (wildRec && !wildRec.names.includes(name)) wildRec.names.push(name);
 }
 const noteOld = (name: string) => {
 	if (wildRec && !wildRec.old.includes(name)) wildRec.old.push(name);
 };
-export const wildsDrawn = () => (wildRec ? { kind: wildRec.kind, look: wildRec.look, names: wildRec.names.slice(), old: wildRec.old.slice(), grow: wildRec.grow, t: wildRec.t } : null);
+export const wildsDrawn = () => (wildRec ? { kind: wildRec.kind, look: wildRec.look, names: wildRec.names.slice(), old: wildRec.old.slice(), grow: wildRec.grow, t: wildRec.t, W: wildRec.W, H: wildRec.H, ink: wildRec.ink, words: wildRec.words } : null);
 const blinkOn = (mt: number) => mt > 0 && !(mt > 0.2 && mt < 0.3) && !(mt > 0.4 && mt < 0.5);
-function screenStrike(g: Ctx, W: number, H: number, t: number, kind: 'sleigh' | 'car', TX: LedText) {
+/** THE STRIKE SCREEN'S LAYOUT (pure: the node check lays it out on every board): the words, the little road (P, its NR
+ *  rows from rowsTop, cellH tall), the struck cell and the Wild's outer edge when it stands (`final`: Santa's whole column,
+ *  or Grandma's cell). The rows leave the whole picture room (2026-11-21, the pictures carry the frame's fuzz, baubles and
+ *  Santa's elbow past its outer edge: wildInkRect): its drawn pixels one dot inside the board, and on the tall boards clear
+ *  of the words under it; the column moves left until his elbow clears the words beside it (never shrunk for it). The
+ *  lanes run from the road's left to its right, and on the wide boards end at the Wild's outer edge (the road ends at
+ *  it: no dash past the frame). */
+export function strikeLayout(W: number, H: number, kind: 'sleigh' | 'car', TX: LedText) {
 	const T = TX[kind];
 	const tall = W / H < 1.7;
 	const blocks: Block[] = [
@@ -922,18 +1010,44 @@ function screenStrike(g: Ctx, W: number, H: number, t: number, kind: 'sleigh' | 
 		ty = H - 4 - lay.h;
 		P = { x: 3, y: 3, w: W - 6, h: ty - 6 };
 	}
-	drawLayout(g, lay, tx, ty, tw, tall ? 'center' : 'left');
 	const NR = kind === 'sleigh' ? 4 : tall ? 2 : 3;
-	const cellH = Math.max(6, Math.floor(P.h / NR));
-	const cellW = Math.round(cellH * 1.45);
-	const rowsTop = P.y + Math.floor((P.h - NR * cellH) / 2);
-	const colX = P.x + P.w - cellW - (tall ? Math.round(P.w * 0.2) : 3);
-	lanes(g, P, rowsTop, cellH, NR);
 	const row = kind === 'sleigh' ? 2 : 1;
+	const pic: WildKind = kind === 'sleigh' ? 'santa' : 'grandma';
+	const lo = 1;
+	const hi = tall ? ty - 2 : H - 1;
+	const finalOf = (x: number, top: number, cellW: number, cellH: number, th: number) =>
+		kind === 'sleigh' ? wildOuter({ x, y: top, w: cellW, h: NR * cellH }, th) : wildOuter({ x, y: top + row * cellH, w: cellW, h: cellH }, th);
+	let cellH = Math.max(6, Math.floor(P.h / NR));
+	let rowsTop = 0;
+	for (;;) {
+		const th = cellH >= 22 ? 2 : 1;
+		rowsTop = P.y + Math.floor((P.h - NR * cellH) / 2);
+		const ink = wildInkRect(pic, finalOf(0, rowsTop, Math.round(cellH * 1.45), cellH, th));
+		if (ink.y < lo) rowsTop += Math.ceil(lo - ink.y);
+		else if (ink.y + ink.h > hi) rowsTop -= Math.ceil(ink.y + ink.h - hi);
+		const fit = wildInkRect(pic, finalOf(0, rowsTop, Math.round(cellH * 1.45), cellH, th));
+		if ((fit.y >= lo && fit.y + fit.h <= hi) || cellH <= 6) break;
+		cellH -= 1;
+	}
+	const th = cellH >= 22 ? 2 : 1;
+	const cellW = Math.round(cellH * 1.45);
+	let colX = P.x + P.w - cellW - (tall ? Math.round(P.w * 0.2) : 3);
+	// (the elbow clear of the words beside it, two dots; on a tall board clear of the board's edge)
+	const ink = wildInkRect(pic, finalOf(colX, rowsTop, cellW, cellH, th));
+	const right = tall ? W - 2 : tx - 2;
+	if (ink.x + ink.w > right) colX -= Math.ceil(ink.x + ink.w - right);
 	const cell = { x: colX, y: rowsTop + row * cellH, w: cellW, h: cellH };
+	const final = finalOf(colX, rowsTop, cellW, cellH, th);
+	const lanesTo = tall ? P.x + P.w : final.x + final.w;
+	return { tall, P, lay, tx, ty, tw, NR, row, cellH, cellW, rowsTop, colX, th, cell, final, lanesFrom: P.x, lanesTo, pic };
+}
+function screenStrike(g: Ctx, W: number, H: number, t: number, kind: 'sleigh' | 'car', TX: LedText) {
+	const T = TX[kind];
+	const { tall, P, lay, tx, ty, tw, NR, cellH, rowsTop, th, cell, lanesFrom, lanesTo } = strikeLayout(W, H, kind, TX);
+	drawLayout(g, lay, tx, ty, tw, tall ? 'center' : 'left');
+	strikeLanes(g, lanesFrom, lanesTo, rowsTop, cellH, NR);
 	const RUN0 = 0.45;
 	const HIT = 1.35;
-	const th = cellH >= 22 ? 2 : 1;
 	const rh = Math.round(cellH * 1.2);
 	const rw = Math.round((rh * RUN_FW) / RUN_FH);
 	const x0 = P.x - rw;
@@ -959,7 +1073,9 @@ function screenStrike(g: Ctx, W: number, H: number, t: number, kind: 'sleigh' | 
 			box = { x: cell.x, y: Math.round(yTop), w: cell.w, h: Math.round(yBot) - Math.round(yTop) };
 		}
 		const look = wildLook();
-		wildRec = { kind, look: look ?? 'today', names: [], old: [], grow: null, t: Math.round(t * 1000) };
+		// (`ink`: the standing picture's drawn pixels when it stands whole, dots; `words` the text's boxes: the probes)
+		const words = lay.lines.map((ln) => ({ x: tall ? tx + (tw - ln.w) / 2 : tx, y: ty + ln.y, w: ln.w, h: ln.h }));
+		wildRec = { kind, look: look ?? 'today', names: [], old: [], grow: null, t: Math.round(t * 1000), W, H, ink: null, words };
 		const rows = [1, 2, 3].map((r) => rowsTop + r * cellH);
 		if (look && kind === 'sleigh') {
 			// THE COLUMN AS IT STANDS ON THE ROAD (LED_SIGN.wilds): Santa's column in its garland grows from the struck
@@ -1088,7 +1204,7 @@ function faceReset() {
 // Santa and Grandma (the press screen's own led-art pictures, cropped and scaled only). cutout: the standing figures
 // (santa_col: the sleigh screen's Santa before the Wild column; grandma_col: the max win screen's Grandma), cropped to the
 // bust (hat or hair to the shoulders) or the head, px of their frames. tile: the Santa Wild column's head (the Wild sheet,
-// px of the full tier's 559 px wide frame). Grandma's car Wild shows no face, so her picture is always grandma_col.
+// px of the full tier's 559 px wide outer edge). Grandma's car Wild shows no face, so her picture is always grandma_col.
 const FACE_PIC_CROPS = {
 	santa: { bust: [2, 0, 85, 76], head: [8, 0, 64, 58] },
 	grandma: { bust: [0, 0, 111, 82], head: [12, 0, 80, 62] },
@@ -1099,8 +1215,11 @@ type FacePic = { frame: string; src: number[]; sheet: 'art' | 'wild'; aspect: nu
 function facePicOf(who: Who): FacePic {
 	const P = LED_SIGN.face.pics;
 	if (who === 'santa' && P.santa === 'tile' && WILDS?.frames.santa) {
-		const s = WILDS.frames.santa.w / 559;
-		const src = SANTA_TILE.map((v) => Math.round(v * s));
+		// (px of the picture's outer edge at the full tier's 559 px: the frame carries a margin round it since 2026-11-21)
+		const f = WILDS.frames.santa;
+		const [ox, oy, ow] = wildGeo('santa').outer;
+		const s = (ow * f.w) / 559;
+		const src = SANTA_TILE.map((v, i) => Math.round(v * s + (i === 0 ? ox * f.w : i === 1 ? oy * f.h : 0)));
 		return { frame: 'santa', src, sheet: 'wild', aspect: src[2] / src[3] };
 	}
 	const src = [...FACE_PIC_CROPS[who][P.crop]];

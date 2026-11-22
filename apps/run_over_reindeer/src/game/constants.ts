@@ -552,9 +552,13 @@ export const LED_SIGN = {
 	 *  transforms to the new style, this needs to be fixed"): Santa's column grows from the struck cell in its own look from
 	 *  the first frame, on the old box's beat. The garland's top and bottom rows (`cap`, a share of the picture's height)
 	 *  ride the growing edges, the bottom rows of the hanging baubles with them (`corner`: their width and their reach down
-	 *  from the edge, shares of the picture), and the picture between them shows where it stands in the finished column, so
-	 *  the grown column is the whole picture with nothing swapped in. */
-	wilds: { look: 'stripes' as 'stripes' | 'solid' | 'today', grow: { cap: 0.042, corner: { w: 0.14, h: 0.052 } } },
+	 *  from the edge, shares of the frame's outer edge), and the picture between them shows where it stands in the finished
+	 *  column, so the grown column is the whole picture with nothing swapped in. Since 2026-11-21 (Corey: "not cut off
+	 *  Santa's Elbow ... some cropping on the bottom and right sides") each picture carries what the game draws past its
+	 *  outer edge (the tinsel's fuzz, the baubles, his elbow; ledScreens.ts wildDrawRect) and the grow shows his right band
+	 *  clean until the column is whole (the elbow comes out over it then); corner.h 0.052 to 0.062 so the hanging baubles
+	 *  ride the edge whole (0.052 cut their lowest LEDs off; tools/led_wild_cut_check.mjs GROW). */
+	wilds: { look: 'stripes' as 'stripes' | 'solid' | 'today', grow: { cap: 0.042, corner: { w: 0.14, h: 0.062 } } },
 	/** THE FACE SCREEN (Corey 2026-11-21, led_intro_face_screen_r2_2026-11-21, his pick verbatim: candidate A, animation
 	 *  "1 scripted", blink, glances, ear twitch, puffs, sentences land, glance hold 0.45, puff size 1, pictures, Santa left,
 	 *  bust, cutout, size cap 0.23, position first, face scale 1, offset 0, text scale auto). The reindeer's face across the
