@@ -1,6 +1,6 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/policeLights.ts,game/road/roadSounds.ts,game/utils.ts};
-// WATCHES: ; __reindeer.atRest, __reindeer.pressReady, __reindeer.boardLayout, __reindeer.clock, __reindeer.fixtures, __reindeer.hud, __reindeer.police
+// WATCHES: ; __reindeer.atRest, __reindeer.pressReady, __reindeer.roundIdle, __reindeer.boardLayout, __reindeer.clock, __reindeer.fixtures, __reindeer.hud, __reindeer.police
 // WATCHES: ; __reindeer.road, __reindeer.roadSounds, __reindeer.roadSprites, __reindeer.step, __reindeer.tune, __reindeer.turbo, POLICE_LIGHTS
 // WATCHES: ; .landing, .hudp, .spin
 // THE POLICE LIGHTS PROBE (Corey 2026-11-15: the police car's light bar lights up in a win with it; constants
@@ -112,10 +112,12 @@ const R = (p, fn, arg) => p.evaluate(fn, arg);
  *  landed (game/utils.ts ledCountDone), and a Spin press in that window is the round's STOP, not a new round. The press
  *  after a winning round then started nothing, the board was read as stopped at once and frozen, and the lines never
  *  showed. Wait (real time, the clock running) until the game takes a press (__reindeer.pressReady), as
- *  tools/rider_probe_lib.mjs stepRound does. */
+ *  tools/rider_probe_lib.mjs stepRound does. Since 2026-11-22 (the round's tail, ui/controls.svelte.ts) a press after the
+ *  board's rest is the next round's but is kept until the round machine is idle; this probe times the new round from its
+ *  press, so it waits for the machine itself (__reindeer.roundIdle). */
 async function pressWhenReady(p) {
 	for (let i = 0; i < 80; i++) {
-		if (await R(p, () => (window.__reindeer.pressReady ? window.__reindeer.pressReady() : true))) break;
+		if (await R(p, () => (window.__reindeer.roundIdle ? window.__reindeer.roundIdle() : window.__reindeer.pressReady ? window.__reindeer.pressReady() : true))) break;
 		await sleep(100);
 	}
 	await p.click('.hudp button.spin');

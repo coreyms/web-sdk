@@ -2423,6 +2423,12 @@ export const WILD_MULT = {
 /** a slam stop speeds the rest of the spin up (ui/controls.svelte.ts) */
 export const SLAM_HURRY = true;
 
+/** THE ROUND'S TAIL (2026-11-22, Corey: "Flip the button to spin seems like the right choice there, after the round
+ *  settles it's animations and such."; ui/controls.svelte.ts): from the round's finalWin the Spin key reads Spin and a
+ *  press starts the next round. `flipGraceMs`: a press this soon after the key turned from Stop to Spin (two 60 Hz
+ *  frames) was aimed at the Stop the player saw; it completes the readout and starts nothing. */
+export const SPIN_TAIL = { flipGraceMs: 35 };
+
 /** the autoplay button's two faces */
 export const AUTOPLAY_COLOURS = { on: '#5f9149', stop: '#e32400' } as const;
 

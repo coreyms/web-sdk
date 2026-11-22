@@ -39,6 +39,10 @@ export const stateGame = $state({
 	board: LANDING_BOARD.map((reel) => [...reel]) as Board,
 	/** a round is being presented */
 	busy: false,
+	/** THE ROUND'S TAIL (ui/controls.svelte.ts): the round's finalWin has played (the board is settled, its presentation
+	 *  is over), from then until the next round's press. The round machine may still be finishing (the strip's count, the
+	 *  end-round); the Spin key reads Spin meanwhile */
+	roundSettled: false,
 	/** free spins: the round's length and how many spins are done (the book's fs / totalFs) */
 	totalFs: 0,
 	spinsPlayed: 0,

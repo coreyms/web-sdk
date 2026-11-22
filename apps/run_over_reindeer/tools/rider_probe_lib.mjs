@@ -90,8 +90,11 @@ export async function stepRound(p, { book, turbo = 0, read, frames = null, clip 
 	// ledCountDone), and a Spin press in that window is the round's STOP, not a new round. The round after a winning one
 	// then never started, and its frames sampled the board before. Wait (real time, the clock running) until the game
 	// takes a press (__reindeer.pressReady: the round machine idle, no round live).
+	// THE ROUND'S TAIL (2026-11-22, ui/controls.svelte.ts): since then the key reads Spin from the board's rest and a press
+	// there is kept until the round machine is idle, so pressReady comes before the press starts its round at once. This
+	// steps the new round from its press frame, so it waits for the machine itself (__reindeer.roundIdle).
 	for (let i = 0; i < 80; i++) {
-		const ready = await R(p, () => (window.__reindeer.pressReady ? window.__reindeer.pressReady() : true));
+		const ready = await R(p, () => (window.__reindeer.roundIdle ? window.__reindeer.roundIdle() : window.__reindeer.pressReady ? window.__reindeer.pressReady() : true));
 		if (ready) break;
 		await sleep(100);
 	}

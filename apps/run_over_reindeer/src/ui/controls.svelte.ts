@@ -11,7 +11,7 @@ import { betCostFull } from '../game/modeChipData';
 import { modeShortLabel } from '../game/betModeMeta';
 import { soc } from '../game/social';
 import type { AutoLoadout } from '../game/stateGame.svelte';
-import { SLAM_HURRY } from '../game/constants';
+import { SLAM_HURRY, SPIN_TAIL } from '../game/constants';
 import { fastLaneMemory } from '../game/fastLaneMemory';
 
 export const createControls = () => {
@@ -91,13 +91,107 @@ export const createControls = () => {
 	// spin it"): the Spin key is live and is the wheel's, whatever else is true (a slam stop already spent, an operator's
 	// slam stop off, a run of autoplay: the press starts the wheel and does nothing else; the Auto key still stops a run)
 	const wheelWaits = () => context.stateGame.wheelPhase === 'rest';
-	const spinDisabled = () => held() || (wheelWaits() ? false : isIdle() ? betCostFull() <= 0 : (stopDisabled && !autoRunning()) || jurisdiction().disabledSlamstop);
-	const showStop = () => !isIdle() && !wheelWaits() && !autoRunning() && !jurisdiction().disabledSlamstop;
+
+	// ── THE ROUND'S TAIL (2026-11-22, Corey: "Flip the button to spin seems like the right choice there, after the round
+	// settles it's animations and such." and why: "the player might think it will speed up it finishing again, not hit
+	// another spin") ──
+	// Once the round's last book event (finalWin) has played, the board is settled: every reveal, strike, column and line
+	// show before it was awaited, and a big win's count or a Total Win card holds the round before finalWin. What is left of
+	// the round is no presentation a Stop could shorten, only the strip's small count (game/utils.ts ledCountDone), the
+	// operator's minimum round time, the end-round request and the autoplay machine's own last checks. The key is Spin from
+	// that moment, and the press is always the next round's:
+	//   - ONE RULE, ONE MOMENT: the key reads Stop until finalWin, Spin from finalWin on; a press is judged by what the key
+	//     showed. A press while it reads Stop only stops (never a round, whatever comes after it); a press while it reads
+	//     Spin always starts the next round.
+	//   - A Spin press in the tail completes the readout at once (the strip's count and the HUD's WIN land on the round's
+	//     total, components/Board.svelte roundTailFinish) and is kept until the round machine is idle (the end-round has
+	//     credited the balance), then starts the round as a press at rest does. The earlier round's win is credited once,
+	//     by its own end-round, before the next play is sent.
+	//   - A press within SPIN_TAIL.flipGraceMs of the change from Stop to Spin was aimed at the Stop the player saw: it
+	//     completes the readout and starts nothing.
+	//   - Autoplay keeps its own key (the run's stop) and its own pacing; a resumed round, a replay and the Super Wheel keep
+	//     theirs. Outcomes are untouched: this only decides what a press does and when.
+	/** a Spin press taken in the tail, waiting for the round machine to be idle */
+	let tailPress = $state(false);
+	/** a press made after it (the key then reads Stop): the slam of the round it starts */
+	let tailSlam = $state(false);
+	/** the moment the key turned from Stop to Spin in this tail (performance.now), null while it does not read Spin (set
+	 *  as the change reaches the page; a press before that saw Stop) */
+	let tailFlipAt: number | null = null;
+	const screenOwned = () => {
+		const sg = context.stateGame;
+		return sg.pressGates > 0 || sg.roundCard !== null || sg.plaque !== null || sg.winShowing;
+	};
+	/** the round machine still runs its round, but the board is settled and nothing is left that a Stop could shorten */
+	const inTail = () => !isIdle() && context.stateGame.roundSettled && !held() && !isReplay() && !wheelWaits() && !autoRunning() && !screenOwned();
+	/** the key reads Spin in the tail (until a press there is taken) */
+	const tailSpin = () => inTail() && !tailPress;
+	/** the key shows its at-rest faces (Spin, a loaded run, an armed feature): the round machine idle, or the tail */
+	const keyIdle = () => isIdle() || tailSpin();
+	$effect(() => {
+		const on = tailSpin();
+		untrack(() => (tailFlipAt = on ? performance.now() : null));
+	});
+	/** the key has read Spin long enough that a press is aimed at it */
+	const tailSpinSeen = () => tailFlipAt !== null && performance.now() - tailFlipAt >= SPIN_TAIL.flipGraceMs;
+	/** the readout of the round being left lands at once (the strip's count, the HUD's WIN) */
+	const finishTail = () => {
+		winTween.set(stateBet.winBookEventAmount, { duration: 0 });
+		context.eventEmitter.broadcast({ type: 'roundTailFinish' });
+	};
+	/** what a press at rest does (no press sound: the caller voiced it) */
+	const pressAtRest = () => {
+		// a loaded autoplay run: the Spin press is what starts it
+		if (context.stateGame.autoLoadout) {
+			startLoadout();
+			return;
+		}
+		// an armed buy mode (BONUS / SUPER) plays ONE feature round: bookEventHandlerMap's
+		// finalWin drops it back to BASE when the round ends (Stake review 2026-09-20)
+		context.eventEmitter.broadcast({ type: 'bet' });
+	};
+	// the kept press starts its round once the machine is idle (the balance is the settled one by then); a modal that came
+	// up meanwhile (an end-round failure's notice) or a round held for a resume drops it
+	$effect(() => {
+		if (!tailPress || !isIdle()) return;
+		untrack(() => {
+			const slam = tailSlam;
+			tailPress = false;
+			tailSlam = false;
+			if (held() || isReplay() || stateModal.modal != null) return;
+			if (!canAfford()) {
+				stateModal.modal = { name: 'autoSpinMessage', message: 'insufficientBalance' };
+				return;
+			}
+			pressAtRest();
+			// the Stop pressed while the kept press waited: the new round's slam (the round has started: the machine left idle)
+			if (slam && !isIdle()) slamStop();
+		});
+	});
+
+	const spinDisabled = () => held() || (wheelWaits() ? false : keyIdle() ? betCostFull() <= 0 : tailPress ? tailSlam || jurisdiction().disabledSlamstop : (stopDisabled && !autoRunning()) || jurisdiction().disabledSlamstop);
+	const showStop = () => !keyIdle() && !wheelWaits() && !autoRunning() && !jurisdiction().disabledSlamstop;
 	const spin = () => {
 		if (held()) return;
 		if (wheelWaits()) {
 			sound('soundPressBet');
 			context.eventEmitter.broadcast({ type: 'wheelPress' });
+			return;
+		}
+		// THE TAIL (above): a press on the Spin it shows is the next round's; one in the first frames after the change was
+		// aimed at the Stop shown before it, and only completes the readout
+		if (tailSpin()) {
+			finishTail();
+			if (!tailSpinSeen()) return;
+			sound('soundPressBet');
+			tailPress = true;
+			return;
+		}
+		// a press while the kept press waits: the key reads Stop, so it stops (the round it starts), never a second round
+		if (tailPress) {
+			if (jurisdiction().disabledSlamstop || tailSlam) return;
+			sound('soundPressBet');
+			tailSlam = true;
 			return;
 		}
 		if (isIdle() && !canAfford()) {
@@ -107,23 +201,33 @@ export const createControls = () => {
 		}
 		sound('soundPressBet');
 		if (isIdle()) {
-			// a loaded autoplay run: the Spin press is what starts it
-			if (context.stateGame.autoLoadout) {
-				startLoadout();
-				return;
-			}
-			// an armed buy mode (BONUS / SUPER) plays ONE feature round: bookEventHandlerMap's
-			// finalWin drops it back to BASE when the round ends (Stake review 2026-09-20)
-			context.eventEmitter.broadcast({ type: 'bet' });
+			pressAtRest();
 			return;
 		}
 		if (autoRunning()) {
 			stateBet.autoSpinsCounter = 0;
-			context.eventEmitter.broadcast({ type: 'stopButtonClick' });
+			// (the run's round still live: its stop too. Once its board has settled there is nothing left to stop, and the
+			// slam's flag and hurry would outlive the round: the autoplay pause gives them back only when one is owed)
+			if (!context.stateGame.roundSettled) context.eventEmitter.broadcast({ type: 'stopButtonClick' });
 			return;
 		}
 		slamStop();
 	};
+	/** a press now starts a round (the key reads Spin and the press is not in the change's first frames): the probes'
+	 *  pressReady. Not a resumed round's hold, a replay, the wheel's press or a press under a modal or a press gate. */
+	const pressStartsRound = () => {
+		if (held() || isReplay() || wheelWaits() || stateModal.modal != null || context.stateGame.pressGates > 0) return false;
+		if (isIdle()) return !tailPress && !context.stateGame.busy;
+		return tailSpin() && tailSpinSeen();
+	};
+	if (import.meta.env.DEV && typeof window !== 'undefined') {
+		// house rule: extend __reindeer, never a new global. pressReady: a Spin press now starts a round (at rest, or in a
+		// round's tail); spinTail: the tail as the controls see it (tools/hud_probe.mjs section `tail`)
+		Object.assign(((window as unknown as { __reindeer?: Record<string, unknown> }).__reindeer ??= {}), {
+			pressReady: pressStartsRound,
+			spinTail: () => ({ tail: inTail(), spin: tailSpin(), kept: tailPress, slam: tailSlam, flipAt: tailFlipAt, graceMs: SPIN_TAIL.flipGraceMs, idle: isIdle(), settled: context.stateGame.roundSettled }),
+		});
+	}
 	/** THE SLAM STOP: what a Spin press does during a live spin, and a tap on the board through boardTap below. The
 	 *  ONE function for both, so both honour the same switches: nothing under jurisdiction.disabledSlamstop, once per
 	 *  spin, and under disabledTurbo the stop lands with no speed up (the stopButtonClick subscriber above). Speed
@@ -150,6 +254,8 @@ export const createControls = () => {
 			return true;
 		}
 		if (held() || isReplay() || isIdle()) return false;
+		// the round's tail (above): the board is settled, a tap has nothing to hurry and never starts a round
+		if (inTail()) return false;
 		if (stateModal.modal != null || context.stateLayout.showLoadingScreen || sg.pressGates > 0 || sg.winShowing || sg.plaque !== null || sg.skipping) return false;
 		// "obviously not with that switch": a tap is a speed up and nothing else, so with the operator's turbo off it
 		// is refused outright (no press sound, the STOP face untouched), like under disabledSlamstop in slamStop
@@ -352,7 +458,7 @@ export const createControls = () => {
 			: null;
 
 	return {
-		isIdle, isReplay, anteActive, armedBuy, armedLabel, cancelArmed, playCostText, autoRunning, autoCount, autoCountText, canAfford,
+		isIdle, keyIdle, isReplay, anteActive, armedBuy, armedLabel, cancelArmed, playCostText, autoRunning, autoCount, autoCountText, canAfford,
 		playCost: betCostFull,
 		autoSpinCost,
 		spinDisabled, showStop, spin, slamStop, boardTap, wheelWaits,

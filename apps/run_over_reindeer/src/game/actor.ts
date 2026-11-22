@@ -30,6 +30,7 @@ const primaryMachines = createPrimaryMachines<Bet>({
 	onResumeGameActive: (betToResume) => {
 		// a round left open is being played on: the board is busy until its finalWin, as for a round just started
 		stateGame.busy = true;
+		stateGame.roundSettled = false;
 		// THE SUPER WHEEL's plan is made from the round's whole events, before the cut below drops the ones already played:
 		// a round resumed before its opening column shows the same wheel it showed (or would have shown) live.
 		// ONLY WHEN THE WHEEL WILL PLAY (2026-11-19): Skip to Result shows no wheel, and a round resumed past its opening
@@ -54,6 +55,7 @@ const primaryMachines = createPrimaryMachines<Bet>({
 		// THE PRESS: the play request goes out and the old board drives away at once, before the book is in (pictures
 		// only: the board is still the last book's until the reveal replaces it, and a failed play puts it back)
 		stateGame.busy = true;
+		stateGame.roundSettled = false;
 		eventEmitter.broadcast({ type: 'boardDriveOut' });
 		// THE HUD WIN: every spin's press clears it
 		hudWinPress();

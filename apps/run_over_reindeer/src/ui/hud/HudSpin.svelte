@@ -37,7 +37,8 @@
 	const showFreeSpins = $derived(!replay || replayState.phase === 'playing');
 	const loaded = $derived(controls.autoLoadout());
 	const armed = $derived(controls.armedBuy() !== null);
-	const idle = $derived(controls.isIdle());
+	// (the round's tail reads as at rest: ui/controls.svelte.ts keyIdle, 2026-11-22)
+	const idle = $derived(controls.keyIdle());
 	const disabled = $derived(replay ? !replayAgain : controls.spinDisabled());
 	// THE SUPER WHEEL waits for this key (game/road/superWheel.ts, 2026-11-18): the plain Play face whatever the round's
 	// state, a dotted gold ring pulsing round it (hud.css .wheel-wait); pressing it starts the wheel

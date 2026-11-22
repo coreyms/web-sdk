@@ -549,7 +549,9 @@ async function slamCheck(p, S, out) {
 	// (2026-11-22: after a slam stopped column round the board reads atRest() while the key is still the round's Stop key
 	// (the LED total is finishing), so this press was sometimes spent as a Stop, no spin ran and the standing column was
 	// read as a leftover: 5 of 9 cases on 9b46ba74, 5 of 12 on 48d852ca (Decimus). Wait until the game takes a press,
-	// then for the spin to really start (not at rest) before waiting for its rest.)
+	// then for the spin to really start (not at rest) before waiting for its rest. Since 2026-11-22 the key reads Spin from
+	// the board's rest (the round's tail, ui/controls.svelte.ts) and pressReady is true then: this press is the tail's own
+	// press, kept until the round machine is idle, and it always starts the spin; hud_probe section `tail` proves the rule.)
 	for (let i = 0; i < 80; i++) {
 		if (await R(p, () => (window.__reindeer.pressReady ? window.__reindeer.pressReady() : true))) break;
 		await sleep(100);
