@@ -9,6 +9,8 @@
 // WATCHES: apps/run_over_reindeer/src/{ui/hud/HudSpin.svelte,ui/hud/spinRing.ts,ui/hud/ringPlan.ts};
 // WATCHES: ; __reindeer.ringMethod, __reindeer.ringRounds, __reindeer.ringNow, __reindeer.spinSerial
 // WATCHES: apps/run_over_reindeer/src/{game/currency.ts,fixtures/fixtureRgs.ts};
+// WATCHES: apps/run_over_reindeer/src/{game/actor.ts,game/utils.ts,game/stateGame.svelte.ts,ui/SpinHotkey.svelte};
+// WATCHES: ; __reindeer.pressReady, __reindeer.spinTail, roundSettled, roundTailFinish, landSmall, SPIN_TAIL, flipGraceMs, ledCountDone, data-resume-card
 // THE HUD PROBE (the house glass HUD from Manticore, "Win over Balance, Drop 6" plus round 6, in this game's "Frost"
 // theme; ported from tools/manticore/hud_probe.js in the main repo). The HUD is HTML over the canvas (ui/Chrome*.svelte,
 // ui/hud/*: ui/hud/hudLayout.ts places it in the mockup's own px, scaled by the chrome's fit). At each size:
@@ -69,6 +71,8 @@
 //     40 % into its count (the skip): plain within two frames of the press, one pop; with reduced motion (1440 x 900)
 //     nothing rolls (the total's zeros, then the total, no pop); the capped wrap-up (max_win, 390 x 844, the bar hidden)
 //     never runs the odometer; after the wrap-up the readout is today's plain text
+//   · THE ROUND'S TAIL (section `tail`, 2026-11-22, Corey's ruling: the Spin key reads Spin once the round's board is
+//     settled, and a press there always starts the next round; a press on Stop never does): see tailSection below
 //   · the words: no character outside printable ASCII in the HUD's and the Autoplay menu's visible text; in social mode
 //     (?social=true) also no restricted word (bet, buy, cash, money, paid, credit, gamble, wager, stake), aria included
 //   · social coins (2026-11-21, Stake's table, game/currency.ts): with &currency=XSC and &currency=XGC at 390 x 844,
@@ -1615,6 +1619,291 @@ async function flip(browser) {
 	await ctx.close();
 }
 
+/** THE ROUND'S TAIL (section `tail`, 2026-11-22, Corey: "Flip the button to spin seems like the right choice there, after
+ *  the round settles it's animations and such."; why: "the player might think it will speed up it finishing again, not
+ *  hit another spin"; ui/controls.svelte.ts). At 1440 x 900 the page records the Spin key every frame (its words, data-st,
+ *  pressReady, the controls' tail, atRest, the round machine, the board's big count, the bonus cards, the autoplay count,
+ *  the plays sent, the strip's show) through each kind of round:
+ *    the slam stopped column round (base_one_column, Decimus's finding of 2026-11-22) pressed at 0, 120, 250, 400 and
+ *    600 ms after the board is at rest; a column round, a plain line win at 0 and 250 ms, a round with no win, the line
+ *    win at Turbo and Super Turbo, the column at Super Turbo, a big win (column_30x: its count on the board holds the
+ *    round), a free spins round to its Total Win (SKIPFS=1 leaves it out), a press made in the frame the key turns from
+ *    Stop to Spin, the Space bar, an autoplay run to its own end and a resumed round (Play Round)
+ *  Pass, for every round: from the frame the board is at rest (__reindeer.atRest) the key reads Spin, and once the change
+ *  is SPIN_TAIL.flipGraceMs old pressReady is true; the press there read Spin and pressReady and started the next round
+ *  (a play sent within 4 s); WIN at the press is the round's total as it was at rest (the book's); the strip's small
+ *  count stands on its final amount after the press; the wallet took the round's win once (the fixture RGS's balance is
+ *  the plays' sum, the end-rounds as many as the paying rounds) and BALANCE reads it; the old round's count is never seen
+ *  counting once the new round runs; the key never reads Spin while the board's big count, a bonus card or a press gate
+ *  owns the screen. A press on Stop (the slam) never started a round; a press in the frame of the change (aimed at the
+ *  Stop it showed) started none, and the next press did. Autoplay: the key never read Spin while the run had spins
+ *  left, no press was kept, every loaded round played. A replay is not covered here (the REPLAY face is its own). */
+const TAIL_GRACE = 35; // COPY OF src/game/constants.ts:SPIN_TAIL.flipGraceMs (read live as __reindeer.spinTail().graceMs)
+const tailRecStart = (p) =>
+	p.evaluate(() => {
+		const rec = (window.__tailRec = { on: true, rows: [] });
+		const f = () => {
+			if (!rec.on) return;
+			const h = window.__reindeer;
+			const b = document.querySelector('.hudp button.spin');
+			const sb = h.scoreboard?.();
+			const s = sb?.show;
+			const label = b?.getAttribute('aria-label') ?? '';
+			rec.rows.push({
+				t: performance.now(),
+				act: label.split(/[.:]/)[0],
+				st: b?.dataset.st ?? null,
+				dis: !!b?.disabled,
+				ready: !!h.pressReady?.(),
+				tail: h.spinTail?.() ?? null,
+				rest: h.atRest(),
+				idle: h.hud.idle(),
+				big: !!sb?.busy,
+				card: !!document.querySelector('[data-round-card]'),
+				gates: h.hud.gates(),
+				auto: h.hud.autoLimits().count,
+				plays: h.fixtures.log().plays.length,
+				win: h.hud.win(),
+				led: s ? { id: s.id, kind: s.kind, amount: s.amount, fin: s.finalStr, phase: s.phase } : null,
+			});
+			requestAnimationFrame(f);
+		};
+		requestAnimationFrame(f);
+	});
+const tailRecStop = (p) => p.evaluate(() => ((window.__tailRec.on = false), window.__tailRec.rows.slice()));
+const wallet = (p) =>
+	p.evaluate(() => {
+		const l = window.__reindeer.fixtures.log();
+		const txt = document.querySelector('.hudp [data-hud="balance"] .value')?.textContent ?? document.querySelector('.hudp [data-hud="balance"]')?.textContent ?? '';
+		return { bal: l.balance, plays: l.plays.slice(), settled: l.settled, shown: Number(txt.replace(/[^0-9.]/g, '')) };
+	});
+const playsNow = (p) => p.evaluate(() => window.__reindeer.fixtures.log().plays.length);
+/** in the page: resolves with the first frame the board is at rest (and WIN then) */
+const restFrame = (p, maxMs = 240000) =>
+	p.evaluate(
+		(maxMs) =>
+			new Promise((res) => {
+				const t0 = performance.now();
+				const f = () => {
+					const h = window.__reindeer;
+					if (h.atRest()) res({ at: performance.now(), win: h.hud.win() });
+					else if (performance.now() - t0 > maxMs) res(null);
+					else requestAnimationFrame(f);
+				};
+				f();
+			}),
+		maxMs,
+	);
+/** in the page: `ms` after `at`, read the key and press it in the same task (or, `key`, press the Space bar) */
+const tailPress = (p, at, ms, key) =>
+	p.evaluate(
+		([at, ms, key]) =>
+			new Promise((res) => {
+				const go = () => {
+					const h = window.__reindeer;
+					const b = document.querySelector('.hudp button.spin');
+					const pre = { t: performance.now() - at, act: (b?.getAttribute('aria-label') ?? '').split(/[.:]/)[0], st: b?.dataset.st, dis: !!b?.disabled, ready: !!h.pressReady?.(), tail: h.spinTail?.(), win: h.hud.win(), idle: h.hud.idle(), plays: h.fixtures.log().plays.length };
+					if (key) {
+						window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true }));
+						window.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space', bubbles: true }));
+					} else b?.click();
+					requestAnimationFrame(() => {
+						const s = h.scoreboard?.()?.show;
+						res({ pre, led: s ? { id: s.id, kind: s.kind, amount: s.amount, fin: s.finalStr } : null, after: { act: (b?.getAttribute('aria-label') ?? '').split(/[.:]/)[0], tail: h.spinTail?.() } });
+					});
+				};
+				setTimeout(go, Math.max(0, at + ms - performance.now()));
+			}),
+		[at, ms, !!key],
+	);
+/** the key turns from Stop to Spin: press it in that same moment (a MutationObserver on its words), aimed at the Stop */
+const pressAtFlip = (p) =>
+	p.evaluate(
+		() =>
+			new Promise((res) => {
+				const h = window.__reindeer;
+				const b = document.querySelector('.hudp button.spin');
+				const mo = new MutationObserver(() => {
+					if (!(b.getAttribute('aria-label') ?? '').startsWith('Spin') || !h.spinTail?.()?.tail) return;
+					mo.disconnect();
+					const pre = { tail: h.spinTail(), plays: h.fixtures.log().plays.length, at: performance.now() };
+					b.click();
+					res(pre);
+				});
+				mo.observe(b, { attributes: true, attributeFilter: ['aria-label'] });
+				setTimeout(() => (mo.disconnect(), res(null)), 240000);
+			}),
+	);
+const actAt = (r) => (r.act || '').trim();
+
+/** the screen-owner rule over a whole recording: the key never reads Spin while the big count, a card or a gate is up */
+function ownerRule(tag, rows) {
+	const bad = rows.filter((r) => actAt(r) === 'Spin' && !r.idle && (r.big || r.card || r.gates > 0));
+	check(bad.length === 0, `tail ${tag}: the key never read Spin while the board's big count, a bonus card or a press gate owned the screen (${bad.length} frames)`, bad.slice(0, 3));
+}
+
+/** one round of `fixture`, then the tail press `ms` after rest; the next round is no_win_1 */
+async function tailRound(p, S, c) {
+	const { tag, fixture, turbo = 0, slam = null, ms = 0, key = false, flipPress = false } = c;
+	await setTurboR(p, turbo);
+	const w0 = await wallet(p);
+	await p.evaluate((n) => window.__reindeer.fixtures.next(n), fixture);
+	await tailRecStart(p);
+	await p.click(CONTROLS.spin);
+	for (let i = 0; i < 100 && (await playsNow(p)) === w0.plays.length; i++) await sleep(50);
+	await p.evaluate(() => window.__reindeer.fixtures.next('no_win_1'));
+	let slamPre = null;
+	if (slam !== null) {
+		await sleep(slam);
+		slamPre = await p.evaluate(() => {
+			const b = document.querySelector('.hudp button.spin');
+			const pre = { act: (b?.getAttribute('aria-label') ?? '').split(/[.:]/)[0], plays: window.__reindeer.fixtures.log().plays.length };
+			b?.click();
+			return pre;
+		});
+	}
+	let flip = null;
+	if (flipPress) {
+		flip = await pressAtFlip(p);
+		await sleep(400);
+		flip.after = await p.evaluate(() => ({ plays: window.__reindeer.fixtures.log().plays.length, tail: window.__reindeer.spinTail?.() ?? null }));
+	}
+	const rest = await restFrame(p);
+	if (!rest) {
+		await tailRecStop(p);
+		check(false, `tail ${tag}: the board came to rest`);
+		return;
+	}
+	const press = await tailPress(p, rest.at, flipPress ? 100 : ms, key);
+	let started = false;
+	for (let i = 0; i < 80 && !started; i++) {
+		started = (await playsNow(p)) >= w0.plays.length + 2;
+		if (!started) await sleep(50);
+	}
+	await settle(p, S, 120000);
+	await sleep(300);
+	const rows = await tailRecStop(p);
+	const w1 = await wallet(p);
+	const [p1, p2] = w1.plays.slice(w0.plays.length);
+	const pressAt = rest.at + press.pre.t;
+	// 1. from the frame at rest: Spin; pressReady once the change is the grace old (until the press)
+	const atRest = rows.filter((r) => r.t >= rest.at && r.t < pressAt && r.plays === w0.plays.length + 1);
+	const notSpin = atRest.filter((r) => actAt(r) !== 'Spin' || r.dis);
+	const notReady = atRest.filter((r) => r.t >= rest.at + TAIL_GRACE + 20 && !r.ready);
+	check(notSpin.length === 0, `tail ${tag}: from the frame the board is at rest the key reads Spin (${atRest.length} frames before the press, ${atRest.filter((r) => !r.idle).length} of them in the tail)`, notSpin.slice(0, 3));
+	check(notReady.length === 0, `tail ${tag}: from ${TAIL_GRACE} ms after the change pressReady is true`, notReady.slice(0, 3));
+	// 2. the press read Spin and pressReady, and started the next round
+	check(press.pre.act === 'Spin' && press.pre.ready, `tail ${tag}: the press ${Math.round(press.pre.t)} ms after rest read Spin and pressReady (${press.pre.idle ? 'machine idle' : 'in the tail'}${key ? ', Space bar' : ''})`, press.pre);
+	check(started && !!p2 && p2.name === 'no_win_1', `tail ${tag}: the press started the next round`, { started, p2 });
+	// 3. the round's win: WIN at the press is its total as at rest; the strip's count stands on its amount
+	check(press.pre.win === rest.win && (p1?.payout > 0 ? rest.win > 0 : rest.win === 0), `tail ${tag}: WIN at the press is the round's total (${press.pre.win}, at rest ${rest.win}, the play paid ${p1?.payout})`);
+	if (press.led && press.led.kind === 'small') check(press.led.amount === press.led.fin, `tail ${tag}: after the press the strip's count stands on its amount (${press.led.amount} of ${press.led.fin})`, press.led);
+	const oldId = press.led?.kind === 'small' ? press.led.id : null;
+	const counting = rows.filter((r) => r.t > pressAt && !r.rest && r.led && r.led.id === oldId && r.led.kind === 'small' && r.led.amount !== r.led.fin);
+	check(counting.length === 0, `tail ${tag}: the old round's count is never seen counting in the new round`, counting.slice(0, 3));
+	// 4. the wallet took the win once, and BALANCE reads it
+	const want = w0.bal - (p1?.amount ?? 0) + (p1?.payout ?? 0) - (p2?.amount ?? 0) + (p2?.payout ?? 0);
+	const ends = w1.settled - w0.settled;
+	const wantEnds = (p1?.payout > 0 ? 1 : 0) + (p2?.payout > 0 ? 1 : 0);
+	check(Math.abs(w1.bal - want) < 1e-6 && ends === wantEnds && Math.abs(w1.shown - w1.bal) < 0.005, `tail ${tag}: the win credited once (wallet ${w1.bal}, plays say ${want}; ${ends} end-round(s) for ${wantEnds} paying round(s); BALANCE ${w1.shown})`);
+	// 5. a press on Stop never started a round
+	if (slamPre) {
+		const early = rows.filter((r) => r.t < pressAt && r.plays > w0.plays.length + 1);
+		check(slamPre.act === 'Stop' && early.length === 0, `tail ${tag}: the slam press read Stop and started no round (${early.length} frames with a second play before the Spin press)`, slamPre);
+	}
+	if (flipPress) {
+		check(!!flip && flip.after.plays === w0.plays.length + 1 && !flip.after.tail?.kept, `tail ${tag}: the press in the frame the key turned to Spin (aimed at the Stop it showed; the change ${flip?.tail?.flipAt == null ? 'not yet recorded' : `${Math.round((flip?.at ?? 0) - flip.tail.flipAt)} ms old`}) started no round`, flip);
+	}
+	ownerRule(tag, rows);
+}
+
+async function tailSection(browser) {
+	const S = { name: 'tail', vp: { width: 1440, height: 900 }, phone: false, touch: false, family: 'desktop' };
+	const { ctx, p, errs } = await boot(browser, S);
+	await settle(p, S);
+	await sleep(500);
+	await p.mouse.move(4, 4);
+	const grace = await p.evaluate(() => window.__reindeer.spinTail?.()?.graceMs ?? null);
+	check(grace === TAIL_GRACE, `tail: the dev hook reads the grace (${grace} ms, the probe's copy ${TAIL_GRACE})`);
+	// (a press the old way first: the probe waits for the machine to be idle between cases)
+	for (const ms of [0, 120, 250, 400, 600]) await tailRound(p, S, { tag: `slam column +${ms}`, fixture: 'base_one_column', slam: 700, ms });
+	await tailRound(p, S, { tag: 'column +120', fixture: 'base_one_column', ms: 120 });
+	await tailRound(p, S, { tag: 'line +0', fixture: 'plain_line_win', ms: 0 });
+	await tailRound(p, S, { tag: 'line +250', fixture: 'plain_line_win', ms: 250 });
+	await tailRound(p, S, { tag: 'no win +0', fixture: 'no_win_2', ms: 0 });
+	await tailRound(p, S, { tag: 'line turbo +0', fixture: 'plain_line_win', turbo: 1, ms: 0 });
+	await tailRound(p, S, { tag: 'line super turbo +0', fixture: 'plain_line_win', turbo: 2, ms: 0 });
+	await tailRound(p, S, { tag: 'column super turbo +120', fixture: 'base_one_column', turbo: 2, ms: 120 });
+	await tailRound(p, S, { tag: 'big win +0', fixture: 'column_30x', ms: 0 });
+	await tailRound(p, S, { tag: 'press at the change', fixture: 'plain_line_win', flipPress: true });
+	await tailRound(p, S, { tag: 'Space bar +200', fixture: 'plain_line_win', ms: 200, key: true });
+	if (process.env.SKIPFS !== '1') await tailRound(p, S, { tag: 'free spins +120', fixture: 'natural_free_spins', ms: 120 });
+	// AUTOPLAY: a run to its own end (the first count in the menu), a line win every round
+	await setTurboR(p, 0);
+	const a0 = await wallet(p);
+	await p.evaluate(() => window.__reindeer.fixtures.next('plain_line_win', true));
+	await p.click(CONTROLS.auto);
+	await sleep(700);
+	await p.locator('.am-ui.layer.modals button.chip').first().click().catch(() => {});
+	await sleep(300);
+	await p.click('.am-ui.layer.modals .go');
+	await sleep(700);
+	const count = await p.evaluate(() => window.__reindeer.hud.autoLimits().count);
+	await tailRecStart(p);
+	await p.click(CONTROLS.spin);
+	await sleep(1500);
+	for (let i = 0; i < 2400 && (await p.evaluate(() => window.__reindeer.hud.autoLimits().count > 0 || !!document.querySelector('.hudp button.spin.m-auto'))); i++) await sleep(100);
+	await settle(p, S, 120000);
+	await p.evaluate(() => window.__reindeer.fixtures.clear?.());
+	const arows = await tailRecStop(p);
+	const a1 = await wallet(p);
+	const inRun = arows.filter((r) => r.auto > 0);
+	const spinInRun = inRun.filter((r) => actAt(r) === 'Spin');
+	check(inRun.length > 0 && spinInRun.length === 0, `tail autoplay: the key never read Spin while the run had spins left (${spinInRun.length} of ${inRun.length} frames)`, spinInRun.slice(0, 3));
+	check(arows.every((r) => !r.tail?.kept), 'tail autoplay: no press was kept (the run starts its own rounds)');
+	check(count > 0 && a1.plays.length - a0.plays.length === (count === Infinity ? -1 : count), `tail autoplay: every loaded round played (${a1.plays.length - a0.plays.length} of ${count})`);
+	const lastRest = arows.filter((r) => r.auto === 0 && r.rest && r.plays === a1.plays.length);
+	check(lastRest.length > 0 && lastRest.every((r) => actAt(r) === 'Spin'), `tail autoplay: after the run's last round, at rest, the key reads Spin (${lastRest.length} frames)`, lastRest.filter((r) => actAt(r) !== 'Spin').slice(0, 3));
+	ownerRule('autoplay', arows);
+	check(errs.filter((x) => !/favicon/.test(x)).length === 0, 'tail: no console errors', errs.slice(0, 5));
+	// A RESUMED ROUND (Play Round on the resume card): its tail follows the same rule
+	await p.evaluate(() => window.__reindeer.fixtures.resume('plain_line_win', 0)).catch(() => {});
+	await sleep(1500);
+	await p.waitForLoadState('domcontentloaded').catch(() => {});
+	let up = false;
+	for (let i = 0; i < 300 && !up; i++) {
+		up = await p.evaluate(() => !!document.querySelector('[data-resume-card] [data-resume="play"]')).catch(() => false);
+		if (!up) await sleep(250);
+	}
+	check(up, 'tail resume: the resume card is up after the reload');
+	if (up) {
+		const pays = await p.evaluate(() => window.__reindeer.fixtures.list().find((r) => r.name === 'plain_line_win').pays);
+		const r0 = await wallet(p);
+		await p.evaluate(() => window.__reindeer.fixtures.next('no_win_1'));
+		await p.click('[data-resume-card] [data-resume="play"]');
+		for (let i = 0; i < 100 && !(await p.evaluate(() => !!window.__reindeer.spinTail && !!document.querySelector('.hudp button.spin')).catch(() => false)); i++) await sleep(100);
+		// (the resumed round first takes the board: then its rest)
+		for (let i = 0; i < 100 && (await p.evaluate(() => window.__reindeer.atRest()).catch(() => true)); i++) await sleep(50);
+		await tailRecStart(p);
+		const rest = await restFrame(p);
+		const press = rest ? await tailPress(p, rest.at, 120, false) : null;
+		let started = false;
+		for (let i = 0; i < 80 && !started; i++) {
+			started = (await playsNow(p)) >= r0.plays.length + 1;
+			if (!started) await sleep(50);
+		}
+		await settle(p, S, 120000);
+		const rows = await tailRecStop(p);
+		const r1 = await wallet(p);
+		const before = rest && press ? rows.filter((r) => r.t >= rest.at && r.t < rest.at + press.pre.t) : [];
+		check(!!press && before.every((r) => actAt(r) === 'Spin') && press.pre.act === 'Spin' && press.pre.ready, `tail resume: from rest the key reads Spin and the press +120 ms read Spin and pressReady`, press?.pre);
+		check(started, 'tail resume: the press started the next round');
+		const want = r0.bal + pays - (r1.plays.at(-1)?.amount ?? 0);
+		check(Math.abs(r1.bal - want) < 1e-6 && r1.settled - r0.settled === 1 && Math.abs(r1.shown - r1.bal) < 0.005, `tail resume: the resumed round's win credited once (wallet ${r1.bal}, want ${want}; ${r1.settled - r0.settled} end-round; BALANCE ${r1.shown})`);
+	}
+	await ctx.close();
+}
+
 (async () => {
 	const browser = await chromium.launch({ args: ['--mute-audio'] }); // muted: every probe browser on the owner's Mac
 	try {
@@ -1659,6 +1948,13 @@ async function flip(browser) {
 				await reducedMotion(browser);
 			} catch (e) {
 				check(false, 'reduced: ran to the end', String(e).slice(0, 300));
+			}
+		}
+		if (!ONLY.length || ONLY.includes('tail')) {
+			try {
+				await tailSection(browser);
+			} catch (e) {
+				check(false, 'tail: ran to the end', String(e).slice(0, 300));
 			}
 		}
 		if (FLIP && (!ONLY.length || ONLY.includes('flip'))) {

@@ -49,7 +49,9 @@
 		 *  values (the book's); resolves when the wheel has left (or at once when it cannot play) */
 		| { type: 'boardSuperWheel'; plan: WheelPlan }
 		/** the Spin press (or a press on the wheel or the board) while the wheel waits (ui/controls.svelte.ts) */
-		| { type: 'wheelPress' };
+		| { type: 'wheelPress' }
+		/** THE ROUND'S TAIL (ui/controls.svelte.ts): a press after the round's board settled; the strip's count lands */
+		| { type: 'roundTailFinish' };
 </script>
 
 <script lang="ts">
@@ -983,6 +985,12 @@
 		wheelPress: () => {
 			wheel.press();
 		},
+		// THE ROUND'S TAIL (ui/controls.svelte.ts): the strip's count lands on the round's amount (a big win never reaches
+		// here: it holds the round before its finalWin); the round machine's LED wait (game/utils.ts ledCountDone) ends with it
+		roundTailFinish: () => {
+			if (scoreboard?.busy()) scoreboard.skip();
+			scoreboard?.landSmall();
+		},
 		boardMessage: async ({ text, ms }) => {
 			await road.message(text, ms);
 			road.clearWin();
@@ -1011,10 +1019,10 @@
 			wildFrames: () => road.features.frames(),
 			garlandMemory: () => garlandMemory(),
 			atRest: () => road.atRest && !stateGame.busy,
-			/** the game takes a Spin press as a new round now (the round machine idle, no round live): a manual base win's
-			 *  round stays open past atRest until its LED count lands (game/utils.ts ledCountDone), and a press then is its
-			 *  STOP (tools/rider_probe_lib.mjs stepRound waits for this) */
-			pressReady: () => context.stateXstateDerived.isIdle() && !stateGame.busy,
+			/** the round machine is idle and no round is live (a press starts its round at once). Since 2026-11-22 a press in a
+			 *  round's tail starts the next round too (`pressReady`, ui/controls.svelte.ts), once the round machine is idle:
+			 *  the probes that step a round from its press frame by frame wait for this (tools/rider_probe_lib.mjs stepRound) */
+			roundIdle: () => context.stateXstateDerived.isIdle() && !stateGame.busy,
 			board: () => stateGame.board.map((reel) => [...reel]),
 			gameType: () => stateGame.gameType,
 			/** the layout in use and where the board's cells are, master units and CSS px */

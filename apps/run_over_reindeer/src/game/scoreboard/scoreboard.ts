@@ -686,6 +686,15 @@ export class Scoreboard {
 		const s = this.show;
 		return !!s && s.kind === 'win' && s.t < s.exitAt;
 	}
+	/** THE ROUND'S TAIL (ui/controls.svelte.ts): a Spin press after the round's board settled lands the strip's small count
+	 *  on its amount at once (it then ends on its own, or the new round's press cuts it); true when it took */
+	landSmall(): boolean {
+		const s = this.show;
+		if (!s || s.kind !== 'small' || s.t >= s.countEnd) return false;
+		s.countEnd = Math.max(s.t, s.countStart);
+		this.mark('land', 'small win: a Spin press in the round\'s tail');
+		return true;
+	}
 	/** a win's count still running on the board (a big win's or the strip's small message), board ms left; 0 when none */
 	countLeft(): number {
 		const s = this.show;

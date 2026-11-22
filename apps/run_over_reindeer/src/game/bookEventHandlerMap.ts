@@ -337,6 +337,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		stateGame.capped = false;
 		stateGame.hudHeld = false;
 		stateGame.busy = false;
+		// THE ROUND'S TAIL (ui/controls.svelte.ts): the board is settled; the Spin key reads Spin from here
+		stateGame.roundSettled = true;
 	},
 
 	// frontend-only (the resume card's SKIP TO RESULT, game/resumeRound.svelte.ts): the round's final board at once, with
