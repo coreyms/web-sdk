@@ -1,7 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
-// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadSounds.ts,game/road/shadows.ts,game/scene/logoSign.ts};, __reindeer.pressReady
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadSounds.ts,game/road/shadows.ts,game/scene/logoSign.ts};
 // WATCHES: ; __reindeer.atRest, __reindeer.board, __reindeer.boardLayout, __reindeer.clock, __reindeer.column, __reindeer.crosshairStrike
-// WATCHES: ; __reindeer.fixtures, __reindeer.hud, __reindeer.logoHold, __reindeer.road, __reindeer.roadSounds, __reindeer.roadSprites
+// WATCHES: ; __reindeer.fixtures, __reindeer.hud, __reindeer.logoHold, __reindeer.pressReady, __reindeer.road, __reindeer.roadSounds, __reindeer.roadSprites
 // WATCHES: ; __reindeer.runMemory, __reindeer.seatTime, __reindeer.setBoard, __reindeer.shadows, __reindeer.step, __reindeer.tune, ROUND
 // WATCHES: ; SHADOW.alpha, SHADOW.angle, SHADOW.column, SHADOW, .landing, .hudp, .spin
 // THE SHADOW PROBE, ROUND 2 (the cast shadows, Corey 2026-11-15; game/road/shadows.ts, constants SHADOW). Every symbol,
