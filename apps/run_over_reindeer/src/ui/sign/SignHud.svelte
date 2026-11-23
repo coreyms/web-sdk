@@ -7,7 +7,8 @@
 	//   sign plate headers, a bare red < and green > either side of the amount, and the Win box (glass: a pill on the
 	//   desktop, a rectangle on a phone), shown only while a win shows and all through free spins.
 	// Every place and size is ui/sign/signLayout.ts's (his own windows, and the rule between them); one plane in bar px
-	// spans the window, scaled as a whole. The help menu is the dock's panel (ui/hud/HudMenuPanel.svelte), by the Menu key.
+	// spans the window, scaled as a whole. The help menu is the bar's own green pop-out (ui/sign/SignMenuPanel.svelte,
+	// 2026-11-23; the glass dock keeps its own panel, ui/hud/HudMenuPanel.svelte), by the Menu key.
 	import { untrack } from 'svelte';
 	import { stateBet, stateUi } from 'state-shared';
 	import { getContext } from '../../game/context';
@@ -18,7 +19,7 @@
 	import { chromeFit, type Insets } from '../hud/hudLayout';
 	import { createHudState } from '../hud/hudState';
 	import HudReadout from '../hud/HudReadout.svelte';
-	import HudMenuPanel from '../hud/HudMenuPanel.svelte';
+	import SignMenuPanel from './SignMenuPanel.svelte';
 	import { HEAD_LS, headWidth } from './signDraw';
 	import { DESKTOP, KEY_V, OWNER_ORDER, PHONE_PLACES, PHONE_REFS, PLAY_V, READOUT_TYPE, TEXT_MIN, amountLimits, padCircle, padPlaces, padShapes, readoutFit, pressOwner, pressRegions, pressShape, pressVerdict, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type OwnerId, type PieceId } from './signLayout';
 	import { signZones } from './signZones';
@@ -213,14 +214,7 @@
 		return out;
 	});
 
-	// ---- the help menu's panel: over the Menu key on the desktop and sideways, under it upright (the key is at the top) ----
-	const panel = $derived.by(() => {
-		const m = B.menu;
-		const W = vw / u;
-		if (kind === 'portrait') return { x: Math.max(8, Math.min(m.x + m.w - 272, W - 272 - 8)), y: m.y + m.h + 8, w: 272, h: 176, up: true, cls: '' };
-		if (kind === 'phone') return { x: Math.max(4, m.x), y: Math.max(50, m.y - 6 - 107), w: 138, h: 107, up: false, cls: 'pls' };
-		return { x: Math.max(8, m.x), y: m.y - 8 - 176, w: 272, h: 176, up: false, cls: '' };
-	});
+	// (the help menu's pop-out places itself by the Menu key: ui/sign/SignMenuPanel.svelte, ui/sign/signPanelLayout.ts)
 
 	// ---- DEV: the bar's places for the probes (tools/hud_probe.mjs section `signhud`), never in a production build ----
 	if (import.meta.env.DEV && typeof window !== 'undefined') {
@@ -361,5 +355,5 @@
 		{/if}
 		{#if !replay}<SignStep dir={1} {controls} x={seat.up.x / u} y={seat.up.y / u} w={SB.w} h={SB.h} size={geo.step} cx={(seat.upC[0] - seat.up.x) / u} cy={(seat.upC[1] - seat.up.y) / u} press={(ev, own) => barPress(ev, 'up', own)} />{/if}
 	</div>
-	<HudMenuPanel {controls} x={panel.x} y={panel.y} W={panel.w} H={panel.h} tip={0} up={panel.up} T={0} cls={panel.cls} />
+	<SignMenuPanel {controls} {kind} menu={geo.box.menu} {u} {vw} {vh} {safe} />
 </div>

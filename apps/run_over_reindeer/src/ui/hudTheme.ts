@@ -371,10 +371,77 @@ export const SIGN = {
 /** the engraved mark's settings: rest, on, and the sideways circle's place and size (null: the same as the pill's) */
 export type FeatureMark = { rest: EngraveSettings; on: EngraveSettings; off: EngraveSettings | null; round: Pick<EngraveSettings, 'size' | 'x' | 'y'> | null };
 
-/** the theme as one :root block, with a scene's tokens laid over it (applyHudScene) */
+// ---- THE SIGN PANELS (2026-11-23) -----------------------------------------------------------------------------------
+/** THE POP-UP PANELS IN THE SIGN BAR'S STYLE: Corey's pick from the mock menus_r1_2026-11-23, style A "Guide sign" at
+ *  its defaults ("I like the green menus, no need to keep the white confirmation for light mode. Just green
+ *  everywhere."): the bar's green field, its white band with the navy line outside and the black line inside, the
+ *  chosen tile a white plate, the main key the Turbo yellow. The five numbers he was shown are these; every other
+ *  panel color is worked out from them and from SIGN exactly as the mock worked them out (signPanelTokens), and reaches
+ *  the page as --sp-* custom properties (ui/sign/signPanel.css, the panels' own style blocks). */
+export const SIGN_PANEL = { field: SIGN.green, band: SIGN.band, accent: SIGN.yellow, thickness: 4, radius: 14 } as const;
+const hexMix = (a: string, b: string, k: number) =>
+	'#' +
+	[1, 3, 5]
+		.map((i) => {
+			const x = parseInt(a.slice(i, i + 2), 16);
+			const y = parseInt(b.slice(i, i + 2), 16);
+			return Math.round(x + (y - x) * k)
+				.toString(16)
+				.padStart(2, '0');
+		})
+		.join('');
+export const signPanelTokens = (): Record<string, string> => {
+	const P = SIGN_PANEL;
+	const bw = P.thickness;
+	const px = (v: number) => `${Math.round(v * 100) / 100}px`;
+	return {
+		/** the field: the bar's green, a little lighter at the top and darker at the foot; flat on the confirm card */
+		field: P.field,
+		'f-top': hexMix(P.field, '#ffffff', 0.13),
+		'f-bot': hexMix(P.field, '#000000', 0.14),
+		/** the words: white, and two softer strengths for the small lines; the hairlines between rows */
+		ink: '#ffffff',
+		ink2: 'rgba(255, 255, 255, 0.84)',
+		ink3: 'rgba(255, 255, 255, 0.74)',
+		rule: 'rgba(255, 255, 255, 0.26)',
+		/** the frame: the white band, the navy line outside it, the black line inside it */
+		band: P.band,
+		bw: px(bw),
+		ko: px(Math.max(1, bw * 0.3)),
+		'ko-c': SIGN.navy,
+		ki: px(Math.max(0.8, bw * 0.22)),
+		'ki-c': SIGN.black,
+		rad: px(P.radius),
+		/** a small plate set into a panel (tiles, pills, rows, keys): its corner, its line, its dark fill, its hover */
+		wrad: px(Math.min(P.radius * 0.7, 12)),
+		wl: px(Math.min(3, Math.max(1.5, bw * 0.4))),
+		well: 'rgba(0, 0, 0, 0.27)',
+		hov: 'rgba(255, 255, 255, 0.12)',
+		/** a slider's and a switch's track */
+		trk: 'rgba(0, 0, 0, 0.42)',
+		/** the chosen tile: a white plate, deep green words, a black line round it */
+		'ch-bg': P.band,
+		'ch-ink': hexMix(P.field, '#000000', 0.38),
+		'ch-out': SIGN.black,
+		/** the main key: the Turbo yellow, lit from the top, the dark drop it presses into, its near black words */
+		acc: P.accent,
+		'acc-top': hexMix(P.accent, '#ffffff', 0.14),
+		'acc-bot': hexMix(P.accent, '#000000', 0.08),
+		'acc-deep': hexMix(P.accent, '#000000', 0.5),
+		'acc-ink': '#14161a',
+		krad: px(Math.min(Math.max(P.radius * 0.8, 0), 14)),
+		/** the confirm card: a step thicker and rounder than a panel */
+		cbw: px(Math.max(3, bw + 1)),
+		crad: px(P.radius + 2),
+	};
+};
+
+/** the theme as one :root block, with a scene's tokens laid over it (applyHudScene); the sign panels' tokens with it */
 let sceneTokens: Record<string, string> = {};
 export const hudThemeCss = () => `:root{${Object.entries({ ...HUD_THEME, ...sceneTokens })
 	.map(([k, v]) => `--hud-${k}:${v};`)
+	.join('')}${Object.entries(signPanelTokens())
+	.map(([k, v]) => `--sp-${k}:${v};`)
 	.join('')}}`;
 
 const themeElement = () => {

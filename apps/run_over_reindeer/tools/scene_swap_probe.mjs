@@ -5,7 +5,8 @@
 // WATCHES: ; __reindeer.sceneSetting, __reindeer.sceneSprites, __reindeer.sceneSwap, __reindeer.sceneSwapHold, __reindeer.sceneSwapStep
 // WATCHES: ; __reindeer.scoreboard, __reindeer.scoreboardManual, __reindeer.seatTime, __reindeer.turbo, ROUND, SCENE, data-top-line
 // WATCHES: ; data-scene-switch, data-scene-choice, data-hud, .landing, .am-ui, .layer, .hud-off, .hud-held, .hudp, .stat, .value, .label, .kl, .fb, .lb
-// WATCHES: ; .spin, .vt, .mp
+// WATCHES: ; .spin, .vt, .mp, .sgmp
+// WATCHES: apps/run_over_reindeer/src/ui/sign/SignMenuPanel.svelte;
 // WATCHES: apps/run_over_reindeer/src/{game/scenePrefetch.ts,ui/LandingScreen.svelte}; __reindeer.scenePrefetch, noScenePrefetch
 // THE SCENE SWAP PROBE (2026-11-17; game/scene/sceneSwap.ts, game/scenePresets.ts snowDay / snowNight / snowSuper). At
 // 1440 x 900, 844 x 390 and 390 x 844 (the phone sizes on the phone asset tier), with the dev fixtures:
@@ -714,7 +715,8 @@ const switchState = (p, root) =>
 					box: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
 					onScreen: r.x >= 0 && r.y >= 0 && r.right <= innerWidth && r.bottom <= innerHeight,
 					uncovered: !!top && (top === b || b.contains(top)),
-					opacity: Number(getComputedStyle(el.closest('.mp') ?? el).opacity),
+					// (the glass dock's panel is .mp, the sign bar's green pop-out .sgmp, ui/sign/SignMenuPanel.svelte, 2026-11-23)
+					opacity: Number(getComputedStyle(el.closest('.mp, .sgmp') ?? el).opacity),
 				};
 			});
 			return { word, labels: [word, ...keys.map((k) => k.text)], checked: keys.find((k) => k.checked)?.id ?? null, keys };

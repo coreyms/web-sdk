@@ -4,6 +4,7 @@
 // WATCHES: apps/run_over_reindeer/src/{ui/fitAmount.ts,game/currency.ts};
 // WATCHES: apps/run_over_reindeer/src/{ui/DenomModal.svelte};
 // WATCHES: ; gridRows, gridMaxH, .more, .opt, .grid, .low, lowInner, chipW, goFont, goAmtFont, totalRow, .gl, .sub
+// WATCHES: apps/run_over_reindeer/src/{ui/sign/signPanelLayout.ts,ui/BetAdjuster.svelte}; autoGeometry, autoClass, data-auto-layout, .adj, .head
 // WATCHES: ; data-fit, data-fl-balance, data-fl-amount, data-fl-confirm-amount, data-fl-confirm-total, AMOUNT_SPACE, fitAmount
 // WATCHES: ; __reindeer.fastLane, __reindeer.hud, __reindeer.atRest, data-feature-menu, data-fl-confirm, data-fl-price
 // WATCHES: ; --fl-s, ::after, data-fl-step, data-squeeze, flSqueezeOff, anteOnShort, loadedShort, data-fl-low, data-fl-step, data-menu-foot, .note, .act, .price, .go, data-fl-status, data-act, data-card, data-lvl, data-piece, data-plate, .tile, .miles, .chip, .landing, .hudp
@@ -47,7 +48,8 @@
 //       the Autoplay menu inside the window and clear of its stepper; every spin count, STOP OPTIONS, the total and LOAD
 //       whole in the menu's visible box with nothing scrolled; LOAD's words and amount inside the button; every count
 //       with its price line (at 400 x 225 LOAD's amount ran out of the button, the last row was cut and 100 to
-//       unlimited had no price line)
+//       unlimited had no price line). Since the sign panels (2026-11-23) the wide card (a sideways phone, 800 x 450,
+//       1024 x 576) carries its stepper in its own head row: there the stepper is inside the card, not beside it
 //       the price list's grid a whole number of rows (no tag cut part way) and, while tags lie below, the gold chevron
 //       on the well's foot; scrolled to the end, no chevron (at 400 x 225 a fourth row showed half cut)
 //     With SHOTS: small_<w>x<h>_<lane|auto|price>.png.
@@ -831,7 +833,8 @@ async function smallSizes(browser) {
 			const m = document.querySelector('.am-ui.layer.modals');
 			const go = m?.querySelector('button.go');
 			const panel = go?.closest('.panel');
-			const adj = m?.querySelector('.stepper .adj');
+			// (the amount stepper: under or over the card, or in the wide card's head row, ui/AutoplayModal.svelte)
+			const adj = m?.querySelector('.stepper .adj') ?? panel?.querySelector('.head .adj');
 			if (!go || !panel || !adj) return null;
 			const P = box(panel);
 			const parts = [...panel.querySelectorAll('.chips.four button, .fold-row, .total, button.go')].map((e) => ({ el: e.className.split(' ').filter((c) => !c.startsWith('s-')).join('.'), text: e.innerText.replace(/\s+/g, ' ').trim().slice(0, 30), ...box(e) }));
@@ -840,6 +843,8 @@ async function smallSizes(browser) {
 			return {
 				panel: P,
 				adj: box(adj),
+				adjInHead: !!adj.closest('.head'),
+				lay: m.querySelector('[data-auto-layout]')?.dataset.autoLayout ?? null,
 				scroll: { sh: panel.scrollHeight, ch: panel.clientHeight, top: panel.scrollTop },
 				cut: parts.filter((q) => q.x0 < P.x0 - 0.5 || q.x1 > P.x1 + 0.5 || q.y0 < P.y0 - 0.5 || q.y1 > P.y1 + 0.5),
 				goOut: goIn.filter((q) => q.sw > q.cw + 1 || q.x0 < G.x0 - 0.5 || q.x1 > G.x1 + 0.5 || q.y0 < G.y0 - 0.5 || q.y1 > G.y1 + 0.5).map((q) => `${q.el} ${q.sw}/${q.cw}`),
@@ -850,7 +855,9 @@ async function smallSizes(browser) {
 		if (a) {
 			const inWin = (b) => b.x0 >= -0.5 && b.y0 >= -0.5 && b.x1 <= w + 0.5 && b.y1 <= h + 0.5;
 			check(inWin(a.panel) && inWin(a.adj), `small ${tag}: the Autoplay menu and its stepper inside the window`, { panel: a.panel, adj: a.adj });
-			check(ov(a.panel, a.adj) < 1, `small ${tag}: the Autoplay menu clear of its stepper`, { panel: a.panel, adj: a.adj });
+			if (a.adjInHead) check(a.adj.x0 >= a.panel.x0 - 0.5 && a.adj.x1 <= a.panel.x1 + 0.5 && a.adj.y0 >= a.panel.y0 - 0.5 && a.adj.y1 <= a.panel.y1 + 0.5, `small ${tag}: the stepper whole in the Autoplay card's head row (the ${a.lay} card)`, { panel: a.panel, adj: a.adj });
+			else check(ov(a.panel, a.adj) < 1, `small ${tag}: the Autoplay menu clear of its stepper (the ${a.lay} card)`, { panel: a.panel, adj: a.adj });
+			if (w === 400 && h === 225) check(a.lay === 'low', `small ${tag}: the LOW card (${a.lay})`);
 			check(a.scroll.sh <= a.scroll.ch + 1 && a.cut.length === 0, `small ${tag}: every count, STOP OPTIONS, the total and START whole in the menu, nothing scrolled`, { scroll: a.scroll, cut: a.cut.slice(0, 4) });
 			check(a.goOut.length === 0, `small ${tag}: START's words and amount inside the button`, a.goOut);
 			check(a.subs.length === 8 && a.subs.every(Boolean), `small ${tag}: every spin count with its price line`, a.subs);

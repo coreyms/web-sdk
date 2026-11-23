@@ -8,7 +8,9 @@
 	//            distance sign rows, the yellow amount plaque and the red ACTIVATE (SWITCH OFF / UNLOAD once it is on)
 	//   TRAY     the tiles: ONE Ante tile (its level is picked on the plate, Corey 2026-11-09: one card with a slider,
 	//            never three tiles), Free Spins, Super Free Spins
-	//   CONFIRM  ACTIVATE (or CHANGE) opens a white regulatory sign card: the amounts, what happens, CONFIRM / Cancel
+	//   CONFIRM  ACTIVATE (or CHANGE) opens a green guide sign card: the amounts, what happens, CONFIRM / Cancel. Green
+	//            in both scenes since 2026-11-23 (Corey, on the mock menus_r1_2026-11-23: "no need to keep the white
+	//            confirmation for light mode. Just green everywhere."); until then a white regulatory sign
 	//   HUD      BALANCE and PLAY AMOUNT with the real minus and plus rules (ui/betStep.ts), since the game's HUD fades
 	//            under every modal
 	//
@@ -1602,7 +1604,10 @@
 		align-self: end;
 	}
 
-	/* ── the confirm card: a white regulatory sign ── */
+	/* ---- the confirm card: a green guide sign in the sign bar's frame (2026-11-23, the mock menus_r1_2026-11-23: sign
+	   green, the white band with the navy line outside it and the black line inside it; --sp-* are ui/hudTheme.ts
+	   SIGN_PANEL's tokens). The same card on Snow and on Dark; the white regulatory sign it was is retired. Its size,
+	   its rows and its type are unchanged. ---- */
 	.cwrap {
 		position: absolute;
 		inset: 0;
@@ -1615,11 +1620,14 @@
 		pointer-events: auto;
 		box-sizing: border-box;
 		flex: none;
-		background: var(--sign-white);
-		color: var(--sign-black);
-		border: 5px solid var(--sign-black);
-		outline: 4px solid var(--sign-white);
-		border-radius: 16px;
+		background: var(--sp-field);
+		color: var(--sp-ink);
+		border: var(--sp-cbw) solid var(--sp-band);
+		border-radius: var(--sp-crad);
+		box-shadow:
+			0 0 0 calc(var(--sp-cbw) * 0.36) var(--sp-ko-c),
+			inset 0 0 0 calc(var(--sp-cbw) * 0.28) var(--sp-ki-c),
+			0 14px 30px rgba(0, 0, 0, 0.5);
 		padding: 22px 24px 20px;
 		display: flex;
 		flex-direction: column;
@@ -1646,7 +1654,7 @@
 	}
 	.card .rows div {
 		padding: 7px 0 5px;
-		border-top: 2px solid #c9cbc4;
+		border-top: 2px solid rgba(255, 255, 255, 0.34);
 		font-weight: 700;
 		white-space: nowrap;
 		overflow: hidden;
@@ -1657,7 +1665,7 @@
 		padding-left: 12px;
 	}
 	.card .rows div.tot {
-		border-top: 4px solid var(--sign-black);
+		border-top: 4px solid var(--sp-ink);
 		font-size: 20px;
 		font-weight: 900;
 	}
@@ -1665,7 +1673,10 @@
 		margin: 0;
 		font-size: 14.5px;
 		line-height: 1.35;
-		color: #2b2f36;
+		color: #e6f3ec;
+	}
+	.card p b {
+		font-weight: 800;
 	}
 	.card .btns {
 		display: flex;
@@ -1677,16 +1688,35 @@
 		height: 56px;
 		font-size: 20px;
 	}
+	/* (on the green: a black line round CONFIRM's white band, as round the bar's keys) */
+	.card .ok:not(:disabled) {
+		box-shadow:
+			0 0 0 1.5px var(--sp-ki-c),
+			0 5px 0 1.5px #6d0a12;
+	}
+	.card .ok:active:not(:disabled) {
+		box-shadow:
+			0 0 0 1.5px var(--sp-ki-c),
+			0 2px 0 1.5px #6d0a12;
+	}
 	.card .no {
 		font-size: 17px;
 		flex: 1 1 0;
 		height: 52px;
-		border: 3px solid var(--sign-black) !important;
+		border: 3px solid var(--sp-ink) !important;
 		border-radius: 10px;
 		font-family: var(--disp);
 		font-weight: 800;
-		color: var(--sign-black) !important;
-		background: #fff !important;
+		color: var(--sp-ink) !important;
+		background: rgba(4, 22, 13, 0.3) !important;
+		transition:
+			transform 90ms ease,
+			background-color 90ms ease;
+	}
+	/* Cancel shows its press (the mock's addition) */
+	.card .no:active {
+		transform: translateY(2px);
+		background: rgba(255, 255, 255, 0.24) !important;
 	}
 	.card.c-up,
 	.card.c-side {

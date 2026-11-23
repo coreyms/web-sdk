@@ -72,6 +72,26 @@ events (`game/bookEventHandlerMap.ts`). Every decision taken is one line in `doc
   a press that went down inside the Play's own diamond. A new control on this bar goes through barPress. The
   rule's shapes are the buttons' own (`pressShape`: turned squares with round corners, no slack), and each is drawn
   once more as an unseen catch outline under the controls, so a place the rule names a key's always has a taker.
+- THE POP-UP PANELS ARE GREEN GUIDE SIGNS (2026-11-23, Corey's pick from the mock `menus_r1_2026-11-23`, style A:
+  "Just green everywhere"): the Menu pop-out (`ui/sign/SignMenuPanel.svelte`), the Autoplay card and its amount
+  stepper (`ui/AutoplayModal.svelte`, `ui/BetAdjuster.svelte`) and the Fast Lane confirm card (`ui/FeatureMenu.svelte`
+  `.card`, green on Snow and on Dark; the white card is retired). One set of pieces, `ui/sign/signPanel.css` (a panel's
+  root carries `sp`: the plate, the small dark plates set into it, the chosen white plate, the yellow main key, the
+  slider with the bar's diamond, the switch), one set of tokens, `SIGN_PANEL` and `signPanelTokens` in
+  `ui/hudTheme.ts` (the `--sp-*` custom properties, worked out from the bar's own `SIGN` colors). A new panel uses
+  these, never a new hard-coded color. Places and size classes are `ui/sign/signPanelLayout.ts`
+  (`tools/sign_panel_test.mjs`, node only): the pop-out is drawn at the bar's scale, never under 1, over, under or
+  beside the Menu key; the Autoplay card is `desk`, `short` (a desktop window under 760 tall: the two switches side
+  by side), `wide` (a phone held sideways and a desktop window under 670 tall: two columns, the stepper in the head
+  row), `portrait` (a sheet from the bottom) or LOW (Popout S, 400 x 225: the small sizes fix of 2026-11-22 in the
+  sign style: columns 1.25 : 1, the total over START, START's words over its amount, a tightened stepper under the
+  card). The card's widths are `autoGeometry` in the same file; a wide card under 642 px (568 x 320, 667 x 375) takes
+  LOW's column split, three limit chips to a row and the stacked START. With STOP OPTIONS shut the card fits every
+  window with no scroll and every tile keeps its price line (`fast_lane_probe` section `smallsizes`,
+  `sign_panel_test`). Touch layouts keep every press box at 44 CSS px; with STOP OPTIONS open the card scrolls inside
+  itself where it cannot fit: Popout S, a wide card under 642 px, and an upright window under 628 tall. The glass
+  dock (`HUD_BAR = 'dock'`) keeps its own glass Menu panel (`ui/hud/HudMenuPanel.svelte`); the Autoplay card and the
+  confirm card are green with either bar.
 - Active highlights use this game's own "Frost" accent (`accent-rgb` in `ui/hudTheme.ts`), never Manticore's gold
   (rule L6).
 - CSS `filter` in the HTML chrome, allowed as shipped (rule R2): only the `.slot-btn` hover and press lift
