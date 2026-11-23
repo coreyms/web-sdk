@@ -7,6 +7,7 @@ import { bookEventHandlerMap } from './bookEventHandlerMap';
 import type { SymbolName } from './types';
 import { STAGING_TOOLS, perfMark } from './staging';
 import { creatureBookArrived, creatureBookDone } from './creatureLoad';
+import { epicBookArrived, epicDefersLook, epicRoundDone, epicSignal } from './epicLoad';
 import { hudWinRoundStart } from './hudWin.svelte';
 
 // STAGING READOUT ONLY (game/staging.ts perfMark): each book event leaves its type as a label, so a long frame
@@ -27,12 +28,18 @@ export const { playBookEvent, playBookEvents } = createPlayBookUtils({ bookEvent
 export const playBet = async (bet: Bet) => {
 	// a fresh WIN (game/hudWin.svelte.ts)
 	hudWinRoundStart();
-	// THE CREATURE: a feature in this book starts its look loading now, ahead of the change of mode (game/creatureLoad.ts)
-	creatureBookArrived(bet.state);
+	// THE EPIC (game/epicLoad.ts, constants EPIC_LOAD): the whole round is this book, so whether it reaches the Epic is known
+	// now, before its first event plays; read for loading only (nothing shown, heard or timed differently)
+	const epic = epicSignal(bet.state);
+	// THE CREATURE: a feature in this book starts its look loading now, ahead of the change of mode (game/creatureLoad.ts);
+	// the Epic's look is named by game/epicLoad.ts once its files are in
+	creatureBookArrived(bet.state, epicDefersLook(epic));
+	epicBookArrived(epic);
 	try {
 		await playBookEvents(bet.state);
 	} finally {
 		creatureBookDone();
+		epicRoundDone();
 	}
 	eventEmitter.broadcast({ type: 'stopButtonEnable' });
 };

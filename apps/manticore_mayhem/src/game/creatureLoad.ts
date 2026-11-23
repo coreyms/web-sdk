@@ -51,7 +51,8 @@
 // case a player gets a super or epic on first spin, not hide it completely"). Until then the first SUPER or EPIC of a
 // session downloaded its look at the change of mode, and he stayed in his day look until it landed. Now:
 //   THE PREFETCH   once every deferred group is in (creatureDeferredDone) AND the player's first round has settled
-//                  (creatureRoundSettled), the files of SUPER then EPIC, this tier's only, are fetched into the HTTP
+//                  (creatureRoundSettled), the files of SUPER (constants CREATURE.lookLoad.prefetchLooks; the EPIC's
+//                  since 2026-11-25 only on the round that reaches it, game/epicLoad.ts), this tier's only, are fetched into the HTTP
 //                  cache: one file at a time, `fetch` at low priority, the body read and thrown away. Nothing is
 //                  decoded, nothing goes to the GPU, Pixi's cache does not see them: one look stays resident. The
 //                  sheet's picture is asked for by the very URL Pixi asks for it later (the json's folder + meta.image +
@@ -65,6 +66,11 @@
 //                  the old look is let go only the new one's idle sheet is on the GPU beside it. A look no longer coming (the buy disarmed, the book played out) is let go as usual
 //   NOT READY      if the look is still not in when the feature shows, he stays in the look on show, never hidden,
 //                  and the two cross over when its idle sheet is up, exactly as before
+// THE EPIC (2026-11-25, Corey "CI. Yes"; constants EPIC_LOAD, game/epicLoad.ts): no longer prefetched (the Epic is only
+// spun into since its buy left, 2026-11-21). A book with an Epic in it hands his Epic look to game/epicLoad.ts, which
+// fetches its idle and roar sheets into the HTTP cache after the Epic intro's banner files and only then names the look
+// ahead (creaturePrepareEpic): from there it loads as every look named by a book does. A sheet this loader asks for while
+// game/fileWarm.ts is still fetching it waits for that fetch (no second download beside it).
 import * as PIXI from 'pixi.js';
 
 import { CREATURE, PLAQUE_CHEER } from './constants';
@@ -73,6 +79,7 @@ import { CREATURE_FILES, CREATURE_SHARED, CREATURE_WIN_CLIPS, type CreatureClip,
 import { getFeatureSpinWinLevelData, getWinLevelDataByBookEventAmount, winLevelMap, type WinLevel } from './winLevelMap';
 import type { BonusMode } from './types';
 import { imageOfSheet, loadStripSheet, uploadStrips, type StripSheet } from './stripUpload';
+import { warmWait } from './fileWarm';
 
 type GroupLog = Record<string, { start: number; end: number; keys: number; failed: number }>;
 type Sheet = { textures: Record<string, PIXI.Texture> };
@@ -196,6 +203,8 @@ const measure = (name: string, start: number): void => {
 };
 
 const fetchSheet = async (url: string, look: string, needNow: () => boolean = () => false, bands: number = CREATURE.upload.bands): Promise<Sheet | null> => {
+	// (game/fileWarm.ts is fetching this sheet into the cache: this load reads it from there once it is in)
+	await warmWait(url);
 	const t0 = performance.now();
 	let end: (() => void) | null = null;
 	const file = url.split('/').pop()!.split('?')[0];
@@ -655,8 +664,9 @@ const winsState = () => ({
 });
 
 // ---- EARLY: the look of a feature that is coming (see the header) ---------------------------------------------------
-/** the round's book is in (game/utils.ts playBet): the look of its feature, if it has one, loads now */
-export const creatureBookArrived = (events: readonly BookLike[]): void => {
+/** the round's book is in (game/utils.ts playBet): the look of its feature, if it has one, loads now. `later`: a look
+ *  game/epicLoad.ts names itself once its files are in the cache (creaturePrepareEpic; the Epic, constants EPIC_LOAD) */
+export const creatureBookArrived = (events: readonly BookLike[], later: CreatureLook | null = null): void => {
 	creatureRoundRequest(false);
 	creatureWinsOfBook(events);
 	if (!CREATURE.lookLoad.early) return;
@@ -664,9 +674,27 @@ export const creatureBookArrived = (events: readonly BookLike[]): void => {
 	const look = start ? (CREATURE.looks as Record<string, CreatureLook>)[String(start.bonus)] : undefined;
 	// THE ENTRY ROAR is for a feature's trigger beat only (not the base look named ahead at a feature's end)
 	entryRoarFor = look && look !== creature.wanted ? look : null;
-	creature.prepare('book', look ?? null);
+	creature.prepare('book', look && look !== later ? look : null);
 	// (a look already loading ahead for an armed buy: its run hears that the book names it, THE ENTRY ROAR)
-	if (entryRoarFor) runs[entryRoarFor]?.book();
+	if (entryRoarFor && entryRoarFor !== later) runs[entryRoarFor]?.book();
+};
+/** THE EPIC'S LOOK NAMED AHEAD (game/epicLoad.ts, once its idle and roar sheets are in the cache): as creatureBookArrived
+ *  does for any other feature's look. Nothing when the round has played out meanwhile (its book no longer names it) */
+export const creaturePrepareEpic = (): void => {
+	const look = CREATURE.looks.epic as CreatureLook;
+	if (entryRoarFor !== look) return;
+	creature.prepare('book', look);
+	runs[look]?.book();
+};
+/** another system's big sheet through HIS UPLOAD TURN (constants CREATURE.upload; game/epicLoad.ts, the Epic flames):
+ *  one upload at a time, at least gapMs after the last one, after THE QUIET. `upload` runs in the turn */
+export const uploadInTurn = async (upload: () => Promise<void> | void): Promise<void> => {
+	const done = await takeTurn(() => false);
+	try {
+		await upload();
+	} finally {
+		done();
+	}
 };
 /** the round's book has played out (its feature with it): nothing is coming any more; the first settles the prefetch's
  *  second condition */

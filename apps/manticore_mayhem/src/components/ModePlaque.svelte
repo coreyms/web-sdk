@@ -35,6 +35,7 @@
 	import { awaitPlaqueAssets } from '../game/assetGate';
 	import { stingerPlaque } from './StingerPlaque.svelte';
 	import { warBanner } from './WarBanner.svelte';
+	import { epicAsked, epicHold, epicHoldNeeded } from '../game/epicLoad';
 	import ArtAmount from './ArtAmount.svelte';
 	import PressToContinue from './PressToContinue.svelte';
 
@@ -57,6 +58,27 @@
 	const alpha = new Tween(0, { duration: TIMINGS.plaqueInMs, easing: cubicOut });
 	let resolveGate: (() => void) | null = $state(null);
 
+	// THE EPIC'S HOLD (game/epicLoad.ts, constants EPIC_LOAD): an Epic intro's press is offered once his Epic look and the
+	// Epic flames are up (or one failed, or EPIC_LOAD.holdCapMs have passed); the screen stays up meanwhile. Asked
+	// synchronously: with them in, nothing is awaited and the press comes exactly when it always did
+	const epicReady = (mode: StingerMode | undefined): Promise<unknown> | null => {
+		if (!mode) return null;
+		epicAsked('press');
+		return epicHoldNeeded(mode) ? epicHold(mode) : null;
+	};
+	/** a feature intro's gate: a press, or the hold while auto bonuses run; the Epic's hold first */
+	const introGate = async (mode: StingerMode, holdMs: number | undefined) => {
+		if (!autoBonusesRunning()) {
+			const held = epicReady(mode);
+			if (held) await held;
+			await waitForResolve((resolve) => (resolveGate = resolve));
+		} else {
+			await waitForTimeout(holdMs ?? TIMINGS.plaqueHoldMs);
+			const held = epicReady(mode);
+			if (held) await held;
+		}
+	};
+
 	const dismiss = () => {
 		const r = resolveGate;
 		resolveGate = null;
@@ -71,6 +93,7 @@
 			context.stateGame.plaque = { title: event.title, sub: event.sub };
 			if (event.intro && event.gated) {
 				await awaitPlaqueAssets();
+				epicAsked('intro');
 				// THE WAR STANDARD BANNER (components/WarBanner.svelte, 2026-11-14): the feature intro unrolls from the frame's
 				// pole; the same gate as before (a press, or the hold while auto bonuses run). Its spin count is drawn live,
 				// its rules are baked: a book whose tile cap they do not say keeps the plaque or the plain plate below.
@@ -78,8 +101,7 @@
 				if (banner?.ready() && banner.introMatches(event.intro.mode, event.intro.tileCap)) {
 					const shown = await banner.intro({ mode: event.intro.mode, totalFs: event.intro.totalFs });
 					if (shown) {
-						if (!autoBonusesRunning()) await waitForResolve((resolve) => (resolveGate = resolve));
-						else await waitForTimeout(event.holdMs ?? TIMINGS.plaqueHoldMs);
+						await introGate(event.intro.mode, event.holdMs);
 						resolveGate = null;
 						await banner.hide();
 						context.stateGame.plaque = null;
@@ -90,8 +112,7 @@
 				const says = !!flow?.ready() && flow.introMatches(event.intro.mode, event.intro.totalFs, event.intro.tileCap);
 				if (flow && says) {
 					await flow.intro({ mode: event.intro.mode });
-					if (!autoBonusesRunning()) await waitForResolve((resolve) => (resolveGate = resolve));
-					else await waitForTimeout(event.holdMs ?? TIMINGS.plaqueHoldMs);
+					await introGate(event.intro.mode, event.holdMs);
 					resolveGate = null;
 					await flow.hide();
 					context.stateGame.plaque = null;
@@ -100,7 +121,8 @@
 				if (import.meta.env.DEV && flow?.ready()) console.warn('[manticore] the plaque intro copy does not match the book: plain plate shown', event.intro);
 			}
 			await alpha.set(1);
-			if (event.gated && !autoBonusesRunning()) {
+			if (event.intro && event.gated) await introGate(event.intro.mode, event.holdMs);
+			else if (event.gated && !autoBonusesRunning()) {
 				await waitForResolve((resolve) => (resolveGate = resolve));
 			} else {
 				await waitForTimeout(event.holdMs ?? TIMINGS.plaqueHoldMs);

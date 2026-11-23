@@ -3787,7 +3787,10 @@ export const CREATURE = {
 	// (game/creatureLoad.ts GROUPS); the alternates (snarl, growl) load when the mode asks for the look, like any look.
 	// Until a sheet is in its action is simply not played, so a feature that starts first shows no snarl / growl
 	// until they land. Saves 6.6 MB desktop / 3.7 MB phone per session.
-	lookLoad: { prefetch: true, prefetchLooks: ['super', 'epic'], prefetchGroups: ['creatureIdle', 'creatureActs'], early: true, waitMs: 250 },
+	// prefetchLooks (2026-11-25, Corey "CI. Yes"): SUPER only. The Epic is no longer bought (2026-11-21), only spun into, so
+	// its look is fetched when a round's book says the Epic is coming (EPIC_LOAD, game/epicLoad.ts), never ahead of that.
+	// ROLLBACK: ['super', 'epic'] here and EPIC_LOAD.on false.
+	lookLoad: { prefetch: true, prefetchLooks: ['super'], prefetchGroups: ['creatureIdle', 'creatureActs'], early: true, waitMs: 250 },
 	/** HIS UPLOADS (Safari, Corey 2026-10-18 "1. Yes" twice; tools/manticore/safari_perf.js baseline: every frame over 90
 	 *  ms in a SUPER buy came in the half second after one of his ~4,000 px sheets went to the GPU, at the buy press, as
 	 *  the intro ended and after the outro, five of them in 1.5 s when the day look came back).
@@ -3868,6 +3871,35 @@ export const CREATURE = {
 	/** THE ENTRY ROAR (game/creatureLoad.ts): a look named by the round's book loads its roar sheet with its idle sheet,
 	 *  so he roars in the feature's look as the trigger beat relights the scene. false = only its idle sheet, as before */
 	entryRoarAhead: true,
+} as const;
+
+/** THE EPIC, LOADED ON THE ROUND THAT REACHES IT (2026-11-25, Corey: "Can we split it so the intro screen and parts of it
+ *  load necessary for the intro screen and load the rest on the spin that's going to trigger the epic?", then "CI. Yes";
+ *  game/epicLoad.ts, the pure parts in game/epicPlan.ts). Nothing of the Epic loads in a session that never reaches it:
+ *  not the creature's Epic look (CREATURE.lookLoad.prefetchLooks), not the Epic flames (game/assets.ts EPIC_LATE, out of
+ *  the deferred phase). The round's book is the whole round, so the play request's answer says whether this round opens
+ *  the Epic (its bonusStart, bonus "epic"; a resumed round's snapshot) or shows an Epic win plaque (the Epic flames
+ *  only). From that moment the files load in `order`, one group after another, each file into the HTTP cache with
+ *  `retries` more tries `retryMs` apart (the next group starts when this one's files are in; decoding and uploading
+ *  go on beside it); every system then loads its own files from the cache as it always has.
+ *    intro     the War Standard's Epic intro cloth and the banner glyphs of the class on show (components/WarBanner.svelte)
+ *    creature  his Epic idle and roar sheets; then his Epic look is named ahead (creature.prepare), so his loader decodes
+ *              and uploads them in his upload turn (CREATURE.upload)
+ *    flames    the landscape scene's Epic brazier clip: decoded, uploaded in his upload turn, then handed to the scene
+ *    attacks   his Epic attacks and alternates (into the cache; his loader takes them once the mode asks for the look)
+ *  THE HOLD (components/ModePlaque.svelte): an Epic intro's press is not offered until his Epic idle sheet is up and the
+ *  Epic flames are in (or failed, or `holdCapMs` have passed): the banner hangs meanwhile and he stays in the look on
+ *  show. With the files in, it costs nothing: the press comes when it always did.
+ *  ROLLBACK: on false (and 'epic' back in CREATURE.lookLoad.prefetchLooks): the Epic loads with every session again. */
+export const EPIC_LOAD = {
+	on: true,
+	order: ['intro', 'creature', 'flames', 'attacks'],
+	retries: 2,
+	retryMs: [600, 2000],
+	/** the longest the Epic intro's press waits for his Epic idle sheet and the Epic flames, from the moment it would show */
+	holdCapMs: 8000,
+	/** how often the hold looks again */
+	pollMs: 100,
 } as const;
 /** which of CREATURE.place a layout takes */
 export type CreatureSpot = keyof typeof CREATURE.place;

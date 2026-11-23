@@ -616,6 +616,13 @@ export class Creature {
 		if (this.look === look) return true;
 		return (this.state === 'idle' || this.state === 'still') && !this.cue && !this.pendingCheer && this.has(look, 'idle') && !!this.shadows.idle;
 	}
+	/** THE EPIC'S HOLD (game/epicLoad.ts, constants EPIC_LOAD): `look` can be shown now, its idle sheet and the shadows up
+	 *  (or it is on show, or he is crossing to it); true as well when he is not drawn at all, so nothing waits for him then */
+	lookIn(look: CreatureLook): boolean {
+		if (!this.enabled || !this.placed || this.state === 'hidden' || !this.look) return true;
+		if (this.look === look || this.next === look) return true;
+		return this.has(look, 'idle') && !!this.shadows.idle;
+	}
 	/** a waiting cheer's voice has been played without him (Epic's sfx_roar_win by the plaque): it starts silent */
 	cheerVoicedWithout(): void {
 		if (this.pendingCheer) this.cheerVoiced = true;

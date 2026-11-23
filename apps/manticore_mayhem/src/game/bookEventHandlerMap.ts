@@ -76,6 +76,7 @@ import {
 } from './constants';
 import { logoTrace } from './logo/trace';
 import { FEATURE_PACING, featureScreens, whileUp } from './featurePacing';
+import { epicAsked } from './epicLoad';
 /** DEV: each wrap up's safety nets, how long each waited (ms; 0 = the hold had covered it) */
 export const pacingLog: { at: number; tilesMs?: number; textMs?: number; bannerMs?: number; autoPauseMs?: number; autoPauseStart?: number; stillOn?: boolean; autoPauseBegin?: boolean; stopFreeEnded?: boolean }[] = [];
 if (import.meta.env.DEV && typeof window !== 'undefined') ((window as any).__manticore ??= {}).pacingLog = () => pacingLog.slice();
@@ -794,7 +795,13 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 				// his roar and its sound together (Fix 2, 2026-11-15): components/Background.svelte plays sfx_roar when he
 				// roars (or is not on screen), never over him standing still
 				onRoar: () => eventEmitter.broadcast({ type: 'featureBeat', beat: 'roar', rows: [], voice: 'sfx_roar' }),
-				onRelight: ahead ? () => (stateGame.relightAhead = true) : undefined,
+				onRelight: ahead
+					? () => {
+							stateGame.relightAhead = true;
+							// (a record only: the margin the Epic's files had, game/epicLoad.ts)
+							epicAsked('relight');
+						}
+					: undefined,
 			});
 			fxStamp(rec, 'end');
 		}

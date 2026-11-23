@@ -26,7 +26,8 @@
 //           LOAD_GATE.sceneBesideAttacks (his sheets go one at a time, each decoded and uploaded before the next is asked
 //           for, and the scene's files fill the pipe in those gaps), else strictly before them
 //   scatter (the cheaper variant only), night, frameNight, sunset, flameSuper, flameEpic, labels   game/assets.ts
-//           DEFERRED_ORDER, one after another
+//           DEFERRED_ORDER, one after another (flameEpic empty since 2026-11-25: the Epic's files load on the round that
+//           reaches it, game/epicLoad.ts)
 //   creatureAlts   his snarl and growl, held until the above are in (constants CREATURE.restHeldAfter)
 // The shared loader then runs its batch as before: Pixi's cache answers at once for everything loaded here,
 // so it only downloads what is left (the other layouts' art) and sets stateApp.loaded. A file that fails
@@ -40,6 +41,7 @@ import assets, { DEFERRED_ORDER, FRAME_NIGHT_LATE, GATE_ORDER, PLAQUE_ATLAS_KEYS
 import { fileBytes } from './assetStamp';
 import { markPlaqueAssetsReady } from './assetGate';
 import { loadCreatureBoot, releaseCreatureRest } from './creatureLoad';
+import { epicSceneLate } from './epicLoad';
 import { loadGate as gateState, markGateSettled } from './loadGate.svelte';
 import { loadStingerData } from './stinger/data';
 import { STAGING_TOOLS, perfMark } from './staging';
@@ -310,8 +312,13 @@ export const loadSceneLate = (app: AppState): Promise<void> => {
 		log.end = performance.now();
 	};
 	const late = SCENE_KEYS[SCENE_AT_BOOT === 'landscape' ? 'portrait' : 'landscape'];
-	// the flames' deferred clips one at a time, like the boot's own order (none for the portrait scene)
-	const flames = () => late.flames.reduce((chain, key) => chain.then(() => group(`sceneFlames_${key}`, [key])), Promise.resolve());
+	// the flames' deferred clips one at a time, like the boot's own order (none for the portrait scene; the Epic clip is not
+	// in SCENE_LATE: game/epicLoad.ts loads it, now if this session has reached the Epic already, epicSceneLate)
+	const flames = () =>
+		late.flames
+			.filter((key) => SCENE_LATE[key])
+			.reduce((chain, key) => chain.then(() => group(`sceneFlames_${key}`, [key])), Promise.resolve())
+			.then(() => epicSceneLate(late.flames.length > 0));
 	sceneLate ??= group('sceneDay', late.day).then(() => group('sceneNight', late.night)).then(() => group('sceneSunset', late.sunset)).then(flames).catch(() => {});
 	return sceneLate;
 };

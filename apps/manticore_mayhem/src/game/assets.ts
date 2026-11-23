@@ -3,7 +3,7 @@ import stamps, { fileBytes } from './assetStamp';
 import { PHONE_TIER, renderResolutionFor } from './deviceTier';
 import { LABEL_CAPS } from './labelGlyphs';
 import { pickLabelCap } from './clusterLabel';
-import { CREATURE, LOAD_GATE, SUNSET_FORE } from './constants';
+import { CREATURE, EPIC_LOAD, LOAD_GATE, SUNSET_FORE } from './constants';
 
 // Pixi's texture loader fetches through a Worker it builds from a blob: URL, and its support probe
 // waits for that worker's first message with no error path. Behind a CSP whose worker-src has no
@@ -687,6 +687,24 @@ export const SCENE_LATE: Record<string, { type: string; src: string }> = {};
 	}
 }
 
+// THE EPIC'S OWN FILES (2026-11-25, constants EPIC_LOAD, game/epicLoad.ts): the landscape scene's Epic flame clip is
+// registered in NO boot (neither here nor in SCENE_LATE), so neither the deferred phase nor the shared loader's last batch
+// fetches it; game/epicLoad.ts loads it from here on the round whose book reaches the Epic (its feature, or a win plaque
+// that stops on EPIC: THE EPIC FIRE SET). Until it is in, the braziers burn the mode's own clip, as they always did
+// before a clip was in. EPIC_LOAD.on false: it stays where it was (the deferred group flameEpic below).
+export const EPIC_LATE_KEYS = ['sceneFlameEpic'] as const;
+export const EPIC_LATE: Record<string, { type: string; src: string }> = {};
+if (EPIC_LOAD.on) {
+	const table = assets as unknown as Record<string, { type: string; src: string }>;
+	for (const key of EPIC_LATE_KEYS) {
+		const entry = table[key] ?? SCENE_LATE[key];
+		if (!entry) continue;
+		EPIC_LATE[key] = entry;
+		delete table[key];
+		delete SCENE_LATE[key];
+	}
+}
+
 // THE FRAME'S NIGHT SET, BY BOOT LAYOUT (2026-10-11): the boot layout's three files stay registered (deferred, their
 // own group below); the other two layouts' wait here, keyed by layout, and are fetched the first time the game is
 // turned to that layout (game/deferredLoad.ts loadFrameNightLate, asked by components/BoardFrame.svelte). A desktop
@@ -744,7 +762,8 @@ if (phoneOnlyScreen()) {
 //           kept waiting by it, and before the flame clips (the Bonus burns the Super clip too).
 //   flameSuper, flameEpic   the landscape scene's SUPER and EPIC flame clips (game/flames.ts; 0.68 and 1.14 MB, 0.50 and
 //           0.89 MB on the phone tier; none when the game booted in portrait), one group each so each is uploaded by
-//           itself when it lands: until then that mode's braziers keep the base clip burning.
+//           itself when it lands: until then that mode's braziers keep the base clip burning. flameEpic is EMPTY since
+//           2026-11-25 (EPIC_LOAD, EPIC_LATE above): the Epic clip loads on the round that reaches the Epic.
 //   labels  the cluster label caps that were not preloaded (the one this screen needs already is; these
 //           are for a resize or a rotation: 0.5 MB)
 const deferredKeys = (prefix: string) =>
@@ -767,7 +786,7 @@ export const DEFERRED_ORDER: { name: LoadGroupName; keys: string[] }[] = [
 	{ name: 'frameNight', keys: FRAME_NIGHT_KEYS(bootLayout) },
 	{ name: 'sunset', keys: [...SCENE_KEYS[SCENE_AT_BOOT].sunset] },
 	{ name: 'flameSuper', keys: SCENE_KEYS[SCENE_AT_BOOT].flames.slice(0, 1) },
-	{ name: 'flameEpic', keys: SCENE_KEYS[SCENE_AT_BOOT].flames.slice(1) },
+	{ name: 'flameEpic', keys: SCENE_KEYS[SCENE_AT_BOOT].flames.slice(1).filter((key) => key in assets) },
 	{ name: 'labels', keys: deferredKeys('labelGlyphs') },
 ];
 /** the plaque cannot build without ALL of these (they publish together or not at all) */

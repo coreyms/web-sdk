@@ -74,6 +74,8 @@
 	import { boardRegistration } from '../game/boardArt';
 	import { bannerBackSlot, frameLight } from '../game/boardPlateSlot';
 	import { creatureUploadQuiet } from '../game/creatureLoad';
+	import { epicBannerClass } from '../game/epicLoad';
+	import { warmWait } from '../game/fileWarm';
 	import { creature } from '../game/creature';
 	import { enableMipmaps } from '../game/mipmaps';
 	import { chainRun } from '../game/featureFx';
@@ -126,6 +128,8 @@
 		const scale = masterPerDesign * master.scale;
 		view.place(fx, fy, scale, canvas.width, canvas.height, pole.x, pole.y, masterPerDesign);
 		wantCls = BANNER.width * scale < BANNER.phoneBelowCss ? 'P' : 'D';
+		// (THE EPIC ON DEMAND, game/epicLoad.ts: the class whose Epic intro files a book that reaches the Epic fetches first)
+		epicBannerClass.current = wantCls;
 	});
 
 	// ---- the one resident cloth texture --------------------------------------------------------------------------
@@ -153,6 +157,8 @@
 	// puts nothing in the Cache. The frames and the one texture are the same as before (no extra GPU copy).
 	const glyphSheets: Partial<Record<BannerClass, { sheet: PIXI.Spritesheet; image: string }>> = {};
 	const glyphSheetLoad = async (cls: BannerClass, url: string): Promise<PIXI.Spritesheet> => {
+		// (game/fileWarm.ts may be fetching this sheet into the cache for an Epic: read it from there once it is in)
+		await warmWait(url);
 		const got = await fetch(url);
 		if (!got.ok) throw new Error(`banner glyphs ${got.status}`);
 		const data = (await got.json()) as PIXI.SpritesheetData;
@@ -251,6 +257,8 @@
 		const r: Res = { key, url, cls, tier, content, tex: null, inUse: false, promise: Promise.resolve(null), glyphs: null, held: true };
 		const glyphs = glyphsLoad(cls).then((g) => (r.glyphs = g));
 		r.promise = (clothGone.get(url) ?? Promise.resolve())
+			// (an Epic's cloth may be on its way into the cache, game/epicLoad.ts: no second download beside it)
+			.then(() => warmWait(url))
 			.then(() => PIXI.Assets.load(url) as Promise<PIXI.Texture>)
 			.then(async (tex) => {
 				const rd = renderer();
