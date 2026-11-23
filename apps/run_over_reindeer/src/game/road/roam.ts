@@ -32,7 +32,7 @@ import { REINDEER_ROAM } from '../reindeerRoamSpec';
 import { ROAM_AREAS, ROAM_EDIT, ROAM_REF_RECT, ROAM_TUNNELS, type RoadRect, type RoamArea } from '../roamPaths';
 import { ROAD_ART } from '../roadArtSpec';
 import { FOREST_LINE } from '../forestLineSpec';
-import { ROAM_TREE_PAD } from '../roamGround';
+import { ROAM_TREE_PAD, forestLow, roamShortArea, roamShortLimit, roamShortOn, roamShortTop } from '../roamGround';
 import { seeded } from './crosshair';
 import { chargeFramesReady, roamBox, roamFramesReady, roamTexture, type RoamBox, type RoamClip } from './roamFrames';
 import { CHARGE_HIT, windupFirstFrame, windupFrame, type WindupPlan } from './chargeWindup';
@@ -234,6 +234,13 @@ const TREE_PAD = ROAM_TREE_PAD;
 export type RoamForest = { x: number; y: number; width: number; height: number; kit: keyof typeof FOREST_LINE } | null;
 /** a walk in routes at most this many candidates round a mouth (each its own tree) */
 const WALK_IN_ROUTED = 6;
+/** THE SHORT UPRIGHT GROUND (game/roamGround.ts ROAM_SHORT, Corey 2026-11-25: "Look at my shape"): his top edge is
+ *  read in columns this many to each of the forest line's; a walk in looks for its way down from above the mouth's arch
+ *  for at most this many candidates, turning down at one of this many plus one places (from the screen's edge to the
+ *  steepest turn maxSlopeDeg allows) */
+const SHORT_COLS = 4;
+const SHORT_WAYS = 24;
+const SHORT_TURNS = 5;
 
 export class Roam {
 	readonly sprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
@@ -336,6 +343,12 @@ export class Roam {
 	private treeX: number[] = [];
 	private treeY: number[] = [];
 	private treeKey = '';
+	/** THE SHORT UPRIGHT GROUND applies now (game/roamGround.ts ROAM_SHORT: a short upright page whose tree line stands
+	 *  under the tunnel mouth's top): his area is Corey's band, the highest his feet may stand is its top edge, his shadow
+	 *  may lie behind the logo (the logo is drawn over it), the floor is not widened, and a walk in comes down from above
+	 *  the mouth's arch */
+	short = false;
+	private shortArea: RoamArea | null = null;
 
 	constructor() {
 		this.sprite.visible = false;
@@ -345,6 +358,7 @@ export class Roam {
 
 	/** the area for the layout he is in */
 	area(): RoamArea {
+		if (this.short && this.shortArea) return this.shortArea;
 		return ROAM_AREAS[this.kind] ?? ROAM_AREAS.landscape;
 	}
 
@@ -386,6 +400,16 @@ export class Roam {
 		R.r = rect.right;
 		R.b = rect.bottom;
 		R.v = ROAM_EDIT.version;
+		// (the zones and the forest first: whether the short ground applies is read with the tree line)
+		this.refreshZones();
+		this.resolveArea();
+		this.zonesMoved();
+		this.measureFloor();
+		this.leaveIfCovered();
+	}
+
+	/** the area's corners for this screen into the reused slots, and its bounds */
+	private resolveArea() {
 		const A = this.area();
 		while (this.poly.length < A.corners.length) this.poly.push({ x: 0, y: 0 });
 		this.n = A.corners.length;
@@ -403,10 +427,6 @@ export class Roam {
 			B.x1 = Math.max(B.x1, p.x);
 			B.y1 = Math.max(B.y1, p.y);
 		}
-		this.refreshZones();
-		this.zonesMoved();
-		this.measureFloor();
-		this.leaveIfCovered();
 	}
 
 	/** a spot that no longer holds (a resize, a rotation, an edited area, a keep-out that came up over him, as the LED back
@@ -440,16 +460,30 @@ export class Roam {
 	/** the forest's tree line for this frame's forest (a few numbers: re-read with the zones) */
 	private refreshTrees() {
 		const f = this.forest();
-		const key = f ? `${f.kit}|${f.x}|${f.y}|${f.width}|${f.height}` : '';
+		const key = f ? `${f.kit}|${f.x}|${f.y}|${f.width}|${f.height}|${this.kind}|${this.rect.left}|${this.rect.right}` : '';
 		if (key === this.treeKey) return;
 		this.treeKey = key;
 		this.treeX.length = 0;
 		this.treeY.length = 0;
-		if (!f) return;
-		const line = FOREST_LINE[f.kit]?.line as readonly number[] | undefined;
-		if (!line) return;
-		for (let i = 0; i <= line.length; i++) this.treeX.push(f.x + (f.width * i) / line.length);
-		for (let i = 0; i < line.length; i++) this.treeY.push(f.y + f.height * line[i] + TREE_PAD);
+		const was = this.short;
+		this.short = false;
+		this.shortArea = null;
+		const line = f ? (FOREST_LINE[f.kit]?.line as readonly number[] | undefined) : undefined;
+		if (f && line) {
+			// THE SHORT UPRIGHT GROUND (game/roamGround.ts ROAM_SHORT): under Corey's top edge where it reaches (finer
+			// columns), under the tree line elsewhere
+			this.short = this.kind === 'portrait' && roamShortOn(forestLow(f, this.rect));
+			const top = this.short ? roamShortTop(f) : null;
+			if (top) this.shortArea = roamShortArea(f);
+			const n = top ? line.length * SHORT_COLS : line.length;
+			for (let i = 0; i <= n; i++) this.treeX.push(f.x + (f.width * i) / n);
+			for (let i = 0; i < n; i++) {
+				const own = f.y + f.height * line[Math.floor((i * line.length) / n)] + TREE_PAD;
+				const mound = top ? roamShortLimit(top, this.treeX[i], this.treeX[i + 1]) : NaN;
+				this.treeY.push(Number.isFinite(mound) ? mound : own);
+			}
+		}
+		if (this.short || was) this.resolveArea();
 	}
 
 	/** are his feet at (x, y) on the trees: above the tree line of the column they stand in */
@@ -518,9 +552,11 @@ export class Roam {
 			if (topOk && z.name === 'top line') continue;
 			if (z.name === 'road') {
 				if (x0 < z.x1 && x1 > z.x0 && feet < z.y1 && y > z.y0) return false;
-			} else if (z.name === 'stoplight') {
+			} else if (z.name === 'stoplight' || (this.short && z.name === 'logo')) {
 				// a stoplight stands at the tunnel mouth beside him: his body never covers it, his shadow may fall on its
-				// foot as it falls on the stone (a sideways phone: keeping the shadow off it too halves the snow by the tunnel)
+				// foot as it falls on the stone (a sideways phone: keeping the shadow off it too halves the snow by the tunnel).
+				// The logo on the short ground the same way: it is drawn over him and his shadow, and his shadow's lean (41
+				// CSS px to the left at 413 x 586) kept him 41 px further from it than his body needs
 				if (x0 < z.x1 && x1 > z.x0 && y0 < z.y1 && y > z.y0) return false;
 			} else if (sx0 < z.x1 && sx1 > z.x0 && sy0 < z.y1 && y > z.y0) return false;
 		}
@@ -666,8 +702,9 @@ export class Roam {
 		this.floorOwn.span = Math.round(best.span * 100) / 100;
 		// too little room: the art's top snow rim joins the area; still too little: all the free snow (each kept only where
 		// it gives him more room)
+		// (the short upright ground is Corey's band as drawn: never widened, the snow cap and the board stay out)
 		for (const w of [1, 2] as const) {
-			if (!short(best)) break;
+			if (!short(best) || this.short) break;
 			const keep: 0 | 1 | 2 = this.widen;
 			this.widen = w;
 			const c = count();
@@ -698,8 +735,10 @@ export class Roam {
 	 *  stoplight's body only, the road's feet strip) move in a straight line from a to b, and for each zone the part of
 	 *  the walk where both their x and y spans overlap is solved; any overlap is a hit. The screen's edge: both ends (the
 	 *  boxes are convex, the screen too). */
-	private clearWay(ax: number, ay: number, bx: number, by: number, offScreenOk = false, endTop = false, sweepTop = endTop): boolean {
-		if (!this.clear(bx, by, offScreenOk, endTop)) return false;
+	private clearWay(ax: number, ay: number, bx: number, by: number, offScreenOk = false, endTop = false, sweepTop = endTop, endFree = false): boolean {
+		// (`endFree`: b is a turn of a walk, not a stop: the sweep below judges it as it judges every point of the walk, a
+		// sign it passes included)
+		if (!endFree && !this.clear(bx, by, offScreenOk, endTop)) return false;
 		if (this.cutsMouth(ax, ay, bx, by)) return false;
 		if (this.walkOnTrees(ax, ay, bx, by)) return false;
 		const s = this.scale();
@@ -740,7 +779,7 @@ export class Roam {
 				// SKIP TO RESULT's button (components/Board.svelte roamZones, only while it is up): a walk may pass under it (it
 				// stands in the corner he walks in through on desktop and tablet); he never stops under it (the spot check)
 				continue;
-			} else if (z.name === 'stoplight') {
+			} else if (z.name === 'stoplight' || (this.short && z.name === 'logo')) {
 				if (hits(ax - side, ax + side, ay - h, ay, z)) return false;
 			} else if (hits(ax - side - Math.max(0, -lean.x) * h, ax + side + Math.max(0, lean.x) * h, Math.min(ay - h, ay + Math.min(0, lean.y) * h), ay, z)) return false;
 		}
@@ -909,6 +948,7 @@ export class Roam {
 		const back = from && this.recent.length >= 2 ? this.recent[this.recent.length - 2] : null;
 		if (from) this.roundTree(from);
 		let routed = 0;
+		let shortWays = 0;
 		let bVia = -1;
 		let bTop = false;
 		// (a routed walk in's way, kept as found: each candidate has its own tree)
@@ -969,16 +1009,21 @@ export class Roam {
 				let inVia = -1;
 				let inTop = false;
 				if (walkIn && !from && !this.clearWay(ex, y, x, y, true)) {
-					if (routed >= WALK_IN_ROUTED || !this.cutsMouth(ex, y, x, y)) continue;
-					routed++;
-					const E = { x: ex, y };
-					this.roundTree(E, true);
-					const w = this.wayTo(E, x, y);
-					if (w.via < 0) continue;
-					inVia = w.via;
-					inTop = this.pickTop;
-					this.setRoute(E, w.via, { x, y });
-					walkInRoute = this.route.map((q) => ({ x: q.x, y: q.y }));
+					// (the short upright ground: down from above the mouth's arch, Corey's way in)
+					const down = this.short && shortWays < SHORT_WAYS ? (shortWays++, this.shortWayIn(ex, x, y)) : null;
+					if (down) walkInRoute = down;
+					else {
+						if (routed >= WALK_IN_ROUTED || !this.cutsMouth(ex, y, x, y)) continue;
+						routed++;
+						const E = { x: ex, y };
+						this.roundTree(E, true);
+						const w = this.wayTo(E, x, y);
+						if (w.via < 0) continue;
+						inVia = w.via;
+						inTop = this.pickTop;
+						this.setRoute(E, w.via, { x, y });
+						walkInRoute = this.route.map((q) => ({ x: q.x, y: q.y }));
+					}
 				} else walkInRoute = null;
 				// the way there: straight, or round a tunnel mouth (a way through the top corridor scores lower)
 				const way = from ? this.wayTo(from, x, y) : { via: inVia, cost: 0 };
@@ -1049,6 +1094,46 @@ export class Roam {
 		this.lastPass = -1;
 		this.counts.none++;
 		return false;
+	}
+
+	/** THE WAY IN ON THE SHORT UPRIGHT GROUND (game/roamGround.ts ROAM_SHORT; Corey's band notches up over the right
+	 *  tunnel mouth's arch at his side): level from past his side's edge at a height that clears the arch, then down to
+	 *  the spot (x, y) no steeper than maxSlopeDeg; the lowest such height first, the gentlest turn down first (the
+	 *  farthest along). Its three points, or null. Every leg clear as any walk (clearWay: the mouths, the top edge, every
+	 *  zone; the signs only when the pick passes them), and on the screen his feet inside Corey's band all the way (over
+	 *  the arch that is his notch, a little above the mouth's own keep-out) */
+	private shortWayIn(ex: number, x: number, y: number): Pt[] | null {
+		const step = Math.max(2, (ROAM_REACH.up * this.scale()) / 16);
+		const dir = this.area().side === 'right' ? 1 : -1;
+		const far = dir > 0 ? Math.min(ex, this.rect.right) : Math.max(ex, this.rect.left);
+		const tan = Math.tan((Math.max(1, ROAM.maxSlopeDeg) * Math.PI) / 180);
+		for (let k = 1; k <= 24; k++) {
+			const yE = y - k * step;
+			const near = x + (dir * (y - yE)) / tan;
+			if ((far - near) * dir <= 0) break;
+			for (let j = SHORT_TURNS; j >= 0; j--) {
+				const wx = near + ((far - near) * j) / SHORT_TURNS;
+				if (!this.clearWay(ex, yE, wx, yE, true, false, false, true) || !this.clearWay(wx, yE, x, y)) continue;
+				if (!this.inBandOnScreen(ex, yE, wx, yE) || !this.inBandOnScreen(wx, yE, x, y)) continue;
+				return [
+					{ x: ex, y: yE },
+					{ x: wx, y: yE },
+					{ x, y },
+				];
+			}
+		}
+		return null;
+	}
+
+	/** his feet inside the area all along a to b where they are on the screen (every 4 road px) */
+	private inBandOnScreen(ax: number, ay: number, bx: number, by: number): boolean {
+		const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 4));
+		for (let i = 0; i <= n; i++) {
+			const x = ax + ((bx - ax) * i) / n;
+			if (x < this.rect.left || x > this.rect.right) continue;
+			if (!inPoly(x, ay + ((by - ay) * i) / n, this.poly, this.n)) return false;
+		}
+		return true;
 	}
 
 	/** the chosen walk's way (straight, or round a mouth) into this.route; the counters */
@@ -1245,18 +1330,27 @@ export class Roam {
 		let side = first;
 		let toY = this.y;
 		let found = false;
-		for (let k = 0; k <= EXIT_DROPS && !found; k++) {
-			const y2 = this.y + k * EXIT_DROP_STEP;
-			if (k > 0 && y2 > this.rect.bottom) break;
+		const tryRun = (y2: number, trees = true) => {
 			for (const d of order) {
 				const ex = this.exitX(d);
-				if (this.cutsMouth(this.x, this.y, ex, y2) || this.walkOnTrees(this.x, this.y, ex, y2)) continue;
+				if (this.cutsMouth(this.x, this.y, ex, y2) || (trees && this.walkOnTrees(this.x, this.y, ex, y2))) continue;
 				side = d;
 				toY = y2;
 				found = true;
-				break;
+				return;
 			}
+		};
+		for (let k = 0; k <= EXIT_DROPS && !found; k++) {
+			const y2 = this.y + k * EXIT_DROP_STEP;
+			if (k > 0 && y2 > this.rect.bottom) break;
+			tryRun(y2);
+			// (the short upright ground, game/roamGround.ts ROAM_SHORT: the mouths close both sides below him, so his run
+			// may also rise, up over the right mouth's arch the way he came in)
+			if (!found && this.short && k > 0) tryRun(this.y - k * EXIT_DROP_STEP);
 		}
+		// (and where no straight run keeps under his top edge all the way, the least rise that clears the mouth: a run of
+		// under a second, his feet a few px up the snow mounds at the screen's edge rather than his body over the arch)
+		for (let k = 1; k <= EXIT_DROPS && !found && this.short; k++) tryRun(this.y - k * EXIT_DROP_STEP, false);
 		this.state = 'exit';
 		this.counts.exits++;
 		this.route.length = 0;
@@ -1599,7 +1693,7 @@ export class Roam {
 			/** the tunnel mouths' keep-out polygons (road px, as traced) and his way now (the corners round one, if any) */
 			tunnels: ROAM_TUNNELS,
 			/** the forest's tree line (road px): its column edges (x) and, per column, the highest his feet may stand (y: the
-			 *  lowest tree row plus TREE_PAD) */
+			 *  lowest tree row plus TREE_PAD; on the short upright ground Corey's top edge where it reaches, in finer columns) */
 			trees: this.treeX.length ? { x: [...this.treeX], y: [...this.treeY], forest: this.forest() } : null,
 			route: this.route.map((p) => ({ x: r(p.x), y: r(p.y) })),
 			box: { walk: BOX.walk, sniff: BOX.sniff, start: BOX.start, stop: BOX.stop, charge: BOX.charge, chargeDown: BOX.chargeDown },
@@ -1607,6 +1701,8 @@ export class Roam {
 			windup: this.windup ? { clip: this.windup.clip, k: Math.round(this.windup.k * 10000) / 10000, start: r(this.windup.start), setOff: r(this.windup.setOff), hop: this.windup.hop === null ? null : r(this.windup.hop), hitAt: this.windup.hitAt === null ? null : r(this.windup.hitAt), early: r(this.windup.early), at: this.windup.at.map(r) } : null,
 			lastPass: this.lastPass,
 			underSign: this.underSign,
+			/** the short upright ground applies (game/roamGround.ts ROAM_SHORT): `corners` are Corey's band, `trees.y` its top edge */
+			short: this.short,
 			relaxed: this.relaxed,
 			widen: this.widen,
 			capacity: this.capacity,

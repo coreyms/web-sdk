@@ -96,8 +96,14 @@ events (`game/bookEventHandlerMap.ts`). Every decision taken is one line in `doc
   is a keep-out. UNDER THE SIGN (Corey 2026-11-24: "Let him pass under the sign"): the Fast Lane and Menu signs
   are roam zones named `sign` (`components/Board.svelte` roamZones); he never stands under one; a walk IN may cross
   behind one, only where no way in is clear of every key (`roam.ts` pick, marked `underSign`; 360x560 is such a
-  window). OPEN: at 413x586, 375x530 and 626x816 he still has no way in, because the right tunnel's mouth, not the
-  sign, closes his side there (the tree line stands under the mouth's top); `tools/roam_ground_test.mjs` holds it.
+  window). THE SHORT UPRIGHT GROUND (Corey 2026-11-25, his red shape on the 413x586 still: "Look at my shape";
+  `game/roamGround.ts` `ROAM_SHORT`): where the tree line stands under the right tunnel mouth's top (413x586,
+  375x530, 626x816 and that shape class) the old strip under the trees had no way past the mouth, and he never came.
+  There his ground is Corey's band in front of the trees: its top edge follows the forest's snow mounds (it moves with
+  the forest), its bottom edge is the wall's snow cap (road px), and it notches up over the arch. He comes in above the
+  arch behind the Fast Lane sign and steps down (`roam.ts` `shortWayIn`), the logo keeps his body off it (not his
+  shadow: the logo is drawn over both), the floor is never widened there, and a Super wheel run off may rise over the
+  arch. Everywhere else his ground is unchanged; `tools/roam_ground_test.mjs` (sections 5 and 6) holds both.
   THE HOME INDICATOR'S STRIP (sideways, the bottom 20 px, `HOME_STRIP`): where the bet symbols' press boxes or the
   Win box's glass would stand in it, the amount group and the Win box rise together by the least that clears it
   and Balance with them by its own rule (`homeLifts`, in `SignGeo.lift`; Corey: "Nudge them up"): 9.5 px and 6.2 px
