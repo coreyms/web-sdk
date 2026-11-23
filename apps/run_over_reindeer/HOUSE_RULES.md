@@ -42,6 +42,21 @@ events (`game/bookEventHandlerMap.ts`). Every decision taken is one line in `doc
   `__reindeer.clipMemory()` lists the clips loaded and their GPU MB.
 - Mipmaps (`game/mipmaps.ts` lines 11 to 26): WebGL1 cannot mipmap non-power-of-two sheets; they are skipped there.
 
+## Asset addresses (the build check)
+
+- A built game is served from a subfolder (Stake, staging previews), so no address may climb out of the game's folder
+  or start at the site's root. In a build `import.meta.url` is `<game>/_app/immutable/bundle.<hash>.js`: two `../`
+  reach the game's folder, three leave it (`new URL('../../../assets/...', import.meta.url)` from a source file three
+  folders deep is right on the dev server and a 404 in a build: the sister game's fault of 2026-11-23). Address an
+  asset as `stamp(new URL('../../assets/...', import.meta.url).href)` from a file two folders deep (`game/assets.ts`
+  holds nearly all of them), or `stamp('/assets/...')` from anywhere (`stamp` takes the leading slash off: relative
+  to the page). Never a bare `/assets/...`.
+- `scripts/check-production-bundle.mjs` fails on any such address, read from the BUILD (`scripts/build-addresses.mjs`:
+  every `new URL(..., import.meta.url)`, stamped path, stamp table key, page link, stylesheet `url()`, JSON data file
+  name, written-out fetch / import / worker call; 661 addresses today), and on one whose file is not in the build.
+  `node tools/build_addresses_test.mjs` (after a build) is the node test: the sweep, and the guard held against
+  planted faults.
+
 ## Layout
 
 - Masters as in every game (`game/layoutSpec.ts` lines 16 to 20). The board is ONE picture in "road px" (the
