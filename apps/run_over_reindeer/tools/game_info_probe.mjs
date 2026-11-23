@@ -3,7 +3,8 @@
 // WATCHES: ; __reindeer.hud, __reindeer.atRest, __reindeer.stockRules, AUTOPLAY_RESUME_PAUSE_MS, data-gameinfo, data-guide, data-guide-row, data-tab
 // WATCHES: ; AUTO_PLAYS_BASE, FEATURE_NOT_IN_AUTO, startAutoplay
 // WATCHES: ; .content, .tabs, .guide-row, .guide-icon, .guide-name, GuideId, guideRowShown
-// WATCHES: ; tabPad, tabSize, .wrap, narrow, lowHead
+// WATCHES: ; TIERS, tier, narrow, short, lowHead, .brk, .tab, .face, .x, .hd, .ttl, data-gi-close, data-gi-tier
+// WATCHES: ; .sp-plate, .sm-plate, --sp-f-top, --sp-f-bot, stackPays, payCells
 // THE GAME INFO PROBE (2026-11-18): the rules page's UI GUIDE section (ui/GameInfoModal.svelte, game/gameInfoText.ts
 // guide), at every size the game is shown at, Stake's two popouts included (S 400 x 225, L 800 x 450):
 //   · the page opens from the menu's GAME INFO; the UI Guide tab is there; a press on it scrolls the guide to the top of
@@ -26,9 +27,15 @@
 //     restricted word (bet, buy, cash, money, paid, credit, gamble, wager, stake) anywhere on the page
 //   - THE TAB STRIP (2026-11-22, wip/smallsizes, Corey "AO Yes"; ONLY=tabs runs it alone): at Stake's sizes and the
 //     phone browser's 390 x 620 (TAB_SIZES), every tab of the strip whole inside the window and the strip, none with
-//     its word cut, the strip never scrolling sideways, at most two rows, the words at 10 px or more (under 720 wide
-//     the strip wraps to two rows; at the 2026-11-22 survey GAME MODES, MAX WIN & RTP and LEGAL sat off the right edge
-//     at 320, 375 and 400 wide)
+//     its word cut, the strip never scrolling sideways, at most two rows, the words at 11 px or more (10 until the
+//     guide sign; under 720 wide the strip wraps to two rows; at the 2026-11-22 survey GAME MODES, MAX WIN & RTP and
+//     LEGAL sat off the right edge at 320, 375 and 400 wide)
+//   - THE GUIDE SIGN (2026-11-23, Corey's pick from the mock game_info_sign_r1_2026-11-23, candidate A; ONLY=tabs runs
+//     it with the strip): at every size of TAB_SIZES the page is one green sign, its color and band the Menu pop-out's
+//     own (.sm-plate, read off the open menu: the same computed gradient, band color, band width and corner), 1000 px
+//     wide at most and inside the window; every word on the page at 11 px or more (the strip's words too); the close key
+//     and every tab a press box of 44 x 44 px or more; at 400 x 225 no title and the close key at the end of the
+//     strip's first row
 // With SHOTS=<dir> it saves the guide at each size (<w>x<h>_guide.png) and the strip (<w>x<h>_tabs.png).
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=a,b] [SHOTS=dir] node tools/game_info_probe.mjs
 // Uses the dev server that is already running. One headless browser, muted. Wrap it in the shared browser lock:
@@ -66,7 +73,21 @@ const TAB_SIZES = [
 	{ name: 'tabs375', vp: { width: 375, height: 667 }, touch: true },
 	{ name: 'tabs320', vp: { width: 320, height: 568 }, touch: true },
 	{ name: 'tabs390', vp: { width: 390, height: 620 }, touch: true },
+	// (since the guide sign of 2026-11-23: the desktop windows 1440 x 900 and 1280 x 720 and the phones of the game's
+	// layout tables, 440 x 742, 413 x 586 and 390 x 844 upright, 832 x 376 and 844 x 390 sideways)
+	{ name: 'tabs1440', vp: { width: 1440, height: 900 } },
+	{ name: 'tabs1280', vp: { width: 1280, height: 720 } },
+	{ name: 'tabs440', vp: { width: 440, height: 742 }, touch: true },
+	{ name: 'tabs413', vp: { width: 413, height: 586 }, touch: true },
+	{ name: 'tabs390u', vp: { width: 390, height: 844 }, touch: true },
+	{ name: 'tabs832', vp: { width: 832, height: 376 }, touch: true },
+	{ name: 'tabs844', vp: { width: 844, height: 390 }, touch: true },
 ];
+// COPY OF src/ui/GameInfoModal.svelte TIERS (lab, tabf: the least of them) and the sign's 1000 px cap: the guide sign's
+// least word size and press box, and its widest
+const MIN_TEXT_PX = 11;
+const MIN_PRESS_PX = 44;
+const SIGN_MAX_W = 1000;
 const ROWS = ['feature', 'spin', 'boardTap', 'skip', 'autoplay', 'turbo', 'menu', 'sound', 'amount', 'readouts', 'symbols', 'keyboard', 'replay'];
 const BANNED = /\b(bets?|buy|buys|bought|cash|money|paid|credits?|gamble|gambling|wager|wagers|stake)\b/i;
 
@@ -94,12 +115,30 @@ async function boot(browser, S, extra = '') {
 	return { ctx, p, errs };
 }
 
+/** opens the page from the menu; returns the sign panels' plate as the open menu draws it (.sm-plate, the sign bar's
+ *  Menu pop-out): its gradient, band color, band width and corner. With the glass dock (no pop-out) a bare
+ *  .sp.sp-plate stands in: the same shared rule (ui/sign/signPanel.css). */
 async function openInfo(p) {
 	await p.evaluate(() => document.querySelector('.hudp [data-hud="menu-key"]')?.click());
 	await sleep(450);
+	const menuPlate = await p.evaluate(() => {
+		const look = (el, from) => {
+			const cs = getComputedStyle(el);
+			return { from, bg: cs.backgroundImage, band: cs.borderTopColor, bw: cs.borderTopWidth, rad: cs.borderTopLeftRadius };
+		};
+		const m = document.querySelector('.sm-plate');
+		if (m) return look(m, 'the Menu pop-out');
+		const d = document.createElement('div');
+		d.className = 'sp sp-plate';
+		document.body.appendChild(d);
+		const v = look(d, 'a bare .sp-plate');
+		d.remove();
+		return v;
+	});
 	await p.evaluate(() => document.querySelector('.hudp [aria-label="Game info"]')?.click());
 	for (let i = 0; i < 20 && !(await p.$('[data-gameinfo]')); i++) await sleep(150);
 	await sleep(500);
+	return menuPlate;
 }
 
 async function runSize(browser, S, social = false) {
@@ -209,16 +248,48 @@ async function tabStrip(browser, S) {
 	for (const social of [false, true]) {
 		const tag = `tabs ${S.vp.width}x${S.vp.height}${social ? ' social' : ''}`;
 		const { ctx, p, errs } = await boot(browser, S, social ? '&social=true' : '');
-		await openInfo(p);
+		const menuPlate = await openInfo(p);
 		const t = await p.evaluate(() => {
 			const nav = document.querySelector('[data-gameinfo] .tabs');
 			if (!nav) return null;
 			const nb = nav.getBoundingClientRect();
 			const tabs = [...nav.querySelectorAll('[data-tab]')].map((e) => {
 				const b = e.getBoundingClientRect();
-				return { id: e.dataset.tab, x0: b.left, x1: b.right, y0: b.top, y1: b.bottom, sw: e.scrollWidth, cw: e.clientWidth, px: parseFloat(getComputedStyle(e).fontSize) };
+				return { id: e.dataset.tab, x0: b.left, x1: b.right, y0: b.top, y1: b.bottom, w: b.width, h: b.height, sw: e.scrollWidth, cw: e.clientWidth, px: parseFloat(getComputedStyle(e).fontSize) };
 			});
-			return { nav: { x0: nb.left, x1: nb.right, y0: nb.top, y1: nb.bottom, sw: nav.scrollWidth, cw: nav.clientWidth }, tabs, vw: innerWidth };
+			const sign = document.querySelector('[data-gameinfo]');
+			const sgb = sign.getBoundingClientRect();
+			const cs = getComputedStyle(sign);
+			const x = sign.querySelector('[data-gi-close]');
+			const xb = x?.getBoundingClientRect();
+			// every word on the page, scrolled out of view or not (the size of a text's own element)
+			let minText = Infinity;
+			let minAt = '';
+			const walk = document.createTreeWalker(sign, NodeFilter.SHOW_TEXT);
+			for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+				if (!n.nodeValue.trim()) continue;
+				const el = n.parentElement;
+				if (!el || !el.getClientRects().length) continue;
+				const px = parseFloat(getComputedStyle(el).fontSize);
+				if (px < minText) {
+					minText = px;
+					minAt = `${el.tagName.toLowerCase()}.${[...el.classList].join('.')} "${n.nodeValue.trim().slice(0, 24)}"`;
+				}
+			}
+			return {
+				nav: { x0: nb.left, x1: nb.right, y0: nb.top, y1: nb.bottom, sw: nav.scrollWidth, cw: nav.clientWidth },
+				tabs,
+				vw: innerWidth,
+				vh: innerHeight,
+				tier: sign.dataset.giTier,
+				sign: { x0: sgb.left, x1: sgb.right, y0: sgb.top, y1: sgb.bottom, w: sgb.width, bg: cs.backgroundImage, band: cs.borderTopColor, bw: cs.borderTopWidth, rad: cs.borderTopLeftRadius },
+				close: xb ? { x0: xb.left, x1: xb.right, y0: xb.top, y1: xb.bottom, w: xb.width, h: xb.height, inNav: nav.contains(x) } : null,
+				title: !!sign.querySelector('.ttl'),
+				minText,
+				minAt,
+				winScroll: document.scrollingElement.scrollTop,
+				docW: document.documentElement.scrollWidth,
+			};
 		});
 		check(!!t && t.tabs.length === 7, `${tag}: the strip's seven tabs are there`, t?.tabs.map((x) => x.id));
 		if (t) {
@@ -229,7 +300,21 @@ async function tabStrip(browser, S) {
 			check(t.nav.sw <= t.nav.cw + 1, `${tag}: the strip does not scroll sideways (${t.nav.sw} in ${t.nav.cw})`, t.nav);
 			const rows = new Set(t.tabs.map((x) => Math.round(x.y0))).size;
 			check(rows <= 2, `${tag}: the strip in at most two rows (${rows})`, rows);
-			check(t.tabs.every((x) => x.px >= 10 - 0.01), `${tag}: the tabs' words at 10 px or more`, t.tabs.map((x) => x.px));
+			check(t.tabs.every((x) => x.px >= MIN_TEXT_PX - 0.01), `${tag}: the tabs' words at ${MIN_TEXT_PX} px or more`, t.tabs.map((x) => x.px));
+			// THE GUIDE SIGN (2026-11-23)
+			check(!!menuPlate && /gradient/.test(t.sign.bg) && t.sign.bg === menuPlate.bg && t.sign.band === menuPlate.band && t.sign.bw === menuPlate.bw && t.sign.rad === menuPlate.rad, `${tag}: the sign is the Menu's green plate (against ${menuPlate?.from}: the same gradient, band and corner)`, { sign: t.sign, menuPlate });
+			check(t.sign.w <= SIGN_MAX_W + 0.5 && t.sign.x0 >= -0.5 && t.sign.x1 <= t.vw + 0.5 && t.sign.y0 >= -0.5 && t.sign.y1 <= t.vh + 0.5 && t.docW <= t.vw + 1 && t.winScroll === 0, `${tag}: the sign inside the window, ${SIGN_MAX_W} px wide at most (${Math.round(t.sign.w)}), the window never scrolls`, { sign: t.sign, docW: t.docW, winScroll: t.winScroll });
+			check(t.minText >= MIN_TEXT_PX - 0.01, `${tag}: every word on the page at ${MIN_TEXT_PX} px or more (smallest ${t.minText} px, ${t.minAt})`, { minText: t.minText, at: t.minAt });
+			const small = t.tabs.filter((x) => x.w < MIN_PRESS_PX - 0.05 || x.h < MIN_PRESS_PX - 0.05).map((x) => `${x.id} ${x.w.toFixed(1)}x${x.h.toFixed(1)}`);
+			check(small.length === 0, `${tag}: every tab a press box of ${MIN_PRESS_PX} x ${MIN_PRESS_PX} px or more`, small);
+			check(!!t.close && t.close.w >= MIN_PRESS_PX - 0.05 && t.close.h >= MIN_PRESS_PX - 0.05 && t.close.x1 <= t.sign.x1 + 0.5 && t.close.y0 >= t.sign.y0 - 0.5, `${tag}: the close key a press box of ${MIN_PRESS_PX} x ${MIN_PRESS_PX} px or more, on the sign (${t.close ? `${t.close.w.toFixed(1)} x ${t.close.h.toFixed(1)}` : 'none'})`, t.close);
+			if (t.tier === 'short') {
+				const mid = (b) => (b.y0 + b.y1) / 2;
+				const first = t.tabs[0];
+				const row1 = t.tabs.filter((x) => Math.abs(mid(x) - mid(first)) < 4);
+				const ends = !!t.close && Math.abs(mid(t.close) - mid(first)) < 4 && row1.every((x) => x.x1 <= t.close.x0 + 0.5);
+				check(!t.title && !!t.close?.inNav && ends, `${tag}: no title; the close key ends the strip's first row`, { title: t.title, close: t.close, row1: row1.map((x) => x.id) });
+			}
 		}
 		if (SHOTS && !social) await p.screenshot({ path: join(SHOTS, `${S.vp.width}x${S.vp.height}_tabs.png`) });
 		check(errs.length === 0, `${tag}: no page errors`, errs.slice(0, 3));

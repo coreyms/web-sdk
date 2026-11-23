@@ -241,10 +241,12 @@ const BOXES = [
 	// MODALS
 	{ id: 'replay.total', el: 'Replay card TOTAL WIN, 390 wide (.v.big 5vmin = 19.5 px; 321 less "TOTAL WIN" 84 and gap 8)', kind: 'win', f: SORA, nominal: 19.5, box: 229, floor: 12, how: 'fitAmount (was overflow-wrap: anywhere)' },
 	{ id: 'replay.bet', el: 'Replay card TOTAL BET, 390 wide (.v 3.4vmin = 13.3 px; 321 less "TOTAL BET" 84 and gap 8)', kind: 'price', f: SORA, nominal: 13.3, box: 229, floor: 10, how: 'fitAmount (was overflow-wrap: anywhere)' },
-	// Game Info's pays: beside the name while the three widest leave it 100 px (GameInfoModal stackPays), else stacked one
-	// per line under it: at 360 wide the line is 360 less 2 x 14 padding, 16 for a scrollbar, 26 the row's padding and
-	// border, about 8 for the count and 12 its gap = 270
-	{ id: 'gi.pay', el: 'Game Info paytable pay, 360 wide, stacked (.row.stack .pay-v 13 px)', kind: 'pay', f: SORA, nominal: 13, box: 270, floor: 9, how: 'stacked when long + fitAmount (was three across, nowrap, no fit)' },
+	// Game Info's pays (the guide sign, 2026-11-23): beside the name while the row has 430 px and the three widest leave
+	// the name its longest word (GameInfoModal stackPays), else stacked under it, three cells across while the widest
+	// single pay fits a cell at its size, else one per line. One per line at 320 wide is the tightest: 320 less the
+	// sign's 2 x 6 margin, its 2 x 4 band and 2 x 10 padding, the plaque's 2 x 2 line and 2 x 12 padding, 27 the row's
+	// padding and line, about 10 for the count and 12 its gap = 203
+	{ id: 'gi.pay', el: 'Game Info paytable pay, 320 wide, stacked one per line (.row.stack .pay-v, Overpass 900 15 px)', kind: 'pay', f: OV(900), nominal: 15, box: 203, floor: 11, how: 'stacked when long + fitAmount (was three across, nowrap, no fit)' },
 	{ id: 'popup.pay', el: 'Symbol popup 5 IN A ROW pay (236 x 0.86 wide, pad 12, border 3; less "5" and 0.8 em: 152)', kind: 'pay', f: OV(900), nominal: 14, box: 152, floor: null, how: 'fixed width, nowrap (checked: fits at nominal)' },
 	{ id: 'menu.net', el: 'Menu panel NET, tablet (narrow panel 178 less 22 padding and 8; 9 px, 0.14 em tracking)', kind: 'net', f: { face: 'Outfit', weight: 900, trackPx: 1.26 }, nominal: 9, box: 156 - measure('NET', 9, 900, 1.26 * 3, 'Outfit') - 5, floor: null, how: 'fitFont to the panel line (HudMenuPanel netFont; was no fit)' },
 	// (2026-11-23, the sign panels: the Autoplay card's total is Overpass 900 at 22 px in every layout; its box is 0.58 of
