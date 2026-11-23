@@ -62,8 +62,17 @@ loop, every move book driven).
   train under the plaque (Play on the center line; Turbo on its right; Auto, Menu and the Armoury as a chain on its
   left; icons only). `gearLayout.ts` `UPRIGHT` is his setup at 402 x 874 and `uprightLayout()` the one rule for every
   other phone window (the scale, the chain's angles, where each readout goes, the bottom safe area); its comment lists
-  every move from his places. A window where nothing fits (320 x 568, 390 x 620, 360 x 740) keeps the dock, and so do
-  tablets. The readouts are real text: a 9 px word over a 15 px number.
+  every move from his places. Under 360 px wide (320 x 568) the dock stays, and so do tablets. The readouts are real
+  text, a 9 px word over a 15 px number, always in the band under the plaque.
+- THE UPRIGHT PHONE'S SCENE UNDER THE TRAIN (2026-11-23, `ui/gear/uprightScene.ts`, table `UPRIGHT_SCENE`): a phone
+  browser's frame is far shorter than the phone (Stake full screen 440 x 742, its framed page 413 x 586), so where the
+  train is drawn the shipped portrait scene is moved up until his full band (155.4 px at 402 wide) is free under the
+  plaque, and where the window is too short for that the board and the train are drawn at the same share of their
+  full-width sizes. The Manticore rides up on the frame's top bar and comes down with the board; his idle tail tip may
+  stand 6 CSS px past the top edge. The logo's bottom edge follows the frame art. The canvas reads it through
+  `layoutSpec` `frameFor` / `portraitSceneNow` (the source is registered by `ui/gear/uprightSceneSource.ts`); the dock
+  (`?bar=dock`, a tablet, a phone under 360 wide) draws the shipped scene. The train does not mesh with the frame's
+  wheels on an upright phone: it stands free under the plaque, with the board's own tooth.
 - THE SIDEWAYS PHONE'S GEAR CHAIN (2026-11-22, `ui/gear/GearBarSideways.svelte`): a chain from the board frame's own
   top right wheel: Auto on the wheel, Turbo on Auto, the Play on Turbo at the right; Menu and the Armoury as standards
   under the logo; Win over Balance bottom left; the amount with `<` `>` bottom right. `gearLayout.ts` `SIDEWAYS` is
@@ -71,7 +80,9 @@ loop, every move book driven).
   fits; other bends, then a smaller Play, where it does not; `SKYLINE` is the Manticore's top edge, and the Play may
   reach under it only as far as his own placing does). The HTML gears are phased to the wheel (`WHEEL_REST`). With
   this bar the studio name of the top line is drawn under the clock line at the left (`ui/ChromePhone.svelte`): the
-  Play gear stands where it was. Under 640 x 340, and where no chain fits, the dock stays. Stake's Popout L (800 x 450)
+  Play gear stands where it was. Under 640 x 320, and where no chain fits, the dock stays. On a touch phone the bottom
+  row is drawn 20 px up (`SIDEWAYS.homeStrip`: the phone's home indicator line lies over the frame's bottom edge and
+  the safe area reads 0 inside an iframe). Every text of the bar is at least 9 px (`TEXT_FLOOR`). Stake's Popout L (800 x 450)
   has a short side under 480, so the game lays it out as a sideways phone and it draws the chain; Popout S (400 x 225)
   keeps the dock.
 - GEAR BAR CLASS NAMES: `ui/hud/hud.css` is global under `.hudp`. A gear element never carries a dock class it does not

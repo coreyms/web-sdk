@@ -18,9 +18,16 @@
 //     logo by the stills' boxes), a 34 px bottom safe area, a sweep of phone windows, the chain's turning, its switch
 //   - the sideways phone (SIDEWAYS, sidewaysLayout): his chain from the frame's wheel at 874 x 402, the moves from his
 //     export, the Play's size at 852 x 393, 844 x 390, 812 x 425 and 667 x 375, the stills' boxes, safe areas, a sweep
+//   - the upright phone's scene under the train (src/ui/gear/uprightScene.ts, 2026-11-23): a short window stands its
+//     board higher and draws the board and the train at one share of their full-width sizes; Win and Balance always in
+//     the band; and THE PHONE SIZE SURVEY: every frame a phone browser gives the game (73 captures and Corey's 832 x 376),
+//     the bar each draws, a table of the Play's and the small gears' sizes before and after, and in every gear frame:
+//     the pieces in the frame, 44 px press boxes, no press region on another, the text floor, and sideways nothing in
+//     the bottom 20 px (the home indicator strip)
 //   - the War Standard's run back (2 links, at a feature's first free spin and at its return to the base game): a real
 //     run of the chain that the gears follow with the frame's wheels, with no jump when it is folded off
-//   - the switch: desktop windows get the gear bar, the two popouts and every phone keep the dock, one constant rolls back
+//   - the switch: desktop windows and phones get the gear bar where it fits, Popout S and narrow phones keep the dock,
+//     one constant rolls back
 import { registerHooks } from 'node:module';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -322,21 +329,32 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 		check('upright 402 x 874: his arrangement (Win by the Armoury, the amount upper right, Balance under Turbo)', H.where.win.startsWith('between') && H.where.amt === 'upper right' && H.where.bal === 'under Turbo', JSON.stringify(H.where));
 		check('upright 402 x 874: real text: a 9 px word, a 15 px number; the longest US amounts fit Balance and the amount at 15 px, Win is fitted to the 78 px between the gears', H.text.label === 9 && H.text.number === 15 && H.fitW.bal >= 6.83 * 15 - 0.5 && H.fitW.amt >= 4.77 * 15 && near(H.fitW.win, 77.7, 0.5), JSON.stringify(H.fitW));
 	}
-	// the windows the mock solved, by the one rule
+	// the windows the mock solved. 2026-11-23: the scene under the train is the rule's own now (ui/gear/uprightScene.ts):
+	// a window tall enough for the shipped scene and his full band is not touched (his 402 x 874, 390 x 844: the stills'
+	// boxes still hold there); a shorter one stands its board higher, so the stills of 402 x 700, 375 x 667 and 425 x 812
+	// are of the old scene and the train is judged against the rule's own boxes (the frame plate's top, the plaque's
+	// plate, the logo's bottom edge)
 	for (const [key, S] of Object.entries(STILLS)) {
 		const [vw, vh] = key.split('x').map(Number);
 		const G = up(vw, vh);
 		check(`upright ${key}: the train fits`, !!G);
 		if (!G) continue;
 		const bad = faults(G);
-		const scene = Object.entries(S).map(([n, b]) => [n, { x: b[0], y: b[1], w: b[2], h: b[3] }]);
-		for (const id of L.PIECES) for (const [n, b] of scene) if (meet(G.box[id], b) || meet(G.press[id], b)) bad.push(`${id} on the ${n}`);
+		const still = G.scene.lift < 0.5 && near(G.scene.u, 1, 1e-9);
+		if (still) {
+			const scene = Object.entries(S).map(([n, b]) => [n, { x: b[0], y: b[1], w: b[2], h: b[3] }]);
+			for (const id of L.PIECES) for (const [n, b] of scene) if (meet(G.box[id], b) || meet(G.press[id], b)) bad.push(`${id} on the ${n}`);
+			check(`upright ${key}: the band's top is the plaque's shadow in the still`, near(G.band.plate, S.plaque[1] + S.plaque[3], 0.15), `${f1(G.band.plate)} against ${f1(S.plaque[1] + S.plaque[3])}`);
+		} else {
+			for (const id of L.PIECES) for (const b of [G.box[id], G.press[id]]) if (b.y < G.band.plate + 0.99) bad.push(`${id} on the plaque or the board`);
+			check(`upright ${key}: the scene moved up ${f1(G.scene.lift)} px for the train (the old still no longer holds)`, G.scene.lift > 20 && G.scene.logo.bottom <= G.scene.artTop - 1.99, `lift ${f1(G.scene.lift)}, share ${G.scene.u.toFixed(3)}, the logo's bottom ${f1(G.scene.logo.bottom)} over the art's top ${f1(G.scene.artTop)}`);
+		}
 		check(`upright ${key}: meshed, on the window, < and > clear of the Play, nothing on the board, the plaque or the logo`, bad.length === 0, bad.slice(0, 4).join('; ') || `scale ${G.k.toFixed(3)}, Play ${f1(2 * G.gears.play.R)} (${G.gears.play.teeth} teeth), small ${f1(2 * G.gears.auto.R)}, the Armoury at ${G.gears.arm.deg}; Win ${G.where.win}, Balance ${G.where.bal}, the amount ${G.where.amt}`);
-		check(`upright ${key}: the band's top is the plaque's shadow in the still`, near(G.band.plate, S.plaque[1] + S.plaque[3], 0.15), `${f1(G.band.plate)} against ${f1(S.plaque[1] + S.plaque[3])}`);
 	}
-	// the bottom safe area: a full screen web view on his phone
+	// the bottom safe area: a full screen web view on his phone. 2026-11-23: the scene moves up by the safe area (there is
+	// room over the logo on his phone), so the train keeps his size and stands on the safe area's edge (it was shrunk to 0.86)
 	const SA = up(402, 874, 34);
-	check('upright 402 x 874 with a 34 px bottom safe area: the train stands on its edge, shrunk to 0.86 (a lift alone would put the Play on the plaque)', !!SA && near(SA.k, 0.863, 0.005) && faults(SA, 34).length === 0 && SA.gears.play.cy - SA.gears.play.R >= SA.band.top - 0.21, SA ? `scale ${SA.k.toFixed(3)}; ${faults(SA, 34).slice(0, 3).join('; ')}` : 'no fit');
+	check('upright 402 x 874 with a 34 px bottom safe area: the scene moves up 34 px and the train keeps his size, on the safe area\'s edge', !!SA && near(SA.k, 1, 0.005) && near(SA.scene.lift, 34, 0.5) && faults(SA, 34).length === 0 && SA.gears.play.cy - SA.gears.play.R >= SA.band.top - 0.21, SA ? `scale ${SA.k.toFixed(3)}, lift ${f1(SA.scene.lift)}; ${faults(SA, 34).slice(0, 3).join('; ')}` : 'no fit');
 	// the sweep: every phone window from 360 to 440 wide
 	{
 		let n = 0;
@@ -356,15 +374,14 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 				}
 			}
 		}
-		check(`upright sweep: ${n} phone windows solved (${dock} keep the dock), every one meshed, on the window, out of the safe area, < and > 8 px clear of the Play`, bad.length === 0 && n > 800, bad.slice(0, 4).join('; '));
+		check(`upright sweep: ${n} phone windows solved (${dock} keep the dock), every one meshed, on the window, out of the safe area, < and > 8 px clear of the Play`, bad.length === 0 && n > 1200 && dock === 0, bad.slice(0, 4).join('; '));
 	}
 	// the switch
 	const bk = (vw, vh, phoneFlag = true, mode) => (phone(vw, vh), L.barKind({ kind: 'portrait', vw, vh, phone: phoneFlag }, mode));
 	check('upright switch: phones from 360 wide get the gear bar', ['402x874', '402x700', '390x844', '375x667', '425x812', '360x800'].every((s) => bk(...s.split('x').map(Number)) === 'gear'));
 	check('upright switch: 320 x 568 keeps the dock (the chain does not fit), and so does a tablet held upright', bk(320, 568) === 'dock' && up(320, 568) === null && bk(820, 1180, false) === 'dock');
 	check('upright switch: the rollback constant gives the dock', bk(402, 874, true, 'dock') === 'dock');
-	const short = ['390x620', '360x740', '375x553'].filter((s) => bk(...s.split('x').map(Number)) === 'dock');
-	console.log(`     note: phone windows that keep the dock because no arrangement fits: 320x568, ${short.join(', ')}`);
+	check('upright switch: the short windows that kept the dock on 2026-11-22 draw the train now (390 x 620, 360 x 740, 375 x 553)', ['390x620', '360x740', '375x553'].every((s) => bk(...s.split('x').map(Number)) === 'gear'));
 	// the train's turning: each gear from the gear it meshes with
 	{
 		const g = H.gears;
@@ -508,6 +525,202 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 		// 0.02 px at the edges of a tooth's travel)
 		check('sideways turning: from the frame wheel\'s own tooth (20.6 degrees at rest, 45 a link) each gear\'s tooth sits in its parent\'s gap', worst < 0.03 && near(L.wheelAngle(0), 20.578, 1e-9) && near(L.wheelAngle(1) - L.wheelAngle(0), 45, 1e-9), `worst ${worst.toFixed(5)} px`);
 	}
+}
+
+// ---- 4f. THE PHONE SIZE SURVEY (2026-11-23): every frame a phone browser gives the game ----
+// COPY OF Desktop "Competitor Assets/_layout_survey/phone_browser_sizes_2026-11-23": sizes.json `captures` (the frame
+// the game gets, CSS px; MEAS = measured off Corey's screenshots of his 440 x 956 iPhone, DERI = his bar heights on a
+// published screen, ESTI = default bar heights) and, from measures.json, what web-sdk d5cb3dad drew there before this
+// rule (the bar, the Play or Spin's diameter and the Auto key's, CSS px) and the layout the game chose.
+// [w, h, upright or sideways, mark, phone, host, bar before, Play before, small before, layout]
+// One row more than the survey's: 832 x 376, Stake full screen sideways on his phone (Corey 2026-11-23, off a ruler).
+{
+	const FRAMES = [
+	[333, 487, 'u', 'ESTI', 's26', 'stkFrame', 'dock', 49.8, 26.5, 'portrait'],
+	[333, 547, 'u', 'ESTI', 'zfold7', 'stkFrame', 'dock', 55, 29.1, 'portrait'],
+	[348, 373, 'u', 'DERI', 'iphonese', 'stkFrame', 'dock', 43.5, 23.1, 'portrait'],
+	[348, 397, 'u', 'DERI', 'iphonese', 'stkFrame', 'dock', 43.5, 23.1, 'portrait'],
+	[348, 470, 'u', 'ESTI', 'iphonese', 'stkFrame', 'dock', 48.1, 25.6, 'portrait'],
+	[348, 490, 'u', 'ESTI', 'iphonese', 'stkFrame', 'dock', 50.4, 26.8, 'portrait'],
+	[360, 780, 'u', 'ESTI', 's26', 'stkFull', 'gear', 125, 53.5, 'portrait'],
+	[360, 840, 'u', 'ESTI', 'zfold7', 'stkFull', 'gear', 125, 53.5, 'portrait'],
+	[375, 442, 'u', 'DERI', 'iphonese', 'stgBoth', 'dock', 45.2, 24, 'portrait'],
+	[375, 466, 'u', 'DERI', 'iphonese', 'stgBoth', 'dock', 47.8, 25.4, 'portrait'],
+	[375, 488, 'u', 'DERI', 'iphonese', 'stgNoTop', 'dock', 50, 26.6, 'portrait'],
+	[375, 504, 'u', 'DERI', 'iphone17pro', 'stkFrame', 'dock', 51.6, 27.4, 'portrait'],
+	[375, 512, 'u', 'DERI', 'iphonese', 'stgNoTop', 'dock', 52.6, 27.9, 'portrait'],
+	[375, 528, 'u', 'DERI', 'iphone17pro+iphonese', 'stkFrame+stkFull', 'dock', 54.2, 28.8, 'portrait'],
+	[375, 539, 'u', 'ESTI', 'iphonese', 'stgBoth', 'dock', 55.1, 29.3, 'portrait'],
+	[375, 554, 'u', 'DERI', 'iphonese', 'stkFull', 'dock', 56.7, 30.1, 'portrait'],
+	[375, 559, 'u', 'ESTI', 'iphonese', 'stgBoth', 'dock', 57.4, 30.5, 'portrait'],
+	[375, 585, 'u', 'ESTI', 'iphonese', 'stgNoTop', 'dock', 60.3, 32, 'portrait'],
+	[375, 605, 'u', 'ESTI', 'iphonese', 'stgNoTop', 'dock', 62, 32.7, 'portrait'],
+	[375, 627, 'u', 'ESTI', 'iphonese', 'stkFull', 'gear', 64.8, 46.8, 'portrait'],
+	[375, 635, 'u', 'ESTI', 'iphone17pro', 'stkFrame', 'gear', 67, 46.8, 'portrait'],
+	[375, 647, 'u', 'ESTI', 'iphonese', 'stkFull', 'gear', 73.8, 46.8, 'portrait'],
+	[375, 717, 'u', 'DERI', 'iphone17pro', 'stkFrame', 'gear', 89.6, 46.8, 'portrait'],
+	[385, 598, 'u', 'ESTI', 's26ultra', 'stkFrame', 'dock', 61.3, 32.5, 'portrait'],
+	[402, 573, 'u', 'DERI', 'iphone17pro', 'stgBoth', 'dock', 58.9, 31.3, 'portrait'],
+	[402, 597, 'u', 'DERI', 'iphone17pro', 'stgBoth', 'dock', 61.2, 32.5, 'portrait'],
+	[402, 619, 'u', 'DERI', 'iphone17pro', 'stgNoTop', 'dock', 63.4, 33.7, 'portrait'],
+	[402, 643, 'u', 'DERI', 'iphone17pro', 'stgNoTop', 'dock', 66.4, 35.1, 'portrait'],
+	[402, 661, 'u', 'DERI', 'iphone17pro', 'stkFull', 'gear', 64.6, 45.3, 'portrait'],
+	[402, 685, 'u', 'DERI', 'iphone17pro', 'stkFull', 'gear', 74.3, 45.3, 'portrait'],
+	[402, 704, 'u', 'ESTI', 'iphone17pro', 'stgBoth', 'gear', 84, 45.3, 'portrait'],
+	[402, 750, 'u', 'ESTI', 'iphone17pro', 'stgNoTop', 'gear', 88.8, 45.3, 'portrait'],
+	[402, 786, 'u', 'DERI', 'iphone17pro', 'stgBoth', 'gear', 103.3, 45.3, 'portrait'],
+	[402, 792, 'u', 'ESTI', 'iphone17pro', 'stkFull', 'gear', 105.7, 45.3, 'portrait'],
+	[402, 832, 'u', 'DERI', 'iphone17pro', 'stgNoTop', 'gear', 125, 55, 'portrait'],
+	[402, 874, 'u', 'DERI', 'iphone17pro', 'stkFull', 'gear', 139.5, 59.8, 'portrait'],
+	[412, 891, 'u', 'ESTI', 's26ultra', 'stkFull', 'gear', 140.5, 61.3, 'portrait'],
+	[413, 586, 'u', 'MEAS', 'iphone17promax', 'stkFrame', 'dock', 60.1, 31.9, 'portrait'],
+	[439, 308, 'u', 'ESTI', 'iphoneduo', 'stkFrame', 'dock', 43.9, 18, 'phone'],
+	[440, 655, 'u', 'MEAS', 'iphone17promax', 'stgBoth', 'dock', 67.1, 35.6, 'portrait'],
+	[440, 679, 'u', 'MEAS', 'iphone17promax', 'stgBoth', 'dock', 69.6, 37, 'portrait'],
+	[440, 701, 'u', 'MEAS', 'iphone17promax', 'stgNoTop', 'dock', 72.7, 38.4, 'portrait'],
+	[440, 725, 'u', 'MEAS', 'iphone17promax', 'stgNoTop', 'gear', 70.8, 46.9, 'portrait'],
+	[440, 742, 'u', 'MEAS', 'iphone17promax', 'stkFull', 'gear', 78.7, 46.9, 'portrait'],
+	[440, 868, 'u', 'MEAS', 'iphone17promax', 'stgBoth', 'gear', 118.3, 49.6, 'portrait'],
+	[440, 956, 'u', 'DERI', 'iphone17promax', 'stkFull', 'gear', 150.1, 65.5, 'portrait'],
+	[466, 678, 'u', 'ESTI', 'iphoneduo', 'stkFull', 'dock', 69.4, 36.9, 'portrait'],
+	[626, 688, 'u', 'ESTI', 'iphoneduo', 'stgBoth', 'dock', 68.8, 28.8, 'portrait'],
+	[626, 890, 'u', 'ESTI', 'iphoneduo', 'stkFull', 'dock', 78.3, 32.8, 'portrait'],
+	[750, 568, 'u', 'ESTI', 'zfold7', 'stgBoth', 'dock', 49.6, 31.8, 'landscape'],
+	[750, 832, 'u', 'ESTI', 'zfold7', 'stkFull', 'dock', 72.6, 30.4, 'portrait'],
+	[667, 311, 's', 'DERI', 'iphonese', 'stgBoth+stgNoTop+stkFull', 'dock', 62.2, 25.5, 'phone'],
+	[667, 325, 's', 'ESTI', 'iphonese', 'stgBoth+stgNoTop+stkFull', 'dock', 65, 26.7, 'phone'],
+	[667, 355, 's', 'ESTI', 'iphonese', 'stgBoth+stgNoTop+stkFull', 'gear', 84.3, 48.3, 'phone'],
+	[667, 375, 's', 'DERI', 'iphonese', 'stgBoth+stgNoTop+stkFull', 'gear', 86.4, 48.3, 'phone'],
+	[678, 402, 's', 'ESTI', 'iphoneduo', 'stgBoth+stgNoTop+stkFull', 'gear', 90, 49, 'phone'],
+	[678, 466, 's', 'ESTI', 'iphoneduo', 'stgBoth+stgNoTop+stkFull', 'gear', 90, 49, 'phone'],
+	[748, 256, 's', 'ESTI', 's26', 'stgBoth+stgNoTop+stkFull', 'dock', 51.2, 21, 'phone'],
+	[780, 360, 's', 'ESTI', 's26', 'stkFull', 'gear', 93.3, 47.5, 'phone'],
+	[808, 256, 's', 'ESTI', 'zfold7', 'stgBoth+stgNoTop+stkFull', 'dock', 51.2, 21, 'phone'],
+	[832, 574, 's', 'ESTI', 'zfold7', 'stgBoth+stgNoTop+stkFull', 'dock', 55, 35.3, 'landscape'],
+	[832, 750, 's', 'ESTI', 'zfold7', 'stkFull', 'dock', 68.8, 28.8, 'portrait'],
+	[840, 360, 's', 'ESTI', 'zfold7', 'stkFull', 'gear', 95.6, 47.5, 'phone'],
+	[859, 308, 's', 'ESTI', 's26ultra', 'stgBoth+stgNoTop+stkFull', 'dock', 61.6, 25.3, 'phone'],
+	[874, 338, 's', 'DERI', 'iphone17pro', 'stgBoth+stgNoTop+stkFull', 'dock', 67.6, 27.7, 'phone'],
+	[874, 352, 's', 'ESTI', 'iphone17pro', 'stgBoth+stgNoTop+stkFull', 'gear', 93.5, 48.7, 'phone'],
+	[874, 382, 's', 'ESTI', 'iphone17pro', 'stgBoth+stgNoTop+stkFull', 'gear', 101.4, 48, 'phone'],
+	[874, 402, 's', 'DERI', 'iphone17pro', 'stgBoth+stgNoTop+stkFull', 'gear', 106.7, 47.9, 'phone'],
+	[890, 512, 's', 'ESTI', 'iphoneduo', 'stgBoth+stgNoTop+stkFull', 'dock', 58.8, 37.7, 'landscape'],
+	[890, 626, 's', 'ESTI', 'iphoneduo', 'stgBoth+stgNoTop+stkFull', 'dock', 58.8, 37.7, 'landscape'],
+	[891, 412, 's', 'ESTI', 's26ultra', 'stkFull', 'gear', 109.4, 49.1, 'phone'],
+	[956, 376, 's', 'MEAS', 'iphone17promax', 'stgBoth+stgNoTop+stkFull', 'gear', 99.8, 47.2, 'phone'],
+	[956, 440, 's', 'DERI', 'iphone17promax', 'stgBoth+stgNoTop+stkFull', 'gear', 116.8, 52.5, 'phone'],
+		[832, 376, 's', 'MEAS', 'iphone17promax', 'stkFull', null, null, null, 'phone'],
+	];
+	const LS = await import('../src/game/layoutSpec.ts');
+	const US = await import('../src/ui/gear/uprightScene.ts');
+	const toBox = (c, b) => {
+		const nx = Math.max(b.x, Math.min(c.cx, b.x + b.w));
+		const ny = Math.max(b.y, Math.min(c.cy, b.y + b.h));
+		return c.cx > b.x && c.cx < b.x + b.w && c.cy > b.y && c.cy < b.y + b.h ? -c.R : Math.hypot(c.cx - nx, c.cy - ny) - c.R;
+	};
+	const meet = (a, b) => a.x < b.x + b.w - 0.01 && b.x < a.x + a.w - 0.01 && a.y < b.y + b.h - 0.01 && b.y < a.y + a.h - 0.01;
+	const pad = (v, n) => String(v).padEnd(n);
+	const table = [];
+	const dock = [];
+	const bad = [];
+	let gearN = 0;
+	for (const [vw, vh, o, mark, phoneId, host, barWas, playWas, smallWas, kind] of FRAMES) {
+		const key = `${vw}x${vh}`;
+		const isPhone = Math.min(vw, vh) <= 480;
+		const fail = (why) => bad.push(`${key}: ${why}`);
+		if (kind === 'portrait') {
+			const scale = Math.min(vw / 412, vh / 760);
+			LS.setPortraitViewportSource(() => ({ masterHeight: vh / scale, cssPerMaster: scale, phone: isPhone }));
+			const bar = L.barKind({ kind: 'portrait', vw, vh, phone: isPhone, safeBottom: 0 });
+			const G = bar === 'gear' ? L.uprightLayout(vw, vh, 0) : null;
+			if (!G) {
+				const why = !isPhone ? 'a tablet held upright (an unfolded folding phone): the dock, as every tablet' : vw < L.UPRIGHT_MIN_VW ? `under ${L.UPRIGHT_MIN_VW} px wide: the chain of five gears does not fit the width` : (L.uprightLayout(vw, vh, 0), L.uprightWhy.last);
+				dock.push([key, why]);
+				table.push(`${pad(key, 9)} ${pad(mark, 5)} dock  ${pad(barWas === 'gear' ? `gear ${playWas}` : `dock ${playWas}`, 11)}  ${why}`);
+				// the brief's floor: every phone frame from 360 wide draws the train
+				if (isPhone && vw >= L.UPRIGHT_MIN_VW) fail(`a phone frame from ${L.UPRIGHT_MIN_VW} wide keeps the dock (${why})`);
+				continue;
+			}
+			gearN += 1;
+			const S = US.uprightScene(vw, vh, 0);
+			const g = G.gears;
+			const GEARS = ['play', 'turbo', 'auto', 'menu', 'arm'];
+			// in the frame; press boxes of 44 px; the arrows clear of every gear and 8 px clear of the Play; the readouts in the band
+			for (const id of L.PIECES) for (const b of [G.box[id], G.press[id]]) if (b.x < -0.01 || b.y < -0.01 || b.x + b.w > vw + 0.01 || b.y + b.h > vh + 0.01) fail(`${id} outside the frame`);
+			for (const id of [...GEARS.slice(1), 'down', 'up']) if (Math.min(G.press[id].w, G.press[id].h) < L.MIN_PRESS - 0.01) fail(`${id} press box ${f1(Math.min(G.press[id].w, G.press[id].h))} px`);
+			for (const id of GEARS.slice(1)) {
+				const c = g[id];
+				const q = g[c.parent];
+				if (!near(Math.hypot(c.cx - q.cx, c.cy - q.cy), c.pitchR + q.pitchR + L.UPRIGHT.small.clear, 1e-6)) fail(`${id} not meshed with ${c.parent}`);
+			}
+			for (const [a, b] of [['menu', 'play'], ['arm', 'play'], ['arm', 'auto'], ['turbo', 'auto'], ['turbo', 'menu'], ['turbo', 'arm']]) if (Math.hypot(g[a].cx - g[b].cx, g[a].cy - g[b].cy) < g[a].R + g[b].R + 0.99) fail(`${a} crosses ${b}`);
+			if (!near(g.play.cx, vw / 2, 1e-9)) fail('the Play off the center line');
+			for (const id of ['down', 'up']) {
+				if (toBox(g.play, G.press[id]) < L.UPRIGHT.gapSpin - 0.01) fail(`${id} ${f1(toBox(g.play, G.press[id]))} px from the Play's press region`);
+				for (const k of GEARS) if (toBox(g[k], G.press[id]) < 0.99) fail(`${id}'s press box on ${k}`);
+				for (const r of ['win', 'bal']) if (meet(G.press[id], G.box[r])) fail(`${id}'s press box on ${r}`);
+			}
+			if (meet(G.press.down, G.press.up)) fail('the two arrows\' press boxes overlap');
+			for (const id of ['bal', 'amt']) for (const k of GEARS) if (toBox(g[k], G.box[id]) < 0.99) fail(`${id} on ${k}`);
+			for (const [a, b] of [['win', 'bal'], ['win', 'amt'], ['bal', 'amt']]) if (meet(G.box[a], G.box[b])) fail(`${a} on ${b}`);
+			for (const id of ['win', 'bal', 'amt', 'down', 'up']) if (G.press[id].y < G.band.plate + 0.99) fail(`${id} is not in the bottom section (over the plaque's plate)`);
+			if (!(G.where.win !== 'under the logo' && G.where.bal !== 'under the logo')) fail('a readout under the logo');
+			// the text floor: 9 px words; each number's fit holds its longest US amount at 9 px or more; SPIN and the hub's count
+			if (G.text.label < L.TEXT_FLOOR || G.fitW.win < 6.83 * L.TEXT_FLOOR - 0.5 || G.fitW.bal < 6.83 * L.TEXT_FLOOR - 0.5 || G.fitW.amt < 4.77 * L.TEXT_FLOOR || G.text.spin < L.TEXT_FLOOR || G.text.count < L.TEXT_FLOOR || G.text.sub < L.TEXT_FLOOR) fail(`text under ${L.TEXT_FLOOR} px (${JSON.stringify(G.fitW)}, SPIN ${f1(G.text.spin)})`);
+			// the scene: the board's plaque over the band, the logo over the frame art, the tail barely past the top edge
+			if (S.creature.tailOver > US.UPRIGHT_SCENE.tailOver + 0.01) fail(`the idle tail tip ${f1(S.creature.tailOver)} px past the top edge`);
+			if (S.logo.bottom > S.artTop - US.UPRIGHT_SCENE.logoGap + 0.01 && S.lift > 0.5) fail('the logo on the frame art');
+			if (S.board > 1 + 1e-9 || S.creature.scale > 1 + 1e-9) fail('the scene drawn larger than shipped');
+			table.push(`${pad(key, 9)} ${pad(mark, 5)} train ${pad(barWas === 'gear' ? `gear ${playWas}` : `dock ${playWas}`, 11)} Play ${pad(f1(2 * g.play.R), 6)} small ${pad(f1(2 * g.auto.R), 5)} (was ${pad(smallWas, 5)}) board ${S.board.toFixed(2)} Manticore ${S.creature.scale.toFixed(2)} tail ${pad(f1(S.creature.tailOver), 4)} up ${pad(f1(S.lift), 5)} Win ${G.where.win === 'between the Armoury and the Play gear' ? 'his place' : G.where.win}, Balance ${G.where.bal}, amount ${G.where.amt}`);
+		} else if (kind === 'phone') {
+			const view = { kind: 'phone', vw, vh, safe: { t: 0, r: 0, b: 0, l: 0 }, touch: true };
+			const G = L.sidewaysBarLayout(view);
+			if (!G) {
+				L.sidewaysLayout(vw, vh, L.sidewaysSafe(view));
+				dock.push([key, L.sidewaysWhy.last]);
+				table.push(`${pad(key, 9)} ${pad(mark, 5)} dock  ${pad(barWas === 'gear' ? `gear ${playWas}` : `dock ${playWas}`, 11)}  ${L.sidewaysWhy.last}`);
+				if (vw >= L.SIDEWAYS_MIN.vw && vh >= 330) fail(`a sideways frame from 330 tall keeps the dock (${L.sidewaysWhy.last})`);
+				continue;
+			}
+			gearN += 1;
+			const g = G.gears;
+			const strip = L.SIDEWAYS.homeStrip;
+			for (const id of L.PIECES) for (const b of [G.box[id], G.press[id]]) if (b.x < -0.01 || b.y < -0.01 || b.x + b.w > vw + 0.01 || b.y + b.h > vh + 0.01) fail(`${id} outside the frame`);
+			// THE HOME INDICATOR STRIP: nothing pressed or read in the bottom 20 px
+			for (const id of L.PIECES) for (const b of [G.box[id], G.press[id]]) if (b.y + b.h > vh - strip + 0.01) fail(`${id} in the bottom ${strip} px`);
+			for (const id of ['auto', 'turbo', 'menu', 'arm', 'down', 'up']) if (Math.min(G.press[id].w, G.press[id].h) < L.MIN_PRESS - 0.01) fail(`${id} press box ${f1(Math.min(G.press[id].w, G.press[id].h))} px`);
+			if (meet(G.press.down, G.press.up)) fail('the two arrows\' press boxes overlap');
+			if (Math.hypot(g.play.cx - g.auto.cx, g.play.cy - g.auto.cy) < g.play.R + g.auto.R + 0.99) fail('the Play crosses Auto');
+			for (const id of ['auto', 'turbo', 'play']) for (const r of ['down', 'up', 'amt', 'win', 'bal', 'menu', 'arm']) if (toBox(g[id], G.press[r]) < 0.99) fail(`${r} on ${id}`);
+			for (const [a, b] of [['menu', 'arm'], ['win', 'bal'], ['win', 'menu'], ['win', 'arm'], ['bal', 'menu'], ['down', 'win'], ['down', 'bal'], ['amt', 'win'], ['amt', 'bal']]) if (meet(G.press[a], G.press[b])) fail(`${a} on ${b}`);
+			// the text floor: 9 px words on the gears, the readouts and the hub; numbers their own sizes, the longest amounts fitting at 9 px or more
+			if (G.text.word < L.TEXT_FLOOR || G.text.label < L.TEXT_FLOOR || G.text.sub < L.TEXT_FLOOR || G.text.spin < L.TEXT_FLOOR || G.text.bal < L.TEXT_FLOOR || G.text.win < L.TEXT_FLOOR || G.fitW.bal < 6.83 * L.TEXT_FLOOR - 0.5 || G.fitW.win < 6.83 * L.TEXT_FLOOR - 0.5 || G.fitW.amt < 4.77 * L.TEXT_FLOOR) fail(`text under ${L.TEXT_FLOOR} px (${JSON.stringify(G.text)}, ${JSON.stringify(G.fitW)})`);
+			table.push(`${pad(key, 9)} ${pad(mark, 5)} chain ${pad(barWas === 'gear' ? `gear ${playWas}` : barWas ? `dock ${playWas}` : 'not taken', 11)} Play ${pad(f1(2 * g.play.R), 6)} small ${pad(f1(2 * g.auto.R), 5)} (was ${pad(smallWas, 5)}) the amount ${G.how}; standards ${f1(G.box.menu.w)} px (their word ${f1(Math.max(9, (G.box.menu.w / 113.6) * 12.58))} px); the bottom row ${strip} px up; Play ${f1(G.coverPx)} px over the tail`);
+		} else {
+			// an unfolded folding phone held sideways: a tablet, the desktop layout and the desktop table's own floor
+			const bar = L.barKind({ kind: 'landscape', vw, vh });
+			if (bar === 'gear') gearN += 1;
+			else dock.push([key, `a tablet window (the desktop layout) under ${L.DESKTOP_MIN.vw} x ${L.DESKTOP_MIN.vh} or with gears under ${L.DESKTOP_MIN.gears} of their desktop size`]);
+			table.push(`${pad(key, 9)} ${pad(mark, 5)} ${bar === 'gear' ? 'desk ' : 'dock '} ${pad(`${barWas} ${playWas}`, 11)}  the desktop rule (a tablet window)`);
+		}
+	}
+	LS.setPortraitViewportSource(() => ({ masterHeight: 760, cssPerMaster: 1, phone: true }));
+	console.log('     THE SURVEY, frame by frame (CSS px; "was" = web-sdk d5cb3dad, measured in the survey):');
+	for (const row of table) console.log(`       ${row}`);
+	check(`survey: ${FRAMES.length} frames, ${gearN} draw the gear bar; in every one the pieces are in the frame, press boxes are 44 px, < and > are clear of the Play and of every gear, the readouts are in the bottom section, texts hold ${L.TEXT_FLOOR} px, and sideways nothing is in the bottom ${L.SIDEWAYS.homeStrip} px`, bad.length === 0, bad.slice(0, 6).join('; '));
+	check(`survey: the dock stays only on frames under ${L.UPRIGHT_MIN_VW} wide upright, under ${L.SIDEWAYS_MIN.vh} tall sideways, the mini player and unfolded folding screens (${dock.length} frames)`, dock.every(([key]) => { const [w, h] = key.split('x').map(Number); return w < L.UPRIGHT_MIN_VW || (w > h && h < L.SIDEWAYS_MIN.vh) || Math.min(w, h) > 480 || (w > h && w < L.SIDEWAYS_MIN.vw); }), dock.map(([k, w]) => `${k}: ${w}`).join(' | '));
+	// the named frames of the brief
+	for (const [vw, vh] of [[413, 586], [440, 742], [402, 661], [375, 504], [375, 554], [375, 627]]) {
+		const scale = Math.min(vw / 412, vh / 760);
+		LS.setPortraitViewportSource(() => ({ masterHeight: vh / scale, cssPerMaster: scale, phone: true }));
+		const G = L.uprightLayout(vw, vh, 0);
+		check(`survey: ${vw} x ${vh} upright draws the train, the Play at least 95 px`, !!G && 2 * G.gears.play.R >= 95, G ? `Play ${f1(2 * G.gears.play.R)}, small ${f1(2 * G.gears.auto.R)}` : L.uprightWhy.last);
+	}
+	for (const [vw, vh] of [[832, 376], [874, 338], [667, 331], [667, 325]]) {
+		const G = L.sidewaysBarLayout({ kind: 'phone', vw, vh, safe: { t: 0, r: 0, b: 0, l: 0 }, touch: true });
+		check(`survey: ${vw} x ${vh} sideways draws the chain with the bottom row ${L.SIDEWAYS.homeStrip} px up`, !!G && G.press.up.y + G.press.up.h <= vh - L.SIDEWAYS.homeStrip + 0.01 && G.box.bal.y + G.box.bal.h <= vh - L.SIDEWAYS.homeStrip + 0.01, G ? `Play ${f1(2 * G.gears.play.R)}, small ${f1(2 * G.gears.auto.R)}, the amount ${G.how}` : L.sidewaysWhy.last);
+	}
+	LS.setPortraitViewportSource(() => ({ masterHeight: 760, cssPerMaster: 1, phone: true }));
 }
 
 // ---- 4e. THE ARMOURY over the gear bar (ui/armoury/menuFrame.ts `copies`, uprightLayout hudTop) ----

@@ -11,3 +11,8 @@ export const BAR_MODE: 'gear' | 'dock' = (() => {
 	}
 	return GAME_BAR;
 })();
+
+/** THE PAGE IS ON A TOUCH DEVICE (a coarse pointer), read once: a phone held sideways then keeps the home indicator
+ *  strip clear (ui/gear/gearLayout.ts SIDEWAYS.homeStrip) and THE ARMOURY takes its own sideways layout
+ *  (ui/Chrome.svelte); a desktop popout with a mouse does neither. Playwright's touch contexts read as coarse too. */
+export const TOUCH: boolean = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;

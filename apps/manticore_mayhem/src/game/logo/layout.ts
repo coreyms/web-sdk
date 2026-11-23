@@ -7,7 +7,7 @@
 import { CREATURE, LOGO, LOGO_KEY } from '../constants';
 import { CREATURE_SPEC } from '../creatureSpec';
 import { SCENE_SPEC_PORTRAIT } from '../sceneSpec';
-import { frameArtRect, frameFor, landscapeExtraY, MASTER, portraitViewportNow, registrationOf, SKIP, type LayoutKind } from '../layoutSpec';
+import { frameArtRect, frameFor, landscapeExtraY, MASTER, portraitSceneNow, portraitViewportNow, registrationOf, SKIP, type LayoutKind } from '../layoutSpec';
 import { portraitOptions } from '../portraitOptions.svelte';
 import { safeInsetLeftCss } from '../safeInset';
 
@@ -56,10 +56,14 @@ export const logoArtRect = (kind: LayoutKind, viewportMasterWidth?: number, phon
 	if (phone) {
 		const { cx } = LOGO.portraitPhone;
 		const GP = LOGO_KEY.grow.portraitPhone;
-		const width = portraitOptions.logoWidth ?? GP?.width ?? LOGO.portraitPhone.width;
+		// THE GEAR TRAIN'S SCENE (ui/gear/uprightScene.ts through layoutSpec portraitSceneNow): where an upright phone draws
+		// the train the board stands higher, so the logo's bottom edge rides up with the frame art, and under the clock
+		// line it is drawn smaller; its left edge rule is unchanged. null: the shipped box.
+		const scene = portraitSceneNow(viewportMasterWidth);
+		const width = (portraitOptions.logoWidth ?? GP?.width ?? LOGO.portraitPhone.width) * (scene?.logo.scale ?? 1);
 		const height = width / ASPECT;
 		// the frame's bottom edge held (constants LOGO_KEY.grow.portraitPhone): a wider frame grows up, not down onto him
-		const cy = GP ? GP.bottom - height / 2 : LOGO.portraitPhone.cy;
+		const cy = scene ? scene.logo.bottom - height / 2 : GP ? GP.bottom - height / 2 : LOGO.portraitPhone.cy;
 		const view = portraitViewportNow();
 		if (portraitOptions.logo === 'edge' && view) {
 			// THE LEFT EDGE OPTION (constants LOGO.portraitPhoneEdge): the art's leftmost drawn column edgeCss CSS px (plus the safe area)

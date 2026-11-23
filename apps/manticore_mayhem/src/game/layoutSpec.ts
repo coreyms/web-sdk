@@ -204,6 +204,26 @@ export const setPortraitViewportSource = (source: () => PortraitViewport) => {
 /** the live portrait viewport now (null without a source: node tools) */
 export const portraitViewportNow = (): PortraitViewport | null => portraitViewport?.() ?? null;
 
+/** THE UPRIGHT PHONE'S SCENE UNDER THE GEAR BAR (2026-11-23; the rule and its table are ui/gear/uprightScene.ts, which
+ *  registers the source through ui/gear/uprightSceneSource.ts: this file cannot import the bar's files, they import it).
+ *  Corey: "it's okay to move the manticore/board and logo upwards ... I expect in some cases the Manticore will need to
+ *  be made smaller or the tail go slightly off the screen at the top (which is fine if barely)."
+ *  Where an upright phone draws the gear train, the shipped portrait frame (portraitFrameShipped) is drawn at `board` of
+ *  its size about the screen's center line with its art's top edge on master row `artTop`; the Manticore at `creature`
+ *  of his spot's scale (his claw stays docked on the frame's top bar: components/Background.svelte); the logo at `logo`
+ *  .scale of its box with its bottom edge on master row `logo.bottom` (game/logo/layout.ts). null: the shipped scene
+ *  (the dock, a tablet, a node tool with no source). */
+export type PortraitScene = { board: number; artTop: number; creature: number; logo: { scale: number; bottom: number } };
+let portraitScene: ((viewportMasterWidth: number, view: PortraitViewport) => PortraitScene | null) | null = null;
+export const setPortraitSceneSource = (source: ((viewportMasterWidth: number, view: PortraitViewport) => PortraitScene | null) | null) => {
+	portraitScene = source;
+};
+/** the gear bar's scene on this portrait viewport now, or null (the shipped scene) */
+export const portraitSceneNow = (viewportMasterWidth?: number): PortraitScene | null => {
+	const view = portraitViewport?.() ?? null;
+	return portraitScene && view?.phone && viewportMasterWidth ? portraitScene(viewportMasterWidth, view) : null;
+};
+
 /** the shipped growth k on a portrait viewport this wide (master units): the chain centrelines chainInset inside its
  *  edges, 1 .. maxK. Above 1 the spin amount plaque uses its tablet numbers (components/BoardPlaque.svelte), whatever
  *  the bigger phone board does, so every screen keeps the plaque it had. */
@@ -228,12 +248,29 @@ export const frameFor = (kind: LayoutKind, viewportMasterWidth?: number) => {
 	// the desktop board on a screen narrower than 16:9 (LANDSCAPE_TALL); FRAME.landscape itself at 16:9 and wider
 	if (kind === 'landscape') return landscapeTallFrame(landscapeExtraY());
 	if (kind !== 'portrait' || !viewportMasterWidth) return base;
+	const shipped = portraitFrameShipped(viewportMasterWidth);
+	// an upright phone drawing the gear train: the same frame, smaller and higher where the train needs the room
+	const scene = portraitSceneNow(viewportMasterWidth);
+	return scene ? portraitFramePlaced(shipped, scene.board, scene.artTop) : shipped;
+};
+
+/** a portrait frame rect at `q` of its size about the master's center line, its ART's top edge on master row `artTop` */
+export const portraitFramePlaced = (f: FrameRect, q: number, artTop: number): FrameRect => {
+	const art = artRectOf(f);
+	const cx = MASTER.portrait.width / 2;
+	return { ...f, x: cx + (f.x - cx) * q, y: artTop + (f.y - art.y) * q, width: f.width * q, height: f.height * q, inset: f.inset * q, cell: f.cell * q, gap: f.gap * q, margin: f.margin * q };
+};
+
+/** THE SHIPPED PORTRAIT FRAME for a viewport this wide (master units): the rule every portrait screen had before the
+ *  gear bar's scene, and still has wherever that scene is not drawn. `view`: the live viewport (the phone's bigger
+ *  board reads its height and size class); a caller that works a window out by itself passes its own. */
+export const portraitFrameShipped = (viewportMasterWidth: number, view: PortraitViewport | null = portraitViewport?.() ?? null): FrameRect => {
+	const base = FRAME.portrait;
 	const P = PORTRAIT_FIT;
 	// the shipped growth: the chain centrelines chainInset inside the viewport's edges
 	const kShip = portraitShippedK(viewportMasterWidth);
 	// THE PHONE'S BIGGER BOARD (game/boardSizeVariant.ts): on a phone the variant holds a point of the art at or outside
 	// the chains' centrelines on the screen edges instead ('chainsHalf' ships); a tablet keeps the shipped rule
-	const view = portraitViewport?.() ?? null;
 	const V = view?.phone ? PORTRAIT_BOARD : PORTRAIT_BOARD_VARIANTS.current;
 	const m0 = registrationOf(base).m;
 	const k = V.edgeOut === null ? kShip : Math.min(Math.max(viewportMasterWidth / (chainSpanOf(base) - 2 * V.edgeOut * m0), kShip), V.maxK);
@@ -269,7 +306,7 @@ export const frameFor = (kind: LayoutKind, viewportMasterWidth?: number) => {
 	};
 };
 
-type FrameRect = (typeof FRAME)[LayoutKind];
+export type FrameRect = (typeof FRAME)[LayoutKind];
 
 /** THE ART REGISTRATION for a frame rect: the lattice's mid-height width (BOARD_ART.lattice, render px)
  *  spans the cell area (width - 2 inset) and its centre line is centred on it. m = master px per render
@@ -326,7 +363,7 @@ export const hudClearSpan = (kind: LayoutKind): { x0: number; x1: number; width:
 };
 
 /** the frame ART's rectangle (frame + chains alpha bbox) in master units for a frame rect */
-const artRectOf = (f: FrameRect) => {
+export const artRectOf = (f: FrameRect) => {
 	const r = registrationOf(f);
 	const [u0, v0, u1, v1] = BOARD_ART.art;
 	const a = r.map(u0, v0);

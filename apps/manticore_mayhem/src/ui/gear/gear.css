@@ -429,7 +429,8 @@
 	left: 50%;
 	top: calc(var(--s) * 71.28);
 	transform: translate(-50%, -50%);
-	font-size: calc(var(--s) * 12.58);
+	/* (the text floor, 9 px: a sideways phone draws the standards at about half the desktop pair) */
+	font-size: max(9px, calc(var(--s) * 12.58));
 	line-height: 1;
 	white-space: nowrap;
 	letter-spacing: 0.1em;
@@ -510,7 +511,7 @@
 	top: 46%;
 	transform: translate(-50%, -50%);
 	z-index: 2;
-	font-size: calc(var(--s) * 12.65);
+	font-size: max(9px, calc(var(--s) * 12.65));
 	line-height: 1;
 	white-space: nowrap;
 	letter-spacing: 0.18em;
@@ -523,7 +524,7 @@
 	flex-direction: column;
 	align-items: center;
 	gap: 0.2em;
-	font-size: calc(var(--s) * 10);
+	font-size: max(9px, calc(var(--s) * 10));
 }
 .hudp.v-gear .gs.gs-arm .lb b {
 	font-weight: inherit;

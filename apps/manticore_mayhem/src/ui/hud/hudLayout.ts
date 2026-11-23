@@ -16,7 +16,7 @@
 // Bottom rows are anchored to the viewport's bottom edge, the desktop dock to its centre line (the WIN readout's
 // centre IS the screen's centre), portrait keys to its side edges. Pure functions: the chromes, the SKIP button and
 // the probes' own copies of these numbers all read the same rules.
-import { MASTER, type LayoutKind, frameArtRect, frameFor, registrationOf, portraitShippedK } from '../../game/layoutSpec';
+import { MASTER, type LayoutKind, type FrameRect, artRectOf, frameFor, registrationOf, portraitShippedK } from '../../game/layoutSpec';
 import { BOARD_PLAQUE_SPEC } from '../../game/boardPlaqueSpec';
 import { BOARD_ART } from '../../game/boardArtSpec';
 
@@ -102,12 +102,15 @@ export const PORTRAIT = {
 
 /** the spin amount plaque's box (its soft shadow's, the lowest thing it draws) and the frame art's bottom on a portrait
  *  screen, CSS px: the board's own numbers (game/layoutSpec.ts frameFor, the plaque spec components/BoardPlaque.svelte
- *  picks: the tablet numbers once the shipped growth is past 1). The plaque is centered on the screen. */
-export const portraitBoardBottoms = (vw: number, vh: number) => {
+ *  picks: the tablet numbers once the shipped growth is past 1). The plaque is centered on the screen.
+ *  `frame`: a portrait frame rect to read instead of the one the screen draws now (ui/gear/uprightScene.ts works the
+ *  gear bar's scene out from the shipped frame and from the frame it places). */
+export const portraitBoardBottoms = (vw: number, vh: number, frame?: FrameRect) => {
 	const f = chromeFit('portrait', vw, vh);
 	const vwm = vw / f.scale;
-	const art = frameArtRect('portrait', vwm);
-	const reg = registrationOf(frameFor('portrait', vwm));
+	const fr = frame ?? frameFor('portrait', vwm);
+	const art = artRectOf(fr);
+	const reg = registrationOf(fr);
 	const spec = BOARD_PLAQUE_SPEC.layouts[portraitShippedK(vwm) > 1 ? 'portraitTablet' : 'portrait'].render;
 	const box = spec.plaqueBox as readonly number[];
 	const shadow = spec.shadowBox as readonly number[];

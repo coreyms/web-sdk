@@ -9,7 +9,9 @@
 	// the spin amount plaque. The Play gear on the center line, Turbo meshed on its right, and a chain on its left, each
 	// gear meshed only with the next: Auto, Menu, the Armoury. Icons only on the small gears; the Armoury carries the
 	// game's PolyMath mark. Win, the amount with its gold < and >, and Balance stand round the train where the rule puts
-	// them (ui/gear/gearLayout.ts uprightLayout: the places, the rule between windows and every move from his places).
+	// them (ui/gear/gearLayout.ts uprightLayout: the places, the rule between windows and every move from his places),
+	// always in the band under the plaque. The scene over the train (the board, the Manticore, the logo) is the rule's
+	// too since 2026-11-23: ui/gear/uprightScene.ts moves it up, and draws it smaller with the train on a short window.
 	//
 	// A RE-SKIN, as on desktop (ui/gear/GearBar.svelte): the Play is ui/hud/HudSpin.svelte itself inside the gear, the
 	// readouts HudReadout, the arrows HudStep, the help menu HudMenuPanel; the four small gears are ui/gear/GearKey.svelte
@@ -146,6 +148,11 @@
 				safeBottom: L.safeBottom,
 				band: { ...L.band },
 				hudTop: L.hudTop,
+				/** the scene under the train (ui/gear/uprightScene.ts): the common share u, the board against the shipped one, the
+				 *  lift, where the frame art's top and the logo's bottom edge stand, the Manticore's share and his idle top (CSS px;
+				 *  under 0: past the top edge), and the band the shipped scene would have left */
+				scene: { ...L.scene, creature: { ...L.scene.creature }, logo: { ...L.scene.logo } },
+				kBand: L.kBand,
 				/** every piece's drawn box and its press box (the arrows': 44 px round the drawn arrow), CSS px */
 				box: copy(L.box),
 				press: copy(L.press),

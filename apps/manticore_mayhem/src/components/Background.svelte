@@ -44,7 +44,7 @@
 	import { Rectangle, getContextParent } from 'pixi-svelte';
 
 	import { getContext } from '../game/context';
-	import { layoutKind } from '../game/layoutSpec';
+	import { layoutKind, portraitSceneNow } from '../game/layoutSpec';
 	import { BACKGROUND_WASH, BONUS_WARMTH, CHAIN_GUST, CHAIN_SOUND, CREATURE, ENTRANCE_ROAR, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAQUE_CHEER, PLAYGROUND_PX, SCENE, SKY, STING_FX, zIndexes, type CheerMove, type CreatureDockKey, type CreatureShadeMode, type CreatureSpot } from '../game/constants';
 	import { creature, creatureDocked, creatureFront, creaturePlaceFor, desktopFloorRow, type CreaturePlace } from '../game/creature';
 	import { boardRegistration } from '../game/boardArt';
@@ -386,7 +386,13 @@
 		if (!(CREATURE.portraitDock.spots as readonly CreatureSpot[]).includes(spot) || which !== 'portrait' || key === 'current') return base;
 		const D = CREATURE.portraitDock;
 		const o = D.options[key];
-		return creatureDocked(base, o.size, dockEdge(D.edges[o.edge]), dockFit());
+		// THE GEAR TRAIN'S SCENE (ui/gear/uprightScene.ts through layoutSpec portraitSceneNow): an upright phone that
+		// draws the train stands the board higher, and smaller where the window is short; he rides up on the frame's top
+		// bar through the dock as always, and is drawn at the scene's share of his size so he comes down with the board
+		// (Corey 2026-11-23: "I expect in some cases the Manticore will need to be made smaller or the tail go slightly
+		// off the screen at the top (which is fine if barely)"). null (the dock, a tablet): his size as it was.
+		const scene = spot === 'portraitPhone' ? portraitSceneNow(canvas.width / context.stateLayoutDerived.mainLayout().scale) : null;
+		return creatureDocked(base, o.size * (scene?.creature ?? 1), dockEdge(D.edges[o.edge]), dockFit());
 	};
 	const creaturePlace = $derived(placeOverride ?? spotPlace());
 	$effect(() => {

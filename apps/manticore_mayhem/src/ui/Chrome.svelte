@@ -13,7 +13,9 @@
 	import HudStyles from './hud/HudStyles.svelte';
 	import { hudFrame, readSafeInsets, portraitBoardBottoms } from './hud/hudLayout';
 	import { barKind } from './gear/gearLayout';
-	import { BAR_MODE } from './gear/barMode';
+	import { BAR_MODE, TOUCH } from './gear/barMode';
+	// (the upright phone's scene under the gear train: registers itself with game/layoutSpec.ts)
+	import './gear/uprightSceneSource';
 	import { readOdoDev } from './hud/winOdometer';
 	import ChromeLandscape from './ChromeLandscape.svelte';
 	import ChromePortrait from './ChromePortrait.svelte';
@@ -71,7 +73,7 @@
 	if (import.meta.env.DEV && typeof window !== 'undefined') {
 		// house rule: extend __manticore, never a new global (tools/manticore/hud_probe.js reads the HUD's scale, the
 		// portrait row's t and the plaque box the rule placed it under)
-		((window as any).__manticore ??= {}).hudFrame = () => ({ variant: hud.variant, bar: barKind({ kind, vw, vh, phone, safeBottom: safe.b, safe }, BAR_MODE), u: hud.u, t: hud.t, gap: hud.gap, plaque: kind === 'portrait' ? portraitBoardBottoms(vw, vh) : null });
+		((window as any).__manticore ??= {}).hudFrame = () => ({ variant: hud.variant, bar: barKind({ kind, vw, vh, phone, safeBottom: safe.b, safe, touch: TOUCH }, BAR_MODE), u: hud.u, t: hud.t, gap: hud.gap, plaque: kind === 'portrait' ? portraitBoardBottoms(vw, vh) : null });
 		// THE WIN ODOMETER's state (ui/hud/winOdometer.ts; tools/manticore/hud_probe.js section `cards`): its mode, the total,
 		// what the readout reads now (locked digits, '#' for a moving one), the banner screen and the clock ms it drew at, the
 		// count's end, when it went plain and whether by a skip, the pops played
@@ -80,8 +82,8 @@
 	// (a touch phone held sideways drawing the gear bar: the menu's own sideways layout at every ratio, never the desktop
 	// box at half scale; ui/armoury/menuFrame.ts `touchSideways`. A popout window on a desktop has a fine pointer and
 	// keeps the box.)
-	const coarse = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
-	const armouryFrame = $derived(menuFrame({ kind, phone, vw, vh, scale, master, fitWidth, touchSideways: coarse && kind === 'phone' && barKind({ kind, vw, vh, phone, safeBottom: safe.b, safe }, BAR_MODE) === 'gear' }, ARMOURY.layout));
+	const coarse = TOUCH;
+	const armouryFrame = $derived(menuFrame({ kind, phone, vw, vh, scale, master, fitWidth, touchSideways: coarse && kind === 'phone' && barKind({ kind, vw, vh, phone, safeBottom: safe.b, safe, touch: TOUCH }, BAR_MODE) === 'gear' }, ARMOURY.layout));
 	// the real HUD's BALANCE and bet row are lit above the tint in every layout but the desktop box scaled onto a phone
 	// sideways chrome (the small 16:9 frames): there the menu draws its own copies and the whole HUD stays under the tint
 	const armouryLit = $derived(armouryView.shown && !armouryFrame.hudCopies);
