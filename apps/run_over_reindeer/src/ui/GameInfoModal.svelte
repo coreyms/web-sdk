@@ -3,7 +3,7 @@
 	// and RTP, the legal block. The copy is game/gameInfoText.ts.
 	// THE GUIDE SIGN (2026-11-23, Corey's pick from the mock game_info_sign_r1_2026-11-23, candidate A "One guide
 	// sign"): one green sign standing over the dimmed game, the Menu pop-out's own plate (ui/sign/signPanel.css .sp-plate,
-	// the --sp-* tokens of ui/hudTheme.ts SIGN_PANEL), 1000 px wide at most so the road shows at its sides. Each section
+	// the --sp-* tokens of ui/hudTheme.ts SIGN_PANEL), 1000 px wide at most so the road shows at its sides (above 1440 wide the whole sign grows, gs below). Each section
 	// is a plaque with a white line and its name on a green header plate set across that line (the bar's BALANCE plate);
 	// the tabs are the Menu's dark plates (.sp-well) and the chosen one turns white. Bold words in the Turbo yellow.
 	// Sizes come in four tiers (TIERS below): the smallest text is 11 px at every size and the close key and every tab
@@ -19,7 +19,7 @@
 	import Icon from './Icon.svelte';
 	import HudIcon, { type HudIconName } from './hud/HudIcon.svelte';
 	import { POLYMATH_MARK } from './hud/polymathMark';
-	import { HUD_CONFIG } from './hudTheme';
+	import { HUD_CONFIG, signPanelTokens } from './hudTheme';
 	import './sign/signPanel.css';
 	import config from '../game/config';
 	import { soc } from '../game/social';
@@ -50,16 +50,40 @@
 	} as const;
 	type Tier = keyof typeof TIERS;
 	const tier: Tier = $derived(short ? 'short' : narrow ? 'dense' : lowHead ? 'low' : 'wide');
-	const Z = $derived(TIERS[tier]);
+	// THE LARGE SCREEN SCALE (Corey 2026-11-23: "Let the sign grow wider and its text larger above 1440 wide"). Above 1440
+	// CSS px of window width the whole sign grows by one factor, gs: its width cap, every --gi-* size, every px in the style
+	// block (each a calc(N px * var(--gi-s, 1))), the plate's band, lines and corners (the --sp-* size tokens) and the close
+	// key's glyph, so the approved design keeps its proportions. gs runs 1 at 1440, 1.35 at 1920, 1.6 from 2560, and never
+	// more than the window's height gives (vh / 800: 1.35 at 1080 tall) or than leaves the sign 88 % of the window's width;
+	// as it grows the sign's top and bottom margins grow too, to 6 % of the height each (the sign 88 % of it) by 1.35.
+	// AT 1440 WIDE AND UNDER NOTHING CHANGES: gs is exactly 1 there, no --gi-s, --gi-mv or --sp-* value is written (so every
+	// calc falls back to 1 px times its number), and every number the script sizes with is the tier's own.
+	const gs = $derived.by(() => {
+		if (vw <= 1440) return 1;
+		const curve = vw <= 1920 ? 1 + (0.35 * (vw - 1440)) / 480 : Math.min(1.6, 1.35 + (0.25 * (vw - 1920)) / 640);
+		return Math.round(Math.max(1, Math.min(curve, vh / 800, (0.88 * vw) / 1000)) * 1000) / 1000;
+	});
+	const r2 = (v: number) => Math.round(v * 100) / 100;
+	/** the tier's sizes at the scale (the tier's own numbers at 1: no rounding, no copy) */
+	const Z = $derived.by(() => {
+		const t = TIERS[tier];
+		if (gs === 1) return t;
+		return Object.fromEntries(Object.entries(t).map(([k, v]) => [k, k === 'm' ? v : r2(v * gs)])) as unknown as (typeof TIERS)[Tier];
+	});
 	const margin = $derived(Z.m + (tier === 'wide' && vw >= 1600 ? 8 : 0));
+	/** the top and bottom margins once the sign grows: from the margin at 1 to 6 % of the height at 1.35 and over */
+	const marginV = $derived(gs === 1 ? margin : Math.max(margin, Math.round(vh * 0.06 * Math.min(1, (gs - 1) / 0.35))));
+	/** the plate's own sizes (ui/hudTheme.ts signPanelTokens: the band, its lines, the corners), scaled with the sign */
+	const SP_SIZES = ['bw', 'ko', 'ki', 'rad', 'wrad', 'wl'] as const;
 	const signVars = $derived(
-		Object.entries({ ...Z, m: margin })
-			.map(([k, v]) => `--gi-${k}:${v}px`)
-			.join(';'),
+		[
+			...Object.entries({ ...Z, m: margin }).map(([k, v]) => `--gi-${k}:${v}px`),
+			...(gs === 1 ? [] : [`--gi-s:${gs}`, `--gi-mv:${marginV}px`, ...SP_SIZES.map((k) => `--sp-${k}:${r2(parseFloat(signPanelTokens()[k]) * gs)}px`)]),
+		].join(';'),
 	);
 	/** the sign's band (SIGN_PANEL thickness) and a plaque's line, for the paytable's room before it is measured */
-	const BAND = 4;
-	const PLAQUE_LINE = 2;
+	const BAND = $derived(4 * gs);
+	const PLAQUE_LINE = $derived(2 * gs);
 	/** the faces: the bar's Overpass for every word but the reading text */
 	const DISP_FACE = "'Overpass', 'Outfit', sans-serif";
 
@@ -183,12 +207,12 @@
 		};
 	});
 	/** the sign's inside: the window less its margins, capped at 1000, less the band and the padding */
-	const signInner = $derived(Math.min(1000, vw - 2 * margin) - 2 * BAND - 2 * Z.p);
+	const signInner = $derived(Math.min(1000 * gs, vw - 2 * margin) - 2 * BAND - 2 * Z.p);
 	/** the seven plates in one row: each word, its plate's padding (12 a side, 10 at the low size) and line, the gaps */
 	const stripNeed = $derived.by(() => {
 		void fontTick;
-		const padX = tier === 'low' ? 10 : 12;
-		return SECTIONS.reduce((w, s) => w + measureFitText(s.label.toUpperCase(), Z.tabf, 900, 0.08 * Z.tabf, DISP_FACE) + 2 * padX + 2 * 1.6, 0) + 6 * 6;
+		const padX = (tier === 'low' ? 10 : 12) * gs;
+		return SECTIONS.reduce((w, s) => w + measureFitText(s.label.toUpperCase(), Z.tabf, 900, 0.08 * Z.tabf, DISP_FACE) + 2 * padX + 2 * 1.6 * gs, 0) + 6 * 6 * gs;
 	});
 	const twoRows = $derived(!short && (narrow || stripNeed + 4 > signInner));
 
@@ -198,13 +222,13 @@
 	// name its longest word; else every row stacks its pays under it: three cells across, or, when the widest single
 	// pay would not fit a cell at its size (a long currency, "2,500.000000 BTC"), one per line, the count left and the
 	// amount right, fitted to the row (ui/fitAmount.ts). USD at usual amounts on a phone takes the three cells.
-	const PAY_GAP = 12;
+	const PAY_GAP = $derived(12 * gs);
 	/** the paytable grid's own width (bind:clientWidth, a ResizeObserver: read on a resize, never per frame); before it is
 	 *  known, the CSS's own numbers (the sign capped at 1000, the plaque at 880) */
 	let gridW = $state(0);
-	const gridWidth = $derived(gridW > 0 ? gridW : Math.min(880, signInner) - 2 * Z.sp - 2 * PLAQUE_LINE);
+	const gridWidth = $derived(gridW > 0 ? gridW : Math.min(880 * gs, signInner) - 2 * Z.sp - 2 * PLAQUE_LINE);
 	/** the inside of one row: less its padding (12 a side) and its line (1.5 a side) */
-	const rowInner = $derived(gridWidth - 2 * 12 - 3);
+	const rowInner = $derived(gridWidth - 2 * 12 * gs - 3 * gs);
 	/** the name's least room: its longest word at the name's size and tracking (.row-name: Overpass 900, 0.06 em) */
 	const nameMin = $derived.by(() => {
 		void fontTick;
@@ -214,16 +238,16 @@
 	/** the widest row's three pays side by side (each at least the .pay cell's 44) */
 	const paysWidest = $derived.by(() => {
 		void fontTick;
-		return paying.reduce((m, sym) => Math.max(m, pays(sym).reduce((w, p) => w + Math.max(44, payW(p)), 0)), 0);
+		return paying.reduce((m, sym) => Math.max(m, pays(sym).reduce((w, p) => w + Math.max(44 * gs, payW(p)), 0)), 0);
 	});
 	/** the widest single pay */
 	const payWidest = $derived.by(() => {
 		void fontTick;
 		return paying.reduce((m, sym) => Math.max(m, ...pays(sym).map(payW)), 0);
 	});
-	const stackPays = $derived(gridWidth < 430 || Z.tile + 12 + nameMin + 12 + paysWidest + 2 * PAY_GAP > rowInner + 0.5);
+	const stackPays = $derived(gridWidth < 430 * gs || Z.tile + 12 * gs + nameMin + 12 * gs + paysWidest + 2 * PAY_GAP > rowInner + 0.5);
 	/** stacked: one cell's inside, three across with 6 px between, each with 2 px of padding a side */
-	const cellInner = $derived((rowInner - 2 * 6) / 3 - 4);
+	const cellInner = $derived((rowInner - 2 * 6 * gs) / 3 - 4 * gs);
 	const payCells = $derived(stackPays && payWidest <= cellInner * 0.98);
 	// the 12 line pictures: how many to a row
 	const lineCols = $derived(narrow ? 4 : 6);
@@ -232,7 +256,7 @@
 {#snippet rich(text: string)}{#each runs(text) as r}{#if r.b}<strong>{r.t}</strong>{:else}{r.t}{/if}{/each}{/snippet}
 
 {#snippet closeKey()}
-	<button type="button" class="x" onclick={close} aria-label="Close" data-gi-close><span class="x-face"><Icon name="close" s={tier === 'wide' ? 22 : 20} /></span></button>
+	<button type="button" class="x" onclick={close} aria-label="Close" data-gi-close><span class="x-face"><Icon name="close" s={(tier === 'wide' ? 22 : 20) * gs} /></span></button>
 {/snippet}
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} dim="rgba(6,4,10,0.72)" zIndex={5}>
@@ -267,7 +291,7 @@
 							</div>
 							<div class="pays">
 								{#each pays(sym) as p, i}
-									<div class="pay"><span class="lab">{T.paytable.kinds[config.payKinds[i]]}</span><span class="num pay-v" use:fitAmount={{ text: payText(p), floor: 11, off: !stackPays }} data-gi-pay>{payText(p)}</span></div>
+									<div class="pay"><span class="lab">{T.paytable.kinds[config.payKinds[i]]}</span><span class="num pay-v" use:fitAmount={{ text: payText(p), floor: 11 * gs, off: !stackPays }} data-gi-pay>{payText(p)}</span></div>
 								{/each}
 							</div>
 						</div>
@@ -415,12 +439,12 @@
 		--gi-disp: 'Overpass', 'Outfit', sans-serif;
 		--gi-read: 'Outfit Text', 'Outfit', sans-serif;
 		position: absolute;
-		top: var(--gi-m);
-		bottom: var(--gi-m);
+		top: var(--gi-mv, var(--gi-m));
+		bottom: var(--gi-mv, var(--gi-m));
 		left: 0;
 		right: 0;
 		margin: 0 auto;
-		width: min(1000px, calc(100% - 2 * var(--gi-m)));
+		width: min(calc(1000px * var(--gi-s, 1)), calc(100% - 2 * var(--gi-m)));
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
@@ -432,7 +456,7 @@
 	.hd {
 		display: flex;
 		align-items: center;
-		gap: 12px;
+		gap: calc(12px * var(--gi-s, 1));
 		padding: var(--gi-p) var(--gi-p) 0;
 		flex: none;
 	}
@@ -459,7 +483,7 @@
 		height: 0.46em;
 		background: var(--sp-acc);
 		transform: rotate(45deg);
-		border: 2px solid var(--sp-acc-ink);
+		border: calc(2px * var(--gi-s, 1)) solid var(--sp-acc-ink);
 	}
 	.x {
 		flex: none;
@@ -473,9 +497,9 @@
 		height: 100%;
 		display: grid;
 		place-items: center;
-		border-radius: 12px;
+		border-radius: calc(12px * var(--gi-s, 1));
 		background: var(--sp-ki-c);
-		border: 3px solid var(--sp-band);
+		border: calc(3px * var(--gi-s, 1)) solid var(--sp-band);
 		color: var(--sp-ink);
 		box-shadow: 0 0 0 var(--sp-ko) var(--sp-ko-c);
 		transition: transform 0.1s ease;
@@ -488,13 +512,13 @@
 	.tabs {
 		display: flex;
 		flex-wrap: wrap;
-		column-gap: 6px;
-		padding: 8px var(--gi-p) 0;
+		column-gap: calc(6px * var(--gi-s, 1));
+		padding: calc(8px * var(--gi-s, 1)) var(--gi-p) 0;
 		flex: none;
 	}
 	.tab {
 		flex: 1 1 auto;
-		min-height: 44px;
+		min-height: calc(44px * var(--gi-s, 1));
 		min-width: min-content;
 		display: flex;
 		align-items: center;
@@ -506,15 +530,15 @@
 	}
 	.tab .face {
 		width: 100%;
-		min-height: 38px;
+		min-height: calc(38px * var(--gi-s, 1));
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		padding: 4px 12px 2px;
+		padding: calc(4px * var(--gi-s, 1)) calc(12px * var(--gi-s, 1)) calc(2px * var(--gi-s, 1));
 	}
 	.low .tab .face {
-		padding-left: 10px;
-		padding-right: 10px;
+		padding-left: calc(10px * var(--gi-s, 1));
+		padding-right: calc(10px * var(--gi-s, 1));
 	}
 	.brk {
 		display: block;
@@ -530,8 +554,8 @@
 		letter-spacing: 0.05em;
 	}
 	.narrow .tab .face {
-		min-height: 36px;
-		padding: 3px 5px 1px;
+		min-height: calc(36px * var(--gi-s, 1));
+		padding: calc(3px * var(--gi-s, 1)) calc(5px * var(--gi-s, 1)) calc(1px * var(--gi-s, 1));
 	}
 	.short .tabs {
 		padding-top: var(--gi-p);
@@ -541,8 +565,8 @@
 		letter-spacing: 0.06em;
 	}
 	.short .tab .face {
-		padding: 3px 8px 1px;
-		min-height: 38px;
+		padding: calc(3px * var(--gi-s, 1)) calc(8px * var(--gi-s, 1)) calc(1px * var(--gi-s, 1));
+		min-height: calc(38px * var(--gi-s, 1));
 	}
 
 	/* the page: it scrolls inside the sign, the window never does */
@@ -554,7 +578,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--gi-sg);
-		padding: var(--gi-cp) var(--gi-p) 28px;
+		padding: var(--gi-cp) var(--gi-p) calc(28px * var(--gi-s, 1));
 		font: 400 var(--gi-body) / 1.5 var(--gi-read);
 		color: var(--sp-ink);
 		overscroll-behavior: contain;
@@ -563,7 +587,7 @@
 	}
 	.foot {
 		flex: none;
-		height: 1px;
+		height: calc(1px * var(--gi-s, 1));
 	}
 	/* a section: a plaque on the sign, its white line, its name on a header plate set across the line (the bar's
 	   BALANCE plate, as ui/sign/signPanel.css .sp-tag) */
@@ -571,25 +595,25 @@
 		position: relative;
 		flex: none;
 		width: 100%;
-		max-width: 880px;
+		max-width: calc(880px * var(--gi-s, 1));
 		margin: 0 auto;
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
-		border: 2px solid var(--sp-band);
-		border-radius: 12px;
+		gap: calc(10px * var(--gi-s, 1));
+		border: calc(2px * var(--gi-s, 1)) solid var(--sp-band);
+		border-radius: calc(12px * var(--gi-s, 1));
 		background: rgba(0, 0, 0, 0.1);
-		padding: calc(var(--gi-sp) + 8px) var(--gi-sp) var(--gi-sp);
+		padding: calc(var(--gi-sp) + calc(8px * var(--gi-s, 1))) var(--gi-sp) var(--gi-sp);
 	}
 	h2 {
 		position: absolute;
-		left: 12px;
+		left: calc(12px * var(--gi-s, 1));
 		top: 0;
 		transform: translateY(-50%);
 		margin: 0;
 		display: inline-flex;
 		align-items: center;
-		max-width: calc(100% - 24px);
+		max-width: calc(100% - calc(24px * var(--gi-s, 1)));
 		padding: 0.42em 0.62em 0.3em;
 		font: 900 var(--gi-h2) / 1 var(--gi-disp);
 		letter-spacing: 0.1em;
@@ -597,11 +621,11 @@
 		white-space: nowrap;
 		color: #fff;
 		background: linear-gradient(180deg, #288a58, #09673a);
-		border: 2px solid #fff;
-		border-radius: 7px;
+		border: calc(2px * var(--gi-s, 1)) solid #fff;
+		border-radius: calc(7px * var(--gi-s, 1));
 		box-shadow:
-			0 0 0 1px var(--sp-ko-c),
-			inset 0 0 0 0.8px var(--sp-ki-c);
+			0 0 0 calc(1px * var(--gi-s, 1)) var(--sp-ko-c),
+			inset 0 0 0 calc(0.8px * var(--gi-s, 1)) var(--sp-ki-c);
 	}
 	p {
 		margin: 0;
@@ -611,11 +635,11 @@
 		font-weight: 700;
 	}
 	ul {
-		margin: 4px 0 0 18px;
+		margin: calc(4px * var(--gi-s, 1)) 0 0 calc(18px * var(--gi-s, 1));
 		padding: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
+		gap: calc(6px * var(--gi-s, 1));
 	}
 	/* the small spaced words: the 3, 4 and 5 over the pays, a symbol's kind, PRICE, RTP, MAX WIN, the modes' heads */
 	.lab {
@@ -627,10 +651,10 @@
 		color: var(--sp-ink2);
 	}
 	.subhead {
-		font: 900 12px / 1.2 var(--gi-disp);
+		font: 900 calc(12px * var(--gi-s, 1)) / 1.2 var(--gi-disp);
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
-		margin-top: 6px;
+		margin-top: calc(6px * var(--gi-s, 1));
 		color: var(--sp-ink);
 	}
 	.num {
@@ -643,16 +667,16 @@
 	.pay-grid {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		gap: 8px;
+		gap: calc(8px * var(--gi-s, 1));
 	}
 	.row {
 		display: flex;
 		align-items: center;
-		gap: 12px;
-		padding: 8px 12px;
+		gap: calc(12px * var(--gi-s, 1));
+		padding: calc(8px * var(--gi-s, 1)) calc(12px * var(--gi-s, 1));
 		border-radius: var(--sp-wrad);
 		background: var(--sp-well);
-		border: 1.5px solid var(--sp-rule);
+		border: calc(1.5px * var(--gi-s, 1)) solid var(--sp-rule);
 		min-width: 0;
 	}
 	.row.top {
@@ -667,14 +691,14 @@
 	}
 	/* the red present right beside the teal one (one pair, not two rows) */
 	.tile.also {
-		margin-left: -10px;
+		margin-left: calc(-10px * var(--gi-s, 1));
 	}
 	.row-main {
 		flex: 1 1 auto;
 		min-width: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 3px;
+		gap: calc(3px * var(--gi-s, 1));
 	}
 	.row-name {
 		font: 900 var(--gi-name) / 1.15 var(--gi-disp);
@@ -688,14 +712,14 @@
 	.pays {
 		flex: none;
 		display: flex;
-		gap: 12px;
+		gap: calc(12px * var(--gi-s, 1));
 	}
 	.pay {
 		text-align: right;
-		min-width: 44px;
+		min-width: calc(44px * var(--gi-s, 1));
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
+		gap: calc(2px * var(--gi-s, 1));
 	}
 	.pay-v {
 		font-size: var(--gi-pv);
@@ -707,20 +731,20 @@
 	.row.stack {
 		display: grid;
 		grid-template-columns: auto minmax(0, 1fr);
-		row-gap: 8px;
+		row-gap: calc(8px * var(--gi-s, 1));
 	}
 	.row.stack .pays {
 		grid-column: 1 / -1;
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
+		gap: calc(2px * var(--gi-s, 1));
 		min-width: 0;
 	}
 	.row.stack .pay {
 		flex-direction: row;
 		align-items: baseline;
 		justify-content: space-between;
-		gap: 12px;
+		gap: calc(12px * var(--gi-s, 1));
 		min-width: 0;
 	}
 	.row.stack .pay-v {
@@ -733,15 +757,15 @@
 	.row.stack.cells .pays {
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 6px;
+		gap: calc(6px * var(--gi-s, 1));
 	}
 	.row.stack.cells .pay {
 		flex-direction: column;
 		align-items: stretch;
-		gap: 2px;
+		gap: calc(2px * var(--gi-s, 1));
 		text-align: center;
-		padding: 5px 2px 4px;
-		border-radius: 7px;
+		padding: calc(5px * var(--gi-s, 1)) calc(2px * var(--gi-s, 1)) calc(4px * var(--gi-s, 1));
+		border-radius: calc(7px * var(--gi-s, 1));
 		background: rgba(0, 0, 0, 0.22);
 	}
 	.row.stack.cells .pay-v {
@@ -754,16 +778,16 @@
 	.guide {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: calc(8px * var(--gi-s, 1));
 	}
 	.guide-row {
 		display: flex;
 		align-items: flex-start;
-		gap: 12px;
-		padding: 9px 10px;
+		gap: calc(12px * var(--gi-s, 1));
+		padding: calc(9px * var(--gi-s, 1)) calc(10px * var(--gi-s, 1));
 		border-radius: var(--sp-wrad);
 		background: var(--sp-well);
-		border: 1.5px solid var(--sp-rule);
+		border: calc(1.5px * var(--gi-s, 1)) solid var(--sp-rule);
 		min-width: 0;
 	}
 	.guide-icon {
@@ -786,35 +810,35 @@
 		min-width: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 3px;
+		gap: calc(3px * var(--gi-s, 1));
 	}
 	.guide-name {
-		font: 900 calc(var(--gi-name) + 0.5px) / 1.15 var(--gi-disp);
+		font: 900 calc(var(--gi-name) + calc(0.5px * var(--gi-s, 1))) / 1.15 var(--gi-disp);
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
-		margin-top: 2px;
+		margin-top: calc(2px * var(--gi-s, 1));
 	}
 
 	/* the lines */
 	.lines {
 		display: grid;
-		gap: 10px 8px;
+		gap: calc(10px * var(--gi-s, 1)) calc(8px * var(--gi-s, 1));
 	}
 	.line {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 4px;
+		gap: calc(4px * var(--gi-s, 1));
 		min-width: 0;
 	}
 	.line svg {
 		display: block;
 		width: 100%;
-		max-width: 86px;
+		max-width: calc(86px * var(--gi-s, 1));
 		height: auto;
-		border-radius: 6px;
+		border-radius: calc(6px * var(--gi-s, 1));
 		background: var(--sp-well);
-		border: 1.5px solid var(--sp-rule);
+		border: calc(1.5px * var(--gi-s, 1)) solid var(--sp-rule);
 	}
 	.line rect {
 		fill: rgba(255, 255, 255, 0.16);
@@ -823,24 +847,24 @@
 		fill: var(--sp-acc);
 	}
 	.line-n {
-		font-size: 11.5px;
+		font-size: calc(11.5px * var(--gi-s, 1));
 		line-height: 1;
 	}
 
 	/* the modes: each a dark plate with its color as a rail down its left edge */
 	.modes {
 		display: grid;
-		gap: 10px;
+		gap: calc(10px * var(--gi-s, 1));
 	}
 	.mode {
 		position: relative;
-		padding: 10px 12px 11px 16px;
+		padding: calc(10px * var(--gi-s, 1)) calc(12px * var(--gi-s, 1)) calc(11px * var(--gi-s, 1)) calc(16px * var(--gi-s, 1));
 		border-radius: var(--sp-wrad);
 		background: var(--sp-well);
-		border: 1.5px solid var(--sp-rule);
+		border: calc(1.5px * var(--gi-s, 1)) solid var(--sp-rule);
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: calc(8px * var(--gi-s, 1));
 		min-width: 0;
 	}
 	.mode::before {
@@ -849,8 +873,8 @@
 		left: 0;
 		top: 0;
 		bottom: 0;
-		width: 6px;
-		border-radius: 8px 0 0 8px;
+		width: calc(6px * var(--gi-s, 1));
+		border-radius: calc(8px * var(--gi-s, 1)) 0 0 calc(8px * var(--gi-s, 1));
 		background: var(--gi-rail);
 	}
 	.mode-head {
@@ -858,7 +882,7 @@
 		align-items: center;
 		justify-content: space-between;
 		flex-wrap: wrap;
-		gap: 8px 16px;
+		gap: calc(8px * var(--gi-s, 1)) calc(16px * var(--gi-s, 1));
 	}
 	.mode-name {
 		font: 900 var(--gi-mname) / 1.15 var(--gi-disp);
@@ -868,7 +892,7 @@
 	.stats {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 6px;
+		gap: calc(6px * var(--gi-s, 1));
 		min-width: 0;
 	}
 	.narrow .stats,
@@ -878,25 +902,25 @@
 	.stat {
 		display: flex;
 		flex-direction: column;
-		gap: 3px;
+		gap: calc(3px * var(--gi-s, 1));
 		min-width: 0;
-		padding: 6px 10px;
-		border-radius: 7px;
+		padding: calc(6px * var(--gi-s, 1)) calc(10px * var(--gi-s, 1));
+		border-radius: calc(7px * var(--gi-s, 1));
 		flex: 1 1 auto;
 		background: rgba(0, 0, 0, 0.24);
-		border: 1.5px solid var(--sp-rule);
+		border: calc(1.5px * var(--gi-s, 1)) solid var(--sp-rule);
 	}
 	/* from 720 wide: fixed tile widths so the tiles line up from card to card */
 	.gi:not(.narrow):not(.short) .stat.price {
-		width: 150px;
+		width: calc(150px * var(--gi-s, 1));
 		flex: none;
 	}
 	.gi:not(.narrow):not(.short) .stat.rtp {
-		width: 84px;
+		width: calc(84px * var(--gi-s, 1));
 		flex: none;
 	}
 	.gi:not(.narrow):not(.short) .stat.max {
-		width: 196px;
+		width: calc(196px * var(--gi-s, 1));
 		flex: none;
 	}
 	.stat .lab.sub {
@@ -913,7 +937,7 @@
 	}
 	.kv-grid {
 		display: grid;
-		gap: 8px;
+		gap: calc(8px * var(--gi-s, 1));
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 	.narrow .kv-grid,
@@ -921,27 +945,27 @@
 		grid-template-columns: minmax(0, 1fr);
 	}
 	.v {
-		margin-top: 2px;
+		margin-top: calc(2px * var(--gi-s, 1));
 	}
 	.mode ul.mech {
-		margin: 3px 0 0 18px;
-		gap: 3px;
+		margin: calc(3px * var(--gi-s, 1)) 0 0 calc(18px * var(--gi-s, 1));
+		gap: calc(3px * var(--gi-s, 1));
 	}
 
 	/* the max win and the RTPs */
 	.callout {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
-		padding: 14px 16px;
+		gap: calc(8px * var(--gi-s, 1));
+		padding: calc(14px * var(--gi-s, 1)) calc(16px * var(--gi-s, 1));
 		border-radius: var(--sp-wrad);
 		background: var(--sp-well);
-		border: 2px solid var(--sp-acc);
+		border: calc(2px * var(--gi-s, 1)) solid var(--sp-acc);
 	}
 	.maxwin-line {
 		display: flex;
 		align-items: baseline;
-		gap: 12px;
+		gap: calc(12px * var(--gi-s, 1));
 		flex-wrap: wrap;
 	}
 	.maxwin {
@@ -952,7 +976,7 @@
 	}
 	.rtp-grid {
 		display: grid;
-		gap: 8px;
+		gap: calc(8px * var(--gi-s, 1));
 		grid-template-columns: repeat(6, minmax(0, 1fr));
 	}
 	.narrow .rtp-grid,
@@ -962,13 +986,13 @@
 	.rtp-cell {
 		display: flex;
 		flex-direction: column;
-		gap: 5px;
+		gap: calc(5px * var(--gi-s, 1));
 		align-items: center;
 		text-align: center;
-		padding: 9px 6px 8px;
+		padding: calc(9px * var(--gi-s, 1)) calc(6px * var(--gi-s, 1)) calc(8px * var(--gi-s, 1));
 		border-radius: var(--sp-wrad);
 		background: var(--sp-well);
-		border: 1.5px solid var(--sp-rule);
+		border: calc(1.5px * var(--gi-s, 1)) solid var(--sp-rule);
 		min-width: 0;
 	}
 	.rtp-cell .lab {
@@ -982,16 +1006,16 @@
 
 	/* legal */
 	.disc {
-		padding: 12px 14px;
+		padding: calc(12px * var(--gi-s, 1)) calc(14px * var(--gi-s, 1));
 		border-radius: var(--sp-wrad);
 		font-size: var(--gi-note);
 		line-height: 1.5;
-		border: 1.6px dashed rgba(255, 255, 255, 0.55);
+		border: calc(1.6px * var(--gi-s, 1)) dashed rgba(255, 255, 255, 0.55);
 		color: var(--sp-ink2);
 	}
 	.kvs {
 		display: grid;
-		gap: 0 18px;
+		gap: 0 calc(18px * var(--gi-s, 1));
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 	.narrow .kvs,
@@ -1001,11 +1025,11 @@
 	.kv {
 		display: flex;
 		justify-content: space-between;
-		gap: 12px;
-		padding: 7px 0 6px;
+		gap: calc(12px * var(--gi-s, 1));
+		padding: calc(7px * var(--gi-s, 1)) 0 calc(6px * var(--gi-s, 1));
 		font-weight: 600;
 		font-size: var(--gi-note);
-		border-bottom: 1.5px solid var(--sp-rule);
+		border-bottom: calc(1.5px * var(--gi-s, 1)) solid var(--sp-rule);
 	}
 	.kv .num {
 		font-weight: 800;

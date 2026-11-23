@@ -5,6 +5,7 @@
 // WATCHES: ; .content, .tabs, .guide-row, .guide-icon, .guide-name, GuideId, guideRowShown
 // WATCHES: ; TIERS, tier, narrow, short, lowHead, .brk, .tab, .face, .x, .hd, .ttl, data-gi-close, data-gi-tier
 // WATCHES: ; .sp-plate, .sm-plate, --sp-f-top, --sp-f-bot, stackPays, payCells
+// WATCHES: ; gs, --gi-s, --gi-mv, marginV, signVars
 // THE GAME INFO PROBE (2026-11-18): the rules page's UI GUIDE section (ui/GameInfoModal.svelte, game/gameInfoText.ts
 // guide), at every size the game is shown at, Stake's two popouts included (S 400 x 225, L 800 x 450):
 //   · the page opens from the menu's GAME INFO; the UI Guide tab is there; a press on it scrolls the guide to the top of
@@ -33,9 +34,14 @@
 //   - THE GUIDE SIGN (2026-11-23, Corey's pick from the mock game_info_sign_r1_2026-11-23, candidate A; ONLY=tabs runs
 //     it with the strip): at every size of TAB_SIZES the page is one green sign, its color and band the Menu pop-out's
 //     own (.sm-plate, read off the open menu: the same computed gradient, band color, band width and corner), 1000 px
-//     wide at most and inside the window; every word on the page at 11 px or more (the strip's words too); the close key
+//     wide at most and inside the window (above 1440 wide, THE LARGE SCREEN SCALE below); every word on the page at 11 px or more (the strip's words too); the close key
 //     and every tab a press box of 44 x 44 px or more; at 400 x 225 no title and the close key at the end of the
 //     strip's first row
+//   - THE LARGE SCREEN SCALE (2026-11-23, wip/reindeer-superline, Corey: "Let the sign grow wider and its text larger
+//     above 1440 wide"; ONLY=tabs runs it): at 1440 wide and under the sign carries no scale (no --gi-s) and is 1000 px
+//     wide at most, as before; above, its --gi-s is the scale rule's (1.35 at 1920 x 1080, 1.6 at 2560 x 1440), it is
+//     1000 x the scale wide at most and never over 88 % of the window's width, from a scale of 1.35 never over 88 % of its
+//     height, its reading text the tier's size times the scale, and its band and corner the Menu plate's times the scale
 // With SHOTS=<dir> it saves the guide at each size (<w>x<h>_guide.png) and the strip (<w>x<h>_tabs.png).
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [ONLY=a,b] [SHOTS=dir] node tools/game_info_probe.mjs
 // Uses the dev server that is already running. One headless browser, muted. Wrap it in the shared browser lock:
@@ -60,6 +66,8 @@ const SIZES = [
 	{ name: 'small', vp: { width: 360, height: 640 }, touch: true },
 	{ name: 'sideways', vp: { width: 844, height: 390 }, touch: true },
 	{ name: 'ipad', vp: { width: 820, height: 1180 }, touch: true },
+	// (2026-11-23, THE LARGE SCREEN SCALE: the sign at its largest)
+	{ name: 'desk2560', vp: { width: 2560, height: 1440 } },
 ];
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
 // the tab strip's sizes: Stake's player sizes (1200 x 675 to 320 x 568), its full screen 1920 x 1080 and the phone browser
@@ -82,12 +90,22 @@ const TAB_SIZES = [
 	{ name: 'tabs390u', vp: { width: 390, height: 844 }, touch: true },
 	{ name: 'tabs832', vp: { width: 832, height: 376 }, touch: true },
 	{ name: 'tabs844', vp: { width: 844, height: 390 }, touch: true },
+	// (2026-11-23, THE LARGE SCREEN SCALE: the sign at its largest)
+	{ name: 'tabs2560', vp: { width: 2560, height: 1440 } },
 ];
 // COPY OF src/ui/GameInfoModal.svelte TIERS (lab, tabf: the least of them) and the sign's 1000 px cap: the guide sign's
 // least word size and press box, and its widest
 const MIN_TEXT_PX = 11;
 const MIN_PRESS_PX = 44;
 const SIGN_MAX_W = 1000;
+// COPY OF src/ui/GameInfoModal.svelte gs (THE LARGE SCREEN SCALE): 1 at 1440 wide and under; above, from 1 at 1440 to 1.35
+// at 1920 and 1.6 from 2560, never more than vh / 800 or 0.88 vw / 1000; and TIERS.wide.body, the reading text's size
+const signScale = (vw, vh) => {
+	if (vw <= 1440) return 1;
+	const curve = vw <= 1920 ? 1 + (0.35 * (vw - 1440)) / 480 : Math.min(1.6, 1.35 + (0.25 * (vw - 1920)) / 640);
+	return Math.round(Math.max(1, Math.min(curve, vh / 800, (0.88 * vw) / 1000)) * 1000) / 1000;
+};
+const WIDE_BODY_PX = 14.5;
 const ROWS = ['feature', 'spin', 'boardTap', 'skip', 'autoplay', 'turbo', 'menu', 'sound', 'amount', 'readouts', 'symbols', 'keyboard', 'replay'];
 const BANNED = /\b(bets?|buy|buys|bought|cash|money|paid|credits?|gamble|gambling|wager|wagers|stake)\b/i;
 
@@ -282,7 +300,7 @@ async function tabStrip(browser, S) {
 				vw: innerWidth,
 				vh: innerHeight,
 				tier: sign.dataset.giTier,
-				sign: { x0: sgb.left, x1: sgb.right, y0: sgb.top, y1: sgb.bottom, w: sgb.width, bg: cs.backgroundImage, band: cs.borderTopColor, bw: cs.borderTopWidth, rad: cs.borderTopLeftRadius },
+				sign: { x0: sgb.left, x1: sgb.right, y0: sgb.top, y1: sgb.bottom, w: sgb.width, h: sgb.height, bg: cs.backgroundImage, band: cs.borderTopColor, bw: cs.borderTopWidth, rad: cs.borderTopLeftRadius, giS: cs.getPropertyValue('--gi-s').trim(), body: parseFloat(getComputedStyle(sign.querySelector('.content')).fontSize) },
 				close: xb ? { x0: xb.left, x1: xb.right, y0: xb.top, y1: xb.bottom, w: xb.width, h: xb.height, inNav: nav.contains(x) } : null,
 				title: !!sign.querySelector('.ttl'),
 				minText,
@@ -302,8 +320,18 @@ async function tabStrip(browser, S) {
 			check(rows <= 2, `${tag}: the strip in at most two rows (${rows})`, rows);
 			check(t.tabs.every((x) => x.px >= MIN_TEXT_PX - 0.01), `${tag}: the tabs' words at ${MIN_TEXT_PX} px or more`, t.tabs.map((x) => x.px));
 			// THE GUIDE SIGN (2026-11-23)
-			check(!!menuPlate && /gradient/.test(t.sign.bg) && t.sign.bg === menuPlate.bg && t.sign.band === menuPlate.band && t.sign.bw === menuPlate.bw && t.sign.rad === menuPlate.rad, `${tag}: the sign is the Menu's green plate (against ${menuPlate?.from}: the same gradient, band and corner)`, { sign: t.sign, menuPlate });
-			check(t.sign.w <= SIGN_MAX_W + 0.5 && t.sign.x0 >= -0.5 && t.sign.x1 <= t.vw + 0.5 && t.sign.y0 >= -0.5 && t.sign.y1 <= t.vh + 0.5 && t.docW <= t.vw + 1 && t.winScroll === 0, `${tag}: the sign inside the window, ${SIGN_MAX_W} px wide at most (${Math.round(t.sign.w)}), the window never scrolls`, { sign: t.sign, docW: t.docW, winScroll: t.winScroll });
+			// (THE LARGE SCREEN SCALE: 1 at 1440 wide and under, where the sign is exactly the Menu's plate)
+			const gs = signScale(t.vw, t.vh);
+			const near = (a, b) => Math.abs(parseFloat(a) - parseFloat(b) * gs) <= (gs === 1 ? 0 : 1);
+			check(!!menuPlate && /gradient/.test(t.sign.bg) && t.sign.bg === menuPlate.bg && t.sign.band === menuPlate.band && (gs === 1 ? t.sign.bw === menuPlate.bw && t.sign.rad === menuPlate.rad : near(t.sign.bw, menuPlate.bw) && near(t.sign.rad, menuPlate.rad)), `${tag}: the sign is the Menu's green plate (against ${menuPlate?.from}: the same gradient, band and corner${gs === 1 ? '' : `, the band and corner times ${gs}`})`, { sign: t.sign, menuPlate, gs });
+			const maxW = SIGN_MAX_W * gs;
+			check(t.sign.w <= maxW + 0.5 && (gs === 1 || t.sign.w <= 0.88 * t.vw + 0.5) && t.sign.x0 >= -0.5 && t.sign.x1 <= t.vw + 0.5 && t.sign.y0 >= -0.5 && t.sign.y1 <= t.vh + 0.5 && t.docW <= t.vw + 1 && t.winScroll === 0, `${tag}: the sign inside the window, ${Math.round(maxW)} px wide at most (${Math.round(t.sign.w)} x ${Math.round(t.sign.h)}), the window never scrolls`, { sign: t.sign, docW: t.docW, winScroll: t.winScroll });
+			if (t.vw <= 1440) check(t.sign.giS === '', `${tag}: at 1440 wide and under the sign carries no scale (no --gi-s)`, t.sign.giS);
+			else {
+				const tall = gs < 1.35 || t.sign.h <= 0.88 * t.vh + 1;
+				const bodyOk = t.tier !== 'wide' || Math.abs(t.sign.body - WIDE_BODY_PX * gs) <= 0.06;
+				check(Math.abs(parseFloat(t.sign.giS || '1') - gs) < 0.0015 && tall && bodyOk, `${tag}: the large screen scale ${gs} (the sign's --gi-s ${t.sign.giS || 'none'}), the sign ${Math.round(t.sign.h)} of ${t.vh} tall (88 % at most from 1.35), its reading text ${t.sign.body} px (${WIDE_BODY_PX} x ${gs})`, { sign: t.sign, gs });
+			}
 			check(t.minText >= MIN_TEXT_PX - 0.01, `${tag}: every word on the page at ${MIN_TEXT_PX} px or more (smallest ${t.minText} px, ${t.minAt})`, { minText: t.minText, at: t.minAt });
 			const small = t.tabs.filter((x) => x.w < MIN_PRESS_PX - 0.05 || x.h < MIN_PRESS_PX - 0.05).map((x) => `${x.id} ${x.w.toFixed(1)}x${x.h.toFixed(1)}`);
 			check(small.length === 0, `${tag}: every tab a press box of ${MIN_PRESS_PX} x ${MIN_PRESS_PX} px or more`, small);
