@@ -6,6 +6,9 @@
 // size test), never by a window rule of the menu's own:
 //   landscape chrome (desktop)                         -> desktop: the 1440 x 810 design box over the master rect
 //   phone sideways chrome, frame ratio >= scaledUnder  -> sideways: three columns, the HUD's own column lit on the left
+//   phone sideways chrome with the gear bar (copies)   -> desktop SCALED too, at every ratio (2026-11-23): the sideways
+//                                                         layout stands beside the HUD's lit column on the left, and the
+//                                                         gear bar has none (its amount is at the bottom right)
 //   phone sideways chrome, frame ratio <  scaledUnder  -> desktop SCALED (owner 2026-10-13 22:18): the desktop box fitted
 //                                                         to the window, with the menu's own copies of the bet controls
 //                                                         (the 400 x 225 mini player, 800 x 450 popouts, 16:9 phones)
@@ -38,6 +41,10 @@ export type FrameInput = {
 	master: { width: number; height: number };
 	/** the chrome's fit frame width in master px (Chrome.svelte `fitWidth`: the portrait frame spans the viewport) */
 	fitWidth: number;
+	/** phone sideways chrome only: the HUD has no column of bet controls on the left for the sideways menu to stand
+	 *  beside (the gear bar: the amount and its arrows are at the bottom right), so the menu is the desktop box with its
+	 *  own copies of the bet controls at every ratio, as it already is under scaledUnderRatio */
+	copies?: boolean;
 };
 
 export type MenuFrame = {
@@ -62,7 +69,7 @@ export const pickLayout = (inp: FrameInput, rules: FrameRules): { layout: Armour
 	if (inp.kind === 'landscape') return { layout: 'desktop', hudCopies: false };
 	if (inp.kind === 'phone') {
 		const ratio = inp.vw / Math.max(1, inp.vh);
-		return ratio < rules.desktop.scaledUnderRatio ? { layout: 'desktop', hudCopies: true } : { layout: 'sideways', hudCopies: false };
+		return inp.copies || ratio < rules.desktop.scaledUnderRatio ? { layout: 'desktop', hudCopies: true } : { layout: 'sideways', hudCopies: false };
 	}
 	if (!inp.phone && inp.fitWidth >= rules.tablet.minFrame) return { layout: 'tablet', hudCopies: false };
 	return { layout: 'portrait', hudCopies: false };

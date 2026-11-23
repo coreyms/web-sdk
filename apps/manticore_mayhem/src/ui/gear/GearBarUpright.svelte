@@ -145,6 +145,7 @@
 				hud: L.k,
 				safeBottom: L.safeBottom,
 				band: { ...L.band },
+				hudTop: L.hudTop,
 				/** every piece's drawn box and its press box (the arrows': 44 px round the drawn arrow), CSS px */
 				box: copy(L.box),
 				press: copy(L.press),
@@ -165,6 +166,8 @@
 
 <!-- the base plane: WIN, the gear train and the help menu (under THE ARMOURY's tint) -->
 <div bind:this={host} class="hudp hud-group v-gear v-up" class:menu-open={stateUi.menuOpen} data-plane="base" data-bar="gear" style={plane}>
+	<!-- THE ARMOURY reads the bar's top here (ui/armoury/Armoury.svelte measure): the band under the plaque -->
+	<i class="gband" data-hud-band style:top="{L.hudTop}px"></i>
 	<div class="gsc keep" data-piece="win" style={at('win')}>
 		<HudReadout label="WIN" pre={hs.winPre()} value={controls.winText()} odo={controls.winOdoText()} x={0} y={0} w={B.win.w} h={B.win.h} nominal={L.text.number} pad={B.win.w - L.fitW.win} cls="pt win {lit ? 'is-lit' : ''} {hs.winBig() ? 'is-big' : ''}" hud="win" keep />
 	</div>

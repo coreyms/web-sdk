@@ -510,6 +510,26 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	}
 }
 
+// ---- 4e. THE ARMOURY over the gear bar (ui/armoury/menuFrame.ts `copies`, uprightLayout hudTop) ----
+{
+	const MF = await import('../src/ui/armoury/menuFrame.ts');
+	const { ARMOURY } = await import('../src/game/constants.ts');
+	const pick = (vw, vh, copies) => MF.pickLayout({ kind: 'phone', phone: true, vw, vh, scale: Math.min(vw / 1480, vh / 740), master: { width: 1480, height: 740 }, fitWidth: 1480, copies }, ARMOURY.layout);
+	check('the Armoury on a sideways phone: with the gear bar the desktop box with its own bet controls at every ratio; with the dock the sideways menu as before (844 x 390), the box on the 16:9 frames either way', pick(844, 390, true).layout === 'desktop' && pick(844, 390, true).hudCopies && pick(874, 402, true).hudCopies && pick(844, 390, false).layout === 'sideways' && !pick(844, 390, false).hudCopies && pick(844, 390).layout === 'sideways' && pick(800, 450, false).hudCopies && pick(667, 375, false).hudCopies);
+	const f = MF.menuFrame({ kind: 'phone', phone: true, vw: 844, vh: 390, scale: 390 / 740, master: { width: 1480, height: 740 }, fitWidth: 1480, copies: true }, ARMOURY.layout);
+	check('the Armoury on a sideways phone with the gear bar: the box is inside the window', f.left >= -0.01 && f.top >= -0.01 && f.left + f.width * f.u <= 844.01 && f.top + f.height * f.u <= 390.01, `${f1(f.left)}, ${f1(f.top)}, ${f1(f.width * f.u)} x ${f1(f.height * f.u)}, scale ${f.u.toFixed(3)}`);
+	// upright: the bar's top for the menu is the band under the plaque, also where Win and Balance stand under the logo
+	const LS = await import('../src/game/layoutSpec.ts');
+	const tops = [];
+	for (const [vw, vh] of [[402, 874], [390, 844], [360, 640], [390, 664], [402, 700], [375, 667]]) {
+		const scale = Math.min(vw / 412, vh / 760);
+		LS.setPortraitViewportSource(() => ({ masterHeight: vh / scale, cssPerMaster: scale, phone: true }));
+		const G = L.uprightLayout(vw, vh, 0);
+		tops.push([`${vw}x${vh}`, G.hudTop, G.band.plate, Math.min(G.box.win.y, G.box.bal.y)]);
+	}
+	check('the Armoury on an upright phone: the gear bar\'s top is in its band under the plaque (within 3 px of the plaque\'s plate), never the readouts under the logo', tops.every(([, t, plate]) => t >= plate && t <= plate + 3), tops.map(([k, t, plate, ro]) => `${k}: ${f1(t)} (plate ${f1(plate)}, highest of Win and Balance ${f1(ro)})`).join('; '));
+}
+
 // ---- 5. the switch ----
 {
 	const k = (kind, vw, vh, mode) => L.barKind({ kind, vw, vh }, mode);

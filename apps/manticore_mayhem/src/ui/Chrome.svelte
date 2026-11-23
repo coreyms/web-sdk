@@ -77,7 +77,9 @@
 		// count's end, when it went plain and whether by a skip, the pops played
 		(window as any).__manticore.winOdometer = () => readOdoDev();
 	}
-	const armouryFrame = $derived(menuFrame({ kind, phone, vw, vh, scale, master, fitWidth }, ARMOURY.layout));
+	// (a sideways phone drawing the gear bar has no lit column of bet controls on the left: the menu is then the desktop
+	// box with its own copies of them, ui/armoury/menuFrame.ts `copies`)
+	const armouryFrame = $derived(menuFrame({ kind, phone, vw, vh, scale, master, fitWidth, copies: kind === 'phone' && barKind({ kind, vw, vh, phone, safeBottom: safe.b, safe }, BAR_MODE) === 'gear' }, ARMOURY.layout));
 	// the real HUD's BALANCE and bet row are lit above the tint in every layout but the desktop box scaled onto a phone
 	// sideways chrome (the small 16:9 frames): there the menu draws its own copies and the whole HUD stays under the tint
 	const armouryLit = $derived(armouryView.shown && !armouryFrame.hudCopies);

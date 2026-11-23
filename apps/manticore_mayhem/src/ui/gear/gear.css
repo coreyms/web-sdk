@@ -638,6 +638,12 @@
 	clip-path: inset(50%);
 	white-space: nowrap;
 }
+/* the mark THE ARMOURY reads the bar's top from: no size, nothing drawn */
+.hudp.v-gear .gband {
+	left: 0;
+	width: 0;
+	height: 0;
+}
 /* the readouts: a 9 px word 1 px over the number (its size is set by the fit, 15 px unless it must shrink) */
 .hudp.v-gear.v-up .stat {
 	gap: 1px;

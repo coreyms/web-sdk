@@ -790,6 +790,9 @@ export const uprightLayout = (vw: number, vh: number, safeBottom = 0, T: Upright
 	return {
 		table: 'upright' as const,
 		vw, vh, fit, k, safeBottom, band: { top, floor, plate },
+		/** the top of the bar's band under the plaque: the highest piece that is not under the logo (THE ARMOURY's menu
+		 *  ends just above it, as it ends above the dock's readouts: ui/armoury/Armoury.svelte measure) */
+		hudTop: Math.min(...Object.values(box).filter((b) => b.y >= plate).map((b) => b.y), ...[press.down, press.up].filter((b) => b.y >= plate).map((b) => b.y)),
 		tooth,
 		gears,
 		hubR,

@@ -940,9 +940,13 @@
 				const bal = r(fit.querySelector('[data-hud="balance"]'));
 				if (bal && bal.width > 0) a.balance = { x: bal.left, y: bal.top };
 			} else {
-				// the HUD's top: its highest readout (WIN, BALANCE, the amount)
+				// the HUD's top: its highest readout (WIN, BALANCE, the amount). THE GEAR BAR (ui/gear/GearBarUpright.svelte)
+				// marks its own top, the gear train's band under the plaque: on a short phone its Win and Balance stand under
+				// the logo, far above the band, and are not the HUD's top
+				const band = fit.querySelector('[data-hud-band]');
 				const tops = [...fit.querySelectorAll('.hudp .stat')].map((e) => e.getBoundingClientRect()).filter((b) => b.height > 0);
-				if (tops.length) a.hudTop = Math.min(...tops.map((b) => b.top));
+				if (band) a.hudTop = band.getBoundingClientRect().top;
+				else if (tops.length) a.hudTop = Math.min(...tops.map((b) => b.top));
 				const strips = [...fit.querySelectorAll('.strip')].map((e) => e.getBoundingClientRect()).filter((b) => b.height > 0);
 				if (strips.length) {
 					a.clockTop = Math.min(...strips.map((b) => b.top));
