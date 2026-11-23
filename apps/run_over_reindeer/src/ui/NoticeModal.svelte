@@ -103,7 +103,7 @@
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} zIndex={9}>
 	<div class="center">
-		<div class="card am-glass" class:halt={needsReload} onclick={(e) => e.stopPropagation()} role="presentation">
+		<div class="card sp-skin" class:halt={needsReload} onclick={(e) => e.stopPropagation()} role="presentation">
 			<!-- NOTICE on every card (harsh review 2026-10-20 gameplay 7: was SLIP on the balance, limit and ERR_IPB cards) -->
 			<div class="stamp">NOTICE</div>
 			<div class="title am-stencil">{isError ? (known?.title ?? 'SOMETHING WENT WRONG') : notice?.title}</div>
@@ -127,7 +127,9 @@
 		box-sizing: border-box;
 		pointer-events: none;
 	}
-	/* black glass, like every other sheet (the paper slip went with the approval review 2026-09-15) */
+	/* THE SIGN STYLE (2026-11-23, style A of the mock menus_r1_2026-11-23; a plain restyle: no size, place or word
+	   changes): the card is ui/sign/signPanel.css .sp-skin; NOTICE is a yellow tag, OKAY the yellow main key with its
+	   white band and drop. The reload card's red tag and red RELOAD key are as they were. */
 	/* Sized against the VIEWPORT (Stake review FIX 5): the shell no longer scales the card, so a
 	   400x225 popout gets a real card with real type instead of a 120 px thumbnail of one. */
 	.card {
@@ -135,11 +137,11 @@
 		max-height: 94vh;
 		overflow-y: auto;
 		box-sizing: border-box;
-		--ink: var(--ui-ink);
-		--body: var(--ui-ink-2);
-		--muted: var(--ui-ink-2);
-		--faint: var(--ui-ink-3);
-		--rule: var(--ui-rule-2);
+		--ink: var(--sp-ink);
+		--body: var(--sp-ink2);
+		--muted: var(--sp-ink2);
+		--faint: var(--sp-ink3);
+		--rule: var(--sp-rule);
 		--rust: #c53c24;
 		pointer-events: auto;
 		position: relative;
@@ -155,8 +157,8 @@
 		align-self: center;
 		border-radius: 999px;
 		padding: 5px 14px;
-		background: var(--ui-gold);
-		color: var(--ui-gold-ink);
+		background: var(--sp-acc);
+		color: var(--sp-acc-ink);
 		font-size: clamp(9px, 2.3vmin, 11px);
 		font-weight: 800;
 		letter-spacing: 2px;
@@ -167,6 +169,7 @@
 	}
 	.title {
 		font-size: clamp(13px, 4vmin, 20px);
+		color: var(--ink);
 	}
 	.body {
 		font-size: clamp(11px, 3vmin, 13.5px);
@@ -177,8 +180,8 @@
 	.detail {
 		font-size: clamp(9px, 2.4vmin, 11px);
 		color: var(--muted);
-		background: var(--ui-glass-well);
-		border: 1px solid var(--ui-rule);
+		background: var(--sp-well);
+		border: 1px solid var(--rule);
 		border-radius: 10px;
 		padding: 8px 10px;
 		max-height: min(80px, 26vh);
@@ -192,18 +195,28 @@
 		font-weight: 900;
 		font-size: clamp(11px, 3vmin, 14px);
 		letter-spacing: 3px;
-		/* the game's gold (the bet picker's chosen chip, ui/DenomModal.svelte: --ui-gold to --ui-amber, dark ink), not Angry
-		   Mantis's lime (harsh review 2026-10-20 must-fix 7; Corey 2026-10-21 "2, 3, 5, and 7 are obvious fixes") */
-		color: var(--ui-gold-ink);
-		background: linear-gradient(180deg, var(--ui-gold), var(--ui-amber));
-		box-shadow: 0 5px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
-	}
-	.ok.halt {
-		color: #f6ead3;
-		background: linear-gradient(180deg, #d9603a, #a8341a);
+		/* the sign panels' main key (the Turbo yellow, its white band as an inset line, a black line, the dark drop) */
+		color: var(--sp-acc-ink);
+		background: linear-gradient(180deg, var(--sp-acc-top), var(--sp-acc-bot));
+		box-shadow:
+			inset 0 0 0 3px var(--sp-band),
+			0 0 0 1.5px var(--sp-ki-c),
+			0 5px 0 1.5px var(--sp-acc-deep);
 	}
 	.ok:active {
 		transform: translateY(2px);
+		box-shadow:
+			inset 0 0 0 3px var(--sp-band),
+			0 0 0 1.5px var(--sp-ki-c),
+			0 3px 0 1.5px var(--sp-acc-deep);
+	}
+	/* (the reload card's key: as it was) */
+	.ok.halt {
+		color: #f6ead3;
+		background: linear-gradient(180deg, #d9603a, #a8341a);
+		box-shadow: 0 5px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+	}
+	.ok.halt:active {
 		box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
 	}
 </style>

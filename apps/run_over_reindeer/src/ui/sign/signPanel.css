@@ -316,3 +316,19 @@
 	text-transform: uppercase;
 	white-space: nowrap;
 }
+/* A PANEL THAT KEEPS ITS OWN BOX (2026-11-23, the panels Corey has not seen in the new style yet: the bet list, the
+   notice, the replay card, the press screen's Scene panel, the skip prompt): the same sign, with nothing in it moved.
+   The panel keeps the 1 px border the glass had (now the navy line) and its own padding, radius and type; the white
+   band and the black line inside it are drawn as inset shadows over the panel's own padding. Its small pieces take
+   the tokens in their own style blocks, with lines drawn as inset shadows too, so no box changes size. */
+.sp-skin {
+	position: relative;
+	background: linear-gradient(180deg, var(--sp-f-top), var(--sp-f-bot));
+	border: 1px solid var(--sp-ko-c);
+	border-radius: var(--sp-rad);
+	color: var(--sp-ink);
+	box-shadow:
+		inset 0 0 0 var(--sp-bw) var(--sp-band),
+		inset 0 0 0 calc(var(--sp-bw) + var(--sp-ki)) var(--sp-ki-c),
+		0 12px 28px rgba(2, 8, 18, 0.42);
+}

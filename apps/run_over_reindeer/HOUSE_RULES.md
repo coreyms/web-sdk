@@ -87,6 +87,13 @@ events (`game/bookEventHandlerMap.ts`). Every decision taken is one line in `doc
   OPTIONS cannot fit (sideways under 365 tall, upright under 628, Popout S) the card scrolls inside itself. The glass
   dock (`HUD_BAR = 'dock'`) keeps its own glass Menu panel (`ui/hud/HudMenuPanel.svelte`); the Autoplay card and the
   confirm card are green with either bar.
+  The same style, as a plain restyle with every box kept (`.sp-skin` in `signPanel.css`: the band and the lines are
+  inset shadows, type and sizes as they were), is on the bet list (`ui/DenomModal.svelte`), the notice
+  (`ui/NoticeModal.svelte`), the replay card (`ui/ReplayModal.svelte`), the press screen's Scene panel
+  (`ui/LandingScreen.svelte`), the skip prompt (`components/SkipButton.svelte` `.ask`) and the Fast Lane's amount
+  keys (the bar's own bet symbols). Not restyled, each waiting on Corey's pick: the Fast Lane's tiles (they frame
+  art), the SKIP key itself, `ui/RoundCard.svelte` (its per-bonus accent colors would not read on green) and the
+  white `ui/ResumeCard.svelte`.
 - Active highlights use this game's own "Frost" accent (`accent-rgb` in `ui/hudTheme.ts`), never Manticore's gold
   (rule L6).
 - CSS `filter` in the HTML chrome, allowed as shipped (rule R2): only the `.slot-btn` hover and press lift

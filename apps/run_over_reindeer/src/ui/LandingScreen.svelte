@@ -149,7 +149,7 @@
 		<div class="mp is-open {pick.cls}" style:left="0px" style:top="0px" style:width="{pick.w}px" style:height="{pick.h}px">
 			<div class="mpsh" style:top="0px" style:height="{pick.h}px"></div>
 			<div class="spf"></div>
-			<div class="mpc" style:top="0px" style:height="{pick.h}px"><SceneSwitch /></div>
+			<div class="mpc sp" style:top="0px" style:height="{pick.h}px"><SceneSwitch sign /></div>
 		</div>
 	</div>
 
@@ -208,18 +208,46 @@
 	.press-target:disabled {
 		cursor: default;
 	}
-	/* the Scene switch's panel: over the continue target, the menu panel's glass (its fill and edge tokens, ui/hudTheme.ts) */
+	/* the Scene switch's panel: over the continue target. THE SIGN STYLE (2026-11-23, style A of the mock
+	   menus_r1_2026-11-23, as the game's Menu pop-out wears it; a plain restyle: the panel's box and place are the
+	   same): a green sign plate (the --sp-* tokens, ui/hudTheme.ts SIGN_PANEL), the small word over three pills, the
+	   picked one a white plate (ui/hud/SceneSwitch.svelte, its sign variant). The pills keep the old keys' heights. */
 	.scene-pick {
 		z-index: 3;
 	}
 	.spf {
 		position: absolute;
 		inset: 0;
-		border-radius: var(--hud-radius-panel);
-		border: 1px solid;
-		border-color: rgba(var(--hud-edge-top-rgb), 0.2);
-		background: linear-gradient(rgba(var(--hud-panel-top-rgb), var(--hud-panel-top-a)), rgba(var(--hud-panel-mid-rgb), var(--hud-panel-mid-a)) 50%, rgba(var(--hud-panel-bottom-rgb), var(--hud-panel-bottom-a)));
-		box-shadow: inset 0 1px 0 rgba(var(--hud-edge-top-rgb), 0.25);
+		border-radius: var(--sp-rad);
+		border: var(--sp-bw) solid var(--sp-band);
+		background: linear-gradient(180deg, var(--sp-f-top), var(--sp-f-bot));
+		box-shadow:
+			0 0 0 var(--sp-ko) var(--sp-ko-c),
+			inset 0 0 0 var(--sp-ki) var(--sp-ki-c);
+	}
+	.scene-pick .mpsh {
+		border-radius: var(--sp-rad);
+	}
+	.scene-pick .mpc {
+		justify-content: center;
+		font-family: 'Overpass', 'Outfit', sans-serif;
+		font-weight: 900;
+		color: var(--sp-ink);
+	}
+	.scene-pick :global(.sp-pill) {
+		height: 26px;
+		font-size: 11px;
+		letter-spacing: 0.1em;
+	}
+	.scene-pick .nar :global(.sp-msec) {
+		gap: 4px;
+	}
+	.scene-pick .nar :global(.sp-pills) {
+		gap: 5px;
+	}
+	.scene-pick .nar :global(.sp-pill) {
+		height: 24px;
+		font-size: 10px;
 	}
 	.fit {
 		position: absolute;

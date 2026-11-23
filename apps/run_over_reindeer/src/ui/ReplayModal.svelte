@@ -89,7 +89,7 @@
 
 <ModalShell {open} onclose={() => {}} {master} {scale} {left} {top} dim="rgba(0,0,0,0.55)" blur={6} zIndex={4}>
 	<div class="center">
-		<div class="panel am-glass" class:compact onclick={(e) => e.stopPropagation()} role="presentation">
+		<div class="panel sp-skin" class:compact onclick={(e) => e.stopPropagation()} role="presentation">
 			<div class="head">
 				<div class="title am-stencil">ROUND REPLAY</div>
 				<div class="pill">SHARED ROUND</div>
@@ -133,14 +133,17 @@
 
 	/* ── black glass (the same surface as the Chow Line / Autoplay / Game Info; the paper card
 	      went with the approval review 2026-09-15) ── */
+	/* THE SIGN STYLE (2026-11-23, style A of the mock menus_r1_2026-11-23; a plain restyle: no size, place or word
+	   changes): the card is ui/sign/signPanel.css .sp-skin; its rows stand in dark plates, SHARED ROUND is a plate
+	   with a white line, the win's row has the yellow line and yellow figures, START REPLAY is the yellow main key. */
 	.panel {
-		--ink: var(--ui-ink);
-		--body: var(--ui-ink-2);
-		--muted: var(--ui-ink-2);
-		--faint: var(--ui-ink-3);
-		--rule: var(--ui-rule-2);
-		/* the win's accent: the game's gold, not Angry Mantis's lime (Corey 2026-10-17 20:27) */
-		--accent: var(--ui-gold);
+		--ink: var(--sp-ink);
+		--body: var(--sp-ink2);
+		--muted: var(--sp-ink2);
+		--faint: var(--sp-ink3);
+		--rule: var(--sp-rule);
+		/* the win's accent: the sign panels' yellow (it was the game's gold) */
+		--accent: var(--sp-acc);
 		/* Sized against the VIEWPORT (Stake review FIX 5): in a 400x225 popout the shell used to
 		   scale this card to 103 CSS px wide with sub-3 px labels. Now the card fills the window
 		   and every line has a real minimum size; it scrolls if the window is shorter than it. */
@@ -169,12 +172,14 @@
 	}
 	.title {
 		font-size: clamp(14px, 4.4vmin, 22px);
+		color: var(--ink);
 	}
 	.pill {
 		border-radius: 999px;
 		padding: 6px 14px;
-		background: var(--ui-gold);
-		color: var(--ui-gold-ink);
+		background: var(--sp-well);
+		box-shadow: inset 0 0 0 var(--sp-wl) var(--sp-band);
+		color: var(--ink);
 		font-size: clamp(9px, 2.3vmin, 11px);
 		font-weight: 800;
 		letter-spacing: 2px;
@@ -183,8 +188,8 @@
 	.block {
 		display: flex;
 		flex-direction: column;
-		background: var(--ui-glass-well);
-		border: 1px solid var(--ui-rule);
+		background: var(--sp-well);
+		border: 1px solid var(--rule);
 		border-radius: 12px;
 		padding: clamp(2px, 0.8vmin, 4px) clamp(8px, 2.4vmin, 16px);
 	}
@@ -199,7 +204,7 @@
 		padding: clamp(2px, 1.3vmin, 7px) 0;
 	}
 	.block:not(.one) .row + .row {
-		border-top: 1px solid var(--ui-rule);
+		border-top: 1px solid var(--rule);
 	}
 	.k {
 		flex: none;
@@ -231,11 +236,9 @@
 	}
 	.win {
 		border-color: var(--accent);
-		background: rgba(255, 220, 74, 0.14); /* --ui-gold at 0.14 */
 	}
 	.win.zero {
-		border-color: var(--ui-rule);
-		background: var(--ui-glass-well);
+		border-color: var(--rule);
 	}
 	.win.zero .v.big {
 		color: var(--muted);
@@ -248,7 +251,7 @@
 	}
 	.tear {
 		height: 0;
-		border-top: 1px solid var(--ui-rule);
+		border-top: 1px solid var(--rule);
 		margin: 0 -12px;
 	}
 	/* Stake's Popout S is 400x225: the card only clears that window if the four play rows run two
@@ -266,7 +269,7 @@
 			border-top: 0;
 		}
 		.block:not(.one) .row:nth-child(n + 3) {
-			border-top: 1px solid var(--ui-rule);
+			border-top: 1px solid var(--rule);
 		}
 		/* two-up rows share the width: the value never breaks ("300 / x" grew the card past the
 		   window and put the sticky button over TOTAL WIN, Corey 2026-09-20) and the key gives up
@@ -298,15 +301,20 @@
 		font-size: clamp(11px, 3vmin, 15px);
 		font-weight: 900;
 		letter-spacing: 3px;
-		color: var(--ui-gold-ink);
-		/* the game's gold (the bet picker's chosen chip, ui/DenomModal.svelte: --ui-gold to --ui-amber), not Angry Mantis's
-		   lime (harsh review 2026-10-20 must-fix 7; Corey 2026-10-21 "2, 3, 5, and 7 are obvious fixes") */
-		background: linear-gradient(180deg, var(--ui-gold), var(--ui-amber));
-		box-shadow: 0 5px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+		/* the sign panels' main key (the Turbo yellow, its white band as an inset line, a black line, the dark drop) */
+		color: var(--sp-acc-ink);
+		background: linear-gradient(180deg, var(--sp-acc-top), var(--sp-acc-bot));
+		box-shadow:
+			inset 0 0 0 3px var(--sp-band),
+			0 0 0 1.5px var(--sp-ki-c),
+			0 5px 0 1.5px var(--sp-acc-deep);
 	}
 	.go:active:not(:disabled) {
 		transform: translateY(2px);
-		box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+		box-shadow:
+			inset 0 0 0 3px var(--sp-band),
+			0 0 0 1.5px var(--sp-ki-c),
+			0 3px 0 1.5px var(--sp-acc-deep);
 	}
 	.cap {
 		text-align: center;
