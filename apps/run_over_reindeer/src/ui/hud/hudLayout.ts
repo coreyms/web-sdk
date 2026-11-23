@@ -23,7 +23,7 @@
 // the probes' own copies of these numbers all read the same rules.
 import { MASTER, type LayoutKind, boardRect } from '../../game/layoutSpec';
 import { HUD_BED } from '../../game/constants';
-import { HUD_BAR, signLayout, skipBox } from '../sign/signLayout';
+import { HUD_BAR, fitBox, sceneFit, signLayout, skipBox } from '../sign/signLayout';
 
 export type HudVariant = 'desktop' | 'tablet' | 'portrait' | 'landscape';
 export type Insets = { t: number; r: number; b: number; l: number };
@@ -113,7 +113,7 @@ export const PORTRAIT = {
 export const portraitBoardBottoms = (vw: number, vh: number) => {
 	const f = chromeFit('portrait', vw, vh);
 	// the CENTRED board (layoutSpec roadPlacement): the road is lowered toward the HUD afterwards, never the other way
-	const r = boardRect('portrait', { masterWidth: vw / f.scale, masterHeight: vh / f.scale, vw, vh }, true);
+	const r = boardRect('portrait', { masterWidth: vw / f.scale, masterHeight: vh / f.scale, vw, vh }, true, true);
 	// the board's master x is in the 412 master's own frame (its centre line is the master's), and the portrait fit
 	// frame spans the real viewport width around that same centre line
 	const half = (r.width / 2) * f.scale;
@@ -403,11 +403,13 @@ export const hudSkipRect = (v: HudView) => {
 	// on the live bar: "what doesn't work well is the Skip Buttom moved down, I'd move it to the left of the Menu Button
 	// on Portrait". So it stands on Menu's row, to Menu's left, Menu's height (ui/sign/signLayout.ts skipBox). Sideways
 	// and on the desktop its own place is clear of the bar.
-	if (HUD_BAR === 'sign' && f.variant === 'portrait') {
-		const b = skipBox(signLayout({ kind: 'portrait', vw: v.vw, vh: v.vh, safe: f.safe }));
-		return { x: b.x, y: b.y, width: b.w, height: b.h, u: f.u, variant: f.variant };
-	}
-	return { x: s.x * f.u, y: s.y * f.u, width: s.w * f.u, height: s.h * f.u, u: f.u, variant: f.variant };
+	// ROUND 3 (2026-11-23): at his own round 3 windows the button stands where he put it (signLayout.ts sceneFit: his box,
+	// and how much of it stands in for the rule's here)
+	const fit = HUD_BAR === 'sign' ? sceneFit(v.kind, v.vw, v.vh) : null;
+	let rule = { x: s.x * f.u, y: s.y * f.u, w: s.w * f.u, h: s.h * f.u };
+	if (HUD_BAR === 'sign' && f.variant === 'portrait') rule = skipBox(signLayout({ kind: 'portrait', vw: v.vw, vh: v.vh, safe: f.safe }));
+	const b = fit ? fitBox(rule, fit.skip, fit.share) : rule;
+	return { x: b.x, y: b.y, width: b.w, height: b.h, u: f.u, variant: f.variant };
 };
 
 // ---- glass outlines (u1: every path is painted, no filters) ----

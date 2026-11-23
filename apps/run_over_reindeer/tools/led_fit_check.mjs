@@ -32,6 +32,8 @@ const WINDOWS = [
 	[1200, 675], [1024, 576], [1280, 720], [1366, 768], [1920, 1080], [2560, 1440], [2560, 1080], [3440, 1440],
 	[425, 812], [375, 667], [320, 568], [390, 844], [390, 620],
 	[812, 425], [667, 375], [568, 320],
+	// Corey's round 3 phone windows (2026-11-23, ui/sign/signLayout.ts PHONE_R3 and LAND_R3: the sizes a phone browser gives the game)
+	[440, 742], [413, 586], [375, 530], [626, 816], [832, 376], [667, 311], [890, 552],
 	// (the popouts: 800 x 450 is laid out as a phone held sideways and takes the rule; 400 x 225 is left as it was)
 	[800, 450], [400, 225],
 ];

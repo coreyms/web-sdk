@@ -10,6 +10,7 @@ import { ROAD_ART } from './roadArtSpec';
 import { portraitHudTop } from '../ui/hud/hudLayout';
 import { LOGO_SIGN, type LogoPlace } from './constants';
 import { SCENE_ART } from './sceneArtSpec';
+import { sceneFit } from '../ui/sign/signLayout';
 
 export type LayoutKind = 'landscape' | 'portrait' | 'phone';
 
@@ -57,6 +58,12 @@ export const setPortraitViewportSource = (source: () => PortraitViewport) => {
 	portraitViewport = source;
 };
 
+/** the live window, CSS px (game/stateLayout.ts sets the source): his round 3 move of the board reads it on every layout */
+let sceneViewport: (() => { vw: number; vh: number }) | null = null;
+export const setSceneViewportSource = (source: () => { vw: number; vh: number }) => {
+	sceneViewport = source;
+};
+
 // ---- THE ROAD'S PLACE PER LAYOUT ----------------------------------------------------------------------------------------
 // width: the background picture's width in master units (so one road px is width / 1536 master units).
 // centreX / centreY: where the picture's centre sits in the master.
@@ -102,7 +109,7 @@ export const ROAD_LAYOUT = {
  *  picture's top left corner. Reactive: a $derived that calls it follows a resize (the viewport sources). `view` (the
  *  portrait viewport in master units) is for a caller that places the HUD for a screen size of its own (ui/hud/
  *  hudLayout.ts, a pure function of the viewport); without it the live viewport is read, as before. */
-export const roadPlacement = (kind: LayoutKind, view?: PortraitViewport, centred = false) => {
+export const roadPlacement = (kind: LayoutKind, view?: PortraitViewport, centred = false, own = false) => {
 	const img = ROAD_ART.image;
 	let width: number;
 	let cx: number;
@@ -130,12 +137,24 @@ export const roadPlacement = (kind: LayoutKind, view?: PortraitViewport, centred
 		cy = L.centreY;
 	}
 	const scale = width / img.width;
-	return { scale, x: cx - (img.width * scale) / 2, y: cy - (img.height * scale) / 2, width, height: img.height * scale };
+	// HIS ROUND 3 MOVE OF THE BOARD (2026-11-23, ui/sign/signLayout.ts sceneFit: at 440 x 742 he moved the board with its
+	// LED strip 14.5 CSS px up, at 890 x 552 12.1): the picture rides that many CSS px down (negative: up), in master
+	// units here, so everything laid out from this place moves with it. `own`: the rule's own place, before his move
+	// (the LED strip's rule and the glass dock's are worked out there, then moved with the board).
+	let move = 0;
+	if (!own && !centred) {
+		const vv = view?.vw && view?.vh ? { vw: view.vw, vh: view.vh } : (sceneViewport?.() ?? null);
+		if (vv) {
+			const M = MASTER[kind];
+			move = sceneFit(kind, vv.vw, vv.vh).boardDy / Math.min(vv.vw / M.width, vv.vh / M.height);
+		}
+	}
+	return { scale, x: cx - (img.width * scale) / 2, y: cy - (img.height * scale) / 2 + move, width, height: img.height * scale };
 };
 
 /** the five columns' rectangle (lane 1's top line to lane 4's bottom line) in master units */
-export const boardRect = (kind: LayoutKind, view?: PortraitViewport, centred = false) => {
-	const p = roadPlacement(kind, view, centred);
+export const boardRect = (kind: LayoutKind, view?: PortraitViewport, centred = false, own = false) => {
+	const p = roadPlacement(kind, view, centred, own);
 	const b = ROAD_ART.board;
 	const lines = ROAD_ART.laneLines;
 	const x = p.x + b.x * p.scale;

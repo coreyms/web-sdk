@@ -89,6 +89,8 @@
 	import { ROAD_ART } from '../game/roadArtSpec';
 	import { FOREST_LINE } from '../game/forestLineSpec';
 	import { forestLineY } from '../game/scene/sceneLayers';
+	import { ROAM_ROAD, roamGround } from '../game/roamGround';
+	import { forestOn, sceneFit } from '../ui/sign/signLayout';
 	import { scenePrefetchState, setScenePrefetchView } from '../game/scenePrefetch';
 	import { RoadBoard } from '../game/road/roadBoard';
 	import { planRun } from '../game/road/roadFeatures';
@@ -136,9 +138,6 @@
 		const ms = road.restInMs();
 		return ms === null ? null : ms / boardRate();
 	};
-	/** the asphalt's band in road px (the road picture's own: from under its top snow rim to its bottom rim): the roaming
-	 *  reindeer's feet never go there */
-	const ROAM_ROAD = { top: 120, bottom: 905 };
 	/** his head stays this many CSS px under the top line's text */
 	const ROAM_TOP_LINE_CLEAR = 8;
 	road.setBoard(stateGame.board);
@@ -449,6 +448,8 @@
 	// outgoing screen fading out over the incoming scene (game/scene/sceneSnapshot.ts).
 	/** the screen as the last layout saw it, and the LED scoreboard's place (its snow cover is re-cut when the pieces change) */
 	let sceneView: { kind: typeof kind; uprightPhone: boolean } | null = null;
+	/** an upright phone by the game's own size class (the line wins' label scale; the scene's `uprightPhone` is the tree line's) */
+	let phoneUpright = false;
 	// the background prefetch of the other scene set asks for exactly this view's pieces (game/scenePrefetch.ts)
 	setScenePrefetchView(() => sceneView);
 	let boardGeo: ReturnType<typeof scoreboardGeometry> | null = null;
@@ -571,37 +572,56 @@
 		const ox = masterLeft + place.x * main.scale;
 		const oy = masterTop + place.y * main.scale;
 		const rect = { left: -ox / k, top: -oy / k, right: (canvasSize.width - ox) / k, bottom: (canvasSize.height - oy) / k };
-		const uprightPhone = kind === 'portrait' && isPhoneSizeType(context.stateLayoutDerived.canvasSizeType());
+		// HIS ROUND 3 SCENE (2026-11-23, ui/sign/signLayout.ts sceneFit): `place` already carries his move of the board
+		// with its LED strip (layoutSpec roadPlacement). The tree line and the logo do not ride with the board: they are
+		// worked out at the road's OWN place (oyOwn, rectOwn) and then take his own moves.
+		const fitS = sceneFit(kind, canvasSize.width, canvasSize.height);
+		const oyOwn = oy - fitS.boardDy;
+		const rectOwn = { ...rect, top: -oyOwn / k, bottom: (canvasSize.height - oyOwn) / k };
+		const phoneSizeNow = isPhoneSizeType(context.stateLayoutDerived.canvasSizeType());
+		// (the scene's `uprightPhone` is "a tree line is drawn": his phablet upright has one too)
+		const uprightPhone = forestOn(kind, canvasSize.width, canvasSize.height, phoneSizeNow);
+		phoneUpright = kind === 'portrait' && phoneSizeNow;
 		const feetY = (STRIKE.snow[kind] ?? STRIKE.snow.landscape).feetY;
 		sceneView = { kind, uprightPhone };
-		road.scene.layout({ kind, uprightPhone, rect, feetY });
+		road.scene.layout({ kind, uprightPhone, rect, feetY, forestRect: rectOwn, forestDy: (fitS.treeDy - fitS.boardDy) / k });
 		road.features.screenEdges = { left: rect.left, right: rect.right };
 		// the roaming reindeer's area is fractions of the picture and of this (game/roamPaths.ts)
 		road.features.screenRect = rect;
 		roamView = { kind, k, ox, oy, rect };
+		roamGroundAt = [kind, canvasSize.width, canvasSize.height, phoneSizeNow];
 		// a piece this layout draws that is not in yet (the forest on a desktop browser narrowed to an upright phone, a
 		// night scene's ends after a rotation): loaded now, drawn when in
 		swap.layoutChanged(`${canvasSize.width}x${canvasSize.height}|${kind}|${ox.toFixed(2)},${oy.toFixed(2)},${k.toFixed(5)}`);
 		// the billboard logo, by its class's rule (layoutSpec logoBox), in the road's px
 		if (logo) {
 			const extraTop = kind === 'landscape' ? landscapeExtraY(canvasSize.height / main.scale) : 0;
-			const box = logoBox(logoClass(kind, canvasSize.width, canvasSize.height), place, main.scale, masterLeft, extraTop);
+			const box = logoBox(logoClass(kind, canvasSize.width, canvasSize.height), roadPlacement(kind, undefined, false, true), main.scale, masterLeft, extraTop);
 			logo.root.scale.set(k);
-			logo.root.position.set(ox, oy);
-			logoBaseY = oy;
+			logo.root.position.set(ox, oyOwn);
+			logoBaseY = oyOwn;
 			// THE SIGN'S FOOT ON OPEN GROUND (constants LOGO_SIGN treeGapCss, boardGapCss): an upright phone only
 			logoTreeDrop = 0;
 			logoTreeShort = 0;
 			if (uprightPhone) {
 				const foot = box.y + logoFootShare() * box.height;
-				const line = forestLineY(rect, box.x, box.x + box.width);
+				const line = forestLineY(rectOwn, box.x, box.x + box.width) + fitS.treeDy / k;
 				if (Number.isFinite(line)) {
 					const want = line + LOGO_SIGN.treeGapCss / k - foot;
-					const room = ROAD_ART.laneLines[0] - LOGO_SIGN.boardGapCss / k - (box.y + box.height);
+					const room = ROAD_ART.laneLines[0] + fitS.boardDy / k - LOGO_SIGN.boardGapCss / k - (box.y + box.height);
 					logoTreeDrop = Math.max(0, Math.min(want, room));
 					logoTreeShort = Math.max(0, want - logoTreeDrop);
 					box.y += logoTreeDrop;
 				}
+			}
+			// his own box at his round 3 windows, by the share it has here (CSS px to the road's own px)
+			if (fitS.logo && fitS.share > 0) {
+				const t = fitS.share;
+				const L = fitS.logo;
+				box.x += ((L.x - ox) / k - box.x) * t;
+				box.y += ((L.y - oyOwn) / k - box.y) * t;
+				box.width += (L.w / k - box.width) * t;
+				box.height += (L.h / k - box.height) * t;
 			}
 			logoHome = box;
 			placeLogo();
@@ -639,7 +659,8 @@
 			if (F && logoHome) {
 				const cap = capTopProfile(lg);
 				const bx = ox + logoHome.x * k;
-				const by = oy + logoHome.y * k;
+				// (the sign stands in the road's OWN plane, logoBaseY: it does not ride with his move of the board)
+				const by = logoBaseY + logoHome.y * k;
 				const bw = logoHome.width * k;
 				const bh = logoHome.height * k;
 				let deepest = -Infinity;
@@ -660,6 +681,8 @@
 	// check the area in CSS px; the zones are where his body must never be (the road under his feet, the HUD, the LED
 	// strip, the logo, the top line). Read when he picks a spot or the layout changes, never per frame.
 	let roamView: { kind: typeof kind; k: number; ox: number; oy: number; rect: { left: number; top: number; right: number; bottom: number } } | null = null;
+	/** (the window the scene was last laid out for: the dev hook's roamGround reads the pure rule at it) */
+	let roamGroundAt: [typeof kind, number, number, boolean] | null = null;
 	roamDev.view = () => roamView;
 	const roamZones = (): RoamZone[] => {
 		const out: RoamZone[] = [];
@@ -693,7 +716,8 @@
 		document.querySelectorAll('[data-top-line]').forEach((e) => el('top line', e));
 		for (let i = line0; i < out.length; i++) out[i].y1 += ROAM_TOP_LINE_CLEAR;
 		// (the bonus round's counter plate is gone from the game since the 17 fixes: no zone for it)
-		if (logo?.box) add('logo', v.ox + logo.box.x * v.k, v.oy + logo.box.y * v.k, v.ox + (logo.box.x + logo.box.width) * v.k, v.oy + (logo.box.y + logo.box.height) * v.k);
+		// (the sign stands in the road's OWN plane, logoBaseY: it does not ride with his round 3 move of the board)
+		if (logo?.box) add('logo', v.ox + logo.box.x * v.k, logoBaseY + logo.box.y * v.k, v.ox + (logo.box.x + logo.box.width) * v.k, logoBaseY + (logo.box.y + logo.box.height) * v.k);
 		const strip = scoreboard?.snapshot().strip;
 		if (strip) add('LED strip', strip.x, strip.capTop, strip.x + strip.w, strip.housingBottom);
 		// (2026-11-18) THE LED BACK BOARD while it is up (a big win, a card, the press screen's expanded board): its whole
@@ -969,7 +993,7 @@
 							void scoreboard.win(stripWin());
 						}
 					: null;
-			await road.showWin(wins, amountText, LINE_WIN.holdMs * pace, multiplier, { pace, capped, onTotal, big: !!big, phone: sceneView?.uprightPhone ?? false });
+			await road.showWin(wins, amountText, LINE_WIN.holdMs * pace, multiplier, { pace, capped, onTotal, big: !!big, phone: phoneUpright });
 		},
 		boardWinClear: () => road.clearWin(),
 		boardPulse: async ({ cells, ms }) => {
@@ -1073,11 +1097,14 @@
 					logo: b
 						? {
 								road: b,
-								css: { x: ox + b.x * k, y: oy + b.y * k, width: b.width * k, height: b.height * k },
+								/** its in-game place (road px in the road's own plane): the press screen lifts the sign off it and puts it back */
+								home: logoHome,
+								// (the sign stands in the road's OWN plane, logoBaseY; the forest's line below is in the moved one)
+								css: { x: ox + b.x * k, y: logoBaseY + b.y * k, width: b.width * k, height: b.height * k },
 								lamps: logo!.levels(),
 								/** its lowest visible pixel (CSS px), the drawn forest's tree line under it (CSS px, null: no forest), and
 								 *  how far it moved down off the trees and fell short (road px) */
-								foot: oy + (b.y + logoFootShare() * b.height) * k,
+								foot: logoBaseY + (b.y + logoFootShare() * b.height) * k,
 								treeLine: (() => {
 									const f = road.scene.last.forest;
 									const line = f ? (FOREST_LINE[stateScene.preset.kit]?.line as readonly number[] | undefined) : undefined;
@@ -1462,6 +1489,8 @@
 			roamMemory: () => roamMemory(),
 			roamZones: () => roamZones(),
 			roamView: () => roamView,
+			/** his ground by the layout's own rule (game/roamGround.ts): the probe compares it with the scene as drawn */
+			roamGround: () => (roamGroundAt ? roamGround(...roamGroundAt) : null),
 			roamAreas: () => ROAM_AREAS,
 			roamAreasDefault: () => ROAM_AREAS_DEFAULT,
 			roamPicks: (count: number, walkIns: number, seed: number) => road.features.roam.devPicks(count, walkIns, seed),

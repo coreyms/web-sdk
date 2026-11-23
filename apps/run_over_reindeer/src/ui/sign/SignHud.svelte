@@ -21,7 +21,7 @@
 	import HudReadout from '../hud/HudReadout.svelte';
 	import SignMenuPanel from './SignMenuPanel.svelte';
 	import { HEAD_LS, headWidth } from './signDraw';
-	import { DESKTOP, KEY_V, OWNER_ORDER, PHONE_PLACES, PHONE_REFS, PLAY_V, READOUT_TYPE, TEXT_MIN, amountLimits, padCircle, padPlaces, padShapes, readoutFit, pressOwner, pressRegions, pressShape, pressVerdict, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type OwnerId, type PieceId } from './signLayout';
+	import { DESKTOP, KEY_V, LAND_R3, OWNER_ORDER, PHONE_PLACES, PHONE_REFS, PLAY_V, TEXT_MIN, forestOn, landShare, sceneFit, amountLimits, padCircle, padPlaces, padShapes, readoutFit, pressOwner, pressRegions, pressShape, pressVerdict, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type OwnerId, type PieceId } from './signLayout';
 	import { signZones } from './signZones';
 	import { holdLights } from './ledBand';
 	import SignPlay from './SignPlay.svelte';
@@ -61,7 +61,7 @@
 	});
 	const em = (t: string, ls = 0) => measureFitText(t, 100, 900, 0, OVER) / 100 + (t.length - 1) * ls;
 	/** a header plate's letters, bar px: the readout's scale, never under 10 CSS px */
-	const headFs = (rs: number) => Math.max(READOUT_TYPE.head * rs, TEXT_MIN / u);
+	const headFs = (head: number) => Math.max(head, TEXT_MIN / u);
 
 	// ---- the amount: the widest amount rule (ui/betStep.ts betWidestEm, ui/sign/signLayout.ts seatAmount) ----
 	const amtLabel = $derived(rh ? rh.label : hs.amtLabel());
@@ -72,7 +72,7 @@
 	});
 	const seat = $derived.by(() => {
 		void faceReady;
-		return seatAmount(geo, widest.em, headWidth(em(amtLabel, HEAD_LS), headFs(geo.rs.amt)) * u, amountLimits(geo, zones, safe));
+		return seatAmount(geo, widest.em, headWidth(em(amtLabel, HEAD_LS), headFs(geo.head.amt)) * u, amountLimits(geo, zones, safe));
 	});
 	const SB = $derived(stepBox(geo.step, u));
 
@@ -92,7 +92,7 @@
 	 *  then the letters come down until the plate is the glass's width less 2 bar px a side */
 	const winHead = $derived.by(() => {
 		void faceReady;
-		const fs = headFs(geo.rs.win);
+		const fs = headFs(geo.head.win);
 		const word = `${hs.winPre() ? hs.winPre() + ' ' : ''}WIN`;
 		const room = WG.w / u - 4;
 		const w = headWidth(em(word, HEAD_LS), fs);
@@ -264,8 +264,14 @@
 			 *  that reads the pixels that differ between two captures holds it: tools/wheel_probe.mjs) */
 			lights: (on: boolean) => !holdLights(!on),
 			/** the places the bar is laid out from, as the layout file holds them (the probe reads them here, never a copy):
-			 *  his own, with Balance and the amount enlarged on phones (signLayout.ts BOOST); `raw` is his copy untouched */
-			his: () => JSON.parse(JSON.stringify({ phone: PHONE_PLACES, raw: PHONE_REFS, desktop: DESKTOP })),
+			 *  `phone`: his round 3 windows (2026-11-23), upright and sideways; `land`: his phablet held sideways (890 x 552,
+			 *  the desktop bar family); `desktop`: his desktop plane; `raw`: round 2's, kept as his record */
+			his: () => JSON.parse(JSON.stringify({ phone: PHONE_PLACES, land: LAND_R3, raw: PHONE_REFS, desktop: DESKTOP })),
+			/** HIS ROUND 3 SCENE here (signLayout.ts sceneFit): his move of the board with its LED strip and of the tree line
+			 *  (CSS px down), the share his logo and SKIP boxes have at this window, those boxes, whether a tree line is
+			 *  drawn; and each window's one number size and tag size as the layout file works them out (commonType) */
+			scene: () => JSON.parse(JSON.stringify({ ...sceneFit(kind, vw, vh), tree: forestOn(kind, vw, vh, phone), landShare: kind === 'landscape' ? landShare(vw, vh) : null })),
+			type: () => JSON.parse(JSON.stringify({ num: { amt: geo.num.amt * u, bal: geo.num.bal * u, win: geo.num.win * u }, head: { amt: headFs(geo.head.amt) * u, bal: headFs(geo.head.bal) * u, win: headFs(geo.head.win) * u } })),
 			/** the drawn diamonds as shares of their boxes (the Play's button and Auto's and Turbo's are the diamonds) */
 			diamond: () => ({ play: PLAY_V, auto: KEY_V, turbo: KEY_V }),
 		};
@@ -295,7 +301,7 @@
 			y={B.win.y}
 			w={B.win.w}
 			h={B.win.h}
-			nominal={READOUT_TYPE.win * geo.rs.win}
+			nominal={geo.num.win}
 			fontPx={winFit.px}
 			pad={0}
 			cls="sgr win {lit ? 'is-lit' : ''} {hs.winBig() ? 'is-big' : ''}"
@@ -325,14 +331,14 @@
 	{#if !replay && !controls.jurisdiction().disabledAutoplay}<SignKey kind="auto" {controls} x={B.auto.x} y={B.auto.y} w={B.auto.w} press={(ev) => barPress(ev, 'auto', controls.autoPress)} />{/if}
 	{#if !controls.jurisdiction().disabledTurbo}<SignKey kind="turbo" {controls} x={B.turbo.x} y={B.turbo.y} w={B.turbo.w} word={geo.turboWord} press={(ev) => barPress(ev, 'turbo', controls.turboPress)} />{/if}
 	<SignPlay {controls} x={B.play.x} y={B.play.y} d={B.play.w} css={geo.box.play.w} press={(ev, own) => barPress(ev, 'play', own)} />
-	<div class="dc" style:--rs={geo.rs.bal} style:--hf="{headFs(geo.rs.bal)}px">
+	<div class="dc" style:--rs={geo.rs.bal} style:--hf="{headFs(geo.head.bal)}px">
 		{#if !replay}
-			<HudReadout label="BALANCE" value={controls.balanceText()} x={B.bal.x} y={B.bal.y} w={B.bal.w} h={B.bal.h} nominal={READOUT_TYPE.bal * geo.rs.bal} fontPx={balFit.px} pad={0} cls="sgr bal {geo.just.bal === 'left' ? 'al-left' : ''}" hud="balance" lit face={OVER} />
+			<HudReadout label="BALANCE" value={controls.balanceText()} x={B.bal.x} y={B.bal.y} w={B.bal.w} h={B.bal.h} nominal={geo.num.bal} fontPx={balFit.px} pad={0} cls="sgr bal {geo.just.bal === 'left' ? 'al-left' : ''}" hud="balance" lit face={OVER} />
 		{:else if rh && !rh.isBase}
-			<HudReadout label="BASE AMOUNT" value={rh.base} x={B.bal.x} y={B.bal.y} w={B.bal.w} h={B.bal.h} nominal={READOUT_TYPE.bal * geo.rs.bal} fontPx={balFit.px} pad={0} cls="sgr bal {geo.just.bal === 'left' ? 'al-left' : ''}" hud="balance" lit face={OVER} />
+			<HudReadout label="BASE AMOUNT" value={rh.base} x={B.bal.x} y={B.bal.y} w={B.bal.w} h={B.bal.h} nominal={geo.num.bal} fontPx={balFit.px} pad={0} cls="sgr bal {geo.just.bal === 'left' ? 'al-left' : ''}" hud="balance" lit face={OVER} />
 		{/if}
 	</div>
-	<div class="dc" style:--rs={geo.rs.amt} style:--hf="{headFs(geo.rs.amt)}px">
+	<div class="dc" style:--rs={geo.rs.amt} style:--hf="{headFs(geo.head.amt)}px">
 		{#if !replay}<SignStep dir={-1} {controls} x={seat.down.x / u} y={seat.down.y / u} w={SB.w} h={SB.h} size={geo.step} cx={(seat.downC[0] - seat.down.x) / u} cy={(seat.downC[1] - seat.down.y) / u} press={(ev, own) => barPress(ev, 'down', own)} />{/if}
 		{#if !replay || rh}
 			<HudReadout

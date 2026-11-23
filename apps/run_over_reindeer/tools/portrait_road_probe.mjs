@@ -5,6 +5,7 @@
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/scene/sceneLayers.ts,game/forestLineSpec.ts}; LOGO_SIGN.treeGapCss
 // WATCHES: ; LOGO_SIGN.boardGapCss, forestLineY, forestBox, __reindeer.sceneWant, __reindeer.sceneSwap, logo.foot, logo.treeLine
 // WATCHES: apps/run_over_reindeer/src/game/scene/sceneSwap.ts
+// WATCHES: apps/run_over_reindeer/src/{ui/sign/signLayout.ts,game/scene/forestPlace.ts}; sceneFit, PHONE_R3, forestOn, __reindeer.sign.scene
 // THE PORTRAIT ROAD PROBE (Job 4, Corey 2026-11-15: "Move it down about half of that distance"): at each portrait size
 // it measures, in CSS px, the road picture's top and bottom (from __reindeer.boardLayout()), the title sign's bottom,
 // and the HUD's real top (the higher of the dark bed's top edge and the HUD's highest readout or key), then the snow
@@ -15,6 +16,12 @@
 // upright phone size, in every scene preset (each draws the forest there), the sign's lowest visible pixel is at or under
 // the drawn forest's tree line, and the sign did not fall short of it (the board's top in the way); its box stays over the
 // board. Tablets draw no forest: nothing is asked there.
+// HIS ROUND 3 PHONE LAYOUT (2026-11-23, ui/sign/signLayout.ts sceneFit, read through __reindeer.sign.scene): at his own
+// phone windows Corey placed the sign himself (and moved the board and the tree line at 440 x 742), and a window near
+// one of his takes a share of his box. Where his box has a share the sign's place is his, not the foot rule's: the foot
+// and the tree line are printed there (for the eye), the box still stays over the board, and the rule's own check runs
+// where his box has no share (390 x 844 and taller). His four upright windows are in the list (440x742, 413x586,
+// 375x530; 626x816 as a tablet class window that now draws a tree line).
 // With OUT=<dir> it saves captures at 390x844 and 390x620 (device pixel ratio 3) and gaps_<tag>.json.
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [OUT=<dir>] [TAG=after] [BEFORE=1] \
 //     node tools/portrait_road_probe.mjs
@@ -40,6 +47,11 @@ const SIZES = [
 	// (an iPhone in Safari with its bars: Corey's staging shot, 2026-11-19)
 	{ vp: { width: 390, height: 580 }, phone: true },
 	{ vp: { width: 440, height: 956 }, phone: true },
+	// his round 3 upright windows (2026-11-23); the phablet is not a phone by the device tier, and draws a tree line
+	{ vp: { width: 440, height: 742 }, phone: true },
+	{ vp: { width: 413, height: 586 }, phone: true },
+	{ vp: { width: 375, height: 530 }, phone: true },
+	{ vp: { width: 626, height: 816 }, phone: false, forest: true },
 	{ vp: { width: 768, height: 1024 }, phone: false },
 	{ vp: { width: 820, height: 1180 }, phone: false },
 ];
@@ -100,7 +112,9 @@ const r1 = (v) => Math.round(v * 10) / 10;
 				check(m.titleBottom === null || m.boardTop - 167 * 0 > m.titleBottom, `${name}: the board stays under the title sign`);
 				check(row.gapBelow >= row.hudClearCss - 1 || row.gapBelow < 0, `${name}: the road picture's bottom keeps at least ${row.hudClearCss} px over the HUD's top, or it was already over it and stayed put (gap ${row.gapBelow})`);
 			}
-			if (!BEFORE && S.phone && m.kind === 'portrait') {
+			const his = await p.evaluate(() => window.__reindeer.sign?.scene?.() ?? null);
+			if (his && (his.share > 0 || his.boardDy || his.treeDy)) console.log(`  INFO ${name}: his round 3 scene here: the board ${r1(his.boardDy)} px down, the tree line ${r1(his.treeDy)} px down, his logo box's share ${r1(his.share * 100)} %`);
+			if (!BEFORE && (S.phone || S.forest) && m.kind === 'portrait') {
 				for (const preset of ['snowDay', 'snowNight', 'snowSuper', 'grassDay', 'grassNight', 'grassSuper']) {
 					await p.evaluate((n) => window.__reindeer.sceneWant(n), preset);
 					let lg = null;
@@ -109,6 +123,11 @@ const r1 = (v) => Math.round(v * 10) / 10;
 						// the outgoing screen and the swap reports it, __reindeer.sceneSwap().fade; the scene layers keep no fade field)
 						lg = await p.evaluate((n) => { const s = window.__reindeer.scene(); const w = window.__reindeer.sceneSwap(); return s.preset === n && w.shown === n && w.fade === null && s.layers.forest && s.logo ? s.logo : null; }, preset).catch(() => null);
 						if (!lg) await sleep(250);
+					}
+					if (his && his.share > 0) {
+						// (his own box, or a share of it: the foot against the tree line is printed, the box stays over the board)
+						check(!!lg && lg.treeLine !== null && lg.css.y + lg.css.height < m.boardTop, `${name} ${preset}: the sign stands where Corey's round 3 layout puts it (his box's share ${r1(his.share * 100)} %): a tree line is drawn (${lg ? r1(lg.treeLine) : '?'}), the sign's foot at ${lg ? r1(lg.foot) : '?'} (${lg && lg.treeLine !== null ? `${r1(lg.foot - lg.treeLine)} px under the tree line` : '?'}), its box over the board`, lg);
+						continue;
 					}
 					check(!!lg && lg.treeLine !== null && lg.foot >= lg.treeLine - 0.01 && lg.short < 0.01 && lg.css.y + lg.css.height < m.boardTop, `${name} ${preset}: the sign's foot (${lg ? r1(lg.foot) : '?'}) is on open ground, at or under the tree line (${lg ? r1(lg.treeLine) : '?'}); moved down ${lg ? r1(lg.drop) : '?'} road px; over the board`, lg && { foot: lg.foot, treeLine: lg.treeLine, drop: lg.drop, short: lg.short, bottom: lg.css.y + lg.css.height, boardTop: m.boardTop });
 				}

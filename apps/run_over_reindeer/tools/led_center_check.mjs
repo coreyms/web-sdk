@@ -49,6 +49,8 @@ if (process.argv[2] !== 'child') {
 	for (const wh of [[1920, 1080], [1200, 675], [1024, 576], [1280, 720], [1366, 768], [1440, 900], [2560, 1440], [2560, 1080], [3440, 1440], [1280, 800], [1024, 768], [800, 450], [1180, 820], [820, 1180], [768, 1024], [1024, 1366]]) windows.push(wh);
 	for (let vh = 320; vh <= 430; vh += 10) for (let vw = 568; vw <= 932; vw += 4) if (vw / vh >= 1.5 && vw / vh <= 2.34) windows.push([vw, vh]);
 	for (const wh of [[425, 812], [375, 667], [320, 568], [390, 844], [390, 620]]) windows.push(wh);
+	// Corey's round 3 phone windows (2026-11-23, ui/sign/signLayout.ts PHONE_R3 and LAND_R3)
+	for (const wh of [[440, 742], [413, 586], [375, 530], [626, 816], [832, 376], [667, 311], [890, 552]]) windows.push(wh);
 	for (let vw = 320; vw <= 430; vw += 10) for (let k = 1.6; k <= 2.2001; k += 0.05) windows.push([vw, Math.round(vw * k)]);
 	const only = process.env.ONLY ? new Set(process.env.ONLY.split(',')) : null;
 	// (the probe host's two faces first, so they are the ones drawn for their dot counts)

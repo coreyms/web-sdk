@@ -1,5 +1,6 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/ui/RoundCard.svelte; ROUND.wrapAutoHoldMs
+// WATCHES: apps/run_over_reindeer/src/ui/sign/signLayout.ts; sceneFit, boardDy, PHONE_R3, __reindeer.sign.scene
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,fixtures/showcaseBooks.ts,game/bookEventHandlerMap.ts,game/constants.ts,game/road/roadBoard.ts,game/road/roadSounds.ts};
 // WATCHES: apps/run_over_reindeer/src/{game/scoreboard/race.ts,game/scoreboard/scoreboardDraw.ts,game/scoreboard/ledGrid.ts,game/sound.ts,ui/RoundCard.svelte,ui/hud/hudLayout.ts};
 // WATCHES: apps/run_over_reindeer/src/{game/scoreboard/ambient.ts,game/scoreboard/entryScenes.ts,game/scoreboard/totalLadder.ts,game/scoreboard/ideasKit.ts,game/scoreboard/explainDraw.ts,game/scoreboard/show.ts,game/scoreboardArtSpec.ts,game/config.ts,game/scoreboard/stripDraw.ts,game/road/present.ts,game/stateGame.svelte.ts};
@@ -165,6 +166,11 @@ const SIZES = [
 	{ name: 'side', vp: { width: 844, height: 390 }, phone: true, cls: 'phone', mock: { w: 391, h: 53, x: 227, y: 317 }, rise: true },
 	{ name: 'portrait', vp: { width: 390, height: 844 }, phone: true, cls: 'portrait', mock: { w: 351, h: 71, x: 19.5, y: 600 }, rise: true, throttle: true, scenes: true },
 	{ name: 'short', vp: { width: 390, height: 620 }, phone: true, cls: 'portrait', mock: { w: 351, h: 58, x: 19.5, y: 430 }, acceptRuleH: true },
+	// his round 3 phone windows measured on his phone (2026-11-23): the rule, the dot rule and the budget (no mock numbers:
+	// at 440 x 742 the board with its strip stands 14.5 px higher than the road's own place, his move)
+	{ name: 'r3 upright', vp: { width: 440, height: 742 }, phone: true, cls: 'portrait' },
+	{ name: 'r3 framed', vp: { width: 413, height: 586 }, phone: true, cls: 'portrait' },
+	{ name: 'r3 side', vp: { width: 832, height: 376 }, phone: true, cls: 'phone' },
 	// (2026-11-20, board size d: the tablet shapes that share the desktop rule; no mock numbers, no fixed pitch)
 	{ name: 'tablet', vp: { width: 1180, height: 820 }, phone: false, cls: 'tablet', pitch: null },
 	{ name: 'tablet43', vp: { width: 1024, height: 768 }, phone: false, cls: 'tablet', pitch: null },
@@ -248,7 +254,12 @@ const expectRule = (p) =>
 			const G = H.portraitGeo(f, 0);
 			const hud = Math.min(G.win.y, G.amt.y, G.spin.y, G.bar.y0) * f.u;
 			const y = pic.y + 948 * k;
-			return { cls: 'portrait', w: 0.9 * vw, x: 0.05 * vw, y, h: 0.75 * (hud - y), hud };
+			// HIS ROUND 3 PHONE LAYOUT (2026-11-23, ui/sign/signLayout.ts sceneFit, read through __reindeer.sign.scene): at and
+			// near his windows the board with its LED strip stands `boardDy` CSS px lower (negative: higher) than the road's
+			// own place. The strip rides with the road (pic.y carries the move); its SIZE is worked out at the road's own
+			// place and does not change with the move (he moved the strip, he did not resize it)
+			const moved = window.__reindeer.sign?.scene?.()?.boardDy ?? 0;
+			return { cls: 'portrait', w: 0.9 * vw, x: 0.05 * vw, y, h: 0.75 * (hud - (y - moved)), hud, moved };
 		}
 		const w = 0.86 * 1349 * k;
 		const y = pic.y + 874 * k + 1;
@@ -306,6 +317,8 @@ async function sizeChecks(p, S, memory) {
 		// scale. The expected height is the taller of the two (16:10 keeps the mock's 90: his 75.8 there is under it);
 		// the place and the width are still the mock's.
 		if (M && E.signH != null && E.signH > M.h) M = { ...M, h: r1(E.signH) };
+		// (round 3: the mock's y is the road's own place; his move of the board with its strip is added to it)
+		if (M && E.moved) M = { ...M, y: r1(M.y + E.moved) };
 		if (S.acceptRuleH) check(st.y >= E.y - 0.6 && st.housingBottom <= E.hud + 0.5, `${tag}: the strip stands between the road's edge (${r1(E.y)}) and the HUD's top (${r1(E.hud)}): ${r1(st.y)} to ${r1(st.housingBottom)}`);
 		const dm = M ? { w: r1(st.w - M.w), x: r1(st.x - M.x), y: r1(st.y - M.y), h: r1(st.h - M.h) } : { w: 0, x: 0, y: 0, h: 0 };
 		// (board size d: the bigwin mock's strip numbers are today's width; the height and the place still hold)

@@ -1,6 +1,6 @@
 import { createLayout } from 'utils-layout';
 
-import { MASTER, setLandscapeViewportSource, setPortraitViewportSource } from './layoutSpec';
+import { MASTER, setLandscapeViewportSource, setPortraitViewportSource, setSceneViewportSource } from './layoutSpec';
 
 // Main layout sizes are the design masters (see layoutSpec.ts). Square-ish canvases use the portrait master.
 export const { stateLayout, stateLayoutDerived } = createLayout({
@@ -23,6 +23,12 @@ setPortraitViewportSource(() => {
 	const scale = stateLayoutDerived.mainLayout().scale;
 	const canvas = stateLayoutDerived.canvasSizes();
 	return { masterWidth: canvas.width / scale, masterHeight: canvas.height / scale, vw: canvas.width, vh: canvas.height };
+});
+
+// THE WINDOW ITSELF, CSS px (layoutSpec roadPlacement: his round 3 move of the board, ui/sign/signLayout.ts sceneFit)
+setSceneViewportSource(() => {
+	const canvas = stateLayoutDerived.canvasSizes();
+	return { vw: canvas.width, vh: canvas.height };
 });
 
 // THE TALLER DESKTOP SCREENS (layoutSpec LANDSCAPE_TALL): the HUD's bottom row reads the master height the screen

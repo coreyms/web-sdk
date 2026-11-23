@@ -32,6 +32,7 @@ import { REINDEER_ROAM } from '../reindeerRoamSpec';
 import { ROAM_AREAS, ROAM_EDIT, ROAM_REF_RECT, ROAM_TUNNELS, type RoadRect, type RoamArea } from '../roamPaths';
 import { ROAD_ART } from '../roadArtSpec';
 import { FOREST_LINE } from '../forestLineSpec';
+import { ROAM_TREE_PAD } from '../roamGround';
 import { seeded } from './crosshair';
 import { chargeFramesReady, roamBox, roamFramesReady, roamTexture, type RoamBox, type RoamClip } from './roamFrames';
 import { CHARGE_HIT, windupFirstFrame, windupFrame, type WindupPlan } from './chargeWindup';
@@ -228,7 +229,7 @@ const CORRIDOR_SHOWN = 0.4;
 const CORRIDOR_COST = 3;
 /** THE FOREST (2026-11-19, Corey: "on portrait view the reindeer is walking on the trees"): his feet stay this many road
  *  px below the tree line of the forest drawn behind the upright phone's snow (game/forestLineSpec.ts, per kit) */
-const TREE_PAD = 6;
+const TREE_PAD = ROAM_TREE_PAD;
 /** the forest as drawn now (road px) and its kit's tree line, or null where no forest is drawn */
 export type RoamForest = { x: number; y: number; width: number; height: number; kit: keyof typeof FOREST_LINE } | null;
 /** a walk in routes at most this many candidates round a mouth (each its own tree) */

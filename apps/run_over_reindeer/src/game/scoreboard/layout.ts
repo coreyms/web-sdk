@@ -3,11 +3,11 @@
 // back board is up, and the rectangle the foreground snow covers. All CSS px of the canvas (= the window), derived from the
 // window on every layout pass (never cached: the house rule that keeps rotation working).
 import { LED_BOARD, LED_SIGN, type StripRule } from '../constants';
-import { boardRect, landscapeExtraY, type LayoutKind } from '../layoutSpec';
+import { boardRect, landscapeExtraY, roadPlacement, type LayoutKind } from '../layoutSpec';
 import { densityFor } from './ledGrid';
 import { desktopGeo, hudFrame, landscapeGeo, portraitGeo, readSafeInsets } from '../../ui/hud/hudLayout';
 // (the bar's constant from the layout file, not ui/hudTheme.ts: that one needs a page, and this file is loaded by node checks)
-import { DESKTOP as SIGN_DESKTOP, HUD_BAR } from '../../ui/sign/signLayout';
+import { DESKTOP as SIGN_DESKTOP, HUD_BAR, sceneFit } from '../../ui/sign/signLayout';
 
 export type Rect = { x: number; y: number; w: number; h: number };
 export type FaceRect = Rect & { dotsW: number; dotsH: number };
@@ -46,8 +46,14 @@ export const scoreboardGeometry = (kind: LayoutKind, vw: number, vh: number, mai
 	const masterTop = main.y - (main.height * main.scale) / 2;
 	const k = place.scale * main.scale;
 	const ox = masterLeft + place.x * main.scale;
-	const oy = masterTop + place.y * main.scale;
-	const br = boardRect(kind);
+	// HIS ROUND 3 MOVE OF THE BOARD WITH ITS LED STRIP (2026-11-23, ui/sign/signLayout.ts sceneFit; the board and the
+	// strip are one piece): everything here is worked out at the road's OWN place for this window (layoutSpec
+	// roadPlacement `own`: the strip's rule reads the room under the road, which his move must not stretch), and the
+	// whole board, strip and back board, then rides `moved` CSS px down with the road (negative: up)
+	const view = { masterWidth: vw / main.scale, masterHeight: vh / main.scale, vw, vh };
+	const moved = sceneFit(kind, vw, vh).boardDy;
+	const oy = masterTop + roadPlacement(kind, view, false, true).y * main.scale;
+	const br = boardRect(kind, view, false, true);
 	const boardTop = masterTop + br.y * main.scale;
 	const f0 = hudFrame({ kind, phone: phoneSize, vw, vh, safe: readSafeInsets() });
 	let cls: ScoreboardClass;
@@ -150,7 +156,8 @@ export const scoreboardGeometry = (kind: LayoutKind, vw: number, vh: number, mai
 		backH,
 		sc: backH / 420,
 	};
-	return { cls, W: vw, H: vh, pitch: p, f, ol, strip: { box: { x, y, w, h }, face: stripFace, housing: stripHousing, cap }, back, dim, hudTop, road: { ox, oy, k } };
+	const down = <T extends { y: number }>(r: T): T => ({ ...r, y: r.y + moved });
+	return { cls, W: vw, H: vh, pitch: p, f, ol, strip: { box: down({ x, y, w, h }), face: down(stripFace), housing: down(stripHousing), cap }, back: { ...back, face: down(back.face), housing: down(back.housing) }, dim, hudTop, road: { ox, oy: oy + moved, k } };
 };
 
 /** THE SMALLEST DOT RULE (constants LED_BOARD.pitch; Corey 2026-11-22, the mock led_dot_size_r1_2026-11-22's `propose`, value
