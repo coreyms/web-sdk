@@ -21,9 +21,18 @@ let raf = 0;
 let hooked = false;
 const now = () => (typeof performance !== 'undefined' ? performance.now() : 0);
 const hidden = () => typeof document !== 'undefined' && document.hidden;
+/** HELD (DEV, through __reindeer.sign.lights; tools/wheel_probe.mjs): every key's light stands on the frame it shows.
+ *  A probe that tells one thing from another by the pixels that differ between two captures needs everything else on
+ *  the page to stand still, and the lights are the bar's one thing that moves at rest. */
+let held = false;
+export const holdLights = (hold: boolean) => {
+	held = hold;
+	if (!hold) kick();
+	return held;
+};
 const loop = () => {
 	raf = 0;
-	if (hidden()) return;
+	if (hidden() || held) return;
 	const t = now();
 	let live = false;
 	for (const b of bands) live = b.frame(t) || live;
@@ -38,7 +47,7 @@ const kick = () => {
 			if (!document.hidden) kick();
 		});
 	}
-	if (!raf && !hidden()) raf = requestAnimationFrame(loop);
+	if (!raf && !hidden() && !held) raf = requestAnimationFrame(loop);
 };
 /** CSS ease-in-out (cubic-bezier(0.42, 0, 0.58, 1)), as the mock's twinkle eased */
 const easeInOut = (x: number) => {

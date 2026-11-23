@@ -1,5 +1,6 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/{game/road/superWheel.ts,game/road/wheelPeg.ts,game/road/wildMult.ts,game/superWheelPlan.ts,game/superWheelSpec.ts,ui/WheelGate.svelte,ui/controls.svelte.ts,ui/SquareSpin.svelte,game/bookEventHandlerMap.ts,game/actor.ts,game/utils.ts,game/road/roadBoard.ts,game/road/present.ts,components/Board.svelte};
+// WATCHES: apps/run_over_reindeer/src/ui/sign/ledBand.ts; __reindeer.sign.lights
 // WATCHES: ; SUPER_WHEEL, AUTO_BONUS_WAIT_MS, WHEEL_SHARES, LED_BOARD.stripOrder, ROUND.betweenSpinsMs, RESUME_TEXT, data-wheel-gate, data-wheel-wait, button.catch, .hudp
 // WATCHES: ; __reindeer.wheel, __reindeer.wheelPegTrace, __reindeer.tune, WILD_MULT, __reindeer.wheelPlan, __reindeer.wheelShow, __reindeer.wheelSet, __reindeer.wheelEnd, __reindeer.wheelAlone, __reindeer.sceneOnly, __reindeer.fixtures, __reindeer.roadSounds, __reindeer.hud, __reindeer.road, __reindeer.freeSpinNow, __reindeer.stockRules
 // THE SUPER WHEEL PROBE (2026-11-18; game/road/superWheel.ts, game/superWheelPlan.ts, constants SUPER_WHEEL; the approved
@@ -789,6 +790,15 @@ async function standing(browser, L, book) {
 	const { ctx, p, errs } = await boot(browser, L, { dpr: DPR });
 	const shown = await p.evaluate((ev) => window.__reindeer.wheelShow(ev), book.events);
 	await sleep(400);
+	// THE SIGN BAR'S LIGHTS ARE HELD (2026-11-22, ui/sign/ledBand.ts through __reindeer.sign.lights; the dock has none). Every
+	// measurement below takes a piece as the pixels that differ between two captures of this box, so everything else in
+	// the box must stand still. On an upright phone the box (the wheel and 16 % round it) reaches 60 CSS px under the
+	// wheel, and the sign bar's Play stands there (its top at 680 of 844; the dock's Spin was lower, outside the box): its
+	// LED border twinkles, so its pixels differed too and were read as wheel (a rim point 616 px out, a centre 4 px
+	// off). The wheel and the strip are where they were (no file of theirs changed). Holding the lights takes nothing
+	// out of the measurement: no pixel of the wheel is left out, and a light that is on stays on in both captures.
+	await p.evaluate(() => window.__reindeer.sign?.lights?.(false));
+	await sleep(120);
 	const w = await W(p);
 	const g = w.geo;
 	const pad = 0.16 * g.d;
