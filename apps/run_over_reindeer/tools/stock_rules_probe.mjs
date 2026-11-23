@@ -242,7 +242,7 @@ async function sectionResume(browser) {
 	await ctx.close();
 }
 
-/** load an autoplay run of 25 from the Autoplay menu (optionally Stop on Free Games) and start it with Spin */
+/** start an autoplay run of 25 with the Autoplay menu's START (optionally Stop on Free Games) */
 async function startAuto(p, { stopFree = false, autoBonuses = false } = {}) {
 	await p.click('.hudp button[aria-label="Autoplay"]');
 	await sleep(600);
@@ -259,9 +259,7 @@ async function startAuto(p, { stopFree = false, autoBonuses = false } = {}) {
 		await set('Autoplay Bonuses', autoBonuses);
 		await sleep(200);
 	}
-	await p.click('.am-ui.layer.modals .go');
-	await sleep(600);
-	await p.click('.hudp button.spin');
+	await p.click('.am-ui.layer.modals .go'); // START: the run begins at once (2026-11-23, no Spin press)
 }
 
 /** autoplay through one natural round; act(stage, page) can press something; returns the round's records */

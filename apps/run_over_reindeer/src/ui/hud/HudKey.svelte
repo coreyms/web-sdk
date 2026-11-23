@@ -2,7 +2,7 @@
 	// THE ROUND KEYS (Drop 6): Menu, Auto, Turbo. One fixed circle each, icon over a tiny word (icon only on the
 	// landscape phone). Behaviour, sounds and disabled rules are controls.svelte.ts's, unchanged.
 	//   Menu   gold while the help menu is open
-	//   Auto   gold while a run is loaded on the Spin or running (and its arrow turns while it runs); its press opens the
+	//   Auto   gold while a run is running (and its arrow turns while it runs); its press opens the
 	//          Autoplay menu, or stops a live run, as before
 	//   Turbo  three level bars (0, 1, 2); two under the operator's disabledSuperTurbo
 	import { stateBet, stateUi } from 'state-shared';
@@ -15,7 +15,6 @@
 	const level = $derived(controls.turboLevel());
 	const bars = $derived(controls.jurisdiction().disabledSuperTurbo ? 2 : 3);
 	const running = $derived(controls.autoRunning());
-	const loaded = $derived(controls.autoLoadout() !== null);
 </script>
 
 {#if kind === 'menu'}
@@ -23,7 +22,7 @@
 		<HudIcon name="menu" /><span class="kl">MENU</span>
 	</button>
 {:else if kind === 'auto'}
-	<button type="button" class="slot-btn hg gl key auto hit {cls}" class:is-on={running || loaded} class:is-run={running} style:left="{x}px" style:top="{y}px" style:--k="{d}px" disabled={controls.autoDisabled()} onclick={controls.autoPress} aria-label="Autoplay">
+	<button type="button" class="slot-btn hg gl key auto hit {cls}" class:is-on={running} class:is-run={running} style:left="{x}px" style:top="{y}px" style:--k="{d}px" disabled={controls.autoDisabled()} onclick={controls.autoPress} aria-label="Autoplay">
 		<HudIcon name="auto" /><span class="kl">AUTO</span>
 	</button>
 {:else}

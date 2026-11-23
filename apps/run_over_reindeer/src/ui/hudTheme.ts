@@ -113,7 +113,7 @@ export const HUD_THEME: Record<string, string> = {
 	'menu-key-a': '0.95',
 	'menu-key-rim-rgb': '166, 216, 255',
 	/** NEW (bet bar fix, Corey: "make the Auto and Turbo Buttons change colors when active"): a lit key's own fill.
-	 *  ON (a run loaded on the Spin, Turbo, the open Menu, the picked scene): a deep red glass with a red rim.
+	 *  ON (Auto with a run on, Turbo, the open Menu, the picked scene): a deep red glass with a red rim.
 	 *  HOT (a run playing, Turbo at its instant level): the bright red of the Spin's ring, a cream rim and a glow */
 	'key-on-1-rgb': '150, 26, 38',
 	'key-on-2-rgb': '92, 13, 21',

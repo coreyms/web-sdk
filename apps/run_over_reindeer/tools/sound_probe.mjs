@@ -324,9 +324,7 @@ async function startAuto(p, { autoBonuses = false } = {}) {
 	await set('Stop on Free Games', false);
 	await set('Autoplay Bonuses', autoBonuses);
 	await sleep(200);
-	await p.click('.am-ui.layer.modals .go');
-	await sleep(600);
-	await p.click('.hudp button.spin');
+	await p.click('.am-ui.layer.modals .go'); // START: the run begins at once (2026-11-23, no Spin press)
 }
 /** PASS 11 (from tools/stock_rules_probe.mjs): press `sel` in the page `at` ms into the pause after wrap-up number x0 (an
  *  autoplay run's own), so the run stops there; the result lands in window.__pausePress */

@@ -10,7 +10,7 @@
 	// glass: the HUD's round glass minus and plus keys (HUD round 6: the Autoplay menu's stepper matches the HUD's own);
 	// the denomination card keeps its square paper keys
 	// autoRun: the Autoplay menu's stepper shows what one spin of the run will use (ui/controls.svelte.ts autoSpinCost,
-	// 2026-11-19): with a feature loaded, the base amount under SPIN / PLAY, since LOAD unloads the feature
+	// 2026-11-19): with a feature loaded, the base amount under SPIN / PLAY, since START unloads the feature
 	type Props = { controls: Controls; compact?: boolean; pressSound?: 'soundPressGeneral' | 'soundPressSub'; glass?: boolean; autoRun?: boolean };
 	const { controls, compact = false, pressSound = 'soundPressGeneral', glass = false, autoRun = false }: Props = $props();
 	const btn = $derived(compact ? 38 : 46);

@@ -484,9 +484,7 @@ async function startAuto(p, { stopFree = false, autoBonuses = false } = {}) {
 	await set('Stop on Free Games', stopFree);
 	await set('Autoplay Bonuses', autoBonuses);
 	await sleep(200);
-	await p.click('.am-ui.layer.modals .go');
-	await sleep(600);
-	await p.click('.hudp button.spin');
+	await p.click('.am-ui.layer.modals .go'); // START: the run begins at once (2026-11-23, no Spin press)
 }
 async function autoSection(browser) {
 	const wait = await (async () => {

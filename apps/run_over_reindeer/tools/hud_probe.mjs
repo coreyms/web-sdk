@@ -666,18 +666,16 @@ async function runSize(browser, S) {
 	if (spun) compare(name, 'spinning', idle, spun);
 	if (won) compare(name, 'a win shown', idle, won);
 	else console.log(`  NOTE ${name}: no win in 8 spins (the win state not compared)`);
-	// autoplay running
+	// autoplay running (the menu's START begins the run at once: no Spin press, 2026-11-23)
 	await p.click(CONTROLS.auto);
 	await sleep(700);
 	await p.click('.am-ui.layer.modals .go');
-	await sleep(700);
-	await p.click(CONTROLS.spin);
 	let auto = null;
 	for (let i = 0; i < 40 && !auto; i++) {
 		await sleep(100);
 		if (await p.evaluate(() => document.querySelector('.hudp button.spin')?.getAttribute('aria-label')?.startsWith('Stop autoplay') === true)) auto = await snap(p);
 	}
-	check(!!auto, `${name}: an autoplay run started from the loaded Spin`);
+	check(!!auto, `${name}: an autoplay run started from the Autoplay menu's START`);
 	const rAuto = await ringNow(p);
 	check(!!rAuto && rAuto.counted && rAuto.ring && rAuto.square === null, `${name}: autoplay running: the thinned ring round the count, no stop square in the face`, rAuto);
 	if (auto) compare(name, 'autoplay running', idle, auto);
@@ -891,10 +889,8 @@ async function everyRoundTurns(browser) {
 	await p.evaluate(() => window.__reindeer.fixtures.next('no_win_1', true));
 	await p.click(CONTROLS.auto);
 	await sleep(700);
-	await p.click('.am-ui.layer.modals .go');
-	await sleep(700);
 	await spinRecStart(p);
-	await p.click(CONTROLS.spin);
+	await p.click('.am-ui.layer.modals .go'); // START: the run begins at once
 	for (let i = 0; i < 300; i++) {
 		const n = await p.evaluate(() => { const r = window.__spinRec.rows; return r.length ? r[r.length - 1].s - r[0].s : 0; });
 		if (n >= 7) break;
@@ -912,9 +908,7 @@ async function everyRoundTurns(browser) {
 	await sleep(700);
 	await p.locator('.am-ui.layer.modals button.chip').first().click().catch(() => {});
 	await sleep(300);
-	await p.click('.am-ui.layer.modals .go');
-	await sleep(700);
-	await p.click(CONTROLS.spin);
+	await p.click('.am-ui.layer.modals .go'); // START: the run begins at once
 	await sleep(1500);
 	for (let i = 0; i < 1200 && (await p.evaluate(() => !!document.querySelector('.hudp button.spin.m-auto'))); i++) await sleep(100);
 	await settle(p, S, 120000);
@@ -1192,9 +1186,7 @@ async function homePose(browser) {
 		const n0 = await lastRingN(p);
 		await p.click(CONTROLS.auto);
 		await sleep(700);
-		await p.click('.am-ui.layer.modals .go');
-		await sleep(700);
-		await p.click(CONTROLS.spin);
+		await p.click('.am-ui.layer.modals .go'); // START: the run begins at once
 		for (let i = 0; i < 600; i++) {
 			const R = (await ringRounds(p)).filter((r) => r.n > n0);
 			if (R.length >= 4) break;
@@ -1886,24 +1878,22 @@ async function tailSection(browser) {
 	await sleep(700);
 	await p.locator('.am-ui.layer.modals button.chip').first().click().catch(() => {});
 	await sleep(300);
-	await p.click('.am-ui.layer.modals .go');
-	await sleep(700);
 	await tailRecStart(p);
-	await p.click(CONTROLS.spin);
+	await p.click('.am-ui.layer.modals .go'); // START: the run begins at once
 	await sleep(1500);
 	for (let i = 0; i < 2400 && (await p.evaluate(() => window.__reindeer.hud.autoLimits().count > 0 || !!document.querySelector('.hudp button.spin.m-auto'))); i++) await sleep(100);
 	await settle(p, S, 120000);
 	await p.evaluate(() => window.__reindeer.fixtures.clear?.());
 	const arows = await tailRecStop(p);
 	const a1 = await wallet(p);
-	// (the loaded count: the run's counter is set by the Spin press that starts it, ui/controls.svelte.ts startLoadout, and
-	// counts down after each round, so its largest value over the run is the count loaded; before the press it reads 0)
+	// (the run's count: its counter is set by the menu's START, ui/controls.svelte.ts startAutoplay, and counts down
+	// after each round, so its largest value over the run is the count started; before the press it reads 0)
 	const count = Math.max(0, ...arows.map((r) => r.auto));
 	const inRun = arows.filter((r) => r.auto > 0);
 	const spinInRun = inRun.filter((r) => actAt(r) === 'Spin');
 	check(inRun.length > 0 && spinInRun.length === 0, `tail autoplay: the key never read Spin while the run had spins left (${spinInRun.length} of ${inRun.length} frames)`, spinInRun.slice(0, 3));
 	check(arows.every((r) => !r.tail?.kept), 'tail autoplay: no press was kept (the run starts its own rounds)');
-	check(count > 0 && a1.plays.length - a0.plays.length === (count === Infinity ? -1 : count), `tail autoplay: every loaded round played (${a1.plays.length - a0.plays.length} of ${count})`);
+	check(count > 0 && a1.plays.length - a0.plays.length === (count === Infinity ? -1 : count), `tail autoplay: every round of the run played (${a1.plays.length - a0.plays.length} of ${count})`);
 	const lastRest = arows.filter((r) => r.auto === 0 && r.rest && r.plays === a1.plays.length);
 	check(lastRest.length > 0 && lastRest.every((r) => actAt(r) === 'Spin'), `tail autoplay: after the run's last round, at rest, the key reads Spin (${lastRest.length} frames)`, lastRest.filter((r) => actAt(r) !== 'Spin').slice(0, 3));
 	ownerRule('autoplay', arows);
@@ -2618,10 +2608,8 @@ async function signHud(browser) {
 				await p.evaluate(() => window.__reindeer.fixtures.next('plain_line_win'));
 				await p.click('.hudp button[aria-label="Autoplay"]');
 				await sleep(700);
-				await p.click('.am-ui.layer.modals .go');
-				await sleep(600);
 				await signRecStart(p);
-				await p.click('.hudp button.spin');
+				await p.click('.am-ui.layer.modals .go'); // START: the run begins at once
 				for (let i = 0; i < 200 && (await plays()) < n0 + 1; i++) await sleep(50);
 				await p.evaluate(() => window.__reindeer.fixtures.next('no_win_1', true));
 				for (let i = 0; i < 600 && (await plays()) < n0 + 4; i++) await sleep(100);

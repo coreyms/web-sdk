@@ -1,6 +1,6 @@
 <script lang="ts">
 	// THE SPIN (Drop 6): the hero circle, one size in every state; every count lives inside it. What it does is
-	// controls.svelte.ts's, unchanged (spin / stop / slam stop / start a loaded run / stop a run / the balance notice);
+	// controls.svelte.ts's, unchanged (spin / stop / slam stop / stop a run / the balance notice);
 	// this is only its face. THE FACE is concept G2 "Lane Ring" (Corey's pick, spin symbols round 2, 2026-11-20;
 	// ui/hud/spinRing.ts draws it and turns it):
 	//   idle            the lane ring at rest: road-lane dashes shrinking away round the ring from one painted chevron
@@ -11,7 +11,6 @@
 	//   busy            (under disabledSlamstop) the ring turns, no square, the face dimmed
 	//   autoplay run    the thinned ring at the key's edge turns with each round round the count: a small square (its
 	//                   stop), the spins left (an infinity drawn in SVG for an open run), AUTO
-	//   autoplay loaded the thinned ring at rest round a small play triangle, the loaded count, AUTO, a dotted gold ring
 	//   free spins      the spin in play OF the total; the ring's own track fills in the accent to the same share and the
 	//                   thinned ring turns over the fill in each spin
 	//   armed buy       the thinned ring at rest round a small play triangle, the mode's name and the price of the press
@@ -35,7 +34,6 @@
 	const showStop = $derived(controls.showStop());
 	const fs = $derived(controls.freeSpin());
 	const showFreeSpins = $derived(!replay || replayState.phase === 'playing');
-	const loaded = $derived(controls.autoLoadout());
 	const armed = $derived(controls.armedBuy() !== null);
 	// (the round's tail reads as at rest: ui/controls.svelte.ts keyIdle, 2026-11-22)
 	const idle = $derived(controls.keyIdle());
@@ -45,14 +43,14 @@
 	const wheelWait = $derived(controls.wheelWaits() && !replay);
 
 	const mode = $derived(
-		wheelWait ? 'idle' : fs && showFreeSpins ? 'feature' : replay ? 'replay' : showStop ? 'spinning' : autoActive ? 'auto' : !idle ? 'busy' : loaded ? 'loaded' : armed ? 'armed' : 'idle',
+		wheelWait ? 'idle' : fs && showFreeSpins ? 'feature' : replay ? 'replay' : showStop ? 'spinning' : autoActive ? 'auto' : !idle ? 'busy' : armed ? 'armed' : 'idle',
 	);
 	/** the faces that share the full ring (the stop square pops in over it) */
 	const flip = $derived(mode === 'idle' || mode === 'spinning' || mode === 'busy');
 	/** the face's state: at rest (idle), stop available (run), stop pressed (halt: the stop already taken, the round still
 	 *  playing) */
 	const st = $derived(mode === 'spinning' ? (disabled ? 'halt' : 'run') : 'idle');
-	const count = $derived(mode === 'auto' ? controls.autoCount() : mode === 'loaded' && loaded ? loaded.count : 0);
+	const count = $derived(mode === 'auto' ? controls.autoCount() : 0);
 	const priceText = $derived(mode === 'armed' ? (controls.playCostText() ?? '') : '');
 	const priceFont = $derived(priceText ? fitFont({ text: priceText, nominal: d * 0.13, box: d * 0.7, minScale: 0.55, weight: 900, face: UI_TEXT_FACE }) : null);
 	// ONE reading for assistive technology (2026-11-18): in free spins the counter's own words ("9 of 10"), in autoplay
@@ -121,7 +119,7 @@
 		kick();
 	};
 	/** a face that rests (no round of its own is playing on it) */
-	const restingMode = (m: string) => m === 'idle' || m === 'loaded' || m === 'armed' || m === 'replay';
+	const restingMode = (m: string) => m === 'idle' || m === 'armed' || m === 'replay';
 	/** each frame while a round can play: wind up on a new spin, brake as the board comes to rest (onto the home pose:
 	 *  the driver plans the ring's whole way to rest from what the board says, ui/hud/ringPlan.ts) */
 	const tick = () => {
@@ -255,7 +253,7 @@
 	});
 
 	// ---- the count (autoplay, free spins): a change slides ----
-	const cntText = $derived(mode === 'feature' && fs ? String(fs.current) : (mode === 'auto' || mode === 'loaded') && count !== Infinity ? String(count) : '');
+	const cntText = $derived(mode === 'feature' && fs ? String(fs.current) : mode === 'auto' && count !== Infinity ? String(count) : '');
 	let cnt = $state({ cur: '', old: '', k: 0 });
 	$effect(() => {
 		const t = cntText;
@@ -330,7 +328,7 @@
 	<i class="halo"></i>
 	<svg class="ring" viewBox="0 0 100 100" aria-hidden="true">
 		<circle class="trk" cx="50" cy="50" r="46" />
-		{#if mode === 'loaded' || mode === 'armed' || wheelWait}
+		{#if mode === 'armed' || wheelWait}
 			<circle class="arc dash" cx="50" cy="50" r="46" />
 		{/if}
 	</svg>
@@ -354,8 +352,8 @@
 			{@render counter()}<span class="sub">OF {fs.total}</span>
 		{:else if mode === 'replay'}
 			<span class="word">REPLAY</span>
-		{:else if mode === 'auto' || mode === 'loaded'}
-			{#if mode === 'auto'}<span class="sqs"></span>{:else}<svg class="pl sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.2v11.6L19 12z" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" /></svg>{/if}
+		{:else if mode === 'auto'}
+			<span class="sqs"></span>
 			{#if count === Infinity}<span class="cnt"><svg class="inf" viewBox="0 0 34 16" aria-hidden="true"><path d="M17 8C14.2 4.4 11.9 2.6 9 2.6a5.4 5.4 0 0 0 0 10.8c2.9 0 5.2-1.8 8-5.4s5.1-5.4 8-5.4a5.4 5.4 0 0 1 0 10.8c-2.9 0-5.2-1.8-8-5.4z" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" /></svg></span>{:else}{@render counter()}{/if}
 			<span class="sub">AUTO</span>
 		{:else if mode === 'armed'}

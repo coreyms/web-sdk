@@ -24,7 +24,6 @@
 .hudp.sg .spin.sgb:disabled:not([data-st='halt']),
 .hudp.sg .spin.sgb:active:not(:disabled),
 .hudp.sg .spin.sgb:hover:not(:disabled),
-.hudp.sg .spin.sgb.m-loaded,
 .hudp.sg .spin.sgb.m-feature:disabled,
 .hudp.sg .spin.sgb.m-auto:disabled {
 	position: absolute;

@@ -5,7 +5,4 @@
 // menu shows what is active before it shows what was looked at last (ui/FeatureMenu.svelte).
 export type FastLanePick = 'ANTE' | 'BONUS' | 'SUPER';
 
-// unloadedByAutoplay: the feature LOAD in the Autoplay menu just unloaded (ui/controls.svelte.ts loadAutoplay, 2026-11-19).
-// The Fast Lane opens on that tile once with its "is unloaded" line, as after its own UNLOAD; the run's start or its
-// unload clears it.
-export const fastLaneMemory: { pick: FastLanePick | null; stop: number | null; unloadedByAutoplay: 'BONUS' | 'SUPER' | null } = { pick: null, stop: null, unloadedByAutoplay: null };
+export const fastLaneMemory: { pick: FastLanePick | null; stop: number | null } = { pick: null, stop: null };

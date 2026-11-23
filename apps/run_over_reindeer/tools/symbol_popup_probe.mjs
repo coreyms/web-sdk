@@ -576,14 +576,12 @@ async function rounds() {
 		ok((await st(p)).open && (await plays(p)) === n0, 'after the Free Spins round, a tap at rest opens it and starts no round');
 		await p.keyboard.press('Escape');
 
-		// an autoplay run: load 10 and start, taps all through the run (its gaps too), then stop
+		// an autoplay run: START it from the menu (the run begins at once), taps all through the run (its gaps too), then stop
 		n0 = await plays(p);
 		await p.click('.hudp button[aria-label="Autoplay"]');
 		await sleep(600);
-		await p.click('.am-ui.layer.modals .go');
-		await sleep(600);
 		await tapsThrough(c, 'an autoplay run', async () => {
-			await p.click('.hudp button.spin');
+			await p.click('.am-ui.layer.modals .go');
 			const t0 = Date.now();
 			while (Date.now() - t0 < 90000 && (await plays(p)) < n0 + 3) await sleep(200);
 			ok((await plays(p)) >= n0 + 3, `the autoplay run played ${(await plays(p)) - n0} rounds before the stop`);

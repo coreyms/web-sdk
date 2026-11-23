@@ -1,8 +1,7 @@
 <script lang="ts">
 	// AUTO AND TURBO on the sign bar (the C road sign diamonds of auto_turbo_themes_r1, in his glass): one fixed diamond
 	// each. Behaviour, sounds and disabled rules are ui/controls.svelte.ts's, unchanged (ui/hud/HudKey.svelte's).
-	//   Auto   the circle arrow alone; green glass, red while a run is loaded on the Play or running (the arrow turns
-	//          while it runs)
+	//   Auto   the circle arrow alone; green glass, red while a run is running (the arrow turns while it runs)
 	//   Turbo  its bolt, its word and its level pips (bolt and pips only where the word would be under about 10 CSS px);
 	//          green glass, the Q tile's yellow at Turbo, a hotter orange at Super Turbo (three pips, two under the
 	//          operator's disabledSuperTurbo)
@@ -22,8 +21,7 @@
 	const level = $derived(controls.turboLevel());
 	const bars = $derived(controls.jurisdiction().disabledSuperTurbo ? 2 : 3);
 	const running = $derived(controls.autoRunning());
-	const loaded = $derived(controls.autoLoadout() !== null);
-	const t = $derived(kind === 'auto' ? (running || loaded ? 'on' : 'off') : level === 2 ? 'hot' : level === 1 ? 'on' : 'off');
+	const t = $derived(kind === 'auto' ? (running ? 'on' : 'off') : level === 2 ? 'hot' : level === 1 ? 'on' : 'off');
 	const tints: Record<string, string> = kind === 'auto' ? { off: SIGN.green, on: SIGN.red } : { off: SIGN.green, on: SIGN.yellow, hot: SIGN.hot };
 	const frame = $derived(keyFrame(w, tints, kind === 'turbo' ? { on: [SIGN.key.glow, 0.55], hot: [SIGN.key.glowHot, 1] } : {}));
 	const ink = $derived(glassInk(tints[t] ?? SIGN.green));
@@ -39,7 +37,7 @@
 <button
 	type="button"
 	class="slot-btn hg sgb sgk sgk-{kind}"
-	class:is-on={kind === 'auto' && (running || loaded)}
+	class:is-on={kind === 'auto' && running}
 	class:is-run={kind === 'auto' && running}
 	data-t={t}
 	data-l={kind === 'turbo' ? level : undefined}

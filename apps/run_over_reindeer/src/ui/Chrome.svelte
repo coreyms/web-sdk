@@ -75,7 +75,7 @@
 			win: () => stateBet.winBookEventAmount,
 			mode: () => stateBet.activeBetModeKey,
 			setMode: (key: string) => (stateBet.activeBetModeKey = key),
-			// the run's stops as amounts (ui/controls.svelte.ts startLoadout): fast_lane_probe's autofeature reads them
+			// the run's stops as amounts (ui/controls.svelte.ts startAutoplay): fast_lane_probe's autofeature reads them
 			autoLimits: () => ({ loss: stateBet.autoSpinsLossLimitAmount, win: stateBet.autoSpinsSingleWinLimitAmount, count: stateBet.autoSpinsCounter }),
 			emit: (event: any) => context.eventEmitter.broadcast(event),
 			// THE WIN ODOMETER's state (ui/hud/winOdometer.ts; tools/hud_probe.mjs section `cards`): its mode, the total, what
@@ -131,7 +131,7 @@
      auto-repeat, so a held Space plays one round. It was:
      {#if !controls.isReplay() && !controls.jurisdiction().disabledSpacebar && stateModal.modal == null}<EnableSpaceHold />{/if} -->
 <!-- Space must never spin under an open modal: with a buy mode armed that press is a real 100×–300×
-     purchase behind the dialog, and with a parked autoplay loadout it starts the whole run.
+     purchase behind the dialog.
      pressGates: while a press-to-continue presentation is up, Space belongs to it alone — otherwise
      the same press also hit controls.spin → stopButtonClick, force-enabling turbo. -->
 <SpinHotkey

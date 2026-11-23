@@ -10,9 +10,8 @@ import { getContext } from '../game/context';
 import { betCostFull } from '../game/modeChipData';
 import { modeShortLabel } from '../game/betModeMeta';
 import { soc } from '../game/social';
-import type { AutoLoadout } from '../game/stateGame.svelte';
+import type { AutoRun } from '../game/stateGame.svelte';
 import { SLAM_HURRY, SPIN_TAIL } from '../game/constants';
-import { fastLaneMemory } from '../game/fastLaneMemory';
 
 export const createControls = () => {
 	const context = getContext();
@@ -62,18 +61,16 @@ export const createControls = () => {
 	};
 	const cancelArmed = () => {
 		stateBet.activeBetModeKey = 'BASE';
-		context.stateGame.autoLoadout = null; // one gesture, clean slate: mode AND autoplay unload
 	};
 	const autoRunning = () => stateBetDerived.hasAutoBetCounter();
 	const autoCount = () => stateBet.autoSpinsCounter;
 	const autoCountText = () => (stateBet.autoSpinsCounter === Infinity ? INFINITY_MARK : `${stateBet.autoSpinsCounter}`);
 	const canAfford = () => betCostFull() > 0 && betCostFull() <= stateBet.balanceAmount;
-	// AUTOPLAY NEVER PLAYS A LOADED FEATURE (2026-11-19, the rule startLoadout below has kept since the Stake review of
-	// 2026-09-20, now on the screen too): a loaded feature and a loaded run never coexist. LOAD in the Autoplay menu unloads
-	// a loaded Free Spins or Super Free Spins round at once (loadAutoplay), the Fast Lane cannot load one while a run
-	// waits on Spin (buyMode, ui/FeatureMenu.svelte), and every amount the Autoplay menu shows is the price of what the run
-	// will play: the base amount with a feature loaded (it is unloaded on LOAD), the full Ante price with the Ante on (the
-	// Ante persists through a run).
+	// AUTOPLAY NEVER PLAYS A LOADED FEATURE (2026-11-19, the rule startAutoplay below has kept since the Stake review of
+	// 2026-09-20, now on the screen too): a loaded feature and a run never coexist. START in the Autoplay menu unloads a
+	// loaded Free Spins or Super Free Spins round as the run begins (startAutoplay), the Fast Lane cannot load one during a
+	// run (buyMode), and every amount the Autoplay menu shows is the price of what the run will play: the base amount with
+	// a feature loaded (it is unloaded on START), the full Ante price with the Ante on (the Ante persists through a run).
 	const autoSpinCost = () => (armedBuy() ? stateBet.betAmount : betCostFull());
 	const canAffordAuto = () => autoSpinCost() > 0 && autoSpinCost() <= stateBet.balanceAmount;
 	// Full price of one press for the spin-button face — the FULL currency string, never
@@ -126,7 +123,7 @@ export const createControls = () => {
 	const inTail = () => !isIdle() && context.stateGame.roundSettled && !held() && !isReplay() && !wheelWaits() && !autoRunning() && !screenOwned();
 	/** the key reads Spin in the tail (until a press there is taken) */
 	const tailSpin = () => inTail() && !tailPress;
-	/** the key shows its at-rest faces (Spin, a loaded run, an armed feature): the round machine idle, or the tail */
+	/** the key shows its at-rest faces (Spin, an armed feature): the round machine idle, or the tail */
 	const keyIdle = () => isIdle() || tailSpin();
 	$effect(() => {
 		const on = tailSpin();
@@ -141,11 +138,6 @@ export const createControls = () => {
 	};
 	/** what a press at rest does (no press sound: the caller voiced it) */
 	const pressAtRest = () => {
-		// a loaded autoplay run: the Spin press is what starts it
-		if (context.stateGame.autoLoadout) {
-			startLoadout();
-			return;
-		}
 		// an armed buy mode (BONUS / SUPER) plays ONE feature round: bookEventHandlerMap's
 		// finalWin drops it back to BASE when the round ends (Stake review 2026-09-20)
 		context.eventEmitter.broadcast({ type: 'bet' });
@@ -265,8 +257,10 @@ export const createControls = () => {
 		return true;
 	};
 
-	// ── autoplay (loadout flow: configure → LOAD to the spin button → Spin starts the run) ──
-	const autoLoadout = () => context.stateGame.autoLoadout;
+	// -- autoplay (2026-11-23, Corey: "What would it take to make that the Start Auto-play button and not have the load to
+	// button state?" after a tester could not find how to start a run): configure in the Autoplay menu, then its START
+	// key begins the run at once. The key names the count and the total and the player presses it inside the menu: that
+	// press is the confirmation Stake asks for (one press on Auto only opens the menu). Nothing is parked on the Spin key.
 	const autoDisabled = () => held() || stateBet.isSpaceHold || (!isIdle() && !autoRunning()) || !canAffordAuto();
 	const autoPress = () => {
 		if (jurisdiction().disabledAutoplay || held()) return;
@@ -277,48 +271,39 @@ export const createControls = () => {
 		}
 		stateModal.modal = { name: 'autoSpin' }; // SDK modal-name union; our AutoplayModal owns it
 	};
-	/** park a configured run on the spin button; nothing plays until Spin is pressed */
-	const loadAutoplay = (loadout: AutoLoadout) => {
-		// a loaded feature is unloaded here, when the run is loaded, not at the Spin press: from now the HUD, the Spin key
-		// and the Fast Lane all show the base game the run will play (the Fast Lane's tile says it was unloaded)
-		const dropped = armedBuy();
-		if (dropped === 'BONUS' || dropped === 'SUPER') {
-			stateBet.activeBetModeKey = 'BASE';
-			fastLaneMemory.unloadedByAutoplay = dropped;
+	/** START in the Autoplay menu: the run begins now, as the Spin press that started a loaded run did until 2026-11-23
+	 *  (the same checks in the same order, the same press sound, the same autoBet event, so the first round's timing is
+	 *  the Spin press's). Refused, with the card left as it was, while a round is held for a resume, in a replay, or
+	 *  while a round is in play; a short balance shows the balance notice (in place of the menu) and starts nothing. */
+	const startAutoplay = (run: AutoRun) => {
+		if (jurisdiction().disabledAutoplay || held() || isReplay() || !isIdle() || autoRunning()) return;
+		// the price of what the run will play (the base amount with a feature loaded: it is unloaded below): nothing
+		// changes when it cannot be met, the loaded feature included
+		if (!canAffordAuto()) {
+			sound('soundPressMinor');
+			stateModal.modal = { name: 'autoSpinMessage', message: 'insufficientBalance' };
+			return;
 		}
-		context.stateGame.autoLoadout = loadout;
 		stateModal.modal = null;
-		sound('soundPressMinor'); // the autoplay card's ACTIVATE (LOAD) — minor click, like the bonus ACTIVATEs
-	};
-	const clearAutoplay = () => {
-		context.stateGame.autoLoadout = null;
-		fastLaneMemory.unloadedByAutoplay = null;
-	};
-	const startLoadout = () => {
-		const loadout = context.stateGame.autoLoadout;
-		if (!loadout || held()) return;
-		// An autoplay run never plays a bought feature: the run would re-buy at the feature price on
-		// every press with no per-round confirmation (Stake review 2026-09-20). Drop the armed buy
-		// before the run starts, exactly as the SDK's own AutoSpinsStartButton does. Ante persists. (Since 2026-11-19
-		// loadAutoplay already unloads it when the run is loaded and buyMode refuses one on top of a run, so this is the
-		// last guard, not the place the player learns of it.)
+		sound('soundPressBet');
+		// An autoplay run never plays a bought feature: the run would re-buy at the feature price on every press with no
+		// per-round confirmation (Stake review 2026-09-20). Drop the armed buy as the run starts, exactly as the SDK's own
+		// AutoSpinsStartButton does. Ante persists.
 		if (armedBuy()) stateBet.activeBetModeKey = 'BASE';
-		fastLaneMemory.unloadedByAutoplay = null;
 		const perSpin = betCostFull();
-		stateBet.autoSpinsCounter = loadout.count;
+		stateBet.autoSpinsCounter = run.count;
 		// loss stop = cumulative net loss since the run began (SDK tracks balance delta); win stop =
 		// one spin's win. Both as multiples of a single spin's play amount; null = off.
-		stateBet.autoSpinsLossLimitAmount = loadout.lossMult ? loadout.lossMult * perSpin : Infinity;
-		stateBet.autoSpinsSingleWinLimitAmount = loadout.winMult ? loadout.winMult * perSpin : Infinity;
+		stateBet.autoSpinsLossLimitAmount = run.lossMult ? run.lossMult * perSpin : Infinity;
+		stateBet.autoSpinsSingleWinLimitAmount = run.winMult ? run.winMult * perSpin : Infinity;
 		// the SDK text fields carry a narrow preset union used only by its own (unmounted) UI — the
 		// real limits are the amount fields above
 		stateUi.autoSpinsLossLimitText = INFINITY_MARK;
 		stateUi.autoSpinsSingleWinLimitText = INFINITY_MARK;
 		// the run is always base/ante now (any armed buy was dropped above), so the player's choice stands
-		context.stateGame.autoStopOnFreeGames = loadout.stopFree;
+		context.stateGame.autoStopOnFreeGames = run.stopFree;
 		// door screens self-continue only while the run is live (autoBonusesRunning checks the counter)
-		context.stateGame.autoPlayBonuses = loadout.autoBonuses;
-		context.stateGame.autoLoadout = null; // consumed: one load = one run
+		context.stateGame.autoPlayBonuses = run.autoBonuses;
 		context.eventEmitter.broadcast({ type: 'autoBet' });
 	};
 
@@ -358,8 +343,8 @@ export const createControls = () => {
 		// Corey 2026-09-02: the bonus head button has its own voice again (ui-bonus.ogg, remixed);
 		// turbo / autoplay / denomination / menu share the minor click, the rest the general click
 		sound('soundPressBonus');
-		// with a mode on, the button OPENS the feature menu on that mode; switching off (and unloading a waiting
-		// autoplay run with it, cancelArmed) happens inside the menu (the house rule since Manticore's menu)
+		// with a mode on, the button OPENS the feature menu on that mode; switching off (cancelArmed) happens inside
+		// the menu (the house rule since Manticore's menu)
 		stateModal.modal = { name: 'buyBonus' };
 	};
 	const activateMode = (mode: string) => {
@@ -370,8 +355,8 @@ export const createControls = () => {
 		stateModal.modal = null;
 	};
 	const buyMode = (mode: string) => {
-		// never on top of a loaded autoplay run (the Fast Lane's ACTIVATE is unavailable then and says so)
-		if (held() || context.stateGame.autoLoadout) return;
+		// never during an autoplay run (the Fast Lane cannot open then: bonusDisabled; this is the last guard)
+		if (held() || autoRunning()) return;
 		// arm only: the feature loads onto the spin button for ONE round. Nothing is charged and
 		// nothing plays until the player presses Spin, and the round's finalWin returns the game to
 		// the base game, so the next feature round is a fresh selection + confirmation.
@@ -462,7 +447,7 @@ export const createControls = () => {
 		playCost: betCostFull,
 		autoSpinCost,
 		spinDisabled, showStop, spin, slamStop, boardTap, wheelWaits,
-		autoDisabled, autoPress, autoLoadout, loadAutoplay, clearAutoplay,
+		autoDisabled, autoPress, startAutoplay,
 		turboPress, turboLevel,
 		bonusDisabled, bonusPress, activateMode, buyMode, jurisdiction,
 		betOptions, betDisabled, openDenom, setBet,

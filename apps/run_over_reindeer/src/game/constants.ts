@@ -2444,8 +2444,6 @@ export const AUTOPLAY_COLOURS = { on: '#5f9149', stop: '#e32400' } as const;
 export const SPIN_PRICE_FIT = {
 	boxFrac: 0.86,
 	nominal: 0.23,
-	nominalLoaded: 0.19,
-	nominalLoadedArmed: 0.17,
 	minScale: 0.7,
 	weight: 800,
 	letterSpacing: -0.5,
