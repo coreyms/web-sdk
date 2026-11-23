@@ -387,9 +387,7 @@ export const fitWords = (lines: string[], poly: Pt[], cx: number, cy: number, ma
 };
 
 // ---- THE BET SYMBOLS: a bare chevron, red < and green >, with a white and a dark outline ----
-export const stepSvg = (dir: 1 | -1, D: { sw: number; white: number; dark: number; a: number; b: number }, w: number, h: number) => {
-	const cx = w / 2;
-	const cy = h / 2;
+export const stepSvg = (dir: 1 | -1, D: { sw: number; white: number; dark: number; a: number; b: number }, w: number, h: number, cx = w / 2, cy = h / 2) => {
 	const col = dir < 0 ? SIGN.red : SIGN.green;
 	const d = `M${f(cx - dir * D.a)} ${f(cy - D.b)}L${f(cx + dir * D.a)} ${f(cy)}L${f(cx - dir * D.a)} ${f(cy + D.b)}`;
 	const P = (cls: string, c: string, width: number) => `<path class="${cls}" d="${d}" stroke="${c}" stroke-width="${f(width)}"/>`;

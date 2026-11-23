@@ -37,7 +37,7 @@
 
 <button
 	type="button"
-	class="slot-btn hg sgb sgk {kind}"
+	class="slot-btn hg sgb sgk sgk-{kind}"
 	class:is-on={kind === 'auto' && (running || loaded)}
 	class:is-run={kind === 'auto' && running}
 	data-t={t}

@@ -2056,7 +2056,9 @@ async function signHud(browser) {
 			if (S.his && kind !== 'landscape') check(!!ref, `${tag}: this is one of his windows in the layout file`);
 			const want = (id) => (ref ? { x: ref.p[id][0], y: ref.p[id][1], w: ref.p[id][2], h: ref.p[id][3] } : d.geo.box[id]);
 			const off = [];
-			for (const id of Object.keys(SIGN_PIECES)) {
+			// (the Win box is hidden at rest 12 bar px under its place, the start of its short rise: its place is read below,
+			// once a win has brought it up)
+			for (const id of Object.keys(SIGN_PIECES).filter((k) => k !== 'win')) {
 				const a = d.dom[id];
 				const b = want(id);
 				if (!a) {
@@ -2135,6 +2137,15 @@ async function signHud(browser) {
 				else await sleep(120);
 			}
 			check(!!shown && /[1-9]/.test(shown.text), `${tag}: a win shows the Win box with its amount`, shown);
+			{
+				// its place, risen: his box (the header plate and the amount inside it)
+				await sleep(600);
+				const e = await signRead(p);
+				const a = e.dom.win;
+				const b = want('win');
+				const dd = a ? Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.w - b.w), Math.abs(a.h - b.h)) : 99;
+				check(dd <= 1, `${tag}: the Win box, up, within 1 CSS px of ${ref ? 'his place' : "the rule's place"}`, { off: r1(dd), drawn: a, his: b });
+			}
 			await settle(p, S);
 			await p.evaluate(() => window.__reindeer.fixtures.next('no_win_1'));
 			await spinOnce(p);

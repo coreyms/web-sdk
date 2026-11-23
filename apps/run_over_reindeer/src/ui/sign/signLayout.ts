@@ -537,6 +537,10 @@ export type Seat = {
 	amt: Box;
 	down: Box;
 	up: Box;
+	/** where each symbol is drawn, CSS px: its press box's middle, except where the box had to move in from the
+	 *  window's edge (then the symbol stays and only the unseen box moves) */
+	downC: Pt;
+	upC: Pt;
 	/** what the guard against the Play moved the group by, CSS px (0 at his windows) */
 	nudge: number;
 };
@@ -598,10 +602,22 @@ export const seatAmount = (g: SignGeo, widestEm: number, headW: number, limits: 
 	// THE GUARD: a symbol's press box never touches the Play's diamond; the group moves away from the Play
 	let nudge = 0;
 	const play = shapeOf('play', g.box.play);
-	const boxes = (c: number) => ({
-		down: { x: c - W / 2 - gap - keyW, y: cy - (sb.h * u) / 2, w: keyW, h: sb.h * u },
-		up: { x: c + W / 2 + gap, y: cy - (sb.h * u) / 2, w: keyW, h: sb.h * u },
-	});
+	// A PRESS BOX NEVER LEAVES THE WINDOW (2026-11-22, the probe host at 568 x 320: his amount there stands so near the
+	// right edge that the 44 px box round > ended 1 px past it; a control past the edge makes the browser scroll the
+	// whole fixed bar to it on a focus or a scripted press). The box moves in; the drawn symbol stays where his place
+	// puts it, so nothing he placed moves.
+	const keyH = sb.h * u;
+	const boxes = (c: number) => {
+		const y = Math.max(0, Math.min(cy - keyH / 2, g.vh - keyH));
+		const dx = c - W / 2 - gap - keyW;
+		const ux = c + W / 2 + gap;
+		return {
+			down: { x: Math.max(0, Math.min(dx, g.vw - keyW)), y, w: keyW, h: keyH },
+			up: { x: Math.max(0, Math.min(ux, g.vw - keyW)), y, w: keyW, h: keyH },
+			downC: [dx + keyW / 2, cy] as Pt,
+			upC: [ux + keyW / 2, cy] as Pt,
+		};
+	};
 	const touches = (c: number) => {
 		const q = boxes(c);
 		return shapeGap(boxPts(q.down), play) === 0 || shapeGap(boxPts(q.up), play) === 0;
@@ -617,7 +633,7 @@ export const seatAmount = (g: SignGeo, widestEm: number, headW: number, limits: 
 		cx += nudge;
 	}
 	const q = boxes(cx);
-	return { px: nominal * k, k, under, W, amt: { x: cx - W / 2, y: b.y, w: W, h: b.h }, down: q.down, up: q.up, nudge };
+	return { px: nominal * k, k, under, W, amt: { x: cx - W / 2, y: b.y, w: W, h: b.h }, down: q.down, up: q.up, downC: q.downC, upC: q.upC, nudge };
 };
 
 /** the Win box's glass round its readout, CSS px, and its corner radius (a pill on the desktop, 4 bar px on a phone) */
@@ -653,6 +669,7 @@ export const signProblems = (g: SignGeo, zones: Zones | null, seat: Seat | null,
 		const play = shapeOf('play', g.box.play);
 		if (shapeGap(boxPts(seat.down), play) === 0) out.push('< press box on the Play');
 		if (shapeGap(boxPts(seat.up), play) === 0) out.push('> press box on the Play');
+		for (const [n, q] of [['<', seat.down], ['>', seat.up]] as const) if (q.x < -0.05 || q.y < -0.05 || q.x + q.w > g.vw + 0.05 || q.y + q.h > g.vh + 0.05) out.push(`${n} press box off the window`);
 	}
 	for (const [id, d] of Object.entries(pressRegions(press))) if ((d as number) < TOUCH_MIN - 0.05) out.push(`${id} press region ${r1(d as number)}`);
 	return out;

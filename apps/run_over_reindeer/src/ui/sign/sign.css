@@ -148,7 +148,11 @@
 }
 
 /* ---- AUTO AND TURBO (the road sign diamonds) ---- */
-.hudp.sg .sgk:disabled {
+/* a key that cannot be pressed is dimmed on its CONTENTS, at once (2026-11-22, the probe host: the dim was on the
+   button's own opacity, which carries the bar's slow fade, so Auto stayed dim for two thirds of a second after a round
+   beside a bright Turbo). The button's own opacity is the bar's fade only. (The keys carry no class named auto or
+   turbo: the dock's rules for those names would paint its glass on them.) */
+.hudp.sg .sgk:disabled > .s-up {
 	opacity: 0.55;
 }
 .hudp.sg .sgk .s-in {

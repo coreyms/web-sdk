@@ -10,9 +10,10 @@
 	import { stepDraw } from './signLayout';
 	import { stepSvg } from './signDraw';
 
-	type Props = { dir: 1 | -1; controls: Controls; x: number; y: number; w: number; h: number; size: number };
-	/** x, y, w, h: the press box, bar px; size: the symbol's height, bar px */
-	const { dir, controls, x, y, w, h, size }: Props = $props();
+	type Props = { dir: 1 | -1; controls: Controls; x: number; y: number; w: number; h: number; size: number; cx?: number; cy?: number };
+	/** x, y, w, h: the press box, bar px; size: the symbol's height, bar px; cx, cy: where the symbol is drawn in the box
+	 *  (its middle, unless the box had to move in from the window's edge) */
+	const { dir, controls, x, y, w, h, size, cx, cy }: Props = $props();
 	const target = $derived(controls.betDisabled() ? undefined : betStepTarget(dir));
 	const step = () => {
 		const next = betStepTarget(dir);
@@ -21,7 +22,7 @@
 		controls.setBet(next, { silent: true });
 	};
 	const label = $derived(dir > 0 ? soc('Increase bet', 'Increase play amount') : soc('Decrease bet', 'Decrease play amount'));
-	const html = $derived(stepSvg(dir, stepDraw(size), w, h));
+	const html = $derived(stepSvg(dir, stepDraw(size), w, h, cx ?? w / 2, cy ?? h / 2));
 </script>
 
 <button

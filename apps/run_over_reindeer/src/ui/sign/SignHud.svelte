@@ -201,7 +201,7 @@
 		{/if}
 	</div>
 	<div class="dc" style:--rs={geo.rs.amt} style:--hf="{headFs(geo.rs.amt)}px">
-		{#if !replay}<SignStep dir={-1} {controls} x={seat.down.x / u} y={seat.down.y / u} w={SB.w} h={SB.h} size={geo.step} />{/if}
+		{#if !replay}<SignStep dir={-1} {controls} x={seat.down.x / u} y={seat.down.y / u} w={SB.w} h={SB.h} size={geo.step} cx={(seat.downC[0] - seat.down.x) / u} cy={(seat.downC[1] - seat.down.y) / u} />{/if}
 		{#if !replay || rh}
 			<HudReadout
 				label={amtLabel}
@@ -221,7 +221,7 @@
 				face={OVER}
 			/>
 		{/if}
-		{#if !replay}<SignStep dir={1} {controls} x={seat.up.x / u} y={seat.up.y / u} w={SB.w} h={SB.h} size={geo.step} />{/if}
+		{#if !replay}<SignStep dir={1} {controls} x={seat.up.x / u} y={seat.up.y / u} w={SB.w} h={SB.h} size={geo.step} cx={(seat.upC[0] - seat.up.x) / u} cy={(seat.upC[1] - seat.up.y) / u} />{/if}
 	</div>
 	<HudMenuPanel {controls} x={panel.x} y={panel.y} W={panel.w} H={panel.h} tip={0} up={panel.up} T={0} cls={panel.cls} />
 </div>
