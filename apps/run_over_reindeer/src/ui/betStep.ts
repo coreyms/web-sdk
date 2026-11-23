@@ -25,7 +25,7 @@ export const betStepTarget = (dir: 1 | -1) => {
 // menu (finite, known from authenticate) × the active mode's multiplier, so the −/+ buttons hold
 // still across bet steps and only re-seat when a mode is armed. Before the font is ready the
 // width is estimated from length. `cap` keeps a trillion-scale GC menu from pushing the stepper
-// into the neighbouring readout — TrioStat's fit shrinks the amount instead.
+// into the neighbouring readout: TrioStat's fit shrinks the amount instead.
 export const betSlotWidth = (height: number, cap: number) => {
 	const mult = stateBetDerived.activeBetMode()?.costMultiplier ?? 1;
 	let widest = 0;
@@ -40,8 +40,10 @@ export const betSlotWidth = (height: number, cap: number) => {
 // the current mode can show over the whole bet menu, in em of the amount's face (`em` measures one string); the caller
 // reserves that width at its type size and seats the two bet symbols either side of it (ui/sign/signLayout.ts
 // seatAmount), so they hold still across bet steps and only re-seat when a mode is armed.
-export const betWidestEm = (em: (text: string) => number) => {
-	const mult = stateBetDerived.activeBetMode()?.costMultiplier ?? 1;
+// (2026-11-24, Corey: "I should have said per game mode ... The arrows should stay where they are at": the sign bar seats
+// its symbols for the BASE game's widest price, `mult` 1, and sizes the number for the mode in play, `mult` left out:
+// ui/sign/signLayout.ts amountType.)
+export const betWidestEm = (em: (text: string) => number, mult: number = stateBetDerived.activeBetMode()?.costMultiplier ?? 1) => {
 	let widest = 0;
 	let text = '';
 	for (const o of stateConfig.betAmountOptions) {

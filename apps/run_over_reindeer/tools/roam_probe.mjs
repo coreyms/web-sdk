@@ -65,15 +65,21 @@
 //      speck measured on screenshots against the ground around them, 3 to 1 at least (ONLY=contrast alone, CROPS, BEFORE).
 //   HIS GROUND AT COREY'S ROUND 3 PHONE WINDOWS (2026-11-23, section `ground`; Corey: "remap the reindeers walking
 //      area so it's below the tree lines, and above the board area for phones, where the baord and treeline where
-//      moved"; game/roamGround.ts): at each of the seven windows the scene as drawn agrees with the layout's own rule
-//      to 1 CSS px (the tree line he stands under, the asphalt's top, the logo's keep-out against the sign bar's own
-//      copy of it), his move of the board and of the tree line is printed, every seeded pick and walk in has its feet
-//      under the tree line and above the asphalt and his body off every key, the logo, the LED strip and the board,
-//      and A WALK IN IS FOUND at 440x742, 413x586 and 832x376 (the three sizes measured on Corey's phone); at the
-//      other four the count is printed. The node model (the builder's, 2026-11-23) found a level way in at 440x742
-//      and 832x376 and NONE at 413x586, 375x530 and 626x816: there the Fast Lane key's column closes his side from
-//      above the tree line down to within his own height of the snow rim (he would walk in under the key). That is
-//      a question for Corey, not a probe fault: the line stays as asked until he rules.
+//      moved"; game/roamGround.ts): at each of the seven windows and at 360x560 the scene as drawn agrees with the
+//      layout's own rule to 1 CSS px (the tree line he stands under, the asphalt's top, the logo's keep-out against
+//      the sign bar's own copy of it), his move of the board and of the tree line is printed, every seeded pick and
+//      walk in has its feet under the tree line and above the asphalt and his body off every key, the logo, the LED
+//      strip and the board, and A WALK IN IS FOUND at 440x742, 413x586, 832x376 and 360x560.
+//      UNDER THE SIGN (Corey 2026-11-24: "Let him pass under the sign"): the Fast Lane and Menu signs are zones named
+//      'sign'. He never stands under one. A walk IN may cross behind one, only where no way in is clear of every key
+//      (the game marks that pick underSign): at 360x560 every walk in is such a one (the builder's node model:
+//      tools/roam_ground_test.mjs), at 440x742 and 832x376 none is.
+//      413x586 IS EXPECTED TO FAIL, as are 375x530 and 626x816 where they are listed: the builder's first reading
+//      (the Fast Lane sign alone closes his side) was wrong. With the sign passable the node model still finds no way
+//      in there: the right tunnel's mouth (a keep-out since 2026-11-18, Corey: "we should just make this a shape
+//      where it can't go") reaches from the screen's edge to 12 road px above the road picture's top, and on these
+//      short pages the tree line stands under that height, so the only way round the mouth is on the trees. The line
+//      stays as asked until Corey rules on it; `walkIn` in GROUND_SIZES is the one switch.
 //   a hidden tab: nothing moves; no page errors anywhere
 //
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3015 [ONLY=desktop|sideways|upright]
@@ -126,9 +132,11 @@ const GROUND_SIZES = [
 	['832x376', true, true],
 	['667x311', false, true],
 	['890x552', false, false],
-].map(([wh, walkIn, tier]) => {
+	// (not one of his: the short upright window where the Fast Lane sign alone closes his side: a walk in behind it)
+	['360x560', true, true, 'under'],
+].map(([wh, walkIn, tier, sign]) => {
 	const [width, height] = wh.split('x').map(Number);
-	return { name: `ground:${wh}`, vp: { width, height }, dpr: 1, q: tier ? '&tier=phone' : '', touch: true, walkIn };
+	return { name: `ground:${wh}`, vp: { width, height }, dpr: 1, q: tier ? '&tier=phone' : '', touch: true, walkIn, sign: sign ?? 'clear' };
 });
 
 let pass = 0;
@@ -584,7 +592,9 @@ async function runSize(browser, S) {
 			for (let i = L === 0 ? 1 : 0; i < n; i++) {
 				const x = a.x + ((b.x - a.x) * i) / n;
 				const y = a.y + ((b.y - a.y) * i) / n;
-				const hw = hitsAt(geo, zones, x, y, true).filter((z) => !(q.walkIn && z === 'screen'));
+				// (a walk in that found no way clear of every key may cross behind the Fast Lane or Menu sign, Corey
+				// 2026-11-24: "Let him pass under the sign"; the game marks such a pick underSign)
+				const hw = hitsAt(geo, zones, x, y, true).filter((z) => !(q.walkIn && z === 'screen') && !(q.walkIn && q.underSign && z === 'sign'));
 				if (onTrees(geo.roam.trees, x, y)) hw.push('the trees');
 				if (hw.length) {
 					bad.push(`the walk to (${r1(q.x)}, ${r1(q.y)}) covers ${hw.join(', ')} at (${r1(x)}, ${r1(y)})`);
@@ -2141,7 +2151,9 @@ async function groundSize(browser, S) {
 	check(!!d.G && (d.G.treeY === null) === (live === null) && (live === null || Math.abs(live.line - d.G.treeY) <= 1) && !!road && Math.abs(road.y0 - d.G.roadY) <= 1, `${name}: the scene as drawn is the layout's own rule to 1 px: ${live ? `the tree line at ${r1(live.line)} (rule ${r1(d.G?.treeY)})` : 'no tree line (the rule: none)'}, the asphalt's top at ${road ? r1(road.y0) : '?'} (rule ${r1(d.G?.roadY)})`, out.ground);
 	if (live) check(live.feet < d.G.bottom && d.G.bottom < d.G.roadY && d.G.roadY <= d.board.y + 1, `${name}: his ground is a strip under the tree line and above the board: feet from ${r1(live.feet)} to ${r1(d.G.bottom)} (${r1(d.G.bottom - live.feet)} px), the asphalt at ${r1(d.G.roadY)}, the columns at ${r1(d.board.y)}`, out.ground);
 	else check(d.G.bottom <= d.G.roadY && d.G.roadY <= d.board.y + 1, `${name}: no tree line here: his ground runs from the window's top edge (his whole body on the screen, under the top line) down the snow rim to the asphalt at ${r1(d.G.roadY)}, above the columns at ${r1(d.board.y)}`, out.ground);
-	if (logo && d.signZones?.logo) {
+	// (at his own windows, where his logo box stands whole; a window with a part share of it also takes the game's own
+	// drop to the tree line, which the sign bar's copy of the box leaves out)
+	if (logo && d.signZones?.logo && (d.scene?.share ?? 0) >= 1) {
 		const L = d.signZones.logo;
 		check(Math.abs(logo.x0 - L.x) <= 1.5 && Math.abs(logo.y0 - L.y) <= 1.5 && Math.abs(logo.x1 - L.x - L.w) <= 1.5 && Math.abs(logo.y1 - L.y - L.h) <= 1.5, `${name}: the logo's keep-out is the sign where it is drawn (his own box here), the same box the sign bar keeps off`, { roam: [logo.x0, logo.y0, logo.x1, logo.y1].map(r1), bar: [L.x, L.y, L.x + L.w, L.y + L.h].map(r1) });
 	}
@@ -2151,17 +2163,44 @@ async function groundSize(browser, S) {
 	const bad = [];
 	let found = 0;
 	let ins = 0;
+	let under = 0;
 	for (const q of picks) {
 		if (q.pass < 0) continue;
 		if (q.walkIn) ins++;
 		else found++;
+		if (q.walkIn && q.underSign) under++;
 		if (onTrees(d.roam.trees, q.x, q.y)) bad.push(`${q.walkIn ? 'walk in' : 'pick'} (${r1(q.x)}, ${r1(q.y)}) on the trees`);
+		// (where he stops: off every keep-out, the signs too: he never stands under a key)
 		const h0 = hitsAt(geo, d.zones, q.x, q.y);
 		if (h0.length) bad.push(`${q.walkIn ? 'walk in' : 'pick'} (${r1(q.x)}, ${r1(q.y)}) covers ${h0.join(', ')}`);
+		// (a walk in's way from past the edge, every 4 road px: off everything but, where the game says the way is
+		// under the sign, the Fast Lane and Menu signs)
+		if (q.walkIn) {
+			const legs = q.route && q.route.length > 1 ? q.route : [{ x: q.fromX, y: q.fromY }, { x: q.x, y: q.y }];
+			let broke = false;
+			for (let L = 0; L + 1 < legs.length && !broke; L++) {
+				const a = legs[L];
+				const b = legs[L + 1];
+				const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 4));
+				for (let i = L === 0 ? 1 : 0; i < n && !broke; i++) {
+					const x = a.x + ((b.x - a.x) * i) / n;
+					const y = a.y + ((b.y - a.y) * i) / n;
+					const hw = hitsAt(geo, d.zones, x, y, true).filter((z) => z !== 'screen' && !(q.underSign && z === 'sign'));
+					if (onTrees(d.roam.trees, x, y)) hw.push('the trees');
+					if (hw.length) {
+						bad.push(`the walk in to (${r1(q.x)}, ${r1(q.y)})${q.underSign ? ' (under the sign)' : ''} covers ${hw.join(', ')} at (${r1(x)}, ${r1(y)})`);
+						broke = true;
+					}
+				}
+			}
+		}
 		if (css(q.y) > d.G.roadY + 0.5 && q.x > 0 && q.x < 1536 && v.kind === 'portrait') bad.push(`${q.walkIn ? 'walk in' : 'pick'} (${r1(q.x)}, ${r1(q.y)}) on or under the asphalt's top`);
 	}
-	out.ground.picks = { found, of: 120, walkIns: ins, ofWalkIns: 40, capacity: d.roam.capacity };
-	check(bad.length === 0, `${name}: ${found} of 120 seeded picks and ${ins} of 40 walk ins: every one's feet under the tree line and above the asphalt, his body off every key, the logo, the LED strip and the top line (the area holds ${d.roam.capacity} spots 12 % of the width apart)`, bad.slice(0, 6));
+	out.ground.picks = { found, of: 120, walkIns: ins, underSign: under, ofWalkIns: 40, capacity: d.roam.capacity };
+	const signs = d.zones.filter((z) => z.name === 'sign').length;
+	check(signs >= 1, `${name}: the Fast Lane and Menu signs are zones of their own (${signs} 'sign' zones): he never stands under one, a walk in may cross behind one where no other way is clear`, d.zones.map((z) => z.name));
+	if (S.walkIn) check(S.sign === 'under' ? ins > 0 && under === ins : under === 0, S.sign === 'under' ? `${name}: his side is closed by the Fast Lane sign alone here: every walk in found (${ins}) crosses behind it (${under} marked underSign)` : `${name}: a way in clear of every key exists here, so no walk in goes behind a sign (${under} of ${ins})`, out.ground.picks);
+	check(bad.length === 0, `${name}: ${found} of 120 seeded picks and ${ins} of 40 walk ins (${under} behind a sign): every one's feet under the tree line and above the asphalt, where he stops his body off every key, sign, the logo, the LED strip and the top line, and every walk in's way off all of them but a sign it is marked to pass (the area holds ${d.roam.capacity} spots 12 % of the width apart)`, bad.slice(0, 6));
 	if (S.walkIn) check(ins > 0, `${name}: he can walk in here (${ins} of 40 seeded walk ins found a spot with a clear way in from past the edge)`, out.ground);
 	else console.log(`  INFO ${name}: walk ins found ${ins} of 40 (listed: not asked at this size)`);
 	check(errs.length === 0, `${name}: no page errors`, errs.slice(0, 5));

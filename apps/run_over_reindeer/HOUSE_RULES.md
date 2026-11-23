@@ -78,8 +78,28 @@ events (`game/bookEventHandlerMap.ts`). Every decision taken is one line in `doc
   steps down on its own. His bet symbols stay where he put them (`amtHalf`).
   THE ROAMING REINDEER'S GROUND follows by construction and is written down in `game/roamGround.ts`: his area is in
   road px (it rides with the board), the tree line is the drawn forest's (`game/scene/forestPlace.ts`), every key
-  is a keep-out. On the short framed pages (413x586, 375x530, 626x816) the Fast Lane key closes his side and no
-  level walk in is clear: open question for Corey.
+  is a keep-out. UNDER THE SIGN (Corey 2026-11-24: "Let him pass under the sign"): the Fast Lane and Menu signs
+  are roam zones named `sign` (`components/Board.svelte` roamZones); he never stands under one; a walk IN may cross
+  behind one, only where no way in is clear of every key (`roam.ts` pick, marked `underSign`; 360x560 is such a
+  window). OPEN: at 413x586, 375x530 and 626x816 he still has no way in, because the right tunnel's mouth, not the
+  sign, closes his side there (the tree line stands under the mouth's top); `tools/roam_ground_test.mjs` holds it.
+  THE HOME INDICATOR'S STRIP (sideways, the bottom 20 px, `HOME_STRIP`): where the bet symbols' press boxes or the
+  Win box's glass would stand in it, the amount group and the Win box rise together by the least that clears it
+  and Balance with them by its own rule (`homeLifts`, in `SignGeo.lift`; Corey: "Nudge them up"): 9.5 px and 6.2 px
+  at his 667x311, nothing at 832x376 or 568x320.
+  AUTO AND TURBO ARE LEVEL UPRIGHT (`levelKeys`, Corey 2026-11-24: "I wanted the Turbo and Auto Modes to be at the
+  same height"): their centers on one line (the mean of his two) and one size (the larger of his two), each center's
+  x his; sideways they stay stacked as he placed them.
+  THE AMOUNT: THE ARROWS STAY, THE NUMBER FOLLOWS THE GAME MODE (`amountType`, `ui/betStep.ts` betWidestEm; Corey
+  2026-11-24: "I should have said per game mode ... The arrows should stay where they are at"). The seat (the slot
+  and both bet symbols) is the BASE game's and does not move when an Ante level or a feature is loaded. The number
+  is sized for the widest amount of the mode in play, in the room between the two DRAWN symbols (4 bar px clear of
+  each; wider than the slot between their 44 px press boxes, which are unchanged), never over the window's common
+  number size. It changes with the mode or the currency, never with a bet step. Do not size the amount to the
+  slot again: that is what made the base game's amount smaller than Balance.
+  A DEV LOOK ONLY: `__reindeer.sign.matchNumbers(true)` or `?numbers=match` on a dev server draws Balance and Win
+  at the amount's drawn size on the windows where the amount alone steps down (`matchedType`); the default is
+  unchanged and nothing of it is in a production build.
   A sign key takes presses as its drawn diamond; where that holds under 44 px an unseen press pad lies under every
   control, an exact outline 2 px from every other press region (`padPlaces`, `padShapes`). EVERY click a control
   of the sign bar gets is judged by where the pointer went down, by the drawn shapes (`pressOwner`, `pressVerdict`,

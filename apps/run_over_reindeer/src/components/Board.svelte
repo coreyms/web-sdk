@@ -709,6 +709,14 @@
 				if (e.classList.contains('up')) el('skip', e);
 				return;
 			}
+			// THE FAST LANE AND MENU SIGNS of the sign bar are zones of their own, 'sign' (Corey 2026-11-24: "Let him pass
+			// under the sign"): he never stands under one, as under any key; a walk IN may cross behind one where no
+			// other way in is clear (game/road/roam.ts pick). Everything inside such a key is that key.
+			const sign = e.closest('.hudp.sg .fb, .hudp.sg [data-hud="menu-key"]');
+			if (sign) {
+				if (e === sign) el('sign', e);
+				return;
+			}
 			el('hud', e);
 		});
 		// the top line: and 8 CSS px under it (Corey 2026-11-17: his head clears it by 8 px or more)

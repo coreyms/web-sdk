@@ -21,7 +21,7 @@
 	import HudReadout from '../hud/HudReadout.svelte';
 	import SignMenuPanel from './SignMenuPanel.svelte';
 	import { HEAD_LS, headWidth } from './signDraw';
-	import { DESKTOP, KEY_V, LAND_R3, OWNER_ORDER, PHONE_PLACES, PHONE_REFS, PLAY_V, TEXT_MIN, forestOn, landShare, sceneFit, amountLimits, padCircle, padPlaces, padShapes, readoutFit, pressOwner, pressRegions, pressShape, pressVerdict, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type OwnerId, type PieceId } from './signLayout';
+	import { DESKTOP, KEY_V, LAND_R3, OWNER_ORDER, PHONE_PLACES, PHONE_REFS, PLAY_V, TEXT_MIN, amountType, forestOn, landShare, matchedType, sceneFit, amountLimits, padCircle, padPlaces, padShapes, readoutFit, pressOwner, pressRegions, pressShape, pressVerdict, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type OwnerId, type PieceId } from './signLayout';
 	import { signZones } from './signZones';
 	import { holdLights } from './ledBand';
 	import SignPlay from './SignPlay.svelte';
@@ -70,9 +70,19 @@
 		void faceReady;
 		return betWidestEm((t) => em(t));
 	});
+	// THE ARROWS STAY, THE NUMBER FOLLOWS THE MODE (Corey 2026-11-24; signLayout.ts amountType): the seat is the base
+	// game's (its widest amount, its label), so loading an Ante level or a feature moves neither symbol; the number is
+	// sized for the widest amount of the mode in play (a replayed round: its own amount) in the room between the two
+	// drawn symbols, never over the window's common number size
+	const widestBase = $derived.by(() => {
+		void faceReady;
+		return betWidestEm((t) => em(t), 1);
+	});
+	const slotLabel = $derived(rh ? rh.label : controls.betLabel());
 	const seat = $derived.by(() => {
 		void faceReady;
-		return seatAmount(geo, widest.em, headWidth(em(amtLabel, HEAD_LS), headFs(geo.head.amt)) * u, amountLimits(geo, zones, safe));
+		const s = seatAmount(geo, widestBase.em, headWidth(em(slotLabel, HEAD_LS), headFs(geo.head.amt)) * u, amountLimits(geo, zones, safe));
+		return { ...s, ...amountType(geo, s, rh ? em(rh.total) : widest.em) };
 	});
 	const SB = $derived(stepBox(geo.step, u));
 
@@ -106,9 +116,15 @@
 	// THE BOX NEVER CHANGES (2026-11-22, the probe host at 1920 x 1080 on e5db525d: Balance's element had become its room,
 	// 5.6 px narrower where the LED strip's left end stands in its row). Each readout's element is his box, as before the
 	// rooms; only the number's size answers to the room, and only when the number is too long for it (readoutFit).
+	// (A DEV LOOK ONLY, Corey 2026-11-24, "Show me what they look like please": Balance and Win at the size the amount
+	// is drawn at, on the windows where the amount alone steps down. Off by default; on by the dev hook's
+	// sign.matchNumbers(true) or ?numbers=match on a dev server. import.meta.env.DEV is false in a production build,
+	// so `shown` is `geo` there and nothing of this is in it.)
+	let matchNumbers = $state(import.meta.env.DEV && typeof location !== 'undefined' && new URLSearchParams(location.search).get('numbers') === 'match');
+	const shown = $derived(import.meta.env.DEV && matchNumbers ? { ...geo, num: matchedType(geo, seat) } : geo);
 	const fitIn = (id: 'bal' | 'win', text: string) => {
 		void faceReady;
-		const f = readoutFit(geo, id, zones, safe, em(text));
+		const f = readoutFit(shown, id, zones, safe, em(text));
 		return { px: f.px / u, k: f.k, under: f.under, room: f.room };
 	};
 	const balText = $derived(replay ? (rh && !rh.isBase ? rh.base : '') : controls.balanceText());
@@ -226,7 +242,7 @@
 			/** every piece's box (CSS px), the scale, the blend's weights, what the guards moved */
 			geo: () => JSON.parse(JSON.stringify({ ...geo, winGlass: WG })),
 			/** the amount's seat: its type, the reserved width, the two symbols' press boxes, the widest amount */
-			seat: () => JSON.parse(JSON.stringify({ ...seat, widest: widest.text })),
+			seat: () => JSON.parse(JSON.stringify({ ...seat, widest: widest.text, slotWidest: widestBase.text })),
 			/** each press region's largest circle, CSS px */
 			press: () => pressRegions(pressBoxes, padAt),
 			/** whose press a place is ('play', 'auto', 'turbo', 'menu', 'bonus', 'down', 'up', 'amt' or null: nobody's), by
@@ -271,7 +287,14 @@
 			 *  (CSS px down), the share his logo and SKIP boxes have at this window, those boxes, whether a tree line is
 			 *  drawn; and each window's one number size and tag size as the layout file works them out (commonType) */
 			scene: () => JSON.parse(JSON.stringify({ ...sceneFit(kind, vw, vh), tree: forestOn(kind, vw, vh, phone), landShare: kind === 'landscape' ? landShare(vw, vh) : null })),
-			type: () => JSON.parse(JSON.stringify({ num: { amt: geo.num.amt * u, bal: geo.num.bal * u, win: geo.num.win * u }, head: { amt: headFs(geo.head.amt) * u, bal: headFs(geo.head.bal) * u, win: headFs(geo.head.win) * u } })),
+			/** the DEV look "Balance and Win at the amount's size" (signLayout.ts matchedType): on or off; answers what it was */
+			matchNumbers: (on: boolean) => {
+				const was = matchNumbers;
+				matchNumbers = !!on;
+				return was;
+			},
+			matchingNumbers: () => matchNumbers,
+			type: () => JSON.parse(JSON.stringify({ num: { amt: shown.num.amt * u, bal: shown.num.bal * u, win: shown.num.win * u }, head: { amt: headFs(geo.head.amt) * u, bal: headFs(geo.head.bal) * u, win: headFs(geo.head.win) * u } })),
 			/** the drawn diamonds as shares of their boxes (the Play's button and Auto's and Turbo's are the diamonds) */
 			diamond: () => ({ play: PLAY_V, auto: KEY_V, turbo: KEY_V }),
 		};
@@ -301,7 +324,7 @@
 			y={B.win.y}
 			w={B.win.w}
 			h={B.win.h}
-			nominal={geo.num.win}
+			nominal={shown.num.win}
 			fontPx={winFit.px}
 			pad={0}
 			cls="sgr win {lit ? 'is-lit' : ''} {hs.winBig() ? 'is-big' : ''}"
@@ -333,9 +356,9 @@
 	<SignPlay {controls} x={B.play.x} y={B.play.y} d={B.play.w} css={geo.box.play.w} press={(ev, own) => barPress(ev, 'play', own)} />
 	<div class="dc" style:--rs={geo.rs.bal} style:--hf="{headFs(geo.head.bal)}px">
 		{#if !replay}
-			<HudReadout label="BALANCE" value={controls.balanceText()} x={B.bal.x} y={B.bal.y} w={B.bal.w} h={B.bal.h} nominal={geo.num.bal} fontPx={balFit.px} pad={0} cls="sgr bal {geo.just.bal === 'left' ? 'al-left' : ''}" hud="balance" lit face={OVER} />
+			<HudReadout label="BALANCE" value={controls.balanceText()} x={B.bal.x} y={B.bal.y} w={B.bal.w} h={B.bal.h} nominal={shown.num.bal} fontPx={balFit.px} pad={0} cls="sgr bal {geo.just.bal === 'left' ? 'al-left' : ''}" hud="balance" lit face={OVER} />
 		{:else if rh && !rh.isBase}
-			<HudReadout label="BASE AMOUNT" value={rh.base} x={B.bal.x} y={B.bal.y} w={B.bal.w} h={B.bal.h} nominal={geo.num.bal} fontPx={balFit.px} pad={0} cls="sgr bal {geo.just.bal === 'left' ? 'al-left' : ''}" hud="balance" lit face={OVER} />
+			<HudReadout label="BASE AMOUNT" value={rh.base} x={B.bal.x} y={B.bal.y} w={B.bal.w} h={B.bal.h} nominal={shown.num.bal} fontPx={balFit.px} pad={0} cls="sgr bal {geo.just.bal === 'left' ? 'al-left' : ''}" hud="balance" lit face={OVER} />
 		{/if}
 	</div>
 	<div class="dc" style:--rs={geo.rs.amt} style:--hf="{headFs(geo.head.amt)}px">

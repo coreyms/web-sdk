@@ -163,13 +163,64 @@ export const PHONE_R3: Record<'portrait' | 'phone', Ref[]> = {
 export const LAND_R3: Ref = { vw: 890, vh: 552, step: 51.1, just: { amt: 'center', bal: 'left', win: 'center' }, p: { play: [741.7, 247.9, 148.3, 148.3], auto: [792.4, 182.2, 60.3, 60.3], turbo: [828.2, 214.2, 61.8, 61.8], menu: [4, 320.6, 98.9, 46.4], bonus: [6.5, 379, 100.7, 68], amt: [759.5, 477.2, 93.3, 37.6], bal: [14.3, 486.5, 155.2, 33.4], win: [383.8, 493.2, 122.4, 23.4] }, gap: 4.868, group: [728, 473.2, 156.4, 45.7], skip: [786, 26.7, 91.9, 36.8], scene: { boardDy: -12.1, treeDy: 0, tree: false, logo: [5.3, 20.9, 148.6, 156] } };
 /** round 2's places with BOOST (what the bar was laid out from until round 3): his record, read by the node test */
 export const PHONE_R2: Record<'portrait' | 'phone', Ref[]> = { portrait: PHONE_REFS.portrait.map((r) => boostRef('portrait', r)), phone: PHONE_REFS.phone.map((r) => boostRef('phone', r)) };
+// ---- the scale (above the places: the lift below reads it as the file loads) ----
+/** CSS px per bar px. Desktop: the game's own fit (the 1280 x 720 master) over DESKTOP.k. Upright: the window's width
+ *  over 390, held by its height on a window squatter than his shortest (390 x 620). Sideways: the phone master's fit
+ *  (1480 x 740) over 0.527027 (the master drawn 390 high), as the glass dock scaled. */
+export const signScale = (kind: SignKind, vw: number, vh: number) =>
+	kind === 'portrait' ? Math.min(vw / 390, vh / 620) : kind === 'phone' ? Math.min(vw / 1480, vh / 740) / 0.527027 : Math.min(vw / 1280, vh / 720) / DESKTOP.k;
+
+/** THE HOME INDICATOR'S STRIP on a sideways touch phone, CSS px up from the bottom edge: nothing a player presses or
+ *  reads stands in it (measured on Corey's phone: the game runs to the bottom edge and the indicator lies over it) */
+export const HOME_STRIP = 20;
+/** "NUDGE THEM UP" (Corey 2026-11-24, on his own 667 x 311 placing: the bet symbols' 44 px press boxes reached 3.1 px
+ *  into the strip and the Win box's glass 9.5 px). How far a sideways window's amount group (its symbols' press boxes
+ *  with it) and its Win box rise, TOGETHER, so the lowest of them clears the strip: the least that does, CSS px, worked
+ *  out AT EACH WINDOW from its own boxes (9.5 px at his 667 x 311; nothing at his 832 x 376, at 568 x 320 or at any
+ *  window whose places already clear it). Their x, their sizes and their places against each other are his.
+ *  BALANCE stands over the Win box and under the Fast Lane sign. It rises with the Win box by the same amount where
+ *  that leaves it at least as far under the Fast Lane as it is over the Win box's glass; where it does not (667 x 311:
+ *  his column there is full, 9.1 px under the Fast Lane and 6.1 px over the glass, and the same 9.5 px would put its
+ *  box 0.4 px into the Fast Lane's) it rises to the middle of what room is left between the two (6.2 px: 2.9 px each
+ *  way). `bal`: Balance's own rise. `box`: the pieces' boxes, CSS px; `keyH`: a symbol's press box, CSS px; `floor`:
+ *  the strip's top edge. */
+export const homeLifts = (box: Record<PieceId, Box>, u: number, keyH: number, vh: number, floor: number): { d: number; bal: number } => {
+	const w = box.win;
+	const pad = WIN_PAD * Math.min(2, w.w / u / READOUT_BASE.win.w) * u;
+	// (a press box is kept inside the window, seatAmount)
+	const keys = Math.min(box.amt.y + box.amt.h / 2 + keyH / 2, vh);
+	const d = Math.max(0, Math.max(w.y + w.h + pad, keys) - floor);
+	if (d <= 0.005) return { d: 0, bal: 0 };
+	const b = box.bal;
+	const f = box.bonus;
+	const above = b.y - (f.y + f.h);
+	const below = w.y - pad - (b.y + b.h);
+	// (Balance in the Fast Lane's column and over the Win box: else it simply keeps its place against the Win box)
+	const column = b.x < f.x + f.w && b.x + b.w > f.x && below >= 0;
+	return { d, bal: !column || above - d >= below ? d : Math.max(0, Math.min(d, (above - below + d) / 2)) };
+};
 /** THE PLACES THE BAR IS LAID OUT FROM: ROUND 3's, as they are. Round 2's windows (PHONE_REFS above, with BOOST) are
  *  kept as his record only: in round 3 he put Auto and Turbo beside the Spin and the amount under it, where round 2 had
  *  the amount over Auto and Turbo, so a window between a round 2 place and a round 3 place would have drawn the two
  *  rows through each other (tried: 335 x 563 put < on the Spin and Auto's and Turbo's press pads on each other). The
  *  sizes round 2 was set at (390 x 844, 844 x 390, Stake's 425 x 812, 375 x 667, 320 x 568) now take round 3's
- *  arrangement, from his nearest round 3 windows. */
-export const PHONE_PLACES: Record<'portrait' | 'phone', Ref[]> = PHONE_R3;
+ *  arrangement, from his nearest round 3 windows. (A sideways window's amount group, Win box and Balance then rise
+ *  clear of the home indicator's strip where his places are in it: homeLifts, in phoneLayout. Upright, Auto and Turbo
+ *  are leveled: levelKeys below.) */
+/** AUTO AND TURBO LEVEL, UPRIGHT (Corey 2026-11-24, on his own export: "I wanted the Turbo and Auto Modes to be at the
+ *  same height on the page for portait modes, if they were off that's my fault"). His export has the two a little off
+ *  (440 x 742: y 575.2 and 572.9; 375 x 530: 55.7 and 57 px; 626 x 816: 67.5 and 63.9 px). At every upright window of
+ *  his the two keys stand with their centers on one line, the mean of his two, at one size, the larger of his two;
+ *  each keeps its own center's x. Sideways they stay stacked as he placed them. */
+export const levelKeys = (r: Ref): Ref => {
+	const a = r.p.auto;
+	const t = r.p.turbo;
+	const d = Math.max(a[2], t[2]);
+	const cy = (a[1] + a[3] / 2 + t[1] + t[3] / 2) / 2;
+	const at = (q: Four): Four => [q[0] + q[2] / 2 - d / 2, cy - d / 2, d, d];
+	return { ...r, p: { ...r.p, auto: at(a), turbo: at(t) } };
+};
+export const PHONE_PLACES: Record<'portrait' | 'phone', Ref[]> = { portrait: PHONE_R3.portrait.map(levelKeys), phone: PHONE_R3.phone };
 /** the triangles his windows make in the (short side, long over short) plane, by index into PHONE_PLACES, and the
  *  lone edges (two windows only: sideways). Upright: 375x530, 413x586, 440x742 | 413x586, 626x816, 440x742. Sideways: the
  *  line from 832x376 to 667x311. A window outside them takes the nearest point of their outline. */
@@ -178,13 +229,6 @@ export const TRI: Record<'portrait' | 'phone', [number, number, number][]> = {
 	phone: [],
 };
 export const SEG: Record<'portrait' | 'phone', [number, number][]> = { portrait: [], phone: [[0, 1]] };
-
-// ---- the scale ----
-/** CSS px per bar px. Desktop: the game's own fit (the 1280 x 720 master) over DESKTOP.k. Upright: the window's width
- *  over 390, held by its height on a window squatter than his shortest (390 x 620). Sideways: the phone master's fit
- *  (1480 x 740) over 0.527027 (the master drawn 390 high), as the glass dock scaled. */
-export const signScale = (kind: SignKind, vw: number, vh: number) =>
-	kind === 'portrait' ? Math.min(vw / 390, vh / 620) : kind === 'phone' ? Math.min(vw / 1480, vh / 740) / 0.527027 : Math.min(vw / 1280, vh / 720) / DESKTOP.k;
 
 // ---- shapes: what a piece really covers and what takes its press ----
 /** a piece's real shape (CSS px): the drawn diamond of the Play, Auto and Turbo, the Fast Lane hexagon, a box otherwise */
@@ -551,6 +595,9 @@ export type SignGeo = {
 	/** ROUND 3: half the amount group's width as he left it (symbol to symbol), bar px; 0 where no window of round 3
 	 *  has a say. The seat never stands the group in less room than he gave it (seatAmount). */
 	amtHalf: number;
+	/** sideways: how far the amount group and the Win box (`d`) and Balance (`bal`) stand above his places so nothing of
+	 *  them is in the home indicator's strip (homeLifts), CSS px; zeros where his places clear it */
+	lift: { d: number; bal: number };
 	/** the Win box: a pill on the desktop, a rectangle on a phone */
 	winShape: 'pill' | 'rect';
 	/** Turbo shows its word (false: bolt and pips only, where the word would be under about 10 CSS px) */
@@ -618,6 +665,7 @@ export const desktopLayout = (v: SignView): SignGeo => {
 		step: D.step,
 		gap: D.gap,
 		amtHalf: 0,
+		lift: { d: 0, bal: 0 },
 		winShape: 'pill',
 		turboWord: turboWordOk(box.turbo),
 		weights: [],
@@ -918,6 +966,19 @@ export const phoneLayout = (v: SignView): SignGeo => {
 			moved.push(`the Play drawn in to ${Math.round(f * 100)} % (the bet symbols' press boxes)`);
 		}
 	}
+	// THE HOME INDICATOR'S STRIP (sideways; Corey 2026-11-24: "Nudge them up"; homeLifts above): the amount group and
+	// the Win box rise together by the least that takes the bet symbols' press boxes and the Win box's glass out of
+	// the bottom HOME_STRIP px (or the safe area's inset, where the browser reports more), Balance with them by its
+	// own rule. Reported in `lift`, not in `moved`: it is his ruling for his own window, not a guard for a fault.
+	let lift = { d: 0, bal: 0 };
+	if (o === 'phone') {
+		lift = homeLifts(box, u, stepBox(step, u).h * u, v.vh, v.vh - Math.max(HOME_STRIP, safe.b));
+		if (lift.d > 0) {
+			box.amt = { ...box.amt, y: box.amt.y - lift.d };
+			box.win = { ...box.win, y: box.win.y - lift.d };
+			box.bal = { ...box.bal, y: box.bal.y - lift.bal };
+		}
+	}
 	const just = refs[w.indexOf(Math.max(...w))].just;
 	return {
 		kind: v.kind,
@@ -932,6 +993,7 @@ export const phoneLayout = (v: SignView): SignGeo => {
 		step,
 		gap,
 		amtHalf,
+		lift,
 		winShape: 'rect',
 		turboWord: turboWordOk(box.turbo),
 		weights: w,
@@ -1162,7 +1224,7 @@ export const amountLimits = (g: SignGeo, zones: Zones | null, safe: Insets = ZER
 		const dcy = (s[0][1] + s[2][1]) / 2;
 		const v = s[1][0] - dcx;
 		const dy = Math.max(0, cy - h / 2 - dcy, dcy - (cy + h / 2));
-		if (dy >= v) continue;
+		if (dy >= v - 1e-6) continue;
 		const hw = v - dy;
 		if (dcx + hw <= cx) L = Math.max(L, dcx + hw + AMOUNT_FIT.playClear * g.u);
 		else if (dcx - hw >= cx) R = Math.min(R, dcx - hw - AMOUNT_FIT.playClear * g.u);
@@ -1289,7 +1351,7 @@ export const readoutRoom = (g: SignGeo, id: 'bal' | 'win', zones: Zones | null, 
 		const dcy = (s[0][1] + s[2][1]) / 2;
 		const v = s[1][0] - dcx;
 		const dy = Math.max(0, b.y - dcy, dcy - (b.y + b.h));
-		if (dy >= v) continue;
+		if (dy >= v - 1e-6) continue;
 		const hw = v - dy;
 		if (dcx + hw <= at) L = Math.max(L, dcx + hw + m);
 		else if (dcx - hw >= at) R = Math.min(R, dcx - hw - m);
@@ -1300,6 +1362,40 @@ export const readoutRoom = (g: SignGeo, id: 'bal' | 'win', zones: Zones | null, 
 	}
 	const half = Math.max(0, Math.min(b.w / 2, cx - L, R - cx));
 	return { x: cx - half, w: 2 * half };
+};
+
+/** THE AMOUNT'S SIZE FOR THE MODE IN PLAY (Corey 2026-11-24, on his phone, "PLAY 100.00 SC" smaller than Balance: "I
+ *  would prefer the Play gets bigger ... I should have said per game mode. Like if I'm not playing Ante the numbers have
+ *  room to be bigger. The arrows should stay where they are at.").
+ *  THE ARROWS DO NOT MOVE WITH THE MODE: the seat (seatAmount) is worked out for the base game's widest amount and the
+ *  base label, as the bar shows it with no mode on, and stays there when an Ante level or a feature is loaded.
+ *  THE NUMBER is as large as the widest amount of the mode in play allows (`modeEm`: over the whole bet menu at that
+ *  mode's price, so it is steady while the player steps the amount and changes only with the mode or the currency),
+ *  never larger than the window's common number size (Balance's and Win's, SignGeo.num), in the ROOM BETWEEN THE TWO
+ *  DRAWN SYMBOLS less AMOUNT_TYPE.clear bar px each side. That room is wider than the slot between the symbols' 44 px
+ *  press boxes (a drawn symbol is about 20 px in its 44 px box): the slot is what the number was held to before, and
+ *  it is why the base game's amount came out smaller than Balance in a long currency with the room showing each
+ *  side. The press boxes are unchanged: a number wider than the slot reaches into their empty margins, never to
+ *  within `clear` of a drawn symbol, and a press there is still the symbol's. `under`: the widest amount needs less
+ *  than AMOUNT_TYPE.floor CSS px to fit even so (a very long currency at a high mode): it is drawn at what fits,
+ *  never clipped. CSS px. */
+export const AMOUNT_TYPE = { clear: 4, floor: 9 } as const;
+export const amountType = (g: SignGeo, seat: Seat, modeEm: number): { px: number; k: number; under: boolean; room: number; sym: number } => {
+	const sym = stepDraw(g.step).w * g.u;
+	const room = Math.max(1, seat.upC[0] - seat.downC[0] - sym - 2 * AMOUNT_TYPE.clear * g.u);
+	const nominal = g.num.amt * g.u;
+	const px = modeEm > 0 ? Math.min(nominal, room / modeEm) : nominal;
+	return { px, k: px / nominal, under: px < AMOUNT_TYPE.floor - 1e-6, room, sym };
+};
+
+/** BALANCE AND WIN AT THE AMOUNT'S SIZE: A DEV LOOK ONLY (Corey 2026-11-24, on the windows outside his seven where the
+ *  amount alone steps down, 390 x 844: 10.9 px beside 14.6: "Show me what they look like please"). The default is
+ *  unchanged: one nominal size, the amount fitted down on its own. With the look on (ui/sign/SignHud.svelte: the dev
+ *  hook's sign.matchNumbers, or ?numbers=match on a dev server; never in a production build) Balance's and Win's
+ *  nominal size is the size the amount is drawn at, where that is smaller. Bar px. */
+export const matchedType = (g: SignGeo, seat: { px: number }): SignGeo['num'] => {
+	const a = seat.px / g.u;
+	return { amt: g.num.amt, bal: Math.min(g.num.bal, a), win: Math.min(g.num.win, a) };
 };
 
 /** THE READOUT'S NUMBER. Its box is his place, always and exactly: the fit never moves or resizes the box. The number is

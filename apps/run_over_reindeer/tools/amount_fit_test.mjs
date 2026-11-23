@@ -225,6 +225,19 @@ const BOXES = [
 	{ id: 'hud.bal.lc', el: 'Bar BALANCE, sideways phone (capsule 128, pad 12)', kind: 'balance', f: OUT, nominal: 15, box: 116, floor: null, how: 'fitted()' },
 	{ id: 'hud.win.lc', el: 'Bar WIN, sideways phone (128, pad 12)', kind: 'win', f: OUT, nominal: 15, box: 116, floor: null, how: 'fitted()' },
 	{ id: 'hud.amt.lc', el: 'Bar amount, sideways phone (80, pad 12)', kind: 'price', f: OUT, nominal: 14, box: 68, floor: null, how: 'fitted()' },
+	// THE SIGN BAR'S AMOUNT, PER GAME MODE (2026-11-24, Corey: "I should have said per game mode ... The arrows should stay
+	// where they are at"; ui/sign/signLayout.ts amountType, tools/sign_layout_test.mjs section 8 h holds the rule and
+	// prints the table): the number is sized for the widest amount of the mode in play in the room between the two DRAWN
+	// bet symbols, which stay at the base game's seat. `box` is that room in USD at the tightest of Corey's windows of each
+	// family (sideways 667 x 311: 66 px at the 10.3 px common number size; upright 375 x 530: 77.9 px at 12.2 px), for the
+	// base game, the top Ante level (10x) and a loaded Super (300x). No floor: where a long currency's widest needs less
+	// than 9 px it is drawn at what fits, never clipped (the rule's `under`), and what that is is listed here.
+	{ id: 'sign.amt.base.side', el: 'Sign bar amount, base game, 667 x 311 (room 66, common size 10.3)', kind: 'bet', f: OV(900), nominal: 10.3, box: 66, floor: null, how: 'amountType()' },
+	{ id: 'sign.amt.ante.side', el: 'Sign bar amount, Ante 10x, 667 x 311', kind: 'ante', f: OV(900), nominal: 10.3, box: 66, floor: null, how: 'amountType()' },
+	{ id: 'sign.amt.super.side', el: 'Sign bar amount, Super loaded (300x), 667 x 311', kind: 'price', f: OV(900), nominal: 10.3, box: 66, floor: null, how: 'amountType()' },
+	{ id: 'sign.amt.base.up', el: 'Sign bar amount, base game, 375 x 530 (room 77.9, common size 12.2)', kind: 'bet', f: OV(900), nominal: 12.2, box: 77.9, floor: null, how: 'amountType()' },
+	{ id: 'sign.amt.ante.up', el: 'Sign bar amount, Ante 10x, 375 x 530', kind: 'ante', f: OV(900), nominal: 12.2, box: 77.9, floor: null, how: 'amountType()' },
+	{ id: 'sign.amt.super.up', el: 'Sign bar amount, Super loaded (300x), 375 x 530', kind: 'price', f: OV(900), nominal: 12.2, box: 77.9, floor: null, how: 'amountType()' },
 	// MODALS
 	{ id: 'replay.total', el: 'Replay card TOTAL WIN, 390 wide (.v.big 5vmin = 19.5 px; 321 less "TOTAL WIN" 84 and gap 8)', kind: 'win', f: SORA, nominal: 19.5, box: 229, floor: 12, how: 'fitAmount (was overflow-wrap: anywhere)' },
 	{ id: 'replay.bet', el: 'Replay card TOTAL BET, 390 wide (.v 3.4vmin = 13.3 px; 321 less "TOTAL BET" 84 and gap 8)', kind: 'price', f: SORA, nominal: 13.3, box: 229, floor: 10, how: 'fitAmount (was overflow-wrap: anywhere)' },

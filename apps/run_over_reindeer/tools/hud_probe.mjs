@@ -1945,8 +1945,17 @@ async function tailSection(browser) {
 //   - ONE NUMBER SIZE (Corey: "The text sizes were different in the mock up for the Balance, Spin amount, and WIN,
 //     Ideally those all stay about the same size"): the three numbers' nominal sizes within 1 px of each other
 //     (__reindeer.sign.type), each number drawn at its nominal size times its own fit, on every phone window and r3
-//   - sideways touch phones, his 832x376: nothing pressed or read in the bottom 20 px (the home indicator); at his
-//     667x311 the drawn amount, its symbols, the keys and Balance clear it, and what does not is listed (his placing)
+//   - sideways touch phones, his 832x376 and 667x311: nothing pressed or read in the bottom 20 px (the home
+//     indicator), the bet symbols' press boxes and the Win box's glass included. At 667x311 his own placing had them
+//     in it; Corey 2026-11-24: "Nudge them up": the amount group and the Win box stand 9.5 px above his export there
+//     and Balance 6.2 px (signLayout.ts homeLifts, read as __reindeer.sign.geo().lift): his places are judged with
+//     that taken out
+//   - BALANCE AND WIN AT THE AMOUNT'S SIZE, a DEV look (Corey: "Show me what they look like please"; signLayout.ts
+//     matchedType, __reindeer.sign.matchNumbers, ?numbers=match): at 390x844, 375x667 and 320x568 with the look on
+//     the three are drawn one size; off again, as before (since the amount is sized per game mode the base game's
+//     amount is the common size there in USD and the look changes nothing; it shows at Ante 10x and in long currencies)
+//   - AUTO AND TURBO LEVEL UPRIGHT (Corey 2026-11-24: "I wanted the Turbo and Auto Modes to be at the same height on
+//     the page for portait modes"): at every upright window their boxes' centers are on one line and one size
 //   - SKIP TO RESULT at his windows is his box (__reindeer.sign.scene: his box and its share here)
 // At each of Corey's own windows, the sizes the rule answers, three more desktop sizes and the two popouts:
 //   - every piece is drawn within 1 CSS px of his place (his own table, read through __reindeer.sign.his(), never a
@@ -1973,7 +1982,8 @@ async function tailSection(browser) {
 //     key as it was (__reindeer.atRest, __reindeer.hud.idle, fixtures no_win_1)
 //   - nothing is on the board, the LED strip or the logo by real shape, and no bet symbol's press box is on the Play
 //   - the amount fits its reserved width (the widest amount of the bet menu at the type size in use), the symbols hold
-//     still across bet steps, and a mode on seats them again; in three currencies at four of the sizes
+//     still across bet steps AND when a mode is loaded (2026-11-24: the seat is the base game's; the number is sized
+//     for the mode in play, in the room between the drawn symbols); in three currencies at four of the sizes
 //   - the Win box is hidden at rest, shows on a win, goes at the next spin, and stays through free spins
 //   - the Play says SPIN at rest and STOP while a round's stop is available
 //   - the free spins ring holds one LED per free spin, the lit count is the spin in play, and a retrigger adds three
@@ -1994,13 +2004,13 @@ const SIGN_SIZES = [
 	// (the phablet is not a phone by the game's device tier: its short side is over 500 CSS px)
 	{ name: '626x816', vp: { width: 626, height: 816 }, touch: true, phone: false, family: 'portrait', his: true, r3: true },
 	{ walk: true, name: '832x376', vp: { width: 832, height: 376 }, touch: true, phone: true, family: 'landscape', his: true, r3: true, fs: 'retrigger', low: 'strict' },
-	{ name: '667x311', vp: { width: 667, height: 311 }, touch: true, phone: true, family: 'landscape', his: true, r3: true, cur: true, fs: 'natural_free_spins', low: 'listed' },
+	{ name: '667x311', vp: { width: 667, height: 311 }, touch: true, phone: true, family: 'landscape', his: true, r3: true, cur: true, fs: 'natural_free_spins', low: 'strict', lift: [9.5, 6.2] },
 	{ name: '890x552', vp: { width: 890, height: 552 }, touch: true, phone: false, family: 'landscape', his: true, r3: true, fs: 'natural_free_spins' },
 	// the sizes round 2 was set at: the rule's places now
 	{ name: '425x812', vp: { width: 425, height: 812 }, touch: true, phone: true, family: 'portrait' },
-	{ name: '375x667', vp: { width: 375, height: 667 }, touch: true, phone: true, family: 'portrait' },
-	{ name: '320x568', vp: { width: 320, height: 568 }, touch: true, phone: true, family: 'portrait', cur: true },
-	{ walk: true, name: '390x844', vp: { width: 390, height: 844 }, touch: true, phone: true, family: 'portrait', cur: true, fs: 'retrigger', auto: true },
+	{ name: '375x667', vp: { width: 375, height: 667 }, touch: true, phone: true, family: 'portrait', match: true },
+	{ name: '320x568', vp: { width: 320, height: 568 }, touch: true, phone: true, family: 'portrait', cur: true, match: true },
+	{ walk: true, name: '390x844', vp: { width: 390, height: 844 }, touch: true, phone: true, family: 'portrait', cur: true, fs: 'retrigger', auto: true, match: true },
 	{ name: '390x620', vp: { width: 390, height: 620 }, touch: true, phone: true, family: 'portrait' },
 	{ name: '812x425', vp: { width: 812, height: 425 }, touch: true, phone: true, family: 'landscape', fs: 'natural_free_spins' },
 	{ walk: true, name: '667x375', vp: { width: 667, height: 375 }, touch: true, phone: true, family: 'landscape', fs: 'natural_free_spins' },
@@ -2161,7 +2171,12 @@ const signRead = (p) =>
 				[['bal', 'balance'], ['amt', 'amount'], ['win', 'win']].map(([id, name]) => {
 					const e = document.querySelector(`.hudp [data-hud="${name}"] .value`);
 					if (!e) return [id, null];
-					const k = e.offsetHeight ? e.getBoundingClientRect().height / e.offsetHeight : 1;
+					// (the bar is drawn at its own scale: the element's drawn height over its layout height, or the bar's own
+					// where the element has no height now, the Win box at rest)
+					const bar = document.querySelector('.hudp');
+					const kb = bar && bar.offsetWidth ? bar.getBoundingClientRect().width / bar.offsetWidth : 1;
+					const hh = e.getBoundingClientRect().height;
+					const k = e.offsetHeight && hh > 0 ? hh / e.offsetHeight : kb;
 					return [id, parseFloat(getComputedStyle(e).fontSize) * k];
 				}),
 			),
@@ -2248,11 +2263,21 @@ const longBalance = async (tag, p, S, amount, digits) => {
 	const whole = !!v && (v.text.match(/\d/g) ?? []).join('').startsWith(digits);
 	check(!!v && whole && v.x0 >= -0.5 && v.x1 <= S.vp.width + 0.5 && v.x0 >= rm.x - 1 && v.x1 <= rm.x + rm.w + 1 && pr.length === 0, `${tag}: a very long balance (${v?.text}) is whole, inside the window and its room, at ${r1(e?.readouts.bal.px ?? 0)} CSS px (${Math.round((e?.readouts.bal.k ?? 0) * 100)} %${e?.readouts.bal.under ? ', past the floor' : ''})`, { value: v, room: rm, problems: pr });
 };
+// THE AMOUNT BETWEEN ITS SYMBOLS (2026-11-24, Corey: "I would prefer the Play gets bigger ... per game mode ... The
+// arrows should stay where they are at"; signLayout.ts amountType). The seat is the base game's: the reserved width
+// stands between the two press boxes. The number is sized for the widest amount of the MODE IN PLAY (seat.widest) in
+// the room between the two DRAWN symbols (seat.room: their middles' distance less a drawn symbol, seat.sym, and
+// 4 bar px clear each side), never over the window's common number size: so the widest amount of the mode fits that
+// room at the type in use, and the amount shown stands between the drawn symbols with that clearance.
 const amountFits = (tag, d) => {
 	const s = d.seat;
-	const room = s.up.x - (s.down.x + s.down.w);
-	check(d.widestPx <= s.W + 0.75 && s.W <= room + 0.01, `${tag}: the widest amount (${d.seat.widest}) fits its reserved width at the type in use`, { widest: r1(d.widestPx), reserved: r1(s.W), type: r1(s.px), share: s.k, under: s.under });
-	if (d.value && d.dom.down && d.dom.up) check(d.value.x0 >= d.dom.down.x + d.dom.down.w - 0.75 && d.value.x1 <= d.dom.up.x + 0.75, `${tag}: the amount shown (${d.value.text}) stands between its two symbols`, { value: [r1(d.value.x0), r1(d.value.x1)], down: r1(d.dom.down.x + d.dom.down.w), up: r1(d.dom.up.x) });
+	const slot = s.up.x - (s.down.x + s.down.w);
+	const clear = (s.upC[0] - s.downC[0] - s.sym - s.room) / 2;
+	const common = d.type ? d.type.num.bal : Infinity;
+	check(d.widestPx <= s.room + 0.75 && s.W <= slot + 0.01 && s.px <= common + 0.05, `${tag}: the widest amount of the mode in play (${d.seat.widest}) fits the room between the two drawn symbols (${r1(s.room)} px) at the type in use (${r1(s.px)} px, the common number size ${r1(common)})`, { widest: r1(d.widestPx), room: r1(s.room), slot: r1(slot), reserved: r1(s.W), type: r1(s.px), share: s.k, under: s.under });
+	const lo = s.downC[0] + s.sym / 2 + clear;
+	const hi = s.upC[0] - s.sym / 2 - clear;
+	if (d.value) check(d.value.x0 >= lo - 0.75 && d.value.x1 <= hi + 0.75, `${tag}: the amount shown (${d.value.text}) stands between its two drawn symbols, ${r1(clear)} px clear of each`, { value: [r1(d.value.x0), r1(d.value.x1)], from: r1(lo), to: r1(hi) });
 };
 async function signHud(browser) {
 	for (const S of SIGN_SIZES) {
@@ -2273,7 +2298,11 @@ async function signHud(browser) {
 			// (round 3: his phablet held sideways, 890 x 552, is laid out with the desktop bar and has its own row, `land`)
 			const ref = !S.r3 ? null : kind !== 'landscape' ? d.his.phone[kind].find((r) => r.vw === S.vp.width && r.vh === S.vp.height) : d.his.land.vw === S.vp.width && d.his.land.vh === S.vp.height ? d.his.land : null;
 			if (S.r3) check(!!ref, `${tag}: this is one of his round 3 windows in the layout file`);
-			const want = (id) => (ref ? { x: ref.p[id][0], y: ref.p[id][1], w: ref.p[id][2], h: ref.p[id][3] } : d.geo.box[id]);
+			// (the nudge up: the amount group and the Win box `lift.d` above his export, Balance `lift.bal`; zeros elsewhere)
+			const lift = d.geo.lift ?? { d: 0, bal: 0 };
+			const upOf = (id) => (id === 'amt' || id === 'win' ? lift.d : id === 'bal' ? lift.bal : 0);
+			if (S.r3) check(S.lift ? Math.abs(lift.d - S.lift[0]) <= 0.1 && Math.abs(lift.bal - S.lift[1]) <= 0.1 : lift.d === 0 && lift.bal === 0, `${tag}: the nudge up is ${S.lift ? `${S.lift[0]} px for the amount group and the Win box, ${S.lift[1]} px for Balance` : 'nothing here'}`, lift);
+			const want = (id) => (ref ? { x: ref.p[id][0], y: ref.p[id][1] - upOf(id), w: ref.p[id][2], h: ref.p[id][3] } : d.geo.box[id]);
 			const off = [];
 			// (the Win box is hidden at rest 12 bar px under its place, the start of its short rise: its place is read below,
 			// once a win has brought it up)
@@ -2308,6 +2337,11 @@ async function signHud(browser) {
 					.map((x) => `${x.id}: width ${x.dw >= 0 ? '+' : ''}${r1(x.dw)} px, from the bottom ${x.dy >= 0 ? '+' : ''}${r1(x.dy)} px`);
 				check(Math.abs(u - S.vp.width / D.plane.w) < 0.001 && bad.length === 0, `${tag}: his 1440 x 810 plane at this window's scale, every piece his distance from the bottom edge`, bad);
 			}
+			if (kind === 'portrait' && d.dom.auto && d.dom.turbo) {
+				const A = d.dom.auto;
+				const T = d.dom.turbo;
+				check(Math.abs(A.y + A.h / 2 - (T.y + T.h / 2)) <= 0.5 && Math.abs(A.w - T.w) <= 0.5, `${tag}: upright, Auto and Turbo are level (centers at y ${r1(A.y + A.h / 2)} and ${r1(T.y + T.h / 2)}) and one size (${r1(A.w)} and ${r1(T.w)} px)`, { auto: A, turbo: T });
+			}
 			check(d.win.shape === (kind === 'landscape' ? 'pill' : 'rect'), `${tag}: the Win box is a ${kind === 'landscape' ? 'pill' : 'rectangle'}`, d.win.shape);
 			// ---- ONE NUMBER SIZE (round 3; Corey 2026-11-23) on every phone window and his seven: the three nominal sizes
 			// within 1 px of each other, each number drawn at its nominal size times its own fit, 9 px or more at his seven
@@ -2319,8 +2353,25 @@ async function signHud(browser) {
 				const tags = d.type.head;
 				check(spread <= 1 && offs.length === 0 && (!S.r3 || Math.min(n.amt, n.bal, n.win) >= 9) && Math.max(tags.amt, tags.bal, tags.win) - Math.min(tags.amt, tags.bal, tags.win) <= 0.6, `${tag}: Balance, the amount and Win are one number size (${r1(n.bal)} px; the amount's fit ${Math.round(fit.amt * 100)} %, Balance's ${Math.round(fit.bal * 100)} %, Win's ${Math.round(fit.win * 100)} %) and one tag size (${r1(tags.bal)} px)`, { nominal: n, drawn: d.fonts, fit, tags, offs });
 			}
-			// ---- THE HOME INDICATOR'S 20 px on a sideways touch phone (round 3): nothing pressed or read in it at his
-			// 832 x 376; at his 667 x 311 what is drawn clears it and what does not is listed (his own placing)
+			// ---- BALANCE AND WIN AT THE AMOUNT'S SIZE, the DEV look (matchedType), at the sizes where the amount alone steps
+			// down: off, the amount is the smaller; on, the three numbers are drawn one size; off again, as it was
+			if (S.match && d.fonts) {
+				const sizes = async () => (await signRead(p)).fonts;
+				const off = d.fonts;
+				await p.evaluate(() => void window.__reindeer.sign.matchNumbers(true));
+				await sleep(120);
+				const on = await sizes();
+				await p.evaluate(() => void window.__reindeer.sign.matchNumbers(false));
+				await sleep(120);
+				const back = await sizes();
+				const spread = (f) => Math.max(f.amt, f.bal, f.win) - Math.min(f.amt, f.bal, f.win);
+				// (since the amount is sized per game mode, 2026-11-24, the base game's amount is the common size at most of
+				// these windows and the look then changes nothing: what is asked is that with it on the three are one drawn
+				// size, never larger than before, and that off puts Balance and Win back)
+				check(spread(on) <= 0.6 && Math.abs(on.amt - off.amt) <= 0.3 && on.bal <= off.bal + 0.3 && on.win <= off.win + 0.3 && Math.abs(back.bal - off.bal) <= 0.3 && Math.abs(back.win - off.win) <= 0.3, `${tag}: the DEV look: by default the amount is ${r1(off.amt)} px beside Balance ${r1(off.bal)} and Win ${r1(off.win)} (${r1(off.bal - off.amt)} px apart); with sign.matchNumbers(true) the three are drawn ${r1(on.amt)} / ${r1(on.bal)} / ${r1(on.win)} px; off again as before`, { off, on, back });
+			}
+			// ---- THE HOME INDICATOR'S 20 px on a sideways touch phone (round 3, and the nudge up of 2026-11-24): nothing
+			// pressed or read in it at his 832 x 376 and 667 x 311, the press boxes and the Win box's glass included
 			if (S.low && d.lows) {
 				const floor = S.vp.height - 20;
 				// (the bet symbols as drawn: the layout's symbol height about each one's middle)
@@ -2621,6 +2672,9 @@ async function signHud(browser) {
 				await sleep(500);
 				e = await signRead(p);
 				amountFits(`${tag} with 10X ANTE on`, e);
+				// (2026-11-24) THE ARROWS STAY WHERE THEY ARE when a mode is loaded; the number's size is the mode's own
+				// (never larger than in the base game, whose widest amount is the shorter)
+				check(JSON.stringify([e.dom.down, e.dom.up]) === before && e.seat.px <= d.seat.px + 0.05, `${tag} with 10X ANTE on: the bet symbols have not moved, and the number is sized for this mode's widest amount (${r1(e.seat.px)} px for ${e.seat.widest}; the base game's ${r1(d.seat.px)} px for ${d.seat.widest})`, { base: [d.dom.down, d.dom.up], ante: [e.dom.down, e.dom.up] });
 				const pr = e.problems.filter((x) => !/press region/.test(x));
 				check(pr.length === 0, `${tag} with 10X ANTE on: still nothing on the scene or the Play`, pr);
 				await p.evaluate((m) => window.__reindeer.hud.setMode(m), base);

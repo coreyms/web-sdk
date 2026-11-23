@@ -309,8 +309,12 @@ export class Roam {
 	private resolved = { kind: '', l: NaN, t: NaN, r: NaN, b: NaN, v: -1 };
 	/** the last pick's pass (0 all rules, 1 no slope rule, 2 no length rule, -1 none found) */
 	lastPass = 0;
+	/** a walk in is being looked for behind the Fast Lane and Menu signs (pick: only when no way in clears every key), and
+	 *  whether the last pick took such a way */
+	private passSigns = false;
+	underSign = false;
 	/** the probes' counters */
-	readonly counts = { walks: 0, walkIns: 0, arrived: 0, strikes: 0, placed: 0, cancelled: 0, picks: 0, relaxed: 0, none: 0, safetyNet: 0, left: 0, rounds: 0, corridor: 0, away: 0, exits: 0, exited: 0, back: 0 };
+	readonly counts = { walks: 0, walkIns: 0, arrived: 0, strikes: 0, placed: 0, cancelled: 0, picks: 0, relaxed: 0, none: 0, safetyNet: 0, left: 0, rounds: 0, corridor: 0, underSign: 0, away: 0, exits: 0, exited: 0, back: 0 };
 	/** AWAY (the Super wheel is up, components/Board.svelte): no walk in, no first appearance, no safety net until `back` */
 	held = false;
 	/** his run off the screen: from, to (road px), how far along, its length, its speed (road px a second), the stand's
@@ -729,6 +733,9 @@ export class Roam {
 				if (hits(ax - side, ax + side, ay - h * FEET_SHARE, ay, z)) return false;
 			} else if (sweepTop && z.name === 'top line') {
 				continue;
+			} else if (z.name === 'sign' && this.passSigns) {
+				// (a walk in with no other way: behind the Fast Lane or Menu sign, pick)
+				continue;
 			} else if (z.name === 'skip') {
 				// SKIP TO RESULT's button (components/Board.svelte roamZones, only while it is up): a walk may pass under it (it
 				// stands in the corner he walks in through on desktop and tablet); he never stops under it (the spot check)
@@ -872,6 +879,23 @@ export class Roam {
 	 *  slope rule (pass 1), then without the length rule (pass 2); his body clear all the way. With no `from`: any spot
 	 *  (`walkIn`: one whose level walk in from the screen's edge is clear). The spot goes into `this.to`. */
 	pick(from: Pt | null, walkIn = false): boolean {
+		this.passSigns = false;
+		this.underSign = false;
+		if (this.pickOnce(from, walkIn)) return true;
+		// HE PASSES UNDER THE SIGN (Corey 2026-11-24, on the short upright pages where the Fast Lane sign closes his side:
+		// "Let him pass under the sign"). Only a walk in, and only where no way in is clear of every key: then the Fast
+		// Lane and Menu signs (zones named 'sign', components/Board.svelte roamZones) are not in the way of his WALK. He is
+		// drawn on the canvas, behind the bar, so he crosses behind the sign; the spot he walks to is judged as ever (he
+		// never stands under any key), and the board, the trees, the logo, the LED strip and every other key stay out.
+		if (!walkIn || from || !this.zones.some((z) => z.name === 'sign')) return false;
+		this.passSigns = true;
+		const ok = this.pickOnce(null, true);
+		this.passSigns = false;
+		this.underSign = ok;
+		if (ok) this.counts.underSign++;
+		return ok;
+	}
+	private pickOnce(from: Pt | null, walkIn = false): boolean {
 		this.refreshZones();
 		if (this.zonesMoved()) this.measureFloor();
 		this.counts.picks++;
@@ -1094,7 +1118,7 @@ export class Roam {
 	 *  `walkIns` walk in picks, with a seed; nothing moves. The probe checks every one against the area and the zones. */
 	devPicks(count: number, walkIns: number, seed: number) {
 		this.reseed(seed);
-		const out: { x: number; y: number; pass: number; walkIn: boolean; fromX: number; fromY: number; route: Pt[] | null; top: boolean }[] = [];
+		const out: { x: number; y: number; pass: number; walkIn: boolean; fromX: number; fromY: number; route: Pt[] | null; top: boolean; underSign?: boolean }[] = [];
 		let at: Pt = { x: this.x, y: this.y };
 		const keep = this.recent.slice();
 		for (let i = 0; i < count; i++) {
@@ -1110,7 +1134,7 @@ export class Roam {
 		this.route.length = 0;
 		for (let i = 0; i < walkIns; i++) {
 			const ok = this.pick(null, true);
-			out.push({ x: this.to.x, y: this.to.y, pass: ok ? this.lastPass : -1, walkIn: true, fromX: this.enterX(), fromY: this.to.y, route: ok && this.route.length >= 2 ? this.route.map((q) => ({ x: q.x, y: q.y })) : null, top: ok && this.pickTop });
+			out.push({ x: this.to.x, y: this.to.y, pass: ok ? this.lastPass : -1, walkIn: true, fromX: this.enterX(), fromY: this.to.y, route: ok && this.route.length >= 2 ? this.route.map((q) => ({ x: q.x, y: q.y })) : null, top: ok && this.pickTop, underSign: ok && this.underSign });
 		}
 		return out;
 	}
@@ -1582,6 +1606,7 @@ export class Roam {
 			/** his strike's wind-up (null: the stand, or none) */
 			windup: this.windup ? { clip: this.windup.clip, k: Math.round(this.windup.k * 10000) / 10000, start: r(this.windup.start), setOff: r(this.windup.setOff), hop: this.windup.hop === null ? null : r(this.windup.hop), hitAt: this.windup.hitAt === null ? null : r(this.windup.hitAt), early: r(this.windup.early), at: this.windup.at.map(r) } : null,
 			lastPass: this.lastPass,
+			underSign: this.underSign,
 			relaxed: this.relaxed,
 			widen: this.widen,
 			capacity: this.capacity,

@@ -69,12 +69,16 @@ const USD_EM = 4.198;
  *  44 px press circles shared a strip there; their pads now stand apart, signLayout.ts padPlaces, section 4 below) */
 const KNOWN = /^never$/;
 const HEAD_EM = 3.2;
+/** the seat with the number's size as the bar draws it (2026-11-24, signLayout.ts amountType): the seat is the slot and
+ *  the two symbols; the number is sized for the widest amount of the mode in play (`em`) in the room between the two
+ *  drawn symbols, never over the window's common number size */
+const typed = (g, seat, em) => ({ ...seat, ...L.amountType(g, seat, em) });
 /** a window's layout, its seat and its problems, with the scene's own keep-outs */
 const at = (kind, vw, vh, safe) => {
 	const zones = Z.signZones(kind, vw, vh, kind !== 'landscape');
 	const g = L.signLayout({ kind, vw, vh, safe, zones });
 	const headW = (HEAD_EM * Math.max(g.head.amt, 10 / g.u) + 12) * g.u;
-	const seat = L.seatAmount(g, WIDEST_EM, headW, L.amountLimits(g, zones, safe));
+	const seat = typed(g, L.seatAmount(g, WIDEST_EM, headW, L.amountLimits(g, zones, safe)), WIDEST_EM);
 	return { zones, g, seat, problems: L.signProblems(g, zones, seat) };
 };
 
@@ -86,7 +90,9 @@ for (const o of ['portrait', 'phone']) {
 		for (const id of L.PIECES) {
 			const b = g.box[id];
 			const p = r.p[id];
-			d = Math.max(d, Math.abs(b.x - p[0]), Math.abs(b.y - p[1]), Math.abs(b.w - p[2]), Math.abs(b.h - p[3]));
+			// (the nudge up, section 8 d: at his 667 x 311 the amount, the Win box and Balance stand above his export by g.lift)
+			const up = id === 'amt' || id === 'win' ? g.lift.d : id === 'bal' ? g.lift.bal : 0;
+			d = Math.max(d, Math.abs(b.x - p[0]), Math.abs(b.y + up - p[1]), Math.abs(b.w - p[2]), Math.abs(b.h - p[3]));
 		}
 		// (a round 3 window, PHONE_R3, is its own copy: nothing enlarged)
 		const raw = L.PHONE_REFS[o].find((q) => q.vw === r.vw && q.vh === r.vh) ?? r;
@@ -174,7 +180,10 @@ for (const o of ['portrait', 'phone']) {
 			const H = vh / g.u;
 			const row = [];
 			for (const id of L.PIECES) {
-				const b = g.box[id];
+				// (the blend itself: the nudge up, which acts only where a piece would stand in the home indicator's strip,
+				// is taken out; section 8 d holds it along this same line)
+				const up = id === 'amt' || id === 'win' ? g.lift.d : id === 'bal' ? g.lift.bal : 0;
+				const b = { ...g.box[id], y: g.box[id].y + up };
 				const A = L.ANCHORS[o][id];
 				const ax = A.ax === 'L' ? 0 : A.ax === 'R' ? W : W / 2;
 				const ay = L.anchorY(A.ay, H, L.topLine(vw, vh) / g.u);
@@ -770,8 +779,17 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 //      and above the board area for phones, where the baord and treeline where moved"; game/roamGround.ts): the tree
 //      line is his export's to 0.5 px; at every upright window with a tree line the ground is a strip under the tree
 //      line and above the asphalt, the asphalt above the columns
-//   d. sideways touch phones: nothing a player presses or reads in the bottom 20 px (the home indicator) at 832 x 376;
-//      at 667 x 311 the drawn amount, symbols and Balance clear it, and what does not is listed (his own placing)
+//   d. sideways touch phones: nothing a player presses or reads in the bottom 20 px (the home indicator), the bet
+//      symbols' 44 px press boxes and the Win box's glass included, at 832 x 376 AND at 667 x 311. At 667 x 311 his own
+//      placing had the press boxes 3.1 px and the Win box 9.5 px in it; Corey 2026-11-24: "Nudge them up". There the
+//      amount group and the Win box stand 9.5 px higher than his export (homeLifts: the least that clears the strip,
+//      worked out at each window from its own boxes: nothing at 832 x 376 or 568 x 320),
+//      their x and sizes his, and Balance 6.2 px higher (midway between the Fast Lane and the Win box's glass: the
+//      same 9.5 px would put its box into the Fast Lane's). Every other piece at that window is his to 0.5 px. Along
+//      the line from 667 x 311 to 832 x 376 the strip stays clear and nothing meets.
+//   g. BALANCE AND WIN AT THE AMOUNT'S SIZE, the DEV look (matchedType; Corey: "Show me what they look like please"):
+//      at his seven, Stake's phone sizes and the full screen ones, in both modes every everyday number fits its box at
+//      its nominal size; with the look on the three numbers are one drawn size; the default mode's sizes are listed
 //   e. every frame of the phone browser survey (the list below is a copy of sizes.json's captures, 2026-11-23): no
 //      problem by shape, every press region 44 CSS px, everything inside the window; a frame that fails is named
 //   f. the sizes round 2 was set at and Stake's phone sizes: what each gets, nothing wrong
@@ -794,15 +812,42 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 		const phoneSize = Math.min(r.vw, r.vh) <= 480;
 		const zones = Z.signZones(kind, r.vw, r.vh, phoneSize);
 		const g = L.signLayout({ kind, vw: r.vw, vh: r.vh, zones });
+		// (a sideways window: the amount group and the Win box stand `lift.d` higher than his export where his places
+		// are in the home indicator's strip, Balance by its own rise: homeLifts, worked out at each window)
+		const lifts = { d: r1(g.lift.d), bal: r1(g.lift.bal) };
+		const liftOf = (id) => (id === 'amt' || id === 'win' ? lifts.d : id === 'bal' ? lifts.bal : 0);
+		// (upright: Auto and Turbo level, Corey 2026-11-24, "I wanted the Turbo and Auto Modes to be at the same height
+		// on the page for portait modes, if they were off that's my fault": worked out here from his export by itself,
+		// the mean of his two centers' y, the larger of his two sizes, each center's own x)
+		const leveled = (id) => {
+			const a = r.p.auto;
+			const t = r.p.turbo;
+			const d = Math.max(a[2], t[2]);
+			const cy = (a[1] + a[3] / 2 + t[1] + t[3] / 2) / 2;
+			const q = r.p[id];
+			return [q[0] + q[2] / 2 - d / 2, cy - d / 2, d, d];
+		};
+		const his = (id) => (kind === 'portrait' && (id === 'auto' || id === 'turbo') ? leveled(id) : [r.p[id][0], r.p[id][1] - liftOf(id), r.p[id][2], r.p[id][3]]);
+		if (kind === 'portrait') {
+			const A = g.box.auto;
+			const T = g.box.turbo;
+			const off = Math.max(Math.abs(r.p.auto[1] + r.p.auto[3] / 2 - (A.y + A.h / 2)), Math.abs(r.p.turbo[1] + r.p.turbo[3] / 2 - (T.y + T.h / 2)), Math.abs(r.p.auto[2] - A.w), Math.abs(r.p.turbo[2] - T.w));
+			const gapKeys = L.shapeGap(L.pressShape('auto', A), L.pressShape('turbo', T));
+			const gapPlay = Math.min(L.shapeGap(L.pressShape('auto', A), L.pressShape('play', g.box.play)), L.shapeGap(L.pressShape('turbo', T), L.pressShape('play', g.box.play)));
+			line(Math.abs(A.y + A.h / 2 - (T.y + T.h / 2)) <= 0.01 && Math.abs(A.w - T.w) <= 0.01 && Math.abs(A.x + A.w / 2 - (r.p.auto[0] + r.p.auto[2] / 2)) <= 0.05 && Math.abs(T.x + T.w / 2 - (r.p.turbo[0] + r.p.turbo[2] / 2)) <= 0.05 && gapKeys > 0 && gapPlay > 0 && T.x + T.w <= r.vw, `${tag}: Auto and Turbo are level (their centers on one line, y ${r1(A.y + A.h / 2)}) and one size (${r1(A.w)} px), each center's x his; their shapes clear of each other, of the Spin's and of the window`, `the most either moved or grew from his export ${r1(off)} px; the two keys' shapes ${gapKeys.toFixed(2)} px apart, ${gapPlay.toFixed(2)} px from the Spin's; Turbo ends at ${r1(T.x + T.w)} of ${r.vw}`);
+		}
+		if (kind !== 'phone') line(g.lift.d === 0 && g.lift.bal === 0, `${tag}: no nudge up (upright and the desktop bar have none)`);
+		else line(tag === '667x311' ? Math.abs(g.lift.d - 9.5) <= 0.05 && Math.abs(g.lift.bal - 6.2) <= 0.05 : g.lift.d === 0 && g.lift.bal === 0, `${tag}: the nudge up (homeLifts) is ${tag === '667x311' ? '9.5 px for the amount group and the Win box, 6.2 px for Balance' : 'nothing: his placing clears the bottom 20 px'}`, JSON.stringify(lifts));
 		// a. the pieces
-		const dPieces = Math.max(...L.PIECES.map((id) => far(arr(g.box[id]), r.p[id])));
+		const dPieces = Math.max(...L.PIECES.map((id) => far(arr(g.box[id]), his(id))));
 		// b. the amount group with the game's widest everyday amount, and SKIP
-		const seat = L.seatAmount(g, USD_EM, (HEAD_EM * Math.max(g.head.amt, 10 / g.u) + 12) * g.u, L.amountLimits(g, zones));
-		const dSeat = Math.max(far(arr(seat.down), E.down), far(arr(seat.up), E.up), Math.abs(seat.W - E.W), Math.abs(seat.amt.y - r.p.amt[1]), Math.abs(seat.amt.h - r.p.amt[3]), Math.abs(seat.amt.x + seat.W / 2 - (r.p.amt[0] + r.p.amt[2] / 2)));
+		const seat = typed(g, L.seatAmount(g, USD_EM, (HEAD_EM * Math.max(g.head.amt, 10 / g.u) + 12) * g.u, L.amountLimits(g, zones)), USD_EM);
+		const upBy = (q) => [q[0], q[1] - lifts.d, q[2], q[3]];
+		const dSeat = Math.max(far(arr(seat.down), upBy(E.down)), far(arr(seat.up), upBy(E.up)), Math.abs(seat.W - E.W), Math.abs(seat.amt.y - (r.p.amt[1] - lifts.d)), Math.abs(seat.amt.h - r.p.amt[3]), Math.abs(seat.amt.x + seat.W / 2 - (r.p.amt[0] + r.p.amt[2] / 2)));
 		const fit = L.sceneFit(kind, r.vw, r.vh);
 		const dSkip = fit.skip ? far(arr(fit.skip), r.skip) : 99;
 		const problems = L.signProblems(g, zones, seat);
-		line(dPieces <= 0.5 && dSeat <= 0.5 && dSkip <= 0.5 && fit.share === 1 && g.moved.length === 0 && problems.length === 0, `${tag} round 3: his pieces, his amount group (the width between the symbols, both symbols' press boxes) and SKIP within 0.5 px, no guard acting, nothing wrong`, `pieces ${dPieces.toFixed(2)}, amount group ${dSeat.toFixed(2)}, SKIP ${dSkip.toFixed(2)} px${g.moved.length ? '; ' + g.moved.join('; ') : ''}${problems.length ? '; ' + problems.join('; ') : ''}`);
+		line(dPieces <= 0.5 && dSeat <= 0.5 && dSkip <= 0.5 && fit.share === 1 && g.moved.length === 0 && problems.length === 0, `${tag} round 3: his pieces, his amount group (the width between the symbols, both symbols' press boxes) and SKIP within 0.5 px${lifts.d ? ` (the amount group and the Win box ${lifts.d} px up, Balance ${lifts.bal} px up: the nudge)` : ''}, no guard acting, nothing wrong`, `pieces ${dPieces.toFixed(2)}, amount group ${dSeat.toFixed(2)}, SKIP ${dSkip.toFixed(2)} px${g.moved.length ? '; ' + g.moved.join('; ') : ''}${problems.length ? '; ' + problems.join('; ') : ''}`);
 		// b2. one number size
 		const T = L.commonType(kind, r);
 		const px = { amt: seat.px, bal: g.num.bal * g.u, win: g.num.win * g.u };
@@ -826,19 +871,37 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 		else line(G.treeY === null && G.forest === null && G.bottom <= G.roadY && G.roadY <= zones.board.y, `${tag} round 3, the roaming reindeer's ground: no tree line (his ground runs from the window's top edge down the snow rim to the asphalt), the asphalt above the columns`, `feet down to ${r1(G.bottom)}, asphalt ${r1(G.roadY)}, columns ${r1(zones.board.y)}`);
 		line(dScene <= 0.5 && L.forestOn(kind, r.vw, r.vh, phoneSize) === r.scene.tree, `${tag} round 3, the scene: the board with its LED strip ${r.scene.boardDy} px down (strip ${E.stripY}, ${E.stripH} tall as at the road's own place; columns ${E.colsY}), the logo his box, the tree line ${r.scene.tree ? `${r.scene.treeDy} px down` : 'none'}, within 0.5 px`, `worst ${dScene.toFixed(2)} px; strip ${r1(zones.strip.y)} x ${r1(zones.strip.h)}, columns ${r1(zones.board.y)}, logo ${arr(zones.logo).map(r1).join(', ')}`);
 	}
-	// d. the home indicator's 20 px, sideways
-	for (const [vw, vh, strict] of [[832, 376, true], [667, 311, false]]) {
-		const zones = Z.signZones('phone', vw, vh, true);
-		const g = L.signLayout({ kind: 'phone', vw, vh, zones });
-		const E = EXPORT[`${vw}x${vh}`];
-		const seat = L.seatAmount(g, USD_EM, (HEAD_EM * Math.max(g.head.amt, 10 / g.u) + 12) * g.u, L.amountLimits(g, zones));
-		const floor = vh - 20;
-		const glass = L.winGlass(g);
-		const drawn = { play: Math.max(...L.pressShape('play', g.box.play).map((q) => q[1])), menu: g.box.menu.y + g.box.menu.h, 'the Fast Lane': g.box.bonus.y + g.box.bonus.h, Balance: g.box.bal.y + g.box.bal.h, 'the amount': seat.amt.y + seat.amt.h, 'the symbols drawn': seat.downC[1] + (L.stepDraw(g.step).h * g.u) / 2 };
-		const also = { "the symbols' press boxes": seat.down.y + seat.down.h, 'the Win box': glass.y + glass.h };
-		const low = Object.entries(drawn).filter(([, y]) => y > floor + 0.05);
-		const lowAlso = Object.entries(also).filter(([, y]) => y > floor + 0.05);
-		line(low.length === 0 && (!strict || lowAlso.length === 0), `${vw}x${vh}: nothing a player presses or reads in the bottom 20 px${strict ? '' : ' of what is drawn (the keys, Balance, the amount and its symbols)'}`, `${[...low, ...(strict ? lowAlso : [])].map(([n, y]) => `${n} ends at ${r1(y)} of ${vh}`).join('; ')}${!strict && lowAlso.length ? `HIS OWN PLACING, listed: ${lowAlso.map(([n, y]) => `${n} ends at ${r1(y)}, ${r1(y - floor)} px into the strip`).join('; ')}` : ''}`);
+	// d. the home indicator's 20 px, sideways: his two windows, and the line between them
+	{
+		const lowOf = (vw, vh) => {
+			const zones = Z.signZones('phone', vw, vh, true);
+			const g = L.signLayout({ kind: 'phone', vw, vh, zones });
+			const seat = typed(g, L.seatAmount(g, USD_EM, (HEAD_EM * Math.max(g.head.amt, 10 / g.u) + 12) * g.u, L.amountLimits(g, zones)), USD_EM);
+			const glass = L.winGlass(g);
+			const ends = { 'the Spin': Math.max(...L.pressShape('play', g.box.play).map((q) => q[1])), Auto: Math.max(...L.pressShape('auto', g.box.auto).map((q) => q[1])), Turbo: Math.max(...L.pressShape('turbo', g.box.turbo).map((q) => q[1])), Menu: g.box.menu.y + g.box.menu.h, 'the Fast Lane': g.box.bonus.y + g.box.bonus.h, Balance: g.box.bal.y + g.box.bal.h, 'the amount': seat.amt.y + seat.amt.h, "the symbols' press boxes": seat.down.y + seat.down.h, 'the Win box': glass.y + glass.h };
+			// Balance against its neighbours in its column: the Fast Lane's box over it, the Win box's glass under it
+			const over = g.box.bal.y - (g.box.bonus.y + g.box.bonus.h);
+			const under = glass.y - (g.box.bal.y + g.box.bal.h);
+			return { g, seat, zones, ends, low: Object.entries(ends).filter(([, y]) => y > vh - 20 + 0.05), over, under, problems: L.signProblems(g, zones, seat) };
+		};
+		for (const [vw, vh] of [[832, 376], [667, 311]]) {
+			const R = lowOf(vw, vh);
+			line(R.low.length === 0 && R.problems.length === 0, `${vw}x${vh}: nothing a player presses or reads in the bottom 20 px, the bet symbols' press boxes and the Win box's glass included`, `${R.low.map(([n, y]) => `${n} ends at ${r1(y)} of ${vh}`).join('; ') || `the lowest: ${Object.entries(R.ends).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([n, y]) => `${n} ${r1(y)}`).join(', ')} of ${vh - 20}`}${R.problems.length ? '; ' + R.problems.join('; ') : ''}`);
+		}
+		const N = lowOf(667, 311);
+		const playTip = Math.max(...L.shapeOf('play', N.g.box.play).map((q) => q[1]));
+		line(N.over >= 2 && N.under >= 2 && Math.abs(N.over - N.under) <= 0.3 && L.shapeGap(L.shapeOf('play', N.g.box.play), [[N.seat.down.x, N.seat.down.y], [N.seat.down.x + N.seat.down.w, N.seat.down.y], [N.seat.down.x + N.seat.down.w, N.seat.down.y + N.seat.down.h], [N.seat.down.x, N.seat.down.y + N.seat.down.h]]) > 2, `667x311 after the nudge: Balance stands midway between the Fast Lane's box (${r1(N.over)} px over it) and the Win box's glass (${r1(N.under)} px under it); the bet symbols' press boxes are clear of the Spin's diamond`, `the Spin's lowest point ${r1(playTip)}, the amount's box from ${r1(N.seat.amt.y)}, the press boxes from ${r1(N.seat.down.y)}`);
+		// the line between his two sideways windows: the strip clear, nothing wrong, Balance on neither neighbour
+		const bad = [];
+		let least = Infinity;
+		for (let t = 0; t <= 1.0001; t += 0.05) {
+			const vw = Math.round(667 + (832 - 667) * t);
+			const vh = Math.round(311 + (376 - 311) * t);
+			const R = lowOf(vw, vh);
+			least = Math.min(least, vh - 20 - Math.max(...Object.values(R.ends)));
+			if (R.low.length || R.problems.length || R.over < 1 || R.under < 1) bad.push(`${vw}x${vh}: ${[...R.low.map(([n, y]) => `${n} ends at ${r1(y)}`), ...R.problems, ...(R.over < 1 ? [`Balance ${r1(R.over)} px under the Fast Lane's box`] : []), ...(R.under < 1 ? [`Balance ${r1(R.under)} px over the Win box's glass`] : [])].join(', ')}`);
+		}
+		line(bad.length === 0, `from 667x311 to 832x376 (21 windows on the line between them): the bottom 20 px clear, nothing wrong by shape, Balance on neither neighbour`, `${bad.slice(0, 5).join(' | ')}${bad.length ? ' | ' : ''}the lowest thing stands ${r1(least)} px over the strip at the least`);
 	}
 	// e. the phone browser survey's frames (sizes.json captures, 2026-11-23: w x h)
 	const SURVEY = '413x586 440x742 440x655 440x701 440x868 956x376 440x679 440x725 375x504 402x661 402x573 402x619 375x717 402x874 402x786 402x832 874x338 874x402 375x528 402x685 402x597 402x643 375x635 402x792 402x704 402x750 874x352 874x382 348x373 375x442 375x488 348x490 375x647 375x559 375x605 667x311 667x375 348x397 375x554 375x466 375x512 348x470 375x627 375x539 375x585 667x325 667x355 440x956 956x440 439x308 466x678 678x402 678x466 626x688 626x890 890x512 890x626 333x547 360x840 808x256 840x360 750x568 750x832 832x574 832x750 385x598 412x891 859x308 891x412 333x487 360x780 748x256 780x360'.split(' ').map((q) => q.split('x').map(Number));
@@ -847,6 +910,7 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 	const bad = [];
 	const guarded = [];
 	const spreadBad = [];
+	const levelBad = [];
 	const groundBad = [];
 	// (the least strip his feet have under the trees: 5 CSS px; the short framed pages have about 8)
 	const GROUND_MIN = 5;
@@ -861,6 +925,8 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 		const outside = spans.some((b) => b.x0 < -0.5 || b.y0 < -0.5 || b.x1 > vw + 0.5 || b.y1 > vh + 0.5);
 		if (problems.length || outside) bad.push(`${vw}x${vh}: ${[...problems, ...(outside ? ['a piece off the window'] : [])].join(', ')}`);
 		else if (g.moved.length) guarded.push(`${vw}x${vh} (${g.moved.join('; ')})`);
+		// upright: Auto and Turbo level and one size
+		if (kind === 'portrait' && (Math.abs(g.box.auto.y + g.box.auto.h / 2 - (g.box.turbo.y + g.box.turbo.h / 2)) > 0.05 || Math.abs(g.box.auto.w - g.box.turbo.w) > 0.05)) levelBad.push(`${vw}x${vh}: centers ${r1(g.box.auto.y + g.box.auto.h / 2)} and ${r1(g.box.turbo.y + g.box.turbo.h / 2)}, sizes ${r1(g.box.auto.w)} and ${r1(g.box.turbo.w)}`);
 		// one number size: the amount's nominal, Balance's and Win's within 1 px of each other
 		const sizes = [g.num.amt, g.num.bal, g.num.win].map((v) => v * g.u);
 		if (L.landShare(vw, vh) >= 1 || kind !== 'landscape') if (Math.max(...sizes) - Math.min(...sizes) > 1) spreadBad.push(`${vw}x${vh}: ${sizes.map(r1).join(' / ')}`);
@@ -881,6 +947,7 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 	// (the upright ones of those have a ground strip all the same: the rule above holds there too)
 	const fresh = bad.filter((x) => !KNOWN.some((k) => x.startsWith(k + ':')));
 	line(fresh.length === 0, `the phone browser survey's ${SURVEY.length} frames: nothing wrong by shape, every press region 44 px, everything inside, at ${SURVEY.length - bad.length} of them`, `${fresh.join(' | ')}${fresh.length ? ' | ' : ''}NOT SERVED, listed: ${bad.filter((x) => !fresh.includes(x)).join(' | ') || 'none'}`);
+	line(levelBad.length === 0, `the survey's frames: at every upright frame Auto and Turbo are level (their centers on one line) and one size`, levelBad.slice(0, 6).join(' | '));
 	line(spreadBad.length === 0, `the survey's frames: the amount's, Balance's and Win's numbers are one size (within 1 px) at every phone frame and at his phablet's width sideways`, spreadBad.slice(0, 6).join(' | '));
 	line(groundBad.length === 0, `the survey's frames, the roaming reindeer's ground: at all ${grounds} upright frames with a tree line a strip under it (${GROUND_MIN} px or more) and above the asphalt, the asphalt above the columns; sideways no tree line, the snow rim down to the asphalt`, `${groundBad.slice(0, 6).join(' | ')}${groundBad.length ? ' | ' : ''}the least strip ${r1(leastGround)} px`);
 	console.log(`     a guard acted at ${guarded.length} survey frames: ${guarded.slice(0, 8).join(' | ')}${guarded.length > 8 ? ' ...' : ''}`);
@@ -892,6 +959,101 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 		const w = L.blendWeights(kind, vw, vh);
 		const from = L.PHONE_PLACES[kind].map((r, i) => (w[i] > 0.005 ? `${Math.round(w[i] * 100)} % ${r.vw}x${r.vh}` : '')).filter(Boolean).join(', ');
 		line(problems.length === 0, `${vw}x${vh} (${what}): nothing wrong by shape`, `${problems.join('; ')}${problems.length ? ' | ' : ''}from ${from}${g.moved.length ? '; ' + g.moved.join('; ') : ''}; the amount ${r1(seat.px)} px${seat.under ? ' (under the floor)' : ''}; the scene's share of his ${Math.round(fit.share * 100)} % (board ${r1(fit.boardDy)} px, tree line ${r1(fit.treeDy)} px)`);
+	}
+	// g. BOTH NUMBER MODES FIT (the default, and the DEV look matchedType: Balance and Win at the amount's drawn size)
+	{
+		const state = await import(STATE_URL);
+		state.setLocale('en');
+		state.stateBet.currency = 'USD';
+		const cur = await import(pathToFileURL(join(APP, 'src', 'game', 'currency.ts')).href);
+		const M = JSON.parse(readFileSync(join(APP, 'tools', 'amount_fit_metrics.json'), 'utf8'));
+		const adv = M.faces['Overpass|900'];
+		const emOf = (t) => [...t].reduce((a, ch) => a + (adv[/\d/.test(ch) ? '0' : ch] ?? M.missing), 0);
+		const kindOf2 = (vw, vh) => (vw / vh < 1.25 ? 'portrait' : Math.min(vw, vh) <= 480 ? 'phone' : 'landscape');
+		const rows = [];
+		const bad = [];
+		for (const [vw, vh] of [[440, 742], [413, 586], [375, 530], [626, 816], [832, 376], [667, 311], [890, 552], [425, 812], [375, 667], [320, 568], [390, 844], [402, 874], [844, 390], [874, 402], [667, 375], [568, 320]]) {
+			const kind = kindOf2(vw, vh);
+			const zones = Z.signZones(kind, vw, vh, Math.min(vw, vh) <= 480);
+			const g = L.signLayout({ kind, vw, vh, zones });
+			const seat = typed(g, L.seatAmount(g, USD_EM, (HEAD_EM * Math.max(g.head.amt, 10 / g.u) + 12) * g.u, L.amountLimits(g, zones)), USD_EM);
+			const sizes = {};
+			for (const [mode, geo] of [['default', g], ['matched', { ...g, num: L.matchedType(g, seat) }]]) {
+				const px = { amt: seat.px, bal: geo.num.bal * geo.u, win: geo.num.win * geo.u };
+				sizes[mode] = px;
+				// every everyday number at its nominal size in its box (no step), inside its room
+				for (const [id, list] of [['bal', [1000, 10000]], ['win', [12.4, 1234.5]]])
+					for (const a of list) {
+						const t = cur.numberToCurrencyString(a, { fixed: true });
+						const f = L.readoutFit(geo, id, zones, undefined, emOf(t));
+						if (f.k !== 1 || f.under || emOf(t) * f.px > f.limit + 0.01) bad.push(`${vw}x${vh} ${mode} ${id} ${t}: ${Math.round(f.k * 100)} %`);
+					}
+				if (mode === 'matched') {
+					const spread = Math.max(px.amt, px.bal, px.win) - Math.min(px.amt, px.bal, px.win);
+					if (spread > 0.01) bad.push(`${vw}x${vh} matched: the three numbers ${r1(px.amt)} / ${r1(px.bal)} / ${r1(px.win)} px`);
+					if (px.bal > sizes.default.bal + 1e-9 || px.win > sizes.default.win + 1e-9) bad.push(`${vw}x${vh} matched: a number larger than the default's`);
+				}
+			}
+			const d = sizes.default;
+			const same = Math.abs(d.amt - d.bal) <= 0.01;
+			rows.push(`       ${vw}x${vh}: the amount ${r1(d.amt)} px, Balance and Win ${r1(d.bal)}${same ? ' (one size: the look changes nothing here)' : `; with the look on all three ${r1(sizes.matched.bal)}`}`);
+		}
+		line(bad.length === 0, `both number modes at 16 windows (his seven, Stake's phone sizes, the full screen ones, two small sideways): every everyday Balance and Win fits its box at its nominal size in the default and with the DEV look on (Balance and Win at the amount's drawn size), where the three numbers are then one size`, bad.slice(0, 6).join(' | '));
+		for (const r of rows) console.log(r);
+		// h. THE AMOUNT'S SIZE PER GAME MODE (Corey 2026-11-24: "I would prefer the Play gets bigger ... I should have said
+		// per game mode. Like if I'm not playing Ante the numbers have room to be bigger. The arrows should stay where
+		// they are at."; signLayout.ts amountType, ui/betStep.ts betWidestEm). The seat (the slot and both symbols) is
+		// the base game's and is the seat 966cb86a gave in the base game, to 0.1 px (its layout file, read from git);
+		// the number is sized for the widest amount of the mode in play (the bet ladder's top, 100 units here, at the
+		// mode's price: game/config.ts betModes) in the room between the two drawn symbols, never over the window's
+		// common number size; so it never grows with the price, and the base game's is 9 px or more at every window.
+		{
+			const { default: config } = await import(pathToFileURL(join(APP, 'src', 'game', 'config.ts')).href);
+			const MODES = Object.entries(config.betModes).map(([key, m]) => [key.toUpperCase(), m.cost]);
+			let old = null;
+			try {
+				const src = execFileSync('git', ['-C', APP, 'show', '966cb86a:apps/run_over_reindeer/src/ui/sign/signLayout.ts'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+				const tmp = join(mkdtempSync(join(tmpdir(), 'signlayout-')), 'signLayout_966cb86a.ts');
+				writeFileSync(tmp, src);
+				old = await import(pathToFileURL(tmp).href);
+			} catch {
+				console.log('     (966cb86a is not in this checkout: the comparison with its seat is passed over)');
+			}
+			const WIN = [[440, 742], [413, 586], [375, 530], [626, 816], [832, 376], [667, 311], [890, 552], [425, 812], [375, 667], [320, 568], [390, 844], [1200, 675], [1920, 1080]];
+			for (const code of ['USD', 'XSC']) {
+				state.stateBet.currency = code;
+				const ems = MODES.map(([key, cost]) => [key, cur.numberToCurrencyString(100 * cost), emOf(cur.numberToCurrencyString(100 * cost))]);
+				const baseEm = ems[0][2];
+				const badSeat = [];
+				const badType = [];
+				const table = [];
+				for (const [vw, vh] of WIN) {
+					const kind = kindOf2(vw, vh);
+					const zones = Z.signZones(kind, vw, vh, Math.min(vw, vh) <= 480);
+					const g = L.signLayout({ kind, vw, vh, zones });
+					const headW = (HEAD_EM * Math.max(g.head.amt, 10 / g.u) + 12) * g.u;
+					const seat = L.seatAmount(g, baseEm, headW, L.amountLimits(g, zones));
+					if (old) {
+						const og = old.signLayout({ kind, vw, vh, zones });
+						const os = old.seatAmount(og, baseEm, headW, old.amountLimits(og, zones));
+						// (the nudge up at 667 x 311 lifts the whole group: taken out of the comparison's y)
+						const d = Math.max(Math.abs(seat.down.x - os.down.x), Math.abs(seat.up.x - os.up.x), Math.abs(seat.W - os.W), Math.abs(seat.amt.x - os.amt.x), Math.abs(seat.down.y + g.lift.d - os.down.y), Math.abs(seat.down.w - os.down.w), Math.abs(seat.down.h - os.down.h));
+						if (d > 0.1) badSeat.push(`${vw}x${vh}: ${d.toFixed(2)} px`);
+					}
+					const N = g.num.amt * g.u;
+					const sizes = ems.map(([, , e]) => L.amountType(g, seat, e));
+					const was = L.fitSteps(baseEm * N, seat.W).k * N;
+					if (sizes.some((t, i) => t.px > N + 1e-9 || (i > 0 && t.px > sizes[i - 1].px + 1e-9) || t.room < seat.W - 0.01) || sizes[0].px < 9 || sizes[0].px < was - 0.01) badType.push(`${vw}x${vh}: ${sizes.map((t) => r1(t.px)).join(' / ')} (common ${r1(N)}, before ${r1(was)})`);
+					// (and with the amount as it is now drawn, the DEV look's difference: Balance and Win less the amount)
+					table.push(`       ${`${vw}x${vh}`.padEnd(9)} common ${r1(N).toFixed(1).padStart(4)} | ${sizes.map((t, i) => `${ems[i][0]} ${r1(t.px).toFixed(1)}${t.under ? '*' : ''}`).join('  ')} | base before ${r1(was).toFixed(1)}; the slot ${r1(seat.W)}, the room between the drawn symbols ${r1(sizes[0].room)}`);
+				}
+				if (old) line(badSeat.length === 0, `${code}: the slot and both bet symbols are 966cb86a's in the base game, to 0.1 px, at ${WIN.length} windows (the arrows stay where they are)`, badSeat.join(' | '));
+				line(badType.length === 0, `${code}: the amount's size per game mode at ${WIN.length} windows: never over the common number size, never larger at a higher price, the base game's 9 px or more and never smaller than before`, badType.slice(0, 5).join(' | '));
+				console.log(`     ${code}: the widest amount per mode: ${ems.map(([k, t]) => `${k} ${t}`).join(', ')}  (* under the 9 px floor)`);
+				for (const r of table) console.log(r);
+			}
+			state.stateBet.currency = 'USD';
+		}
 	}
 }
 // the safe areas (a real iPhone): nothing under the home indicator, nothing in a notch side, his places kept where clear
