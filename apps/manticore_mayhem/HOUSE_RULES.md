@@ -71,7 +71,12 @@ loop, every move book driven).
   fits; other bends, then a smaller Play, where it does not; `SKYLINE` is the Manticore's top edge, and the Play may
   reach under it only as far as his own placing does). The HTML gears are phased to the wheel (`WHEEL_REST`). With
   this bar the studio name of the top line is drawn under the clock line at the left (`ui/ChromePhone.svelte`): the
-  Play gear stands where it was. Under 640 x 340, and where no chain fits, the dock stays. Desktop popouts keep the dock.
+  Play gear stands where it was. Under 640 x 340, and where no chain fits, the dock stays. Stake's Popout L (800 x 450)
+  has a short side under 480, so the game lays it out as a sideways phone and it draws the chain; Popout S (400 x 225)
+  keeps the dock.
+- GEAR BAR CLASS NAMES: `ui/hud/hud.css` is global under `.hudp`. A gear element never carries a dock class it does not
+  mean to borrow (`.gl`, `.auto`, `.turbo`, `.menuk`, `.key`, `.fbtn`): the layers are `.glayer`, the small gears
+  `.gk gk-<kind>`, the standards `.gs gs-<kind>`. Every gear rule starts `.hudp.v-gear`. A gear paints its SVG alone.
 - The look is one theme block, `ui/hudTheme.ts` (tokens injected as `--hud-*`); read `ui/HUD_THEME.md` before restyling.
   `.am-glass` (`ui/ChromeStyles.svelte`) is the panel frame every HUD modal shares; the riveted bronze plate is
   `.am-plate`. Active highlights use this game's accent (gold, `accent-rgb` in `ui/hudTheme.ts`), rule L6.

@@ -16,6 +16,8 @@
 	// round plays (Auto and the Armoury are disabled through every hand-played round) it only dims under a veil, so the
 	// gear does not flip between iron and steel on every spin.
 	// The press box is the whole gear (the square round its tips) and never changes size; a press sinks the drawing.
+	// CLASS NAMES: the kind is gk-auto, gk-turbo, gk-menu, gk-arm, never the dock's own auto / turbo / menuk (ui/hud/hud.css
+	// paints those as glass keys wherever they stand under .hudp).
 	import { stateBet, stateUi } from 'state-shared';
 	import type { Controls } from '../controls.svelte';
 	import { soc } from '../../game/social';
@@ -48,11 +50,9 @@
 
 <button
 	type="button"
-	class="slot-btn hg gk {kind} hit"
+	class="slot-btn hg gk gk-{kind} hit"
 	class:fb={kind === 'arm'}
-	class:menuk={kind === 'menu'}
 	class:is-on={on}
-	class:is-active={kind === 'menu' && on}
 	class:ante={kind === 'arm' && on}
 	class:is-run={kind === 'auto' && running}
 	class:is-busy={!controls.isIdle()}
@@ -71,10 +71,10 @@
 	aria-expanded={kind === 'menu' ? on : undefined}
 >
 	<span class="ga">
-		<span class="gl under">{@html art.under}</span>
-		<span class="gn"><span class="gl turn" data-turn={kind}>{@html art.teeth}</span></span>
-		<span class="gl">{@html art.face}</span>
-		<span class="gl">{@html art.mark}</span>
+		<span class="glayer under">{@html art.under}</span>
+		<span class="gn"><span class="glayer turn" data-turn={kind}>{@html art.teeth}</span></span>
+		<span class="glayer">{@html art.face}</span>
+		<span class="glayer">{@html art.mark}</span>
 	</span>
 	{#if kind === 'arm' && on}<span class="lb">{onLabel}</span>{/if}
 </button>

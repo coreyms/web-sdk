@@ -2,7 +2,15 @@
    build/page.css, build/r6.css). Scoped to .hudp.v-gear, the planes ui/gear/GearBar.svelte draws; the dock's own rules
    (ui/hud/hud.css) are untouched and still style the pieces borrowed from it. Painted only: no backdrop-filter, no CSS
    filter, no mask, no blend mode. Motion is transform and opacity. The planes are in CSS px of the window, so a px
-   here is a real px; sizes that follow a piece come from its own box (percent) or from a variable its component sets. */
+   here is a real px; sizes that follow a piece come from its own box (percent) or from a variable its component sets.
+   CLASS NAMES (2026-11-22: the gear layers were first named .gl, the dock's glass class, and every gear drew inside a
+   glass square): hud.css is global under .hudp, so no element here carries a dock class it does not mean to borrow.
+   The layers are .glayer; the small gears .gk gk-auto / gk-turbo / gk-menu / gk-arm; the standards .gs gs-menu / gs-arm.
+   Borrowed on purpose: slot-btn, hg, hit (the keys' base), fb (the Armoury key, for the probes), the dock's own
+   components (.spin, .stat, .sk, .mp). Every rule here starts .hudp.v-gear (two start .v-gear), which the dock's planes
+   never carry, so nothing here restyles the dock.
+   WHAT A GEAR PAINTS: its SVG layers and nothing else. No wrapper (.ga, .gn, .glayer) and no key (.spin, .gk) has a
+   background, a border, an outline or a box-shadow. */
 .hudp.v-gear {
 	/* iron and brass (the mock's gear gradients), the arrow's gold, SPIN's gold; a disabled gear swaps them for steel */
 	--gi0: #3d342b;
@@ -41,19 +49,19 @@
 .hudp.v-gear .gn {
 	transition: transform 0.2s ease;
 }
-.hudp.v-gear .gl {
+.hudp.v-gear .glayer {
 	position: absolute;
 	inset: calc(var(--pad) * -1);
 	pointer-events: none;
 }
-.hudp.v-gear .gl > svg {
+.hudp.v-gear .glayer > svg {
 	display: block;
 	width: 100%;
 	height: 100%;
 	overflow: visible;
 }
 /* THE TURNING LAYERS: each on a layer of its own, turned by a transform alone (ui/gear/GearBar.svelte apply) */
-.hudp.v-gear .gl.turn {
+.hudp.v-gear .glayer.turn {
 	will-change: transform;
 }
 
@@ -70,6 +78,13 @@
 .hudp.v-gear .spin:active:not(:disabled) {
 	transform: none;
 	box-shadow: none;
+}
+/* THE KEY ITSELF PAINTS NOTHING in any state (the dock gives its Spin a glass disc, a rim and shadows by state: at
+   rest, hover, pressed, disabled, a loaded run, an armed feature, upright): the gear's drawing is the whole look */
+.hudp.v-gear .spin {
+	border: 0 !important;
+	background: none !important;
+	box-shadow: none !important;
 }
 /* a disabled Play never goes see-through (the dock's key dims after a stop press; here the stop square alone dims) */
 .hudp.v-gear .spin:disabled {
@@ -160,8 +175,8 @@
 	color: var(--ring);
 }
 /* the hub's ring and halo by state */
-.hudp.v-gear .spin .gl.glow,
-.hudp.v-gear .spin .gl.flash,
+.hudp.v-gear .spin .glayer.glow,
+.hudp.v-gear .spin .glayer.flash,
 .hudp.v-gear .spin .hr-mode,
 .hudp.v-gear .spin .hr-hot,
 .hudp.v-gear .spin .hr-sunk,
@@ -172,23 +187,29 @@
 .hudp.v-gear .spin.m-feature .hr-mode {
 	opacity: 1;
 }
-.hudp.v-gear .spin.m-feature .gl.glow {
+.hudp.v-gear .spin.m-feature .glayer.glow {
 	opacity: 0.5;
 }
-.hudp.v-gear .spin.m-auto .gl.glow {
+.hudp.v-gear .spin.m-auto .glayer.glow {
 	animation: gear-breathe 1.8s ease-in-out infinite;
 }
 /* a win: the hub's ring lit in the win color (the feature's inside a feature), the halo from full and a pale ring over
    it, all gone in 0.7 s, as the frame's wheels' rings pulse (game/frameGears.ts RING.pulseMs). Corey: "a light ring
-   around the button with different colors for win, Bonus, Super, Epic". (Until 2026-11-22 a base game win lit only the
-   halo and the pale ring, the mock's own win; the colored ring itself showed in features alone, so on a win the
-   wheels' rings lit and the hub's did not.) */
-.hudp.v-gear .spin.win .hr-mode,
-.hudp.v-gear .spin.win .gl.glow,
-.hudp.v-gear .spin.win .gl.flash {
-	animation: gear-win 0.7s linear 1;
+   around the button with different colors for win, Bonus, Super, Epic". The pulse is a class the bar puts on the gear's
+   drawing in the same call that lights the wheels (gp-a, gp-b by turns: GearBar win()), never the Spin key's own win
+   class, which arrives a frame later. */
+.hudp.v-gear .ga.gp-a :is(.hr-mode, .glayer.glow, .glayer.flash) {
+	animation: gear-win-a 0.7s linear 1;
 }
-@keyframes gear-win {
+.hudp.v-gear .ga.gp-b :is(.hr-mode, .glayer.glow, .glayer.flash) {
+	animation: gear-win-b 0.7s linear 1;
+}
+@keyframes gear-win-a {
+	from {
+		opacity: 1;
+	}
+}
+@keyframes gear-win-b {
 	from {
 		opacity: 1;
 	}
@@ -265,7 +286,7 @@
 .hudp.v-gear .gk .kw {
 	stroke-width: var(--gkw);
 }
-.hudp.v-gear .gk .gl.under,
+.hudp.v-gear .gk .glayer.under,
 .hudp.v-gear .gk .kr-c,
 .hudp.v-gear .gk .kr-hot,
 .hudp.v-gear .gk .sunk,
@@ -288,8 +309,8 @@
 	--gkw: 1px;
 	color: #2a1606;
 }
-.hudp.v-gear .gk.is-on :is(.gl.under, .kr-c),
-.hudp.v-gear .gk:is([data-l='1'], [data-l='2']) :is(.gl.under, .kr-c) {
+.hudp.v-gear .gk.is-on :is(.glayer.under, .kr-c),
+.hudp.v-gear .gk:is([data-l='1'], [data-l='2']) :is(.glayer.under, .kr-c) {
 	opacity: 1;
 }
 .hudp.v-gear .gk[data-l='1'] .pip {
@@ -343,7 +364,7 @@
 .hudp.v-gear .gk:disabled:not(.is-busy) :is(.kr-c, .off) {
 	opacity: 1;
 }
-.hudp.v-gear .gk:disabled:not(.is-busy) .gl.under {
+.hudp.v-gear .gk:disabled:not(.is-busy) .glayer.under {
 	opacity: 0;
 }
 
@@ -393,17 +414,17 @@
 	transition: stroke 0.12s ease;
 }
 /* Menu: dark glass; gold while the help menu is open */
-.hudp.v-gear .gs.menuk .rimp {
+.hudp.v-gear .gs.gs-menu .rimp {
 	stroke: rgba(var(--hud-key-rim-rgb), calc(var(--hud-key-rim-a) + 0.1));
 }
-.hudp.v-gear .gs.menuk .ic {
+.hudp.v-gear .gs.gs-menu .ic {
 	position: absolute;
 	left: calc(50% - var(--s) * 12.58);
 	top: calc(var(--s) * 35.76);
 	width: calc(var(--s) * 25.16);
 	height: calc(var(--s) * 25.16);
 }
-.hudp.v-gear .gs.menuk .kl {
+.hudp.v-gear .gs.gs-menu .kl {
 	position: absolute;
 	left: 50%;
 	top: calc(var(--s) * 71.28);
@@ -415,26 +436,26 @@
 	text-indent: 0.1em;
 	color: var(--lab);
 }
-.hudp.v-gear .gs.menuk.is-on {
+.hudp.v-gear .gs.gs-menu.is-on {
 	color: rgb(var(--hud-key-on-ink-rgb));
 }
-.hudp.v-gear .gs.menuk.is-on .kl {
+.hudp.v-gear .gs.gs-menu.is-on .kl {
 	color: inherit;
 }
-.hudp.v-gear .gs.menuk.is-on .glow {
+.hudp.v-gear .gs.gs-menu.is-on .glow {
 	opacity: 0.55;
 }
-.hudp.v-gear .gs.menuk.is-on .f-on {
+.hudp.v-gear .gs.gs-menu.is-on .f-on {
 	opacity: 1;
 }
-.hudp.v-gear .gs.menuk.is-on .f-rest {
+.hudp.v-gear .gs.gs-menu.is-on .f-rest {
 	opacity: 0;
 }
-.hudp.v-gear .gs.menuk.is-on .rimp {
+.hudp.v-gear .gs.gs-menu.is-on .rimp {
 	stroke: rgba(var(--hud-accent-rgb), 0.9);
 }
 /* the Armoury: red cloth, the PolyMath mark in flat gold; with a mode on, the mark inlaid in gold under the mode's name */
-.hudp.v-gear .gs.arm {
+.hudp.v-gear .gs.gs-arm {
 	--e-deep: var(--hud-feature-deep-2-rgb);
 	--e-hi: var(--hud-feature-hi-rgb);
 	--e-lt: var(--hud-feature-rim-rgb);
@@ -445,33 +466,33 @@
 	--e-accent: var(--hud-mark-accent-rgb);
 	color: rgb(var(--hud-ink-rgb));
 }
-.hudp.v-gear .gs.arm.is-on {
+.hudp.v-gear .gs.gs-arm.is-on {
 	--e-deep: var(--hud-feature-on-deep-2-rgb);
 	--e-hi: var(--hud-accent-hi-rgb);
 	--e-lt: var(--hud-accent-cream-rgb);
 }
-.hudp.v-gear .gs.arm .rimp {
+.hudp.v-gear .gs.gs-arm .rimp {
 	stroke: rgba(var(--hud-feature-rim-rgb), 0.55);
 }
-.hudp.v-gear .gs.arm.is-on .rimp {
+.hudp.v-gear .gs.gs-arm.is-on .rimp {
 	stroke: var(--hud-feature-on-rim);
 }
-.hudp.v-gear .gs.arm.is-on :is(.f-on, .em-on, .scr) {
+.hudp.v-gear .gs.gs-arm.is-on :is(.f-on, .em-on, .scr) {
 	opacity: 1;
 }
-.hudp.v-gear .gs.arm.is-on :is(.f-rest, .em-rest) {
+.hudp.v-gear .gs.gs-arm.is-on :is(.f-rest, .em-rest) {
 	opacity: 0;
 }
-.hudp.v-gear .gs.arm.is-on .glow {
+.hudp.v-gear .gs.gs-arm.is-on .glow {
 	opacity: 0.55;
 }
 /* (one class short on purpose, here and on the disabled < and >: the chrome's own fade under a presentation, ui/Chrome.svelte
    .hud-off, must still win over a disabled key's opacity) */
-.v-gear .gs.arm:disabled {
+.v-gear .gs.gs-arm:disabled {
 	opacity: 0.5;
 	cursor: default;
 }
-.hudp.v-gear .gs.arm .lb {
+.hudp.v-gear .gs.gs-arm .lb {
 	position: absolute;
 	left: 50%;
 	top: 46%;
@@ -485,27 +506,27 @@
 	color: rgb(var(--hud-accent-cream-rgb));
 	text-shadow: 0 0 1px rgba(var(--hud-shadow-rgb), 1), 0 0 1px rgba(var(--hud-shadow-rgb), 1), 0 0 2px rgba(var(--hud-shadow-rgb), 0.9), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.8);
 }
-.hudp.v-gear .gs.arm .lb.two {
+.hudp.v-gear .gs.gs-arm .lb.two {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	gap: 0.2em;
 	font-size: calc(var(--s) * 10);
 }
-.hudp.v-gear .gs.arm .lb b {
+.hudp.v-gear .gs.gs-arm .lb b {
 	font-weight: inherit;
 }
 @media (hover: hover) and (pointer: fine) {
-	.hudp.v-gear .gs.menuk:hover .rimp {
+	.hudp.v-gear .gs.gs-menu:hover .rimp {
 		stroke: rgba(var(--hud-key-rim-rgb), calc(var(--hud-key-rim-a) + 0.36));
 	}
-	.hudp.v-gear .gs.menuk.is-on:hover .rimp {
+	.hudp.v-gear .gs.gs-menu.is-on:hover .rimp {
 		stroke: rgb(var(--hud-accent-hi-rgb));
 	}
-	.hudp.v-gear .gs.arm:hover:not(:disabled):not(.is-on) .rimp {
+	.hudp.v-gear .gs.gs-arm:hover:not(:disabled):not(.is-on) .rimp {
 		stroke: rgba(var(--hud-feature-rim-rgb), 0.85);
 	}
-	.hudp.v-gear .gs.arm:hover:not(:disabled):not(.is-on) .glow {
+	.hudp.v-gear .gs.gs-arm:hover:not(:disabled):not(.is-on) .glow {
 		opacity: 0.3;
 	}
 }
@@ -627,6 +648,11 @@
 	letter-spacing: 0.2em;
 	margin-right: -0.2em;
 }
+/* THE ARROWS' PRESS BOX on a phone: the 44 px square the layout places and keeps clear (ui/gear/gearLayout.ts press),
+   an unseen pad under the drawn arrow. (The dock's pad, .hit::after, is a 44 px circle: its corners took no press.) */
+.hudp.v-gear.v-up .sk.bare.hit::after {
+	border-radius: 0;
+}
 /* an arrow's whole 44 px press box stands over the amount's box where the two meet (the amount opens the amount
    list; a press meant for an arrow must reach the arrow) */
 .hudp.v-gear.v-up .sk.bare {
@@ -642,7 +668,7 @@
 		transition: none;
 		transform: none !important;
 	}
-	.hudp.v-gear .spin.m-auto .gl.glow {
+	.hudp.v-gear .spin.m-auto .glayer.glow {
 		animation: none;
 		opacity: 0.45;
 	}

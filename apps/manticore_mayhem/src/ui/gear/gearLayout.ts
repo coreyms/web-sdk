@@ -183,7 +183,9 @@ export const SIDEWAYS: SidewaysTable = {
 	readout: 0.553,
 	text: { spin: 13.6, spinInk: 0.8, word: 8.2, label: 9 },
 };
-/** a sideways phone smaller than this keeps the dock (Stake's 568 x 320 and smaller) */
+/** a sideways phone smaller than this keeps the dock (Stake's 568 x 320 and smaller, its Popout S 400 x 225). Its
+ *  Popout L, 800 x 450, has a short side under 480 px, so the game lays it out as a phone held sideways (the phone
+ *  master): this rule places it and the chain fits. */
 export const SIDEWAYS_MIN = { vw: 640, vh: 340 } as const;
 /** THE MANTICORE'S TOP EDGE on a sideways phone: [x, y] in px of the board art from the frame's top right wheel's center
  *  (x right, y down), the highest point of him in each 16 px column over his idle loops and his tallest pose (roar 13).

@@ -63,9 +63,14 @@
 		untrack(() => (gearRing.kind = k));
 		return () => (gearRing.kind = null);
 	});
+	// THE WIN PULSE: one call lights the frame's wheels' rings (gearRing) and the hub's own ring, halo and pale flash
+	// (a class on the gear's drawing, set here in the same turn: gear.css gp-a / gp-b, two names so each win starts the
+	// 0.7 s again). Until 2026-11-22 the hub's pulse hung on HudSpin's own win class, which HudSpin sets a frame later.
+	let pulseN = $state(0);
 	const win = () => {
 		gearRing.pulseKind = 'win';
 		gearRing.pulseAt = performance.now();
+		pulseN += 1;
 	};
 
 	const plane = $derived(`width:${L.vw}px;height:${L.vh}px;transform:translate(${-hud.fit.fitLeft / hud.fit.scale}px, ${-hud.fit.top / hud.fit.scale}px) scale(${1 / hud.fit.scale});--hit:44px;--g-count:${L.text.count}px;--g-sub:${L.text.sub}px${ringKind ? `;--ring:${hex(RING_COLOR[ringKind])}` : ''}`);
@@ -168,15 +173,15 @@
 	</div>
 	<HudSpin {controls} x={B.play.x} y={B.play.y} d={B.play.w} hubD={2 * L.hubR} ringArt={ARROW} onwin={win}>
 		{#snippet art()}
-			<span class="ga" style:--pad="{GEAR_PAD}px" style:--nudge="{0.25 * playArt.periods.teeth}deg">
-				<span class="gl glow">{@html playArt.glow}</span>
+			<span class="ga" class:gp-a={pulseN % 2 === 1} class:gp-b={pulseN > 0 && pulseN % 2 === 0} style:--pad="{GEAR_PAD}px" style:--nudge="{0.25 * playArt.periods.teeth}deg">
+				<span class="glayer glow">{@html playArt.glow}</span>
 				<span class="gn">
-					<span class="gl turn" data-turn="play:teeth">{@html playArt.teeth}</span>
-					<span class="gl turn" data-turn="play:spokes">{@html playArt.spokes}</span>
+					<span class="glayer turn" data-turn="play:teeth">{@html playArt.teeth}</span>
+					<span class="glayer turn" data-turn="play:spokes">{@html playArt.spokes}</span>
 				</span>
-				<span class="gl">{@html playArt.hub}</span>
-				<span class="gn"><span class="gl turn" data-turn="play:bolts">{@html playArt.bolts}</span></span>
-				<span class="gl flash">{@html playArt.flash}</span>
+				<span class="glayer">{@html playArt.hub}</span>
+				<span class="gn"><span class="glayer turn" data-turn="play:bolts">{@html playArt.bolts}</span></span>
+				<span class="glayer flash">{@html playArt.flash}</span>
 			</span>
 			<span class="gw">{@html spinWord}</span>
 		{/snippet}

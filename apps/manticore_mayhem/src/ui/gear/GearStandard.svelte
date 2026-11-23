@@ -29,13 +29,13 @@
 </script>
 
 {#if kind === 'menu'}
-	<button type="button" class="slot-btn hg gs menuk hit" class:is-on={stateUi.menuOpen} class:is-active={stateUi.menuOpen} data-hud="menu-key" data-piece="menu" style:left="{box.x}px" style:top="{box.y}px" style:width="{box.w}px" style:height="{box.h}px" style:--s="{s}px" onclick={controls.menuPress} aria-label="Menu" aria-expanded={stateUi.menuOpen}>
+	<button type="button" class="slot-btn hg gs gs-menu hit" class:is-on={stateUi.menuOpen} data-hud="menu-key" data-piece="menu" style:left="{box.x}px" style:top="{box.y}px" style:width="{box.w}px" style:height="{box.h}px" style:--s="{s}px" onclick={controls.menuPress} aria-label="Menu" aria-expanded={stateUi.menuOpen}>
 		<span class="gsa">{@html body}<HudIcon name="menu" /><span class="kl">MENU</span></span>
 	</button>
 {:else}
 	<button
 		type="button"
-		class="slot-btn hg gs fb arm hit"
+		class="slot-btn hg gs fb gs-arm hit"
 		class:is-on={on}
 		class:ante={on}
 		class:sante

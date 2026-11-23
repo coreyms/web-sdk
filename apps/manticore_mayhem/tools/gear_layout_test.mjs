@@ -419,6 +419,8 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	}
 	const bk = (vw, vh, mode) => L.barKind({ kind: 'phone', vw, vh, phone: true }, mode);
 	check('sideways switch: 874 x 402, 844 x 390, 812 x 425 and 667 x 375 get the gear bar; 568 x 320 keeps the dock; the rollback gives the dock', ['874x402', '844x390', '812x425', '667x375'].every((s2) => bk(...s2.split('x').map(Number)) === 'gear') && bk(568, 320) === 'dock' && side(568, 320) === null && bk(874, 402, 'dock') === 'dock');
+	const PL = side(800, 450);
+	check('sideways switch: Stake\'s Popout L, 800 x 450 (the game lays it out as a sideways phone), fits the chain with every press at 44 px; Popout S, 400 x 225, keeps the dock', !!PL && faults(PL).length === 0 && PL.text.label === 9 && PL.text.word >= 8 && bk(800, 450) === 'gear' && side(400, 225) === null && bk(400, 225) === 'dock', PL ? `Play ${f1(2 * PL.gears.play.R)} px, small gears ${f1(2 * PL.gears.auto.R)} px, the amount ${PL.how}, standards ${f1(PL.box.menu.w)} px wide` : 'no fit');
 	check('sideways switch: 667 x 375 with a 59 px right safe area keeps the dock (no chain fits; the mock overlapped < and > there)', side(667, 375, { t: 0, r: 59, b: 0, l: 59 }) === null);
 	// the chain's turning from the frame's wheel
 	{
