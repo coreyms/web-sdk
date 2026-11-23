@@ -178,7 +178,12 @@
 .hudp.v-gear .spin.m-auto .gl.glow {
 	animation: gear-breathe 1.8s ease-in-out infinite;
 }
-/* a win: the halo from full and a pale ring over the hub's, both gone in 0.7 s (the frame's wheels pulse with them) */
+/* a win: the hub's ring lit in the win color (the feature's inside a feature), the halo from full and a pale ring over
+   it, all gone in 0.7 s, as the frame's wheels' rings pulse (game/frameGears.ts RING.pulseMs). Corey: "a light ring
+   around the button with different colors for win, Bonus, Super, Epic". (Until 2026-11-22 a base game win lit only the
+   halo and the pale ring, the mock's own win; the colored ring itself showed in features alone, so on a win the
+   wheels' rings lit and the hub's did not.) */
+.hudp.v-gear .spin.win .hr-mode,
 .hudp.v-gear .spin.win .gl.glow,
 .hudp.v-gear .spin.win .gl.flash {
 	animation: gear-win 0.7s linear 1;
@@ -590,6 +595,42 @@
 	.hudp.v-gear .sk.bare:hover:not(:disabled) .chev .ink {
 		stroke-width: 3.8;
 	}
+}
+
+/* ---- THE UPRIGHT PHONE (.v-up): the gear train's small gears with an icon alone, the readouts as real phone text ---- */
+/* the Armoury's mark: the game's gold at rest, dark on the lit face with a mode on, steel when disabled at rest */
+.hudp.v-gear .gk .pm {
+	fill: rgb(var(--hud-mark-g2-rgb));
+}
+.hudp.v-gear .gk.is-on .pm {
+	fill: #2a1606;
+}
+.hudp.v-gear .gk:disabled:not(.is-busy) .pm {
+	fill: #d9dde4;
+}
+/* the mode's name is not drawn on the gear (no room): it stays in the page for a screen reader and the probes */
+.hudp.v-gear .gk .lb {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+/* the readouts: a 9 px word 1 px over the number (its size is set by the fit, 15 px unless it must shrink) */
+.hudp.v-gear.v-up .stat {
+	gap: 1px;
+}
+.hudp.v-gear.v-up .stat .lbw,
+.hudp.v-gear.v-up .stat.win .lbw {
+	font-size: 9px;
+	letter-spacing: 0.2em;
+	margin-right: -0.2em;
+}
+/* an arrow's whole 44 px press box stands over the amount's box where the two meet (the amount opens the amount
+   list; a press meant for an arrow must reach the arrow) */
+.hudp.v-gear.v-up .sk.bare {
+	z-index: 1;
 }
 
 /* reduced motion: nothing eases or breathes; the gears are still (GearBar) */

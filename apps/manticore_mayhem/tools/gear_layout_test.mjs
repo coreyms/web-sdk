@@ -13,6 +13,9 @@
 //     centers (the pitch point), and the folded angle a layer is drawn at is the same picture as the true angle
 //   - the haul as BoardFrame reports it: a Spin press turns the HTML gears its 4 links at every turbo level and never
 //     turns them back by a tile when the press is folded into the haul's base
+//   - the upright phone (UPRIGHT, uprightLayout): his five gears exact at 402 x 874, each move from his places, the
+//     windows the mock solved (meshed, on the window, < and > clear of the Play, nothing on the board, the plaque or the
+//     logo by the stills' boxes), a 34 px bottom safe area, a sweep of phone windows, the chain's turning, its switch
 //   - the switch: desktop windows get the gear bar, the two popouts and every phone keep the dock, one constant rolls back
 import { registerHooks } from 'node:module';
 import { existsSync } from 'node:fs';
@@ -185,13 +188,139 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	check('the haul: two presses on top of each other and a War Standard run of 1.4 links, at 4 frames a second (a hitch): 9.4 links', near(two.travel, 9.4, 1e-9) && two.back > -0.5, `travel ${two.travel.toFixed(4)}`);
 }
 
+// ---- 4c. THE UPRIGHT PHONE (src/ui/gear/gearLayout.ts UPRIGHT, uprightLayout) ----
+{
+	const LS = await import('../src/game/layoutSpec.ts');
+	/** the game's own live viewport for an upright phone window (game/stateLayout.ts sets this in the game) */
+	const phone = (vw, vh) => {
+		const scale = Math.min(vw / 412, vh / 760);
+		LS.setPortraitViewportSource(() => ({ masterHeight: vh / scale, cssPerMaster: scale, phone: true }));
+	};
+	const up = (vw, vh, safe = 0) => (phone(vw, vh), L.uprightLayout(vw, vh, safe));
+	const toBox = (c, b) => {
+		const nx = Math.max(b.x, Math.min(c.cx, b.x + b.w));
+		const ny = Math.max(b.y, Math.min(c.cy, b.y + b.h));
+		return c.cx > b.x && c.cx < b.x + b.w && c.cy > b.y && c.cy < b.y + b.h ? -c.R : Math.hypot(c.cx - nx, c.cy - ny) - c.R;
+	};
+	const meet = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+	const GEARS = ['play', 'turbo', 'auto', 'menu', 'arm'];
+	// COPY OF Desktop "Manticore Mayhem/phone_stills_2026-11-22/layout.json" (the running game, CSS px): the board frame's
+	// plate, the spin amount plaque, the logo's art
+	const STILLS = {
+		'402x874': { frame: [-28.7, 296.8, 459.4, 384.8], plaque: [52.7, 657.8, 296.5, 58], logo: [1.1, 96.9, 249.8, 90.3] },
+		'402x700': { frame: [-28.7, 204.7, 459.4, 384.8], plaque: [100.1, 566.9, 201.6, 39.4], logo: [1.1, 28.9, 235.8, 85.3] },
+		'390x844': { frame: [-27.8, 283.3, 445.7, 373.4], plaque: [51.1, 633.5, 287.6, 56.3], logo: [1.1, 92, 242.3, 87.6] },
+		'375x667': { frame: [-26.8, 197.8, 428.6, 359], plaque: [93.4, 535.7, 188.1, 36.8], logo: [1.2, 27.6, 224.7, 81.2] },
+		'425x812': { frame: [-30.3, 251.9, 485.7, 406.9], plaque: [55.7, 633.6, 313.4, 61.3], logo: [1, 46.4, 264.1, 95.5] },
+	};
+	/** everything that must hold of a solved window; returns the faults */
+	const faults = (G, safe = 0) => {
+		const bad = [];
+		const g = G.gears;
+		for (const id of GEARS.slice(1)) {
+			const c = g[id];
+			const p = g[c.parent];
+			if (!near(Math.hypot(c.cx - p.cx, c.cy - p.cy), c.pitchR + p.pitchR + L.UPRIGHT.small.clear, 1e-6)) bad.push(`${id} not meshed with ${c.parent}`);
+			if (!near((2 * Math.PI * c.pitchR) / c.teeth, G.tooth.pitch, 1e-9)) bad.push(`${id} tooth`);
+			if (2 * c.R < L.MIN_PRESS - 0.01) bad.push(`${id} ${f1(2 * c.R)} px`);
+		}
+		for (const [a, b] of [['menu', 'play'], ['arm', 'play'], ['arm', 'auto'], ['turbo', 'auto'], ['turbo', 'menu'], ['turbo', 'arm']]) if (Math.hypot(g[a].cx - g[b].cx, g[a].cy - g[b].cy) < g[a].R + g[b].R + 0.99) bad.push(`${a} crosses ${b}`);
+		if (!near(g.play.cx, G.vw / 2, 1e-9)) bad.push('Play off the center line');
+		for (const id of L.PIECES) {
+			for (const b of [G.box[id], G.press[id]]) if (b.x < -0.01 || b.y < -0.01 || b.x + b.w > G.vw + 0.01 || b.y + b.h > G.vh + 0.01) bad.push(`${id} off the window`);
+		}
+		for (const id of [...GEARS, 'down', 'up']) if (G.press[id].y + G.press[id].h > G.vh - safe + 0.01) bad.push(`${id} in the bottom safe area`);
+		for (const id of ['down', 'up']) {
+			const t = G.press[id];
+			if (Math.min(t.w, t.h) < L.MIN_PRESS - 0.01) bad.push(`${id} press ${f1(Math.min(t.w, t.h))}`);
+			if (toBox(g.play, t) < L.UPRIGHT.gapSpin - 0.01) bad.push(`${id} ${f1(toBox(g.play, t))} px from the Play's press region`);
+			for (const k of GEARS) if (toBox(g[k], t) < 0.99) bad.push(`${id} press box on ${k}`);
+		}
+		if (meet(G.press.down, G.press.up)) bad.push('< and > press boxes meet');
+		for (const id of ['bal', 'amt']) for (const k of GEARS) if (toBox(g[k], G.box[id]) < 0.99) bad.push(`${id} on ${k}`);
+		return bad;
+	};
+	// his phone
+	const H = up(402, 874);
+	const HIS = { play: [201, 788.3], auto: [106.39, 804.98], turbo: [295.91, 803.16], menu: [51.53, 817.14], arm: [44.1, 761.45] };
+	check('upright 402 x 874: the five gears within 0.1 px of his centers; 56 and 23 teeth; 139.6 and 59.8 across', !!H && GEARS.every((id) => near(H.gears[id].cx, HIS[id][0], 0.1) && near(H.gears[id].cy, HIS[id][1], 0.1)) && H.gears.play.teeth === 56 && GEARS.slice(1).every((id) => H.gears[id].teeth === 23) && near(2 * H.gears.play.R, 139.6, 0.1) && near(2 * H.gears.auto.R, 59.84, 0.1), H ? GEARS.map((id) => `${id} ${f1(H.gears[id].cx)}, ${f1(H.gears[id].cy)}`).join('; ') : 'no fit');
+	if (H) {
+		check('upright 402 x 874: his angles kept (Turbo 98.9, Auto 260, Menu 257.5, Armoury 352.4), scale 1', near(H.k, 1, 1e-5) && H.gears.turbo.deg === 98.9 && H.gears.auto.deg === 260 && H.gears.menu.deg === 257.5 && H.gears.arm.deg === 352.4);
+		const mv = { down: H.box.down.x - 273.5, up: H.box.up.x - 372, amt: H.box.amt.x + H.box.amt.w / 2 - 336.77, win: H.box.win.x + H.box.win.w / 2 - 103.55, bal: H.box.bal.y - 825 };
+		check('upright 402 x 874: the moves from his places: < 9.7 right, > 5.3 left, the amount 1.5 right, Win 4.2 right, Balance 10.1 down', near(mv.down, 9.7, 0.3) && near(mv.up, -5.33, 0.05) && near(mv.amt, 1.5, 0.3) && near(mv.win, 4.2, 0.3) && near(mv.bal, 10.1, 0.2) && near(H.box.down.y, 727.5, 0.05) && near(H.box.up.y, 726.5, 0.05) && near(H.box.win.y + 13, 731.33, 0.05), JSON.stringify(Object.fromEntries(Object.entries(mv).map(([k, v]) => [k, f1(v)]))));
+		check('upright 402 x 874: < is 8 px clear of the Play\'s press region (it was 1.1 px in)', H.gapSpin >= 8 && H.gapSpin < 8.5, `${f1(H.gapSpin)} px`);
+		check('upright 402 x 874: his arrangement (Win by the Armoury, the amount upper right, Balance under Turbo)', H.where.win.startsWith('between') && H.where.amt === 'upper right' && H.where.bal === 'under Turbo', JSON.stringify(H.where));
+		check('upright 402 x 874: real text: a 9 px word, a 15 px number; the longest US amounts fit Balance and the amount at 15 px, Win is fitted to the 78 px between the gears', H.text.label === 9 && H.text.number === 15 && H.fitW.bal >= 6.83 * 15 - 0.5 && H.fitW.amt >= 4.77 * 15 && near(H.fitW.win, 77.7, 0.5), JSON.stringify(H.fitW));
+	}
+	// the windows the mock solved, by the one rule
+	for (const [key, S] of Object.entries(STILLS)) {
+		const [vw, vh] = key.split('x').map(Number);
+		const G = up(vw, vh);
+		check(`upright ${key}: the train fits`, !!G);
+		if (!G) continue;
+		const bad = faults(G);
+		const scene = Object.entries(S).map(([n, b]) => [n, { x: b[0], y: b[1], w: b[2], h: b[3] }]);
+		for (const id of L.PIECES) for (const [n, b] of scene) if (meet(G.box[id], b) || meet(G.press[id], b)) bad.push(`${id} on the ${n}`);
+		check(`upright ${key}: meshed, on the window, < and > clear of the Play, nothing on the board, the plaque or the logo`, bad.length === 0, bad.slice(0, 4).join('; ') || `scale ${G.k.toFixed(3)}, Play ${f1(2 * G.gears.play.R)} (${G.gears.play.teeth} teeth), small ${f1(2 * G.gears.auto.R)}, the Armoury at ${G.gears.arm.deg}; Win ${G.where.win}, Balance ${G.where.bal}, the amount ${G.where.amt}`);
+		check(`upright ${key}: the band's top is the plaque's shadow in the still`, near(G.band.plate, S.plaque[1] + S.plaque[3], 0.15), `${f1(G.band.plate)} against ${f1(S.plaque[1] + S.plaque[3])}`);
+	}
+	// the bottom safe area: a full screen web view on his phone
+	const SA = up(402, 874, 34);
+	check('upright 402 x 874 with a 34 px bottom safe area: the train stands on its edge, shrunk to 0.86 (a lift alone would put the Play on the plaque)', !!SA && near(SA.k, 0.863, 0.005) && faults(SA, 34).length === 0 && SA.gears.play.cy - SA.gears.play.R >= SA.band.top - 0.21, SA ? `scale ${SA.k.toFixed(3)}; ${faults(SA, 34).slice(0, 3).join('; ')}` : 'no fit');
+	// the sweep: every phone window from 360 to 440 wide
+	{
+		let n = 0;
+		let dock = 0;
+		const bad = [];
+		for (let vw = 360; vw <= 440; vw += 4) {
+			for (let vh = 600; vh <= 960; vh += 12) {
+				for (const safe of [0, 34]) {
+					const G = up(vw, vh, safe);
+					if (!G) {
+						dock += 1;
+						continue;
+					}
+					n += 1;
+					const f = faults(G, safe);
+					if (f.length) bad.push(`${vw}x${vh} safe ${safe}: ${f[0]}`);
+				}
+			}
+		}
+		check(`upright sweep: ${n} phone windows solved (${dock} keep the dock), every one meshed, on the window, out of the safe area, < and > 8 px clear of the Play`, bad.length === 0 && n > 800, bad.slice(0, 4).join('; '));
+	}
+	// the switch
+	const bk = (vw, vh, phoneFlag = true, mode) => (phone(vw, vh), L.barKind({ kind: 'portrait', vw, vh, phone: phoneFlag }, mode));
+	check('upright switch: phones from 360 wide get the gear bar', ['402x874', '402x700', '390x844', '375x667', '425x812', '360x800'].every((s) => bk(...s.split('x').map(Number)) === 'gear'));
+	check('upright switch: 320 x 568 keeps the dock (the chain does not fit), and so does a tablet held upright', bk(320, 568) === 'dock' && up(320, 568) === null && bk(820, 1180, false) === 'dock');
+	check('upright switch: the rollback constant gives the dock; sideways phones keep the dock (their table is empty)', bk(402, 874, true, 'dock') === 'dock' && L.TABLES.sideways === null && L.barKind({ kind: 'phone', vw: 874, vh: 402, phone: true }) === 'dock');
+	const short = ['390x620', '360x740', '375x553'].filter((s) => bk(...s.split('x').map(Number)) === 'dock');
+	console.log(`     note: phone windows that keep the dock because no arrangement fits: 320x568, ${short.join(', ')}`);
+	// the train's turning: each gear from the gear it meshes with
+	{
+		const g = H.gears;
+		let worst = 0;
+		for (let links = 0; links < 6; links += 0.0713) {
+			const a = { play: L.playAngle(links, g.play.teeth) };
+			for (const id of ['turbo', 'auto', 'menu', 'arm']) {
+				const c = g[id];
+				const p = g[c.parent];
+				a[id] = L.smallAngle(a[c.parent], c.deg, p.teeth, c.teeth);
+				const gapP = L.fold(c.deg - a[c.parent] - 180 / p.teeth, 360 / p.teeth) * (Math.PI / 180) * p.pitchR;
+				const toothC = L.fold(c.deg + 180 - a[id], 360 / c.teeth) * (Math.PI / 180) * c.pitchR;
+				worst = Math.max(worst, Math.abs(gapP + toothC));
+			}
+		}
+		check('upright turning: along the whole chain each gear\'s tooth sits in its parent\'s gap at the pitch point', worst < 0.01, `worst ${worst.toFixed(5)} px`);
+	}
+}
+
 // ---- 5. the switch ----
 {
 	const k = (kind, vw, vh, mode) => L.barKind({ kind, vw, vh }, mode);
 	check('switch: desktop and laptop windows get the gear bar', ['1920x1080', '1200x675', '1024x576', '1280x720', '1366x768', '1440x900', '2560x1440', '2560x1080', '3440x1440'].every((s) => k('landscape', ...s.split('x').map(Number)) === 'gear'));
 	check('switch: the two popouts keep the dock', k('landscape', 800, 450) === 'dock' && k('landscape', 400, 225) === 'dock');
 	check('switch: a small window near 4:3 (an iPad held sideways) keeps the dock: its gears would be under 55 percent', k('landscape', 1024, 768) === 'dock' && k('landscape', 1180, 820) === 'dock', `1024 x 768 would draw them at ${L.desktopLayout(1024, 768).scale.gears.toFixed(2)}, 1180 x 820 at ${L.desktopLayout(1180, 820).scale.gears.toFixed(2)}`);
-	check('switch: phones keep the dock until their tables are filled', L.TABLES.sideways === null && L.TABLES.upright === null && k('phone', 844, 390) === 'dock' && k('portrait', 390, 844) === 'dock' && k('portrait', 425, 812) === 'dock' && k('portrait', 320, 568) === 'dock');
+	check('switch: a sideways phone keeps the dock until its table is filled', L.TABLES.sideways === null && k('phone', 844, 390) === 'dock');
 	check('switch: one constant rolls every screen back to the dock', k('landscape', 1920, 1080, 'dock') === 'dock' && L.gearBarLayout({ kind: 'landscape', vw: 1920, vh: 1080 }, 'dock') === null && L.GAME_BAR === 'gear');
 }
 

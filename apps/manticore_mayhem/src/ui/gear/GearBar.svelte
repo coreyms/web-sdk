@@ -49,6 +49,7 @@
 	import GearKey from './GearKey.svelte';
 	import GearStandard from './GearStandard.svelte';
 	import { fold, playAngle, smallAngle, type GearBarLayout } from './gearLayout';
+	import { hubNow } from './hubNow';
 	import './gear.css';
 
 	type Props = { controls: Controls; hud: HudFrame; layout: GearBarLayout };
@@ -163,6 +164,8 @@
 				drawn: turns.map((t) => ({ layer: t.el.dataset.turn, period: t.period, transform: t.el.style.transform })),
 				/** the hub ring's state: its kind (null: brass), its color, and the strength the frame's wheels draw it at */
 				ring: { kind: ringKind, pulse: r.kind, color: r.level > 0 ? hex(r.rgb) : null, level: r.level },
+				/** the hub's ring as drawn now: its colored ring, halo and pale flash (opacities), the ring's color */
+				hub: hubNow(host),
 			};
 		};
 	}

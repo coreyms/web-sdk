@@ -62,7 +62,7 @@ export const gearOutline = (R: number, N: number, dep: number = TOOTH.height): P
 	}
 	return pts;
 };
-const outlineD = (R: number, N: number) => 'M' + gearOutline(R, N).map(ps).join('L') + 'Z';
+const outlineD = (R: number, N: number, dep: number = TOOTH.height) => 'M' + gearOutline(R, N, dep).map(ps).join('L') + 'Z';
 const ring = (r: number) => `M${ps(P(r, 0))}A${f2(r)} ${f2(r)} 0 1 0 ${ps(P(r, 180))}A${f2(r)} ${f2(r)} 0 1 0 ${ps(P(r, 0))}Z`;
 const svg = (B: number, body: string, cls = '') => `<svg${cls ? ` class="${cls}"` : ''} viewBox="${f2(-B)} ${f2(-B)} ${f2(2 * B)} ${f2(2 * B)}" aria-hidden="true" focusable="false">${body}</svg>`;
 /** the iron and the brass, lit from the upper left across the whole gear (the mock's gradients; --gi* and --gb* turn
@@ -71,16 +71,16 @@ const metals = (id: string, R: number) =>
 	`<linearGradient id="${id}i" gradientUnits="userSpaceOnUse" x1="${f2(-R)}" y1="${f2(-R)}" x2="${f2(R * 0.6)}" y2="${f2(R)}"><stop offset="0" style="stop-color:var(--gi0)"/><stop offset=".5" style="stop-color:var(--gi1)"/><stop offset="1" style="stop-color:var(--gi2)"/></linearGradient>` +
 	`<linearGradient id="${id}b" gradientUnits="userSpaceOnUse" x1="${f2(-R)}" y1="${f2(-R)}" x2="${f2(R)}" y2="${f2(R)}"><stop offset="0" style="stop-color:var(--gb0)"/><stop offset=".45" style="stop-color:var(--gb1)"/><stop offset="1" style="stop-color:var(--gb2)"/></linearGradient>`;
 
-/** THE PLAY GEAR: R over the tips, N teeth, the hub Rh. `teeth`, `spokes` and `bolts` turn (their periods beside them);
+/** THE PLAY GEAR: R over the tips, N teeth, the hub Rh, the tooth's height (the desktop table's unless given: a phone's
+ *  gears are drawn in that phone's own px). `teeth`, `spokes` and `bolts` turn (their periods beside them);
  *  `glow` (under everything), `hub` (between the spokes and the bolts) and `flash` (over the bolts) are still. */
-export const playGearArt = (R: number, N: number, Rh: number) => {
+export const playGearArt = (R: number, N: number, Rh: number, dep: number = TOOTH.height) => {
 	const id = `gp${++uid}`;
 	const B = R + GEAR_PAD;
-	const dep = TOOTH.height;
 	const Rr = R - dep;
 	const rimW = R * 0.12;
 	const Ri = Rr - rimW;
-	const d = outlineD(R, N);
+	const d = outlineD(R, N, dep);
 	const open = ring(Ri);
 	const ink = '#070505';
 	// the halo: a feature's color while its free spins play, the theme's gold as a win lands and while autoplay runs
@@ -177,21 +177,22 @@ export const hubArrowSvg = (): string => {
 };
 
 /** SPIN in the game's gold lettering (the mock: 36 px on a hub of radius 92.52, spaced 0.12 em, a 2.2 px ink line), in
- *  the Spin face's -50..50 box. --gs0..2 turn it to steel. */
-export const spinWordSvg = (): string => {
+ *  the Spin face's -50..50 box. --gs0..2 turn it to steel. `size`, `ink`, `hubR`: another table's own (the upright
+ *  phone: 19.4 px with a 1.2 px line on a hub of radius 46.05). */
+export const spinWordSvg = (size = 36, ink = 2.2, hubR = 92.52): string => {
 	const id = `gs${++uid}`;
-	const k = 50 / 92.52;
-	return `<svg class="rdy" viewBox="-50 -50 100 100" aria-hidden="true" focusable="false"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--gs0)"/><stop offset=".5" style="stop-color:var(--gs1)"/><stop offset="1" style="stop-color:var(--gs2)"/></linearGradient></defs><text x="0" y="0" text-anchor="middle" dominant-baseline="central" font-size="${f2(36 * k)}" letter-spacing="${f2(36 * 0.12 * k)}" fill="url(#${id})" stroke="#0b0703" stroke-width="${f2(2.2 * 2 * k)}" stroke-linejoin="round" paint-order="stroke">SPIN</text></svg>`;
+	const k = 50 / hubR;
+	return `<svg class="rdy" viewBox="-50 -50 100 100" aria-hidden="true" focusable="false"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--gs0)"/><stop offset=".5" style="stop-color:var(--gs1)"/><stop offset="1" style="stop-color:var(--gs2)"/></linearGradient></defs><text x="0" y="0" text-anchor="middle" dominant-baseline="central" font-size="${f2(size * k)}" letter-spacing="${f2(size * 0.12 * k)}" fill="url(#${id})" stroke="#0b0703" stroke-width="${f2(ink * 2 * k)}" stroke-linejoin="round" paint-order="stroke">SPIN</text></svg>`;
 };
 
 /** A SMALL GEAR (Auto, Turbo): solid iron, no spokes; a face out to the tooth roots with the game's icon, the word and
  *  Turbo's level pips. `teeth` turns; `under` (the lit halo), `face` and `mark` are still. Colors by state: gear.css. */
-export const smallGearArt = (kind: 'auto' | 'turbo', R: number, N: number, word: number, pips: number) => {
+export const smallGearArt = (kind: 'auto' | 'turbo' | 'menu' | 'arm', R: number, N: number, word: number, pips: number, dep: number = TOOTH.height) => {
 	const id = `gk${++uid}`;
 	const B = R + GEAR_PAD;
-	const Rr = R - TOOTH.height;
+	const Rr = R - dep;
 	const Rf = Rr - Math.max(1.5, R * 0.03);
-	const d = outlineD(R, N);
+	const d = outlineD(R, N, dep);
 	const under = svg(B, `<circle r="${f2(R * 0.98)}" fill="none" stroke="rgb(var(--hud-accent-rgb))" stroke-opacity="0.22" stroke-width="${f2(R * 0.12)}"/>`);
 	const teeth = svg(
 		B,
@@ -208,23 +209,32 @@ export const smallGearArt = (kind: 'auto' | 'turbo', R: number, N: number, word:
 			`<circle class="kr-hot" r="${f2(Rf)}" fill="none" stroke="rgb(var(--hud-accent-hi-rgb))" stroke-width="${f2(Math.max(1.6, R * 0.04))}"/>` +
 			`<circle class="sunk" r="${f2(Rf)}" fill="rgba(0,0,0,0.25)"/>`,
 	);
-	// the content, sized to the face: the icon, the word, Turbo's pips (the mock's stack, centered on the face)
+	// the content, sized to the face: the icon, the word, Turbo's pips (the mock's stack, centered on the face). With no
+	// word (the upright phone: `word` 0, icon only) the icon stands alone in the middle, Turbo's pips small under it; the
+	// Armoury's icon is the game's own PolyMath mark (ui/hud/polymathMark.ts, untouched), half the face high.
 	const turbo = kind === 'turbo';
-	const iz = Rf * 2 * 0.41 * (turbo ? 0.88 : 1);
-	const cap = word * 0.72;
-	const pipH = turbo ? Math.max(3, word * 0.2) : 0;
-	const gap1 = word * (turbo ? 0.36 : 0.22);
-	const gap2 = turbo ? word * 0.3 : 0;
-	let y = -(iz + gap1 + cap + gap2 + pipH) / 2;
-	const art = ICON[kind];
-	let m = `<g transform="translate(${f2(-iz / 2)} ${f2(y)}) scale(${f2(iz / 24)})" fill="none" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="6"><g stroke="rgba(10,6,2,0.85)" stroke-width="3.4">${art}</g><g class="ki" stroke="currentColor" stroke-width="2">${art}</g></g>`;
-	y += iz + gap1 + cap / 2;
-	m += `<text class="kw" x="0" y="${f2(y)}" text-anchor="middle" dominant-baseline="central" font-size="${f2(word)}" letter-spacing="${f2(word * 0.06)}" fill="currentColor" stroke="#0b0703" stroke-linejoin="round" paint-order="stroke">${kind.toUpperCase()}</text>`;
-	if (turbo) {
-		const pw = word * 0.52;
-		const pg = word * 0.18;
-		const py = y + cap / 2 + gap2;
-		for (let i = 0; i < pips; i++) m += `<rect class="pip" x="${f2(-(pw * pips + pg * (pips - 1)) / 2 + i * (pw + pg))}" y="${f2(py)}" width="${f2(pw)}" height="${f2(pipH)}" rx="${f2(pipH * 0.3)}" fill="currentColor" stroke="rgba(10,6,2,0.5)" stroke-width="0.6"/>`;
+	let m: string;
+	if (kind === 'arm') {
+		const [X0, Y0, X1, Y1] = POLYMATH_MARK.bbox;
+		const mh = Rf * 1.02;
+		m = `<path class="pm" d="${POLYMATH_MARK.d}" transform="scale(${f2(mh / (Y1 - Y0))}) translate(${-(X0 + X1) / 2} ${-(Y0 + Y1) / 2})" stroke="rgba(10,6,2,0.7)" stroke-width="1" stroke-linejoin="round" vector-effect="non-scaling-stroke" paint-order="stroke"/>`;
+	} else {
+		const iz = Rf * 2 * (word ? 0.41 : 0.5) * (turbo ? 0.88 : 1);
+		const cap = word * 0.72;
+		const pipH = turbo ? (word ? Math.max(3, word * 0.2) : Math.max(2, Rf * 0.09)) : 0;
+		const gap1 = word * (turbo ? 0.36 : 0.22);
+		const gap2 = turbo ? (word ? word * 0.3 : Rf * 0.14) : 0;
+		let y = -(iz + gap1 + cap + gap2 + pipH) / 2;
+		const art = ICON[kind];
+		m = `<g transform="translate(${f2(-iz / 2)} ${f2(y)}) scale(${f2(iz / 24)})" fill="none" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="6"><g stroke="rgba(10,6,2,0.85)" stroke-width="3.4">${art}</g><g class="ki" stroke="currentColor" stroke-width="2">${art}</g></g>`;
+		y += iz + gap1 + cap / 2;
+		if (word) m += `<text class="kw" x="0" y="${f2(y)}" text-anchor="middle" dominant-baseline="central" font-size="${f2(word)}" letter-spacing="${f2(word * 0.06)}" fill="currentColor" stroke="#0b0703" stroke-linejoin="round" paint-order="stroke">${kind.toUpperCase()}</text>`;
+		if (turbo) {
+			const pw = word ? word * 0.52 : Rf * 0.24;
+			const pg = word ? word * 0.18 : Rf * 0.08;
+			const py = y + cap / 2 + gap2;
+			for (let i = 0; i < pips; i++) m += `<rect class="pip" x="${f2(-(pw * pips + pg * (pips - 1)) / 2 + i * (pw + pg))}" y="${f2(py)}" width="${f2(pw)}" height="${f2(pipH)}" rx="${f2(pipH * 0.3)}" fill="currentColor" stroke="rgba(10,6,2,0.5)" stroke-width="0.6"/>`;
+		}
 	}
 	m += `<circle class="off" r="${f2(Rf)}" fill="rgba(18,18,22,0.35)"/>`;
 	return { under, teeth, face, mark: svg(B, m), period: 360 / N };
@@ -262,8 +272,9 @@ const insetPoly = (pts: Pt[], dd: number): Pt[] =>
 	});
 const sharp = (pts: Pt[]) => 'M' + pts.map(ps).join('L') + 'Z';
 const BRASS = ['#f3d68a', '#ecd092', '#c2a063', '#a8823c', '#5d4720'];
-/** COPY OF ui/hud/HudIcon.svelte:HUD_LINE (auto, turbo): the game's own icons, 24 box, 2 px line */
-const ICON = {
+/** COPY OF ui/hud/HudIcon.svelte:HUD_LINE (menu, auto, turbo): the game's own icons, 24 box, 2 px line */
+const ICON: Record<string, string> = {
+	menu: '<path d="M5 7h14M5 12h14M5 17h14"/>',
 	auto: '<path d="M18.6 13.4A6.8 6.8 0 1 1 16.8 7"/><path d="M17.4 3.6v4h-4"/>',
 	turbo: '<path class="bolt" d="M13.4 3 6.2 13.2h5.2L10.4 21l7.4-10.4h-5.2z"/>',
 };

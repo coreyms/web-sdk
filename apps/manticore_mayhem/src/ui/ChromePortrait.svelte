@@ -25,6 +25,9 @@
 	import HudStep from './hud/HudStep.svelte';
 	import HudReadout from './hud/HudReadout.svelte';
 	import HudMenuPanel from './hud/HudMenuPanel.svelte';
+	import GearBarUpright from './gear/GearBarUpright.svelte';
+	import { uprightBarLayout } from './gear/gearLayout';
+	import { BAR_MODE } from './gear/barMode';
 
 	type Props = { controls: Controls; hud: HudFrame };
 	const { controls, hud }: Props = $props();
@@ -39,6 +42,9 @@
 	const logoDx = $derived(logo.x + logo.width / 2 - MASTER.portrait.width / 2);
 
 	const G = $derived(portraitGeo(hud, 0));
+	// THE GEAR BAR (2026-11-22, ui/gear): an upright phone's gear train; null where the rule keeps the dock (a phone under
+	// 360 px wide or too short for the train, a tablet held upright, and every screen while GAME_BAR says 'dock')
+	const gear = $derived(uprightBarLayout({ kind: 'portrait', vw: hud.W * hud.u, vh: hud.H * hud.u, phone, safeBottom: hud.safe.b }, BAR_MODE));
 	const outline = $derived(outlineBead(G.bar, G.n));
 	const ante = $derived(hs.anteLevel());
 	const lit = $derived(hs.winLit());
@@ -59,6 +65,9 @@
 	<span class="logo" class:canvas={logoState.canvas} style:width="{logo.width}px"><LogoPicture /></span>
 </div>
 
+{#if gear}
+<GearBarUpright {controls} {hud} layout={gear} />
+{:else}
 <div class="hudp hud-group v-portrait" class:menu-open={stateUi.menuOpen} data-plane="base" style={plane}>
 	<div class="shadow" style:left="{G.bar.x0 + 14}px" style:top="{G.bar.y1 - 14}px" style:width="{G.bar.x1 - G.bar.x0 - 28}px" style:height="28px"></div>
 	<HudGlass {outline} frame={{ x0: G.bar.x0, x1: G.bar.x1, y0: G.n.cy - G.n.R, y1: G.n.cy + (G.n.Rb ?? G.n.R), peak: 0.5 }} {ante} W={hud.W} H={hud.H} />
@@ -100,6 +109,7 @@
 		<HudStep dir={1} {controls} x={K.plus.x} y={K.plus.y} d={K.plus.d} cls="inb uc" />
 	{/if}
 </div>
+{/if}
 
 <style>
 	/* top and the logo's width come from the layout rule (inline: game/logo/layout.ts) */

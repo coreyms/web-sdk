@@ -29,11 +29,16 @@
 //         bigger board leaves the logo a narrow column; none of the sizes the mock checked)
 //   - Corey's ruling: the amount lying about 11 px onto the Manticore's feet at 1200 x 675 and 1024 x 576 is accepted.
 //
-// PHONES AND POPOUTS. `sideways` and `upright` are empty until Corey sets them; barKind() is the one switch. Until a
-// table is filled its screens keep today's glass dock exactly as it is (ui/hud/hudLayout.ts).
+// THE UPRIGHT PHONE (2026-11-22, Corey's export corey_phone_upright_r3_2026-11-22.json, set on an iPhone 17 Pro, 402 x
+// 874; mock Desktop "Manticore Mayhem/phone_upright_r3_2026-11-22", build/train3.js): a meshed gear train along the
+// bottom, under the spin amount plaque. UPRIGHT below is his setup and uprightLayout() the rule; the notes are there.
+//
+// SIDEWAYS PHONES AND POPOUTS. `sideways` is empty until Corey sets it; barKind() is the one switch. Until a table is
+// filled its screens keep today's glass dock exactly as it is (ui/hud/hudLayout.ts).
 //
 // Pure: no DOM, no runes. tools/gear_layout_test.mjs sweeps it in node.
-import { MASTER, landscapeExtraY, landscapeTallFrame, registrationOf, type LayoutKind } from '../../game/layoutSpec';
+import { MASTER, frameFor, landscapeExtraY, landscapeTallFrame, registrationOf, type LayoutKind } from '../../game/layoutSpec';
+import { PORTRAIT, portraitBoardBottoms } from '../hud/hudLayout';
 import { BOARD_ART } from '../../game/boardArtSpec';
 import { LOGO, LOGO_KEY } from '../../game/constants';
 import { FRAME_WHEEL } from '../../game/frameGears';
@@ -52,11 +57,13 @@ export const GAME_BAR: 'gear' | 'dock' = 'gear';
  *  two small gears take exactly these, so the three could mesh with the frame's wheel and do mesh with each other. */
 export const TOOTH = { pitch: 18.443, height: 10.311 } as const;
 /** a gear about `across` px over its tips with the matched teeth: the count that fits, then its true radii */
-export const matchedGear = (across: number, min: number) => {
-	const teeth = Math.max(min, Math.round((Math.PI * (across - TOOTH.height)) / TOOTH.pitch));
-	const pitchR = (teeth * TOOTH.pitch) / (2 * Math.PI);
-	return { teeth, pitchR, R: pitchR + TOOTH.height / 2 };
-};
+export const matchedGear = (across: number, min: number) => matchedTo(across, TOOTH.pitch, TOOTH.height, min);
+/** the same for any tooth (a phone's board-matched tooth is smaller: UPRIGHT.tooth) */
+export function matchedTo(across: number, pitch: number, height: number, min: number) {
+	const teeth = Math.max(min, Math.round((Math.PI * (across - height)) / pitch));
+	const pitchR = (teeth * pitch) / (2 * Math.PI);
+	return { teeth, pitchR, R: pitchR + height / 2 };
+}
 
 type GearRef = { cx: number; cy: number; R: number; pitchR: number; teeth: number };
 export type DesktopTable = {
@@ -73,6 +80,31 @@ export type DesktopTable = {
 };
 /** a phone table: the same ten pieces as boxes on its own reference window (the gears as their tip circles' boxes) */
 export type PhoneTable = { window: { vw: number; vh: number }; boxes: Record<Piece, Box> };
+export type TrainGear = 'play' | 'turbo' | 'auto' | 'menu' | 'arm';
+/** the upright phone's table: a gear train (each small gear snapped on its parent at an angle, degrees clockwise from
+ *  the top) and the readouts' places, on its own reference window */
+export type UprightTable = {
+	window: { vw: number; vh: number };
+	/** the board-matched tooth on that window (pitch along the pitch circle, height), and the board's own scale there
+	 *  (CSS px per px of the board art): another window's tooth is this x its board's scale over this one */
+	tooth: { pitch: number; height: number; boardK: number };
+	/** the band the train stands in on that window: the spin amount plaque's shadow box's bottom */
+	bandTop: number;
+	play: { cx: number; cy: number; across: number; hub: number };
+	/** the four small gears: their size, the smallest they are ever asked to be, the play between meshed pitch circles */
+	small: { across: number; min: number; clear: number };
+	chain: Record<Exclude<TrainGear, 'play'>, { parent: TrainGear; deg: number }>;
+	/** the readouts' and the arrows' centers as he placed them */
+	centers: Record<'win' | 'amt' | 'down' | 'up' | 'bal', readonly [number, number]>;
+	/** the arrows' drawn size; the clear gap their press boxes keep from the Play's press region */
+	arrow: number;
+	gapSpin: number;
+	/** real text: the readouts' word and number, SPIN in the hub (and its ink line), the hub's count and small word */
+	text: { label: number; number: number; spin: number; spinInk: number; count: number; sub: number };
+	/** the readouts' boxes at that type: the longest US amounts at the number's size (Balance and Win 6.83 em, the
+	 *  amount 4.77 em: ui/hud/hudLayout.ts VALUE_EM), one word line over one number line */
+	box: Record<'win' | 'bal' | 'amt', { w: number; h: number }>;
+};
 
 /** COREY'S DESKTOP, 1920 x 1080 (corey_desktop_r6_2026-11-22.json; the readouts' boxes are the mock's base boxes x his
  *  sizes: Balance 186 x 40 x 1.28, the amount 124 x 40 x 1.25, Win 190 x 42 x 1.3, all x the mock's u 1.3333) */
@@ -93,14 +125,34 @@ export const DESKTOP: DesktopTable = {
 	text: { count: 40.4, sub: 12.85, subBig: 15.6, subMin: 10, spin: 36, word: 19 },
 };
 
-/** THE TABLES. Fill `sideways` (a phone held sideways) and `upright` (a phone held upright) to give those screens the
- *  gear bar; barKind() then answers 'gear' for them and ui/gear/GearBar.svelte needs their placement added beside
- *  the desktop rule below. */
-export const TABLES: { desktop: DesktopTable; sideways: PhoneTable | null; upright: PhoneTable | null } = {
+/** COREY'S UPRIGHT PHONE, 402 x 874 (corey_phone_upright_r3_2026-11-22.json: the Play gear 138.5 on the center line at
+ *  y 788.3, 56 teeth; four small gears of 60, 23 teeth; Turbo on the Play at 98.9 degrees; the chain Auto on the Play
+ *  at 260, Menu on Auto at 257.5, the Armoury on Menu at 352.4; no words on the small gears; SPIN 19.4. The readouts'
+ *  centers are his boxes' (the mock's pictures at 0.38 and 0.4 of the desktop pieces).) */
+export const UPRIGHT: UprightTable = {
+	window: { vw: 402, vh: 874 },
+	tooth: { pitch: 7.59, height: 4.243, boardK: 0.233811 },
+	bandTop: 718.594,
+	play: { cx: 201, cy: 788.3, across: 138.5, hub: 0.66 },
+	small: { across: 60, min: 46, clear: 0.6 },
+	chain: { turbo: { parent: 'play', deg: 98.9 }, auto: { parent: 'play', deg: 260 }, menu: { parent: 'auto', deg: 257.5 }, arm: { parent: 'menu', deg: 352.4 } },
+	centers: { win: [103.55, 731.33], amt: [336.77, 739.17], down: [286.83, 740.83], up: [385.33, 739.83], bal: [341.8, 837.97] },
+	arrow: 26.67,
+	gapSpin: 8,
+	text: { label: 9, number: 15, spin: 19.4, spinInk: 1.2, count: 20, sub: 9 },
+	box: { win: { w: 108, h: 26 }, bal: { w: 108, h: 26 }, amt: { w: 78, h: 26 } },
+};
+
+/** THE TABLES. Fill `sideways` (a phone held sideways) to give those screens the gear bar; barKind() then answers
+ *  'gear' for them and the bar needs their placement added beside the rules below. */
+export const TABLES: { desktop: DesktopTable; sideways: PhoneTable | null; upright: UprightTable | null } = {
 	desktop: DESKTOP,
 	sideways: null,
-	upright: null,
+	upright: UPRIGHT,
 };
+/** an upright phone narrower than this keeps the dock (Stake's Mobile S, 320 x 568: the chain does not fit, the mock
+ *  says so: the Armoury 31 px off the window) */
+export const UPRIGHT_MIN_VW = 360;
 
 /** a desktop window smaller than this keeps the dock (Stake's two popouts, 800 x 450 and 400 x 225; its Laptop size,
  *  1024 x 576, is the smallest window the desktop table was checked at), and so does one where the rule would have to
@@ -110,11 +162,13 @@ export const DESKTOP_MIN = { vw: 900, vh: 500, gears: 0.55 } as const;
 
 /** THE SWITCH: which bar a screen draws. kind is the chrome's (game/layoutSpec.ts layoutKind): 'landscape' is every
  *  desktop window, 'phone' a phone held sideways, 'portrait' a phone or tablet held upright. */
-export const barKind = (v: { kind: LayoutKind; vw: number; vh: number }, mode: 'gear' | 'dock' = GAME_BAR): 'gear' | 'dock' => {
+export type BarView = { kind: LayoutKind; vw: number; vh: number; phone?: boolean; safeBottom?: number };
+export const barKind = (v: BarView, mode: 'gear' | 'dock' = GAME_BAR): 'gear' | 'dock' => {
 	if (mode === 'dock') return 'dock';
 	if (v.kind === 'landscape') return TABLES.desktop && v.vw >= DESKTOP_MIN.vw && v.vh >= DESKTOP_MIN.vh && desktopLayout(v.vw, v.vh).scale.gears >= DESKTOP_MIN.gears ? 'gear' : 'dock';
 	if (v.kind === 'phone') return TABLES.sideways ? 'gear' : 'dock';
-	return TABLES.upright ? 'gear' : 'dock';
+	// upright: phones from UPRIGHT_MIN_VW wide where the train fits; a tablet held upright keeps the dock
+	return TABLES.upright && v.phone && v.vw >= UPRIGHT_MIN_VW && uprightLayout(v.vw, v.vh, v.safeBottom ?? 0) ? 'gear' : 'dock';
 };
 
 // ---- the scene a desktop window draws (CSS px), from the game's own layout numbers -----------------------------------
@@ -259,9 +313,243 @@ export const desktopLayout = (vw: number, vh: number, T: DesktopTable = DESKTOP)
 	};
 };
 
-/** the gear bar for a screen, or null where barKind() says dock */
-export const gearBarLayout = (v: { kind: LayoutKind; vw: number; vh: number }, mode: 'gear' | 'dock' = GAME_BAR): GearBarLayout | null =>
+/** the desktop gear bar for a screen, or null where barKind() says dock */
+export const gearBarLayout = (v: BarView, mode: 'gear' | 'dock' = GAME_BAR): GearBarLayout | null =>
 	barKind(v, mode) === 'gear' && v.kind === 'landscape' ? desktopLayout(v.vw, v.vh) : null;
+/** the upright phone's gear bar for a screen, or null where barKind() says dock */
+export const uprightBarLayout = (v: BarView, mode: 'gear' | 'dock' = GAME_BAR): UprightLayout | null =>
+	v.kind === 'portrait' && barKind(v, mode) === 'gear' ? uprightLayout(v.vw, v.vh, v.safeBottom ?? 0) : null;
+
+// ---- THE UPRIGHT PHONE'S RULE -----------------------------------------------------------------------------------------
+// ONE RULE, exact at 402 x 874 with no safe area:
+//   BAND   the train stands between the spin amount plaque's shadow (its bottom edge, the game's own:
+//          ui/hud/hudLayout.ts portraitBoardBottoms) and the window's bottom edge less the bottom safe area.
+//   SCALE  k = the smallest of: the window's width over 402; the band's height over his band's; and what keeps the
+//          Play gear's press region 1 px above the bottom safe area. k is 1 on his phone with no safe area.
+//   GEARS  the Play gear is his 138.5 x k on the center line, its center his 69.7 x k under the band's top; the small
+//          gears his 60 x k, never asked under 46 and never under 44 px over the tips. Every gear takes the board's own
+//          tooth for this window (his 7.59 px pitch x this board's scale over his), so the teeth counts follow the sizes.
+//   CHAIN  Turbo on the Play at his 98.9 degrees; Auto on the Play at 260, Menu on Auto at 257.5, the Armoury on Menu
+//          at 352.4. Where a gear would leave the band or the window, or cross a gear it does not mesh with, its angle
+//          turns toward a straight row (Auto and Menu toward 270, the Armoury down from 352.4 toward 270, Turbo toward
+//          90) by the least that fits; the Armoury's angle gives first, then Menu's, then Auto's. No fit: null (the dock).
+//   READOUTS  real text (a 9 px word over a 15 px number). His arrangement where it fits, each checked against the gears'
+//          circles, not boxes:
+//            Win      between the Armoury and the Play gear at his height, centered in the free span the two circles
+//                     leave along its number's line (the number is fitted to that span, never abbreviated)
+//            amount   upper right with < and >: each arrow's 44 px press box clear of every gear, at least 8 px from
+//                     the Play's press region (Corey: accidental changes there are "like stealing in my eyes"), wholly
+//                     inside the window; the number centered between them
+//            Balance  lower right, 2 px under Turbo (the mock solver's own place)
+//          and where one does not fit, where the mock's solver puts it: the amount right of Turbo over its two arrows,
+//          else all of it under the logo; Win and Balance under the logo, at the left.
+// THE MOVES FROM HIS PLACES at 402 x 874 (the problems his export listed, solved with the smallest moves):
+//   <        9.7 px right: its press box was 1.1 px into the Play's press region, now 8 px clear
+//   >        5.3 px left: its 44 px press box was 5.3 px off the window's right edge
+//   amount   1.5 px right: centered between the two arrows
+//   Win      4.2 px right: his box's corner was 14.3 px into the Play gear and 13.6 into the Armoury; the text now
+//            stands in the middle of the 80 px the two circles leave (a number wider than that span is fitted to it)
+//   Balance  10.1 px down: its word met Turbo's teeth; it now starts 2 px under Turbo
+//   the train itself is where he put it while the bottom safe area is 0. With one (a full screen web view on an iPhone
+//   17 Pro: 34 px) k comes down to 0.87 and the train stands on the safe area's edge; lifting it without shrinking
+//   would put the Play gear 15 px onto the plaque.
+export type TrainCircle = GearCircle & { parent: TrainGear | null; deg: number };
+export type UprightLayout = NonNullable<ReturnType<typeof uprightLayout>>;
+/** a circle against a box: the clear distance (negative: how deep it reaches in) */
+const circleToBox = (c: { cx: number; cy: number; R: number }, b: Box) => {
+	const nx = Math.max(b.x, Math.min(c.cx, b.x + b.w));
+	const ny = Math.max(b.y, Math.min(c.cy, b.y + b.h));
+	const inside = c.cx > b.x && c.cx < b.x + b.w && c.cy > b.y && c.cy < b.y + b.h;
+	return inside ? -c.R : Math.hypot(c.cx - nx, c.cy - ny) - c.R;
+};
+const boxesMeet = (a: Box, b: Box) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+/** angles from `from` toward `to` in steps, `from` first */
+const toward = (from: number, to: number, step: number) => {
+	const out = [from];
+	const n = Math.ceil(Math.abs(to - from) / step);
+	for (let i = 1; i <= n; i++) out.push(from + Math.sign(to - from) * Math.min(i * step, Math.abs(to - from)));
+	return out;
+};
+
+export const uprightLayout = (vw: number, vh: number, safeBottom = 0, T: UprightTable = UPRIGHT) => {
+	const M = MASTER.portrait;
+	const fit = Math.min(vw / M.width, vh / M.height);
+	const fitTop = (vh - M.height * fit) / 2;
+	const B = portraitBoardBottoms(vw, vh);
+	const boardK = registrationOf(frameFor('portrait', vw / fit)).m * fit;
+	const top = B.shadow.y1;
+	const plate = B.plaque - PORTRAIT.plaqueShadowCss;
+	const floor = vh - Math.max(0, safeBottom) - 1;
+	const R0 = matchedTo(T.play.across, T.tooth.pitch, T.tooth.height, 8).R;
+	const k = Math.min(vw / T.window.vw, (vh - top) / (T.window.vh - T.bandTop), (floor - top) / (T.play.cy + R0 - T.bandTop));
+	if (!(k > 0.2)) return null;
+	const tooth = { pitch: (T.tooth.pitch * boardK) / T.tooth.boardK, height: (T.tooth.height * boardK) / T.tooth.boardK };
+	const gearOf = (across: number, min: number) => {
+		let g = matchedTo(across, tooth.pitch, tooth.height, 8);
+		while (2 * g.R < min) g = matchedTo(2 * g.R + tooth.pitch / 2, tooth.pitch, tooth.height, g.teeth + 1);
+		return g;
+	};
+	const P = gearOf(T.play.across * k, 0);
+	const S = gearOf(Math.max(T.small.across * k, T.small.min), MIN_PRESS);
+	const clear = T.small.clear;
+	// ---- the Play gear: on the center line, his height under the band's top; never onto the plaque's shadow, never
+	// into the bottom safe area ----
+	let cy = top + (T.play.cy - T.bandTop) * k;
+	if (cy - P.R < top - 0.2) cy = top - 0.2 + P.R;
+	if (cy + P.R > floor) cy = floor - P.R;
+	if (cy - P.R < top - 0.2) return null;
+	const play: TrainCircle = { cx: vw / 2, cy, R: P.R, pitchR: P.pitchR, teeth: P.teeth, parent: null, deg: 0 };
+	const on = (p: TrainCircle, parent: TrainGear, a: number): TrainCircle => {
+		const d = p.pitchR + S.pitchR + clear;
+		return { cx: p.cx + d * Math.sin(deg(a)), cy: p.cy - d * Math.cos(deg(a)), R: S.R, pitchR: S.pitchR, teeth: S.teeth, parent, deg: a };
+	};
+	const inBand = (c: TrainCircle) => c.cx - c.R >= 2 && c.cx + c.R <= vw - 2 && c.cy - c.R >= top - 0.2 && c.cy + c.R <= floor;
+	const apart = (a: TrainCircle, b: TrainCircle) => Math.hypot(a.cx - b.cx, a.cy - b.cy) >= a.R + b.R + 1;
+	const turbo = toward(T.chain.turbo.deg, 90, 0.5).map((a) => on(play, 'play', a)).find(inBand);
+	if (!turbo) return null;
+	let chain: { auto: TrainCircle; menu: TrainCircle; arm: TrainCircle } | null = null;
+	search: for (const a1 of toward(T.chain.auto.deg, 270, 1)) {
+		const auto = on(play, 'play', a1);
+		if (!inBand(auto)) continue;
+		for (const a2 of toward(T.chain.menu.deg, 290, 1)) {
+			const menu = on(auto, 'auto', a2);
+			if (!inBand(menu) || !apart(menu, play)) continue;
+			for (const a3 of toward(T.chain.arm.deg, 270, 1)) {
+				const arm = on(menu, 'menu', a3);
+				if (!inBand(arm) || !apart(arm, play) || !apart(arm, auto)) continue;
+				chain = { auto, menu, arm };
+				break search;
+			}
+		}
+	}
+	if (!chain) return null;
+	const gears: Record<TrainGear, TrainCircle> = { play, turbo, ...chain };
+	const all = Object.values(gears);
+	const clearOf = (b: Box, gap = 1) => all.every((c) => circleToBox(c, b) >= gap);
+	/** his place for a point, carried with the Play gear at this scale */
+	const his = (pt: readonly [number, number]) => ({ x: play.cx + (pt[0] - T.play.cx) * k, y: play.cy + (pt[1] - T.play.cy) * k });
+	const moved: string[] = [];
+	// the pocket under the logo, at the left (the mock solver's: 6 px in, from 2 px under the logo's shadow down to the
+	// board frame's art). COPY OF game/logo/layout.ts logoArtRect: the phone logo's bottom edge, LOGO_KEY.grow.portraitPhone
+	const logoBottom = fitTop + (LOGO_KEY.grow.portraitPhone?.bottom ?? LOGO.portraitPhone.cy) * fit;
+	const reg = registrationOf(frameFor('portrait', vw / fit));
+	const plateTop = fitTop + reg.map(BOARD_ART.frame.portrait.crop[0], BOARD_ART.frame.portrait.crop[1]).y * fit;
+	const pocket = { x: 6, y: logoBottom + 16.5 * fit, y1: plateTop - 2 };
+	const pocketPut = (id: string, w: number, h: number): Box | null => {
+		// (the Manticore stands right of it: the pocket ends at 0.45 of the window's width)
+		if (pocket.y + h > pocket.y1 || pocket.x + w > 0.45 * vw) return null;
+		const b = { x: pocket.x, y: pocket.y, w, h };
+		pocket.y += h + 2;
+		moved.push(id);
+		return b;
+	};
+	const tb = (c: { x: number; y: number }): Box => ({ x: c.x - MIN_PRESS / 2, y: c.y - MIN_PRESS / 2, w: MIN_PRESS, h: MIN_PRESS });
+
+	// ---- the amount with < and > ----
+	let row: { down: Box; up: Box; amt: Box; fit: number; where: string } | null = null;
+	{
+		// upper right: >'s press box flush with the window's right edge (his is 5.3 px over it), < moved right until it is
+		// gapSpin clear of the Play's press region
+		const u = his(T.centers.up);
+		const up = tb({ x: vw - MIN_PRESS / 2, y: Math.max(u.y, plate + 1 + MIN_PRESS / 2) });
+		const d = his(T.centers.down);
+		let down: Box | null = null;
+		for (let x = d.x; x <= up.x - MIN_PRESS / 2 - 16 + 0.001; x += 0.25) {
+			const t = tb({ x, y: Math.max(d.y, plate + 1 + MIN_PRESS / 2) });
+			if (circleToBox(play, t) >= T.gapSpin && clearOf(t)) {
+				down = t;
+				break;
+			}
+		}
+		if (down && clearOf(up) && circleToBox(play, up) >= T.gapSpin) {
+			const cx = (down.x + up.x + MIN_PRESS) / 2;
+			const a = his(T.centers.amt);
+			// the number stands between the two arrows' ink (each chevron is the middle 0.32 of its drawn box)
+			row = { down, up, amt: { x: cx - T.box.amt.w / 2, y: a.y - T.box.amt.h / 2, w: T.box.amt.w, h: T.box.amt.h }, fit: up.x - down.x - 0.32 * T.arrow - 2, where: 'upper right' };
+		}
+	}
+	if (!row) {
+		// right of Turbo: the amount over its two arrows, their press boxes side by side on the band's floor
+		const right = vw - 4;
+		const left = turbo.cx + turbo.R + 2;
+		if (right - left >= 2 * MIN_PRESS) {
+			const w = Math.min(T.box.amt.w, right - left);
+			const amt = { x: right - w, y: top + 1, w, h: T.box.amt.h };
+			const ty = Math.max(amt.y + amt.h + 1, floor - MIN_PRESS);
+			const up = { x: right - MIN_PRESS, y: ty, w: MIN_PRESS, h: MIN_PRESS };
+			const down = { x: right - 2 * MIN_PRESS, y: ty, w: MIN_PRESS, h: MIN_PRESS };
+			if (ty + MIN_PRESS <= floor + 0.01 && [up, down, amt].every((b) => clearOf(b)) && circleToBox(play, down) >= T.gapSpin) row = { down, up, amt, fit: w - 4, where: 'right of Turbo' };
+		}
+	}
+	// ---- Balance: lower right, 2 px under Turbo ----
+	let bal: Box | null = null;
+	if (row) {
+		const c = his(T.centers.bal);
+		const b = { x: Math.max(2, Math.min(c.x - T.box.bal.w / 2, vw - 2 - T.box.bal.w)), y: turbo.cy + turbo.R + 2, w: T.box.bal.w, h: T.box.bal.h };
+		if (b.y + b.h <= floor && clearOf(b) && !boxesMeet(b, row.amt) && !boxesMeet(b, row.down) && !boxesMeet(b, row.up)) bal = b;
+	}
+	// ---- Win: between the Armoury and the Play gear, centered in the span their circles leave along its number ----
+	let win: Box | null = null;
+	let winFit = T.box.win.w - 6;
+	{
+		const c = his(T.centers.win);
+		const h = T.box.win.h;
+		let x0 = 2;
+		let x1 = vw - 2;
+		for (const y of [c.y - h / 2 + T.text.label + 1, c.y + 2, c.y + h / 2 - 1]) {
+			for (const g of all) {
+				const dy = Math.abs(y - g.cy);
+				if (dy >= g.R) continue;
+				const half = Math.sqrt(g.R * g.R - dy * dy);
+				if (g.cx < c.x) x0 = Math.max(x0, g.cx + half);
+				else x1 = Math.min(x1, g.cx - half);
+			}
+		}
+		if (x1 - x0 - 2 >= 60 && c.y - h / 2 >= plate + 1 && c.y + h / 2 <= floor) {
+			winFit = Math.min(T.box.win.w - 6, x1 - x0 - 2);
+			win = { x: (x0 + x1) / 2 - T.box.win.w / 2, y: c.y - h / 2, w: T.box.win.w, h };
+		}
+	}
+	if (!win) win = pocketPut('win', T.box.win.w, T.box.win.h);
+	if (!bal) bal = pocketPut('bal', T.box.bal.w, T.box.bal.h);
+	if (!win || !bal) return null;
+	if (!row) {
+		// under the logo too: < the amount > in one row, the arrows' press boxes whole
+		const b = pocketPut('amount', 2 * MIN_PRESS + T.box.amt.w + 4, MIN_PRESS);
+		if (!b) return null;
+		row = { down: { x: b.x, y: b.y, w: MIN_PRESS, h: MIN_PRESS }, amt: { x: b.x + MIN_PRESS + 2, y: b.y + (MIN_PRESS - T.box.amt.h) / 2, w: T.box.amt.w, h: T.box.amt.h }, up: { x: b.x + MIN_PRESS + 4 + T.box.amt.w, y: b.y, w: MIN_PRESS, h: MIN_PRESS }, fit: T.box.amt.w - 4, where: 'under the logo' };
+	}
+	const box = { win, bal, amt: row.amt } as Record<Piece, Box>;
+	/** each arrow: its press box, and the drawn arrow centered in it */
+	const press = {} as Record<Piece, Box>;
+	for (const id of ['down', 'up'] as const) {
+		const t = row[id];
+		press[id] = t;
+		box[id] = { x: t.x + (t.w - T.arrow) / 2, y: t.y + (t.h - T.arrow) / 2, w: T.arrow, h: T.arrow };
+	}
+	for (const id of ['play', 'auto', 'turbo', 'menu', 'arm'] as const) {
+		const c = gears[id];
+		box[id] = press[id] = { x: c.cx - c.R, y: c.cy - c.R, w: 2 * c.R, h: 2 * c.R };
+	}
+	for (const id of ['win', 'bal', 'amt'] as const) press[id] = box[id];
+	const hubR = play.R * T.play.hub;
+	const hub0 = R0 * T.play.hub;
+	return {
+		table: 'upright' as const,
+		vw, vh, fit, k, safeBottom, band: { top, floor, plate },
+		tooth,
+		gears,
+		hubR,
+		box,
+		press,
+		/** the fit width of each readout's number; where each readout went ('band' places are his arrangement) */
+		fitW: { win: winFit, bal: T.box.bal.w - 6, amt: row.fit },
+		where: { win: moved.includes('win') ? 'under the logo' : 'between the Armoury and the Play gear', bal: moved.includes('bal') ? 'under the logo' : 'under Turbo', amt: row.where },
+		gapSpin: Math.min(circleToBox(play, row.down), circleToBox(play, row.up)),
+		text: { label: T.text.label, number: T.text.number, spin: (T.text.spin * hubR) / hub0, spinInk: T.text.spinInk, count: Math.max(15, (T.text.count * hubR) / hub0), sub: T.text.sub, hub0 },
+		scene: { boardK, logoBottom, plateTop },
+	};
+};
 
 // ---- how the gears turn (pure; ui/gear/GearBar.svelte applies it, the node test checks the mesh with it) ------------
 /** THE PLAY GEAR'S ANGLE for the haul's travel, degrees clockwise: two teeth a link, the frame wheel's own tooth rate

@@ -58,6 +58,12 @@ loop, every move book driven).
   from the frame's own haul (`game/frameGears.ts`, called from `components/BoardFrame.svelte`'s tick) by a CSS rotate
   on five layers, and the hub ring's color is drawn on the frame's two top wheels as plain sprites. Dev hook:
   `__manticore.gearBar()`, `__manticore.frame.wheelRings`. Node test: `tools/gear_layout_test.mjs`.
+- THE UPRIGHT PHONE'S GEAR TRAIN (2026-11-22, `ui/gear/GearBarUpright.svelte`): phones from 360 px wide draw Corey's
+  train under the plaque (Play on the center line; Turbo on its right; Auto, Menu and the Armoury as a chain on its
+  left; icons only). `gearLayout.ts` `UPRIGHT` is his setup at 402 x 874 and `uprightLayout()` the one rule for every
+  other phone window (the scale, the chain's angles, where each readout goes, the bottom safe area); its comment lists
+  every move from his places. A window where nothing fits (320 x 568, 390 x 620, 360 x 740) keeps the dock, and so do
+  tablets and sideways phones (`sideways` is empty). The readouts are real text: a 9 px word over a 15 px number.
 - The look is one theme block, `ui/hudTheme.ts` (tokens injected as `--hud-*`); read `ui/HUD_THEME.md` before restyling.
   `.am-glass` (`ui/ChromeStyles.svelte`) is the panel frame every HUD modal shares; the riveted bronze plate is
   `.am-plate`. Active highlights use this game's accent (gold, `accent-rgb` in `ui/hudTheme.ts`), rule L6.
