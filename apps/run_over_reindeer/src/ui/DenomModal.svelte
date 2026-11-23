@@ -121,7 +121,7 @@
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} zIndex={3}>
 	<div class="center" style:padding="{MARGIN}px">
-		<div class="panel am-glass" class:tight class:tiny onclick={(e) => e.stopPropagation()} role="presentation" style:width="{cardWidth}px">
+		<div class="panel sp-skin" class:tight class:tiny onclick={(e) => e.stopPropagation()} role="presentation" style:width="{cardWidth}px">
 			<div class="head">
 				<div class="title am-stencil">{soc('PRICE LIST', 'PLAY AMOUNTS')}</div>
 				<div class="pill">{soc('PER SPIN', 'PER PLAY')}</div>
@@ -159,14 +159,17 @@
 		pointer-events: none;
 	}
 
-	/* ── black glass (the same surface as the Chow Line / Autoplay; the paper card went with the
-	      approval review 2026-09-15) ── */
+	/* THE SIGN STYLE (2026-11-23, style A of the mock menus_r1_2026-11-23, as the Autoplay card wears it; a plain
+	   restyle: nothing here changes a size, a place or a word). The panel is ui/sign/signPanel.css .sp-skin (the green
+	   field, the white band and its two dark lines, the panel's own box kept); the amounts are small dark plates with
+	   a white line, the chosen one a white plate with deep green figures; PER SPIN and the close key are plates too.
+	   Lines are inset shadows, so no box changes size. Until then: the dock's blue-grey glass with gold. */
 	.panel {
-		--ink: var(--ui-ink);
-		--body: var(--ui-ink-2);
-		--muted: var(--ui-ink-2);
-		--faint: var(--ui-ink-3);
-		--rule: var(--ui-rule-2);
+		--ink: var(--sp-ink);
+		--body: var(--sp-ink2);
+		--muted: var(--sp-ink2);
+		--faint: var(--sp-ink3);
+		--rule: var(--sp-rule);
 		max-width: 100%;
 		pointer-events: auto;
 		position: relative;
@@ -186,12 +189,14 @@
 	.title {
 		flex: 1;
 		font-size: 22px;
+		color: var(--ink);
 	}
 	.pill {
 		border-radius: 999px;
 		padding: 6px 14px;
-		background: var(--ui-gold);
-		color: var(--ui-gold-ink);
+		background: var(--sp-well);
+		box-shadow: inset 0 0 0 var(--sp-wl) var(--sp-band);
+		color: var(--ink);
 		font-size: 11px;
 		font-weight: 800;
 		letter-spacing: 2px;
@@ -202,24 +207,28 @@
 		width: 34px;
 		height: 34px;
 		border-radius: 10px;
-		background: var(--ui-glass-well);
+		background: var(--sp-well);
+		box-shadow: inset 0 0 0 var(--sp-wl) var(--sp-band);
 		color: var(--ink);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 	}
 	.x:hover {
-		background: var(--ui-glass-well-2);
+		box-shadow:
+			inset 0 0 0 var(--sp-wl) var(--sp-band),
+			inset 0 0 0 99px var(--sp-hov);
 	}
 	.block {
 		position: relative;
-		background: var(--ui-glass-well);
-		border: 1px solid var(--ui-rule);
+		background: var(--sp-well);
+		border: 1px solid var(--rule);
 		border-radius: 12px;
 		padding: 6px;
 	}
-	/* more amounts below: a small gold tab on the well's bottom edge, its chevron pointing down; half of it sits in the
-	   well's 6 px bottom padding, half in the gap under the well, so it covers no tag. Gone at the end of the list. */
+	/* more amounts below: a small yellow tab (the sign panels' accent, with a black line; it was gold) on the well's
+	   bottom edge, its chevron pointing down; half of it sits in the well's 6 px bottom padding, half in the gap under
+	   the well, so it covers no tag. Gone at the end of the list. */
 	.more {
 		position: absolute;
 		left: 50%;
@@ -228,8 +237,9 @@
 		width: 26px;
 		height: 12px;
 		border-radius: 999px;
-		background: var(--ui-gold);
-		color: var(--ui-gold-ink);
+		background: var(--sp-acc);
+		color: var(--sp-acc-ink);
+		box-shadow: 0 0 0 1px var(--sp-ki-c);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -248,15 +258,15 @@
 	.opt {
 		min-width: 0;
 		padding: 0 4px;
-		/* the HUD plate's smoked warm glass inside a bronze hairline (ChromeStyles --plate-glass-*, --plate-bronze-line) */
-		border: 1px solid var(--plate-bronze-line);
+		/* a small dark plate with a white line (the line an inset shadow: the 1 px border keeps the tag's box) */
+		border: 1px solid transparent;
 		border-radius: 8px;
-		background: linear-gradient(180deg, var(--plate-glass-1), var(--plate-glass-2));
-		box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+		background: var(--sp-well);
+		box-shadow: inset 0 0 0 var(--sp-wl) var(--sp-band);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition: transform 0.1s ease, box-shadow 0.1s ease;
+		transition: transform 0.1s ease, box-shadow 0.14s ease, background-color 0.14s ease;
 	}
 	/* no ellipsis and no overflow clip: a bet level is never allowed to be truncated (Stake
 	   review 2026-09-20). The column count + the font fit above guarantee the string fits. */
@@ -266,38 +276,34 @@
 		color: var(--ink);
 		white-space: nowrap;
 	}
-	.opt:hover:not(:disabled) {
-		transform: translateY(-2px);
-		box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4);
+	@media (hover: hover) and (pointer: fine) {
+		.opt:hover:not(:disabled):not(.selected) {
+			box-shadow:
+				inset 0 0 0 var(--sp-wl) var(--sp-band),
+				inset 0 0 0 99px var(--sp-hov);
+		}
 	}
 	.opt:active:not(:disabled) {
-		transform: translateY(1px);
-		box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+		transform: scale(0.95);
 	}
 	.opt:disabled {
 		opacity: 0.45;
 		cursor: not-allowed;
 		background: transparent;
-		box-shadow: none;
+		box-shadow: inset 0 0 0 1px var(--rule);
 	}
 	.opt:disabled span {
 		text-decoration: line-through;
 		color: var(--muted);
 	}
-	/* THE CHOSEN AMOUNT (Corey 2026-10-17 20:27, "update this to the theme of the game"): Angry Mantis's lime chip is
-	   gone. It wears the HUD's gold plate: the gold bezel lit from the top left (the .plate-gold metals) round a
-	   gold to amber fill, dark gold ink on it, the same pairing as the PER SPIN pill and Autoplay's START */
+	/* THE CHOSEN AMOUNT: a white plate with deep green figures and a black line round it, as the Autoplay card's
+	   chosen tile (it was the HUD's gold plate, Corey 2026-10-17) */
 	.opt.selected {
-		border-color: var(--plate-gold-1) var(--plate-gold-2) var(--plate-gold-3) var(--plate-gold-4);
-		background: linear-gradient(180deg, var(--ui-gold), var(--ui-amber));
-		box-shadow: 0 5px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
-	}
-	.opt.selected:hover {
-		box-shadow: 0 7px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+		background: var(--sp-ch-bg);
+		box-shadow: 0 0 0 1.5px var(--sp-ch-out);
 	}
 	.opt.selected span {
-		color: var(--ui-gold-ink);
-		text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+		color: var(--sp-ch-ink);
 	}
 	.cap {
 		text-align: center;

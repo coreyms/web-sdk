@@ -221,17 +221,24 @@
 		height: max(100%, var(--hit-h, 0px));
 		transform: translateY(-50%);
 	}
-	/* the HUD's panel glass (ChromeStyles .am-glass, ui/hudTheme.ts tokens), no backdrop-filter */
+	/* THE PROMPT IN THE SIGN STYLE (2026-11-23, style A of the mock menus_r1_2026-11-23; a plain restyle: its size, its
+	   place and its words are the same): a green sign plate (the --sp-* tokens, ui/hudTheme.ts SIGN_PANEL), Yes the
+	   yellow main key, No a small dark plate with a white line. The band and the lines are inset shadows, so Yes and No
+	   keep the whole height. No backdrop-filter. (The SKIP key itself still wears the dock's glass: which sign it
+	   should be is Corey's to pick.) Until then: the HUD's panel glass. */
 	.ask {
 		position: absolute;
 		display: flex;
 		flex-direction: column;
 		align-items: stretch;
-		background: linear-gradient(180deg, rgba(var(--hud-glass-top-rgb), 0.96), rgba(var(--hud-glass-bottom-rgb), 0.97));
-		border-radius: 14px;
-		/* the 1 px edge drawn as inset shadows (white top, gold bottom), so Yes and No keep the whole height */
-		box-shadow: inset 0 1px 0 rgba(var(--hud-edge-top-rgb), 0.44), inset 0 -1px 0 rgba(var(--hud-edge-bottom-rgb), 0.72), inset 1px 0 0 rgba(var(--hud-ink-rgb), 0.12), inset -1px 0 0 rgba(var(--hud-ink-rgb), 0.12), 0 14px 30px rgba(var(--hud-shadow-rgb), 0.55);
-		color: rgb(var(--hud-ink-rgb));
+		background: linear-gradient(180deg, var(--sp-f-top), var(--sp-f-bot));
+		border-radius: var(--sp-rad);
+		box-shadow:
+			inset 0 0 0 var(--sp-bw) var(--sp-band),
+			inset 0 0 0 calc(var(--sp-bw) + var(--sp-ki)) var(--sp-ki-c),
+			0 0 0 var(--sp-ko) var(--sp-ko-c),
+			0 14px 30px rgba(var(--hud-shadow-rgb), 0.55);
+		color: var(--sp-ink);
 		font-family: var(--hud-font);
 		pointer-events: auto;
 	}
@@ -258,19 +265,18 @@
 		transition: transform 0.08s ease;
 	}
 	.yes {
-		border-radius: 999px;
-		border: 1px solid;
-		border-color: var(--hud-spin-rim-side);
-		background: radial-gradient(ellipse 70% 120% at 50% 0%, rgba(var(--hud-accent-cream-rgb), 0.3), rgba(var(--hud-accent-cream-rgb), 0) 62%), linear-gradient(180deg, rgba(var(--hud-spin-core-rgb), 0.94), rgba(var(--hud-spin-deep-rgb), 0.95));
-		color: rgb(var(--hud-accent-hi-rgb));
-		box-shadow: inset 0 1px 0 rgba(var(--hud-accent-cream-rgb), 0.5), 0 0 14px rgba(var(--hud-accent-rgb), 0.2);
+		border-radius: var(--sp-krad);
+		border: 1px solid var(--sp-ki-c);
+		background: linear-gradient(180deg, var(--sp-acc-top), var(--sp-acc-bot));
+		color: var(--sp-acc-ink);
+		box-shadow: inset 0 0 0 2px var(--sp-band);
 	}
 	.no {
-		border-radius: 999px;
-		border: 1px solid;
-		border-color: rgba(var(--hud-key-rim-rgb), var(--hud-key-rim-a));
-		background: rgba(var(--hud-key-rgb), 0.5);
-		color: rgb(var(--hud-ink-rgb));
+		border-radius: var(--sp-wrad);
+		border: 1px solid transparent;
+		background: var(--sp-well);
+		color: var(--sp-ink);
+		box-shadow: inset 0 0 0 var(--sp-wl) var(--sp-band);
 	}
 	.yes:active,
 	.no:active {
