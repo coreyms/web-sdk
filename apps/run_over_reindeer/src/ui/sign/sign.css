@@ -343,6 +343,13 @@
 .hudp.sg .sgf:disabled .band {
 	opacity: 0.78;
 }
+/* WHILE A ROUND PLAYS (Corey 2026-11-24: the key keeps the look it has at rest; SignFastLane.svelte is-busy): the key is
+   not a disabled button then, so none of the rules above apply; a press does nothing, and neither the pointer's tint
+   nor the press tint shows. The cursor stays the key's own: a change of cursor mid spin is a state flip too. */
+.hudp.sg .sgf.is-busy:hover:not(:disabled) .hv,
+.hudp.sg .sgf.is-busy:active:not(:disabled) .pr {
+	opacity: 0;
+}
 .hudp.sg .sgf .lb {
 	position: absolute;
 	display: flex;

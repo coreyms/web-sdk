@@ -7,8 +7,14 @@
 	// mode's short name when on: 2X ANTE, BONUS, SUPER); and the Play's border: the frosted band over an LED strip, the
 	// navy keyline outside it and the black line inside it drawn again over the light.
 	// The lights (ui/sign/ledBand.ts): the Play's idle twinkle at rest; two opposite runners over a steady glow of every
-	// LED for as long as a mode is on; dark while the key cannot be pressed. Nothing on the key scales or dips. Its press
+	// LED for as long as a mode is on; dark while the key is SHOWN disabled. Nothing on the key scales or dips. Its press
 	// region is its box (the hexagon and its four corner slivers; no other control stands in them).
+	// WHILE A ROUND PLAYS THE KEY KEEPS ITS RESTING LOOK (Corey 2026-11-24: "leaving the button the way it is visibly
+	// during spins, and make user taps not work during a spin"; ui/controls.svelte.ts bonusDisabled / bonusShownOff).
+	// It is then not a disabled button (that attribute is what steels the mark, dims the words and darkens the lights):
+	// it carries aria-disabled="true" and the class is-busy, which takes the hover and press tints off, and its press
+	// does nothing (controls.bonusPress refuses; the bar's own judge, SignHud.svelte bonusOwn, refuses first). The steel
+	// look stays for a round held for its resume, the one case that is not a round playing.
 	import { onDestroy, onMount, untrack } from 'svelte';
 	import { stateBet } from 'state-shared';
 	import type { Controls } from '../controls.svelte';
@@ -30,7 +36,9 @@
 	const anteWord = (key: string) => `${modeCost(key)}X ${modeShortLabel(key)}`;
 	const onLabel = $derived(controls.anteActive() ? anteWord(stateBet.activeBetModeKey) : controls.armedLabel());
 	const on = $derived(onLabel !== null);
-	const disabled = $derived(controls.bonusDisabled());
+	/** `off`: a press does nothing now; `disabled`: and the key shows it (never because a round is playing) */
+	const off = $derived(controls.bonusDisabled());
+	const disabled = $derived(controls.bonusShownOff());
 	const G = $derived(bonusGeo(w, h));
 	const faceHtml = $derived(bonusFace(G));
 	const bandHtml = $derived(bonusBand(G));
@@ -60,7 +68,7 @@
 		setLights(lights);
 		if (import.meta.env.DEV) {
 			const hook = ((window as unknown as { __reindeer?: Record<string, unknown> }).__reindeer ??= {});
-			hook.signFastLane = () => ({ on, lights, word: onLabel ?? HUD_CONFIG.featureName, fs: words.fs * u, lines: words.rows.length, frames: band?.frames ?? 0 });
+			hook.signFastLane = () => ({ on, off, shownOff: disabled, lights, word: onLabel ?? HUD_CONFIG.featureName, fs: words.fs * u, lines: words.rows.length, frames: band?.frames ?? 0 });
 		}
 	});
 	$effect(() => {
@@ -79,6 +87,7 @@
 	type="button"
 	class="slot-btn hg sgb sgf fb"
 	class:ante={on}
+	class:is-busy={off && !disabled}
 	data-l={lights}
 	data-hud="fast-lane"
 	style:left="{x}px"
@@ -86,6 +95,7 @@
 	style:width="{w}px"
 	style:height="{h}px"
 	{disabled}
+	aria-disabled={off ? 'true' : undefined}
 	onclick={press ?? controls.bonusPress}
 	aria-label={on ? `${FEATURE_MENU_TEXT.name}: ${onLabel ?? ''} is on` : soc('Buy bonus', 'Get bonus')}
 >

@@ -1020,17 +1020,18 @@
 	font-weight: inherit;
 }
 @media (hover: hover) and (pointer: fine) {
-	.hudp .fbtn:hover:not(:disabled) {
+	.hudp .fbtn:hover:not(:disabled):not(.is-busy) {
 		--hl: rgba(var(--hud-feature-rim-rgb), 0.6);
 		--ov: rgba(var(--hud-ink-rgb), 0.08);
 	}
-	.hudp .fbtn:hover:not(:disabled):not(.ante) {
+	.hudp .fbtn:hover:not(:disabled):not(.ante):not(.is-busy) {
 		--rim: rgba(var(--hud-feature-rim-rgb), 0.78);
 		--ig: rgba(var(--hud-feature-hi-rgb), 0.6);
 		--glow: rgba(var(--hud-feature-rgb), 0.35);
 	}
 }
-.hudp .fbtn:active:not(:disabled) {
+/* (.is-busy, 2026-11-24: while a round plays the key keeps its resting look and takes no press: HudFeature.svelte) */
+.hudp .fbtn:active:not(:disabled):not(.is-busy) {
 	transform: scale(0.95);
 	--hl: rgba(var(--hud-shadow-rgb), 0.5);
 	--ov: rgba(var(--hud-shadow-rgb), 0.26);

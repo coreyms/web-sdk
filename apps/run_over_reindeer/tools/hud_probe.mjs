@@ -623,22 +623,40 @@ async function runSize(browser, S) {
 			spun = await snap(p);
 			const rr = await ringNow(p);
 			check(!!rr && rr.st === 'run' && rr.square > 0.9 && rr.run === '1', `${name}: in a round the stop square shows over the turning ring`, rr);
-			// THE DISABLED KEY ("Cold Inlay", 2026-11-20): in a round the feature key is disabled (the attribute), its mark
-			// is the steel inlay (the rest etch hidden), the mark reads against the glass (3:1 or more) and the glass is
-			// darker than at rest (its color drained), so it is not taken for a live key
-			// (the cross-fade runs on the page's frames: up to 3 s for it to settle under a busy headless game)
-			let dk = null;
-			for (let i = 0; i < 30; i++) {
-				dk = await p.evaluate(() => {
+			// THE FAST LANE KEY KEEPS ITS LOOK IN A ROUND (2026-11-24, Corey: "while spinning the Fast Lane Button gets
+			// visibly disabled, much like Manticore was, which is distracting for a user. For this game, I would suggest
+			// leaving the button the way it is visibly during spins, and make user taps not work during a spin."; it was
+			// "Cold Inlay", 2026-11-20: the attribute, a steel mark, a darker glass). In a round the key is not a disabled
+			// button and says aria-disabled="true"; its mark is the rest etch (the steel one hidden), its lights are not
+			// dark, its glass reads as at rest (the luminance of its middle within 0.03 of the rest face; the old dim
+			// glass was darker by far more); and a press on its middle while the round plays opens no Fast Lane.
+			// (read at once and again 300 ms on: nothing cross-fades any more)
+			const keyNow = () =>
+				p.evaluate(() => {
 					const b = document.querySelector('.hudp .fb');
 					const op = (s) => { const e = b?.querySelector(s); return e ? Number(getComputedStyle(e).opacity) : null; };
-					return b ? { disabled: b.disabled, off: op('.em-off'), rest: op('.em-rest') } : null;
+					const r = b?.getBoundingClientRect();
+					return b ? { disabled: b.disabled, aria: b.getAttribute('aria-disabled'), busy: b.classList.contains('is-busy'), lights: b.getAttribute('data-l'), off: op('.em-off'), rest: op('.em-rest'), ink: op('.s-ink'), cursor: getComputedStyle(b).cursor, idle: window.__reindeer.hud.idle(), at: r ? [r.left + r.width / 2, r.top + r.height / 2] : null } : null;
 				});
-				if (!dk || (dk.off === 1 && dk.rest === 0)) break;
-				await sleep(100);
-			}
+			const dk = await keyNow();
 			const df = await keyFace(p);
-			check(!!dk && dk.disabled && dk.off === 1 && dk.rest === 0 && !!df && df.contrast >= 3 && !!restFace && df.glass < restFace.glass, `${name}: in a round the feature key is disabled, its mark a steel inlay ${df ? df.contrast.toFixed(2) : '?'}:1 against its glass, its glass darker than at rest (${df ? df.glass.toFixed(3) : '?'} < ${restFace ? restFace.glass.toFixed(3) : '?'})`, { dk, df, restFace });
+			await sleep(300);
+			const dk2 = await keyNow();
+			const same = (k) => !!k && k.disabled === false && k.aria === 'true' && k.busy && k.lights !== 'off' && (k.off === null || k.off === 0) && (k.rest === null || k.rest === 1) && (k.ink === null || k.ink === 1);
+			// (a key in a round that is already over when it is read says so: the check is then not made on that read)
+			const inRound = [dk, dk2].filter((k) => k && !k.idle);
+			check(inRound.length > 0 && inRound.every(same) && !!df && !!restFace && Math.abs(df.glass - restFace.glass) <= 0.03, `${name}: in a round the Fast Lane key keeps its resting look: not a disabled button, aria-disabled="true", the rest etch and full ink, its lights ${dk?.lights}, its glass ${df ? df.glass.toFixed(3) : '?'} against ${restFace ? restFace.glass.toFixed(3) : '?'} at rest`, { dk, dk2, df, restFace });
+			if (dk && !dk.idle && dk.at) {
+				// (a press while the round plays: by mouse or by touch, as the size is)
+				if (S.touch) await p.touchscreen.tap(dk.at[0], dk.at[1]).catch(() => {});
+				else await p.mouse.click(dk.at[0], dk.at[1]).catch(() => {});
+				await sleep(150);
+				const after = await p.evaluate(() => ({ menu: !!document.querySelector('[data-feature-menu]'), idle: window.__reindeer.hud.idle() }));
+				// (the press is judged only if the round was still playing after it: a round that ended under the press is the
+				// live key's)
+				if (!after.idle) check(!after.menu, `${name}: a press on the Fast Lane key while the round plays opens nothing`, after);
+				else if (after.menu) await p.keyboard.press('Escape').catch(() => {});
+			}
 			if (SHOTS) await p.screenshot({ path: join(SHOTS, `${S.vp.width}x${S.vp.height}_spinning.png`) });
 		}
 		await settle(p, S);

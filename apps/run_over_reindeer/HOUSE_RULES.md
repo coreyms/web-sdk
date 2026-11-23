@@ -97,6 +97,12 @@ events (`game/bookEventHandlerMap.ts`). Every decision taken is one line in `doc
   each; wider than the slot between their 44 px press boxes, which are unchanged), never over the window's common
   number size. It changes with the mode or the currency, never with a bet step. Do not size the amount to the
   slot again: that is what made the base game's amount smaller than Balance.
+  THE FAST LANE KEY KEEPS ITS RESTING LOOK WHILE A ROUND PLAYS (Corey 2026-11-24: "leaving the button the way it
+  is visibly during spins, and make user taps not work during a spin"). `controls.bonusDisabled()` says a press does
+  nothing; `controls.bonusShownOff()` says the key also LOOKS disabled, and that is only a round held for its resume
+  (and the operator's rule, where the key is not drawn). In a round the key is not a disabled button: it carries
+  `aria-disabled="true"` and the class `is-busy` (no hover tint, no press tint), and `bonusPress` refuses. Both bars
+  (`ui/sign/SignFastLane.svelte`, the dock's `ui/hud/HudFeature.svelte`). Do not put the steel look back on a spin.
   A DEV LOOK ONLY: `__reindeer.sign.matchNumbers(true)` or `?numbers=match` on a dev server draws Balance and Win
   at the amount's drawn size on the windows where the amount alone steps down (`matchedType`); the default is
   unchanged and nothing of it is in a production build.

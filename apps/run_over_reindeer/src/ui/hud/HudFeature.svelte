@@ -9,7 +9,9 @@
 	// THE ENGRAVED MARK (2026-11-19, HUD_CONFIG.featureMark): no word at rest, only the PolyMath mark etched into the
 	// glass; with a mode on the same mark inlaid in gold, the mode's word over it (as before). The two engravings are
 	// both drawn and cross-fade (150 ms). Its aria-label is unchanged.
-	// Disabled whenever controls.bonusDisabled() says (a spin, free spins, a held round).
+	// A press does nothing whenever controls.bonusDisabled() says (a spin, free spins, a held round). It LOOKS disabled
+	// only by controls.bonusShownOff() (a held round): while a round plays it keeps its resting look, aria-disabled and
+	// the class is-busy (no hover, no press dip), as the sign bar's key does (Corey 2026-11-24).
 	import { stateBet } from 'state-shared';
 	import type { Controls } from '../controls.svelte';
 	import { soc } from '../../game/social';
@@ -54,7 +56,9 @@
 	style:width="{w}px"
 	style:height="{h}px"
 	style:--k="{h}px"
-	disabled={controls.bonusDisabled()}
+	class:is-busy={controls.bonusDisabled() && !controls.bonusShownOff()}
+	disabled={controls.bonusShownOff()}
+	aria-disabled={controls.bonusDisabled() ? 'true' : undefined}
 	onclick={controls.bonusPress}
 	aria-label={on ? `${FEATURE_MENU_TEXT.name}: ${onLabel ?? ''} is on` : soc('Buy bonus', 'Get bonus')}
 >

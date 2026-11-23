@@ -1,5 +1,5 @@
 // Control-bar behaviour shared by the landscape/portrait chrome. Mirrors what the SDK's Pixi
-// buttons (components-ui-pixi) do, so the xstate machine and RGS flow are untouched — only the skin changed.
+// buttons (components-ui-pixi) do, so the xstate machine and RGS flow are untouched: only the skin changed.
 import { Tween } from 'svelte/motion';
 import { untrack } from 'svelte';
 import { cubicOut } from 'svelte/easing';
@@ -73,7 +73,7 @@ export const createControls = () => {
 	// a feature loaded (it is unloaded on START), the full Ante price with the Ante on (the Ante persists through a run).
 	const autoSpinCost = () => (armedBuy() ? stateBet.betAmount : betCostFull());
 	const canAffordAuto = () => autoSpinCost() > 0 && autoSpinCost() <= stateBet.balanceAmount;
-	// Full price of one press for the spin-button face — the FULL currency string, never
+	// Full price of one press for the spin-button face: the FULL currency string, never
 	// abbreviated (Stake review 2026-09-20). The button measures it and shrinks or drops the line
 	// if it will not fit (SquareSpin.svelte + game/textFit.ts).
 	const playCostText = () => numberToCurrencyString(betCostFull());
@@ -296,7 +296,7 @@ export const createControls = () => {
 		// one spin's win. Both as multiples of a single spin's play amount; null = off.
 		stateBet.autoSpinsLossLimitAmount = run.lossMult ? run.lossMult * perSpin : Infinity;
 		stateBet.autoSpinsSingleWinLimitAmount = run.winMult ? run.winMult * perSpin : Infinity;
-		// the SDK text fields carry a narrow preset union used only by its own (unmounted) UI — the
+		// the SDK text fields carry a narrow preset union used only by its own (unmounted) UI: the
 		// real limits are the amount fields above
 		stateUi.autoSpinsLossLimitText = INFINITY_MARK;
 		stateUi.autoSpinsSingleWinLimitText = INFINITY_MARK;
@@ -337,9 +337,19 @@ export const createControls = () => {
 	// disabledFullscreen: the game has no fullscreen control of its own, so there is nothing to hide.
 	const jurisdiction = () => stateConfig.jurisdiction;
 	const bonusDisabled = () => held() || !isIdle() || jurisdiction().disabledBuyFeature;
+	// THE FAST LANE KEY KEEPS ITS LOOK WHILE A ROUND PLAYS (Corey 2026-11-24: "while spinning the Fast Lane Button gets
+	// visibly disabled, much like Manticore was, which is distracting for a user. For this game, I would suggest leaving
+	// the button the way it is visibly during spins, and make user taps not work during a spin."). So two answers:
+	// bonusDisabled, "a press does nothing now" (a spin, an autoplay run, a feature round, a held resume, the operator's
+	// rule), and bonusShownOff, "and it LOOKS disabled": only the reasons that are not a round playing, a round still
+	// held for its resume after a reload (every bet control shows disabled then, until it is handed over) and the
+	// operator's disabledBuyFeature (where the bars do not draw the key at all). The keys draw by the second and
+	// refuse presses by the first (ui/sign/SignFastLane.svelte, ui/hud/HudFeature.svelte).
+	const bonusShownOff = () => held() || !!jurisdiction().disabledBuyFeature;
 	const bonusPress = () => {
-		// refused under disabledBuyFeature as well as hidden
-		if (held() || jurisdiction().disabledBuyFeature) return;
+		// refused whenever the key cannot be pressed (a round playing too: the key is no longer a disabled button then,
+		// so this is the guard), and under disabledBuyFeature as well as hidden
+		if (bonusDisabled()) return;
 		// Corey 2026-09-02: the bonus head button has its own voice again (ui-bonus.ogg, remixed);
 		// turbo / autoplay / denomination / menu share the minor click, the rest the general click
 		sound('soundPressBonus');
@@ -399,7 +409,7 @@ export const createControls = () => {
 	// table (game/currency.ts, 2026-11-21): USD, SC and GC 2 ("10.00 GC"), JPY 0, KWD 3, BTC 6.
 	const balanceText = () => numberToCurrencyString(stateBet.balanceAmount, { fixed: true });
 	// WIN counts UP toward the live book value (winInfo applies the spin total as the combos
-	// reveal, and this tween chases it — Mother Clucker timing); a reset to a smaller value
+	// reveal, and this tween chases it: Mother Clucker timing); a reset to a smaller value
 	// (new spin) snaps instead of counting backwards
 	const winTween = new Tween(stateBet.winBookEventAmount, { duration: 550, easing: cubicOut });
 	// The tween's own value is read UNTRACKED (2026-10-21): reading it tracked re-ran this effect on every frame of a count
@@ -449,7 +459,7 @@ export const createControls = () => {
 		spinDisabled, showStop, spin, slamStop, boardTap, wheelWaits,
 		autoDisabled, autoPress, startAutoplay,
 		turboPress, turboLevel,
-		bonusDisabled, bonusPress, activateMode, buyMode, jurisdiction,
+		bonusDisabled, bonusShownOff, bonusPress, activateMode, buyMode, jurisdiction,
 		betOptions, betDisabled, openDenom, setBet,
 		menuPress, openGameInfo,
 		balanceText, winText, winOdoText, betText, betLabel, hasWin, winAmount, freeSpin,

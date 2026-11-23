@@ -334,7 +334,7 @@
 			tabular
 		/>
 	</div>
-	{#if !replay && !controls.jurisdiction().disabledBuyFeature}<SignFastLane {controls} x={B.bonus.x} y={B.bonus.y} w={B.bonus.w} h={B.bonus.h} {u} press={(ev) => barPress(ev, 'bonus', controls.bonusPress)} />{/if}
+	{#if !replay && !controls.jurisdiction().disabledBuyFeature}<SignFastLane {controls} x={B.bonus.x} y={B.bonus.y} w={B.bonus.w} h={B.bonus.h} {u} press={(ev) => barPress(ev, 'bonus', bonusOwn)} />{/if}
 	<button
 		type="button"
 		class="slot-btn hg sgb sgm"
