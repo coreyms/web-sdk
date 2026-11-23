@@ -12,6 +12,7 @@
 // WATCHES: apps/run_over_reindeer/src/game/road/{chargeWindup.ts,roadFeatures.ts,roadSounds.ts,lockSnort.ts}; ROAM.charge, REINDEER_SOUND.snort
 // WATCHES: ; __reindeer.crosshairStrike, __reindeer.hurry, roam().windup, roam().box, snapshot().charge, lockSnort, snortAt
 // WATCHES: ; charge.round1, charge.look, REINDEER_ROAM.fx.grounds, __reindeer.sceneWant, __reindeer.sceneSwap
+// WATCHES: apps/run_over_reindeer/src/ui/sign/{signLayout.ts,SignHud.svelte}; PHONE_REFS, PHONE_PLACES, HUD_BAR, __reindeer.hud.bar, roam zone hud
 // THE ROAM PROBE (the roaming reindeer, 2026-11-17; game/road/roam.ts, constants STRIKE.roam and ROAM, game/roamPaths.ts).
 // Since round 3 (Corey: "an allowed to walk area where it randomly chooses where to go") he roams an AREA. Per size
 // (1440x900 desktop, 844x390 phone held sideways, 390x844 upright phone; 1920x1080 desktop for the area checks only):
@@ -27,7 +28,9 @@
 //      20 Hz and at both turbo levels (the table of both times is printed: STRIKE TIMING)
 //   3  a later strike of the spin comes from off the screen, and he does not come back for it
 //   4  after the spin's last strike a new one walks in level from past the screen's edge to a spot of the area
-//   7  a strike while the new one is still past the edge comes from off the screen (he gives way); a strike while he is
+//   7  a new one sets off on his walk in on the first pick (2026-11-23: its own line, with what he has to stand on when
+//      it fails; the clock is then stepped until he does set off); a strike while the new one is still past the edge
+//      comes from off the screen (he gives way); a strike while he is
 //      walking in on the screen is his, from where he is; in the live spins every strike lands on time
 //   8  every fixture book (base and bonus): each spin (reveal to reveal) with strikes has exactly one first and one last
 //   the editor: the staging panel's Reindeer area group shows the area, a corner drags (mouse; touch on the phones), one
@@ -279,6 +282,22 @@ const headClear = (geo, zones, x, y) => {
 };
 
 /** step the board clock frame by frame (frozen clock): the per frame log of the roamer and the runner */
+/** (2026-11-23, the sign bar) WHAT HE HAS TO STAND ON NOW, for a fail message (runs in the page): the game bar in use,
+ *  his state and place, the drawn area's own floor (spots 12 % of the width apart, the span) and how far the game widened
+ *  it, the screen in road px, his body's box (road px) and every keep-out but the road, in road px. A key of the bar
+ *  that stands on his snow shows here as a 'hud' zone inside the area. */
+const ROAM_GROUND = () => {
+	const h = window.__reindeer;
+	const s = h.roam();
+	const v = h.roamView();
+	const r = (n) => Math.round(n);
+	const zones = h
+		.roamZones()
+		.filter((z) => z.name !== 'road')
+		.map((z) => `${z.name} ${r((z.x0 - v.ox) / v.k)},${r((z.y0 - v.oy) / v.k)} to ${r((z.x1 - v.ox) / v.k)},${r((z.y1 - v.oy) / v.k)}`);
+	return { bar: h.hud?.bar ?? null, kind: s.kind, state: s.state, at: [r(s.x), r(s.y)], side: s.side, capacity: s.capacity, widen: s.widen, floor: s.floor, span: s.span, screenRoadPx: [r(v.rect.left), r(v.rect.top), r(v.rect.right), r(v.rect.bottom)], bodyRoadPx: [r(2 * s.reach.side * s.scale), r(s.reach.up * s.scale)], zonesRoadPx: zones };
+};
+
 const STEP_STRIKE = async (p, { cell, first, last, hz = 60, turbo = 0, roamOff = false, plain = false }) =>
 	p.evaluate(
 		async ({ cell, first, last, hz, turbo, roamOff, plain }) => {
@@ -737,11 +756,24 @@ async function runSize(browser, S) {
 		const h = window.__reindeer;
 		const R = h.roadBoard();
 		const F = R.features;
+		const picks0 = F.roam.counts.picks;
 		h.roamWalkIn(0);
 		R.update(1000 / 60, 1, 1);
 		R.update(1000 / 60, 1, 1);
-		return { state: F.roam.state, standing: !!F.roam.standing(), x: F.roam.x };
+		const atOnce = F.roam.state;
+		// (2026-11-23, the sign bar at 844 x 390: state 'none' here, both runs the same) A walk in sets off only when a
+		// pick finds a spot with a clear way in from his side; with none the game tries again every half second. Under the
+		// glass dock the first pick always found one. So that the strike below still meets one who is past the edge, the
+		// board's clock is stepped until he sets off (60 s at most); how long that took is its own line.
+		let waitedMs = 0;
+		while (F.roam.state !== 'enter' && waitedMs < 60000) {
+			R.update(1000 / 60, 1, 1);
+			waitedMs += 1000 / 60;
+		}
+		return { state: F.roam.state, standing: !!F.roam.standing(), x: F.roam.x, y: F.roam.y, atOnce, waitedMs: Math.round(waitedMs), picks: F.roam.counts.picks - picks0, to: { x: Math.round(F.roam.to.x), y: Math.round(F.roam.to.y) } };
 	});
+	const ground = early.atOnce === 'enter' ? null : await H(ROAM_GROUND);
+	check(early.atOnce === 'enter', `${name}: a new one sets off on his walk in on the first pick (a spot with a clear way in from his side is found at once; here ${early.state === 'enter' ? `after ${early.waitedMs} ms and ${early.picks} picks, to road (${early.to.x}, ${early.to.y})` : `none in 60 s and ${early.picks} picks`})`, { early, ground });
 	const e1 = await STEP_STRIKE(p, { cell: 4, first: true, last: false });
 	check(early.state === 'enter' && !early.standing && e1.firstRunner && e1.firstRunner.roam === false && e1.rows.every((r) => r.roamState === 'none'), `${name}: a spin's first strike while the new one is still past the edge comes from off the screen, and he gives way`, { early, runner: e1.firstRunner });
 	const mid = await H(async () => {
@@ -2004,6 +2036,15 @@ async function contrastSize(browser, S) {
 		}
 		const picks = await p.evaluate(() => window.__reindeer.roamPicks(40, 20, 5151));
 		const spots = picks.filter((q) => q.pass >= 0);
+		// (2026-11-23, the sign bar at 360 x 560: no pick found a spot, and the section threw reading spots[0].x) With
+		// nowhere for him to stand there is no strike of his to measure: one line that says so, with what he has to stand
+		// on (ROAM_GROUND), and the section ends.
+		if (!spots.length) {
+			const ground = await p.evaluate(ROAM_GROUND);
+			check(false, `${name}: he has a spot to strike from at this window (${picks.filter((q) => !q.walkIn && q.pass >= 0).length} of 40 seeded picks and ${picks.filter((q) => q.walkIn && q.pass >= 0).length} of 20 walk in picks found one); no puff could be measured`, ground);
+			check(errs.length === 0, `${name}: no page errors`, errs.slice(0, 5));
+			return void (await ctx.close());
+		}
 		let si = 0;
 		// (LOOKS: the candidates on the light grounds, night grass for the white look; else every ground as shipped)
 		const plan = LOOKS.length

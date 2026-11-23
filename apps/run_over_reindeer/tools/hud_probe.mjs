@@ -10,7 +10,7 @@
 // WATCHES: ; __reindeer.ringMethod, __reindeer.ringRounds, __reindeer.ringNow, __reindeer.spinSerial
 // WATCHES: apps/run_over_reindeer/src/{game/currency.ts,fixtures/fixtureRgs.ts};
 // WATCHES: apps/run_over_reindeer/src/{ui/sign/SignHud.svelte,ui/sign/signLayout.ts,ui/sign/signZones.ts,ui/sign/SignPlay.svelte,ui/hudTheme.ts};
-// WATCHES: ; __reindeer.sign, __reindeer.hud.bar, HUD_BAR, .sgw, .s-words, .s-ring, data-shape, data-total, data-bar
+// WATCHES: ; __reindeer.sign, __reindeer.hud.bar, HUD_BAR, .sgw, .s-words, .s-ring, data-shape, data-total, data-bar, .sgpad, data-pad, padPlaces, __reindeer.sign.pads
 // WATCHES: apps/run_over_reindeer/src/{game/actor.ts,game/utils.ts,game/stateGame.svelte.ts,ui/SpinHotkey.svelte};
 // WATCHES: ; __reindeer.pressReady, __reindeer.spinTail, roundSettled, roundTailFinish, landSmall, SPIN_TAIL, flipGraceMs, ledCountDone, data-resume-card
 // THE HUD PROBE (the house glass HUD from Manticore, "Win over Balance, Drop 6" plus round 6, in this game's "Frost"
@@ -1950,9 +1950,10 @@ async function tailSection(browser) {
 // At each of Corey's own windows, three more desktop sizes and the two popouts:
 //   - every piece is drawn within 1 CSS px of his place (his own table, read through __reindeer.sign.his(), never a
 //     copy; at a window he did not set, of the place the rule answers: tools/sign_layout_test.mjs proves the rule)
-//   - every press region holds a 44 CSS px circle (his own Auto and Turbo stand closer than 44 at 568 x 320 and
-//     667 x 375: there the circle between their centers is what is asked), and a press on each control's middle lands
-//     on that control
+//   - every press region holds a 44 CSS px circle (2026-11-23: his own Auto and Turbo stand closer than 44 at
+//     568 x 320 and 667 x 375, and there their unseen press pads stand apart, signLayout.ts padPlaces: a press on a
+//     pad's middle and at eight points 21 px round it lands on that pad or its own key), and a press on each
+//     control's middle lands on that control
 //   - nothing is on the board, the LED strip or the logo by real shape, and no bet symbol's press box is on the Play
 //   - the amount fits its reserved width (the widest amount of the bet menu at the type size in use), the symbols hold
 //     still across bet steps, and a mode on seats them again; in three currencies at four of the sizes
@@ -2013,6 +2014,26 @@ const signRead = (p) =>
 			const at = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
 			hitOk[id] = !!at && (at === e || e.contains(at));
 		}
+		// AUTO'S AND TURBO'S PRESS PADS (2026-11-23): where the rule puts each one, where the page drew it, and what a press
+		// on its middle and at eight points 21 px round it lands on (its own pad or its own key, nothing else)
+		const padHit = {};
+		const padsAt = S.pads ? S.pads() : null;
+		for (const id of ['auto', 'turbo']) {
+			const e = document.querySelector(`.hudp .sgpad[data-pad="${id}"]`);
+			const key = document.querySelector(SEL[id])?.closest('button');
+			if (!e || !key || !padsAt?.at?.[id]) continue;
+			const b = e.getBoundingClientRect();
+			const c = [b.left + b.width / 2, b.top + b.height / 2];
+			const pts = [c];
+			for (let i = 0; i < 8; i++) pts.push([c[0] + 21 * Math.cos((i * Math.PI) / 4), c[1] + 21 * Math.sin((i * Math.PI) / 4)]);
+			const other = pts
+				.map((q) => {
+					const at = document.elementFromPoint(q[0], q[1]);
+					return at && (at === e || at === key || key.contains(at)) ? null : `(${Math.round(q[0])}, ${Math.round(q[1])}) lands on ${at ? at.getAttribute('data-pad') || at.getAttribute('data-hud') || at.getAttribute('data-hud-step') || at.className || at.tagName : 'nothing'}`;
+				})
+				.filter(Boolean);
+			padHit[id] = { drawn: [c[0], c[1], b.width], want: padsAt.at[id], key: padsAt.keys[id], other };
+		}
 		const seat = S.seat();
 		// the widest amount of the bet menu at the type in use, measured in the page's own face
 		const m = document.createElement('span');
@@ -2034,6 +2055,7 @@ const signRead = (p) =>
 			his: S.his(),
 			dom,
 			hitOk,
+			padHit,
 			widestPx,
 			value: val ? { x0: val.left, x1: val.right, text: document.querySelector('.hudp [data-hud="amount"] .value').textContent } : null,
 			win: { on: S.winOn(), opacity: box ? Number(getComputedStyle(box).opacity) : null, shape: box?.dataset.shape ?? null, text: document.querySelector('.hudp [data-hud="win"] .value')?.textContent ?? '', rects: Object.fromEntries([['glass', '.hudp .sgw .s-glass'], ['plate', '.hudp [data-hud="win"] .lbw'], ['value', '.hudp [data-hud="win"] .value']].map(([k, sel]) => { const q = document.querySelector(sel)?.getBoundingClientRect(); return [k, q ? { x: q.left, y: q.top, w: q.width, h: q.height } : null]; })) },
@@ -2183,19 +2205,21 @@ async function signHud(browser) {
 			}
 			check(d.win.shape === (kind === 'landscape' ? 'pill' : 'rect'), `${tag}: the Win box is a ${kind === 'landscape' ? 'pill' : 'rectangle'}`, d.win.shape);
 			// ---- press regions ----
-			const need = (id) => {
-				if ((id === 'auto' || id === 'turbo') && ref) {
-					const c = (k) => [ref.p[k][0] + ref.p[k][2] / 2, ref.p[k][1] + ref.p[k][3] / 2];
-					return Math.min(44, Math.hypot(c('auto')[0] - c('turbo')[0], c('auto')[1] - c('turbo')[1]));
-				}
-				return 44;
-			};
-			const small = Object.entries(d.press).filter(([id, v]) => v < need(id) - 0.06).map(([id, v]) => `${id} ${r1(v)}`);
-			const hisOwn = Object.entries(d.press).filter(([id, v]) => v < 43.94 && v >= need(id) - 0.06).map(([id, v]) => `${id} ${r1(v)}`);
+			// (2026-11-23: 44 at every window, his 568 x 320 and 667 x 375 too: there Auto's and Turbo's pads stand apart)
+			const small = Object.entries(d.press).filter(([, v]) => v < 44 - 0.06).map(([id, v]) => `${id} ${r1(v)}`);
 			const cannot = Object.entries(d.hitOk).filter(([, ok]) => !ok).map(([id]) => id);
 			if (S.listOnly) console.log(`     ${tag}, listed only: press regions under 44: ${small.join(', ') || 'none'}; problems: ${d.problems.join('; ') || 'none'}; amount ${r1(d.seat.px)} px${d.seat.under ? ' (under the floor)' : ''}`);
-			else check(small.length === 0, `${tag}: every press region holds a 44 CSS px circle${hisOwn.length ? ` (his own close Auto and Turbo: ${hisOwn.join(', ')})` : ''}`, small);
+			else check(small.length === 0, `${tag}: every press region holds a 44 CSS px circle`, small);
 			check(cannot.length === 0, `${tag}: a press on each control's middle lands on that control`, cannot);
+			// ---- Auto's and Turbo's press pads (where their drawn diamonds hold less than 44 px) ----
+			{
+				const pads = Object.entries(d.padHit ?? {});
+				const off = pads.filter(([, q]) => Math.hypot(q.drawn[0] - q.want[0], q.drawn[1] - q.want[1]) > 0.6 || Math.abs(q.drawn[2] - 44) > 0.6).map(([id, q]) => `${id} drawn at ${r1(q.drawn[0])}, ${r1(q.drawn[1])} (${r1(q.drawn[2])} px) for ${r1(q.want[0])}, ${r1(q.want[1])}`);
+				const stray = pads.flatMap(([id, q]) => q.other.map((x) => `${id}: ${x}`));
+				const moved = pads.map(([id, q]) => `${id} ${r1(Math.hypot(q.want[0] - q.key[0], q.want[1] - q.key[1]))} px from its key's middle`).join(', ');
+				if (S.listOnly) console.log(`     ${tag}, listed only: the press pads: ${moved || 'none'}${stray.length ? '; ' + stray.join('; ') : ''}`);
+				else if (pads.length) check(off.length === 0 && stray.length === 0, `${tag}: Auto's and Turbo's 44 px press pads stand where the rule puts them (${moved}), and a press on each one's middle and at 8 points 21 px round it lands on that pad or its own key`, [...off, ...stray]);
+			}
 			// ---- the scene and the Play ----
 			const real = d.problems.filter((x) => !/press region/.test(x));
 			if (!S.listOnly) check(real.length === 0, `${tag}: nothing on the board, the LED strip or the logo, no bet symbol on the Play (by real shape)`, real);

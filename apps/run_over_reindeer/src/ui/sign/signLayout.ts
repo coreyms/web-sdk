@@ -209,14 +209,16 @@ export type PressId = 'play' | 'auto' | 'turbo' | 'menu' | 'bonus' | 'down' | 'u
 /** THE PRESS REGIONS, the diameter of the largest circle each one holds, CSS px.
  *   Play            its drawn diamond (the button is a square turned 45 degrees, so it takes presses as that diamond):
  *                   the circle inside it, 0.669 of its box
- *   Auto, Turbo     their drawn diamond, grown to a 44 px circle on their center (a press pad that lies under every
- *                   drawn control, ui/sign/SignHud.svelte), as far as that circle stays clear of every other press
- *                   region
+ *   Auto, Turbo     their drawn diamond, grown by a 44 px round press pad that lies under every drawn control
+ *                   (ui/sign/SignHud.svelte), as far as that circle stays clear of every other press region. The pad
+ *                   stands on the key's center, or where `pads` says (padPlaces below: where the two keys stand
+ *                   closer than 44 px the pads stand apart)
  *   Fast Lane       the circle inside its hexagon (the button is its box); Menu and the bet symbols: their boxes */
-export const pressRegions = (boxes: Partial<Record<PressId, Box>>): Partial<Record<PressId, number>> => {
+export const pressRegions = (boxes: Partial<Record<PressId, Box>>, pads: Partial<Record<'auto' | 'turbo', Pt>> = {}): Partial<Record<PressId, number>> => {
 	const ids = (Object.keys(boxes) as PressId[]).filter((id) => boxes[id]);
 	const sh = Object.fromEntries(ids.map((id) => [id, shapeOf(id, boxes[id] as Box)])) as Record<PressId, Pt[]>;
 	const ctr = (id: PressId): Pt => [(boxes[id] as Box).x + (boxes[id] as Box).w / 2, (boxes[id] as Box).y + (boxes[id] as Box).h / 2];
+	const pad = (id: PressId): Pt => (id === 'auto' || id === 'turbo' ? pads[id] : undefined) ?? ctr(id);
 	const out: Partial<Record<PressId, number>> = {};
 	for (const id of ids) {
 		const b = boxes[id] as Box;
@@ -226,9 +228,11 @@ export const pressRegions = (boxes: Partial<Record<PressId, Box>>): Partial<Reco
 			let d = ins;
 			if (ins < TOUCH_MIN) {
 				d = TOUCH_MIN;
+				const c = pad(id);
 				for (const o of ids) {
 					if (o === id) continue;
-					const lim = o === 'auto' || o === 'turbo' ? Math.hypot(ctr(id)[0] - ctr(o)[0], ctr(id)[1] - ctr(o)[1]) : 2 * distToPoly(ctr(id), sh[o]);
+					// (the other key of the two: its pad, and its drawn diamond, which lies over this pad)
+					const lim = o === 'auto' || o === 'turbo' ? Math.min(Math.hypot(c[0] - pad(o)[0], c[1] - pad(o)[1]), 2 * distToPoly(c, sh[o])) : 2 * distToPoly(c, sh[o]);
 					d = Math.min(d, lim);
 				}
 				d = Math.max(d, ins);
@@ -237,6 +241,86 @@ export const pressRegions = (boxes: Partial<Record<PressId, Box>>): Partial<Reco
 		} else out[id] = Math.min(b.w, b.h);
 	}
 	return out;
+};
+
+/** THE PRESS PADS OF AUTO AND TURBO (2026-11-23; house rule: a touch area is 44 CSS px at least). At Corey's own
+ *  568 x 320 window the two keys' centers stand 37 px apart (43.4 at 667 x 375), so two 44 px pads on the keys' centers
+ *  shared a strip and each key held a 37 px circle. The drawn keys stay where he put them; only the unseen pads move:
+ *  each as little as it takes to stand `gap` clear of the other pad, of the other key's diamond, of the Play's diamond
+ *  (Corey: nothing touches the Spin's press region), of the bet symbols' press boxes, of Menu and the Fast Lane, and
+ *  inside the window. Where the pads on the keys' centers are already clear (every other window of his) nothing moves.
+ *  Where no such places exist within `reach` of the keys (the 400 x 225 mini player, a mouse window) the pads stay on
+ *  the keys' centers, as before. Centers, CSS px. */
+export const PAD = { gap: 0.5, reach: 11, rounds: 200 };
+export const padPlaces = (boxes: Partial<Record<PressId, Box>>, vw: number, vh: number): Partial<Record<'auto' | 'turbo', Pt>> => {
+	const R = TOUCH_MIN / 2;
+	const keys = (['auto', 'turbo'] as const).filter((k) => boxes[k]);
+	const ids = (Object.keys(boxes) as PressId[]).filter((id) => boxes[id]);
+	const sh = Object.fromEntries(ids.map((id) => [id, shapeOf(id, boxes[id] as Box)])) as Record<PressId, Pt[]>;
+	const home = Object.fromEntries(keys.map((k) => [k, [(boxes[k] as Box).x + (boxes[k] as Box).w / 2, (boxes[k] as Box).y + (boxes[k] as Box).h / 2] as Pt])) as Record<'auto' | 'turbo', Pt>;
+	/** the nearest point of a shape's outline, and how far outside it p is (negative: inside) */
+	const near = (p: Pt, poly: Pt[]) => {
+		let q: Pt = poly[0];
+		let m = Infinity;
+		for (let i = 0; i < poly.length; i++) {
+			const a = poly[i];
+			const b = poly[(i + 1) % poly.length];
+			const dx = b[0] - a[0];
+			const dy = b[1] - a[1];
+			const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+			const n: Pt = [a[0] + dx * t, a[1] + dy * t];
+			const d = Math.hypot(p[0] - n[0], p[1] - n[1]);
+			if (d < m) {
+				m = d;
+				q = n;
+			}
+		}
+		return { q, d: inPoly(p, poly) ? -m : m };
+	};
+	/** the most any pad is short of standing clear (0 or less: every pad holds its whole 44 px circle) */
+	const short = (c: Record<'auto' | 'turbo', Pt>) => {
+		let w = -Infinity;
+		for (const k of keys) {
+			for (const o of ids) if (o !== k) w = Math.max(w, R - near(c[k], sh[o]).d);
+			w = Math.max(w, R - c[k][0], R - c[k][1], c[k][0] - (vw - R), c[k][1] - (vh - R));
+		}
+		if (keys.length === 2) w = Math.max(w, R - Math.hypot(c.auto[0] - c.turbo[0], c.auto[1] - c.turbo[1]) / 2);
+		return w;
+	};
+	if (!keys.length || short(home) <= 0.001) return home;
+	const c = Object.fromEntries(keys.map((k) => [k, [home[k][0], home[k][1]] as Pt])) as Record<'auto' | 'turbo', Pt>;
+	for (let it = 0; it < PAD.rounds && short(c) > -PAD.gap + 0.001; it++) {
+		for (const k of keys)
+			for (const o of ids) {
+				if (o === k) continue;
+				const n = near(c[k], sh[o]);
+				if (n.d >= R + PAD.gap) continue;
+				// out along the line from the outline's nearest point (through it, from inside)
+				const sx = (c[k][0] - n.q[0]) * (n.d < 0 ? -1 : 1);
+				const sy = (c[k][1] - n.q[1]) * (n.d < 0 ? -1 : 1);
+				const len = Math.hypot(sx, sy) || 1;
+				c[k][0] += (sx / len) * (R + PAD.gap - n.d);
+				c[k][1] += (sy / len) * (R + PAD.gap - n.d);
+			}
+		if (keys.length === 2) {
+			const dx = c.turbo[0] - c.auto[0];
+			const dy = c.turbo[1] - c.auto[1];
+			const d = Math.hypot(dx, dy) || 1;
+			if (d < 2 * R + PAD.gap) {
+				const push = (2 * R + PAD.gap - d) / 2;
+				c.auto[0] -= (dx / d) * push;
+				c.auto[1] -= (dy / d) * push;
+				c.turbo[0] += (dx / d) * push;
+				c.turbo[1] += (dy / d) * push;
+			}
+		}
+		for (const k of keys) {
+			c[k][0] = Math.max(R, Math.min(vw - R, c[k][0]));
+			c[k][1] = Math.max(R, Math.min(vh - R, c[k][1]));
+		}
+	}
+	const moved = Math.max(...keys.map((k) => Math.hypot(c[k][0] - home[k][0], c[k][1] - home[k][1])));
+	return short(c) <= 0.001 && moved <= PAD.reach ? c : home;
 };
 
 // ---- the bet symbols (the mock's stepDraw and stepBox), bar px ----
@@ -814,6 +898,6 @@ export const signProblems = (g: SignGeo, zones: Zones | null, seat: Seat | null,
 		if (shapeGap(boxPts(seat.up), play) === 0) out.push('> press box on the Play');
 		for (const [n, q] of [['<', seat.down], ['>', seat.up]] as const) if (q.x < -0.05 || q.y < -0.05 || q.x + q.w > g.vw + 0.05 || q.y + q.h > g.vh + 0.05) out.push(`${n} press box off the window`);
 	}
-	for (const [id, d] of Object.entries(pressRegions(press))) if ((d as number) < TOUCH_MIN - 0.05) out.push(`${id} press region ${r1(d as number)}`);
+	for (const [id, d] of Object.entries(pressRegions(press, padPlaces(press, g.vw, g.vh)))) if ((d as number) < TOUCH_MIN - 0.05) out.push(`${id} press region ${r1(d as number)}`);
 	return out;
 };

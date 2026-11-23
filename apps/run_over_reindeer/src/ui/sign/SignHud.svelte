@@ -20,7 +20,7 @@
 	import HudReadout from '../hud/HudReadout.svelte';
 	import HudMenuPanel from '../hud/HudMenuPanel.svelte';
 	import { HEAD_LS, headWidth } from './signDraw';
-	import { DESKTOP, KEY_V, PHONE_PLACES, PHONE_REFS, PLAY_V, READOUT_TYPE, TEXT_MIN, amountLimits, readoutFit, pressRegions, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type PieceId } from './signLayout';
+	import { DESKTOP, KEY_V, PHONE_PLACES, PHONE_REFS, PLAY_V, READOUT_TYPE, TEXT_MIN, amountLimits, padPlaces, readoutFit, pressRegions, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type PieceId } from './signLayout';
 	import { signZones } from './signZones';
 	import { holdLights } from './ledBand';
 	import SignPlay from './SignPlay.svelte';
@@ -120,13 +120,19 @@
 	// center, drawn first so it lies under every control: where a pad meets a neighbour, the neighbour's own shape takes
 	// the press (the dock's .hit::after rule; an element of its own here, because a turned button's ::after cannot lie
 	// under its neighbours). The pad calls the key's own handler under the key's own disabled rule.
+	// (2026-11-23) AUTO'S AND TURBO'S PADS STAND APART where his two keys are closer than 44 px (568 x 320: 37 px; the
+	// house rule's 44 px touch area): the drawn keys stay, the unseen pads move the least it takes to hold a whole 44 px
+	// circle each, clear of each other, the Play's diamond and the bet symbols' press boxes (signLayout.ts padPlaces).
+	const pressBoxes = $derived({ play: geo.box.play, auto: geo.box.auto, turbo: geo.box.turbo, menu: geo.box.menu, bonus: geo.box.bonus, down: seat.down, up: seat.up });
+	const padAt = $derived(padPlaces(pressBoxes, vw, vh));
 	const pads = $derived.by(() => {
 		const out: { id: string; x: number; y: number; d: number; press: () => void }[] = [];
 		const d = 44 / u;
 		const add = (id: PieceId, drawn: number, press: () => void) => {
 			if (drawn * u >= 44) return;
 			const b = B[id];
-			out.push({ id, x: b.x + b.w / 2 - d / 2, y: b.y + b.h / 2 - d / 2, d, press });
+			const at = id === 'auto' || id === 'turbo' ? padAt[id] : undefined;
+			out.push({ id, x: (at ? at[0] / u : b.x + b.w / 2) - d / 2, y: (at ? at[1] / u : b.y + b.h / 2) - d / 2, d, press });
 		};
 		if (!replay && !controls.jurisdiction().disabledAutoplay) add('auto', (B.auto.w * KEY_V) / Math.SQRT2, () => !controls.autoDisabled() && controls.autoPress());
 		if (!controls.jurisdiction().disabledTurbo) add('turbo', (B.turbo.w * KEY_V) / Math.SQRT2, () => !stateBet.isSpaceHold && controls.turboPress());
@@ -155,7 +161,9 @@
 			/** the amount's seat: its type, the reserved width, the two symbols' press boxes, the widest amount */
 			seat: () => JSON.parse(JSON.stringify({ ...seat, widest: widest.text })),
 			/** each press region's largest circle, CSS px */
-			press: () => pressRegions({ play: geo.box.play, auto: geo.box.auto, turbo: geo.box.turbo, menu: geo.box.menu, bonus: geo.box.bonus, down: seat.down, up: seat.up }),
+			press: () => pressRegions(pressBoxes, padAt),
+			/** Auto's and Turbo's press pads: where the rule puts each one's center (CSS px) and the keys' own centers */
+			pads: () => JSON.parse(JSON.stringify({ at: padAt, keys: { auto: [geo.box.auto.x + geo.box.auto.w / 2, geo.box.auto.y + geo.box.auto.h / 2], turbo: [geo.box.turbo.x + geo.box.turbo.w / 2, geo.box.turbo.y + geo.box.turbo.h / 2] } })),
 			/** what is wrong by real shape (a piece on the board, the strip or the logo, a symbol on the Play, a press under 44) */
 			problems: () => {
 				// BALANCE and the amount by what they draw: the header plate and the number, CSS px

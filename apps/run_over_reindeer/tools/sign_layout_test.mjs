@@ -13,6 +13,8 @@
 //      sizes), by real shape: no piece on the board, the strip or the logo, none off the window, no bet symbol's press
 //      box on the Play's diamond, no press region under 44 CSS px. Inside his own range of windows that must hold;
 //      beyond it (and at the two popouts) what fails is listed.
+//   4. AUTO'S AND TURBO'S PRESS PADS (2026-11-23): at his nine phone windows each holds a whole 44 px circle clear of
+//      every other press region; only 568 x 320 and 667 x 375 move a pad; the 400 x 225 mini player is as it was.
 // The amount's widths have no font here: a widest amount of 4.4 em ("$100.00" in Overpass 900 is 4.36 em) and a 3.2 em
 // header stand in. Pass: every line PASS, "0 fail" and exit 0.
 import { register } from 'node:module';
@@ -54,8 +56,9 @@ const r1 = (v) => Math.round(v * 10) / 10;
 const WIDEST_EM = 4.4;
 /** "$100.00" in Overpass 900 with every digit a 0 wide (the bar's own measure): for the sizes printed below */
 const USD_EM = 4.198;
-/** Auto's and Turbo's press circles where his own two keys stand closer than 44 px (never under his 37) */
-const KNOWN = /^(auto|turbo) press region (3[7-9]|4[0-3])(\.\d)?$/;
+/** (2026-11-23: none any more. His own Auto and Turbo stand 37 px apart at 568 x 320 and 43.4 at 667 x 375, and their
+ *  44 px press circles shared a strip there; their pads now stand apart, signLayout.ts padPlaces, section 4 below) */
+const KNOWN = /^never$/;
 const HEAD_EM = 3.2;
 /** a window's layout, its seat and its problems, with the scene's own keep-outs */
 const at = (kind, vw, vh, safe) => {
@@ -79,8 +82,8 @@ for (const o of ['portrait', 'phone']) {
 		const raw = L.PHONE_REFS[o].find((q) => q.vw === r.vw && q.vh === r.vh);
 		for (const id of L.PIECES) if (id !== 'bal' && id !== 'amt') d = Math.max(d, ...r.p[id].map((v, i) => Math.abs(v - raw.p[id][i])));
 		line(d <= 0.05 && g.moved.length === 0, `${r.vw}x${r.vh} his places (Balance and the amount enlarged), no guard acting`, `worst ${d.toFixed(3)} px${g.moved.length ? '; moved: ' + g.moved.join('; ') : ''}`);
-		// (his own Auto and Turbo stand 37 px apart at 568 x 320 and 43.4 at 667 x 375, so their 44 px press circles share a
-		// strip there: his placing, kept, and listed)
+		// (his own Auto and Turbo stand 37 px apart at 568 x 320 and 43.4 at 667 x 375: their press pads stand apart there,
+		// section 4, so no press region is under 44 at any window of his)
 		const rest = problems.filter((x) => !KNOWN.test(x));
 		line(rest.length === 0, `${r.vw}x${r.vh} clear by shape on the game's own board, strip and logo`, [...rest, ...problems.filter((x) => KNOWN.test(x)).map((x) => `${x} (his own placing)`)].join('; ') + (Math.abs(seat.nudge) > 0.05 ? `; the amount stands ${r1(seat.nudge)} px from his center (the least its width needs)` : ''));
 	}
@@ -215,10 +218,61 @@ for (const o of ['portrait', 'phone']) {
 for (const [vw, vh, name, must] of [[800, 450, 'Popout L', true], [400, 225, 'Popout S', false], [360, 640, 'a 360 x 640 phone', true], [412, 915, 'a 412 x 915 phone', true], [430, 932, 'a 430 x 932 phone', true], [393, 852, 'a 393 x 852 phone', true], [932, 430, 'a 932 x 430 phone', true], [852, 393, 'an 852 x 393 phone', true], [740, 360, 'a 740 x 360 phone', true]]) {
 	const kind = vw > vh ? 'phone' : 'portrait';
 	const { g, problems, seat } = at(kind, vw, vh);
-	const press = L.pressRegions({ play: g.box.play, auto: g.box.auto, turbo: g.box.turbo, menu: g.box.menu, bonus: g.box.bonus, down: seat.down, up: seat.up });
+	const boxes = { play: g.box.play, auto: g.box.auto, turbo: g.box.turbo, menu: g.box.menu, bonus: g.box.bonus, down: seat.down, up: seat.up };
+	const press = L.pressRegions(boxes, L.padPlaces(boxes, vw, vh));
 	const txt = `${problems.join('; ') || 'clear'} | press ${Object.entries(press).map(([k, v]) => `${k} ${r1(v)}`).join(', ')} | amount ${r1(seat.px)} px${seat.under ? ' (under the floor)' : ''}${g.moved.length ? ' | ' + g.moved.join('; ') : ''}`;
 	if (must) line(problems.length === 0, `${name} (${vw}x${vh})`, txt);
 	else console.log(`     ${name} (${vw}x${vh}), listed only: ${txt}`);
+}
+// ---- 4. AUTO'S AND TURBO'S PRESS PADS (2026-11-23; the house rule's 44 CSS px touch area; Corey: nothing touches the
+// Spin's press region). At each of his nine phone windows: each pad's whole 44 px circle is clear of the other pad, the
+// other key's diamond, the Play's diamond, both bet symbols' press boxes, Menu and the Fast Lane, and inside the window;
+// the key's own center is inside its pad; the drawn keys are his boxes (section 1). Only 568 x 320 and 667 x 375 move a
+// pad at all. The 400 x 225 mini player (a mouse window) is as it was: its pads on the keys' centers. ----
+{
+	const segD = (p, a, b) => {
+		const dx = b[0] - a[0];
+		const dy = b[1] - a[1];
+		const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+		return Math.hypot(p[0] - a[0] - dx * t, p[1] - a[1] - dy * t);
+	};
+	const inP = (p, P) => {
+		let c = false;
+		for (let i = 0, j = P.length - 1; i < P.length; j = i++) if (P[i][1] > p[1] !== P[j][1] > p[1] && p[0] < ((P[j][0] - P[i][0]) * (p[1] - P[i][1])) / (P[j][1] - P[i][1]) + P[i][0]) c = !c;
+		return c;
+	};
+	const dist = (p, P) => (inP(p, P) ? 0 : Math.min(...P.map((a, i) => segD(p, a, P[(i + 1) % P.length]))));
+	const read = (kind, vw, vh) => {
+		const { g, seat, problems } = at(kind, vw, vh);
+		const boxes = { play: g.box.play, auto: g.box.auto, turbo: g.box.turbo, menu: g.box.menu, bonus: g.box.bonus, down: seat.down, up: seat.up };
+		const pads = L.padPlaces(boxes, vw, vh);
+		const home = { auto: [g.box.auto.x + g.box.auto.w / 2, g.box.auto.y + g.box.auto.h / 2], turbo: [g.box.turbo.x + g.box.turbo.w / 2, g.box.turbo.y + g.box.turbo.h / 2] };
+		const moved = { auto: Math.hypot(pads.auto[0] - home.auto[0], pads.auto[1] - home.auto[1]), turbo: Math.hypot(pads.turbo[0] - home.turbo[0], pads.turbo[1] - home.turbo[1]) };
+		// each pad's clearance past its 22 px radius from every other press region (negative: they meet)
+		const gaps = {};
+		for (const k of ['auto', 'turbo']) {
+			const o = k === 'auto' ? 'turbo' : 'auto';
+			gaps[`${k} pad to ${o} pad`] = Math.hypot(pads.auto[0] - pads.turbo[0], pads.auto[1] - pads.turbo[1]) - 44;
+			for (const id of [o, 'play', 'down', 'up', 'menu', 'bonus']) gaps[`${k} pad to ${id === 'down' ? '<' : id === 'up' ? '>' : id}`] = dist(pads[k], L.shapeOf(id, boxes[id])) - 22;
+			gaps[`${k} pad to the window`] = Math.min(pads[k][0], pads[k][1], vw - pads[k][0], vh - pads[k][1]) - 22;
+		}
+		return { g, seat, problems, boxes, pads, home, moved, gaps, press: L.pressRegions(boxes, pads) };
+	};
+	for (const o of ['portrait', 'phone']) {
+		for (const r of L.PHONE_PLACES[o]) {
+			const R = read(o, r.vw, r.vh);
+			const least = Object.entries(R.gaps).sort((a, b) => a[1] - b[1])[0];
+			const shifts = Math.max(R.moved.auto, R.moved.turbo);
+			const close = (r.vw === 568 && r.vh === 320) || (r.vw === 667 && r.vh === 375);
+			line(
+				least[1] >= -0.001 && R.press.auto >= 43.99 && R.press.turbo >= 43.99 && Math.max(R.moved.auto, R.moved.turbo) < 22 - 4 && (close ? shifts > 0.1 : shifts < 0.001) && !R.problems.some((x) => /press region/.test(x)),
+				`${r.vw}x${r.vh} Auto and Turbo each hold a whole 44 px press circle, clear of every other press region${close ? ' (his two keys stand under 44 px apart: the pads stand apart)' : ' (the pads on the keys, nothing moved)'}`,
+				`Auto ${r1(R.press.auto)}, Turbo ${r1(R.press.turbo)}; pads moved ${R.moved.auto.toFixed(2)} and ${R.moved.turbo.toFixed(2)} px; the least room: ${least[0]} ${least[1].toFixed(2)} px; to the Play ${R.gaps['auto pad to play'].toFixed(2)} and ${R.gaps['turbo pad to play'].toFixed(2)}, to < ${Math.min(R.gaps['auto pad to <'], R.gaps['turbo pad to <']).toFixed(1)}, to > ${Math.min(R.gaps['auto pad to >'], R.gaps['turbo pad to >']).toFixed(1)}`,
+			);
+		}
+	}
+	const S = read('phone', 400, 225);
+	line(S.moved.auto === 0 && S.moved.turbo === 0, 'Popout S (400x225, a mouse window): the pads are on the keys\' centers, as before (nothing changed there)', `press Auto ${r1(S.press.auto)}, Turbo ${r1(S.press.turbo)}; listed: ${S.problems.join('; ') || 'none'}`);
 }
 for (const [vw, vh] of [[1920, 1080], [1200, 675], [1024, 576], [1280, 720], [1366, 768], [1440, 900], [2560, 1440], [2560, 1080], [3440, 1440], [1280, 800], [1024, 768]]) {
 	const { g, problems, zones, seat } = at('landscape', vw, vh);
