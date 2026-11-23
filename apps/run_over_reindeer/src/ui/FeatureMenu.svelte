@@ -42,7 +42,7 @@
 	import ModalShell from './ModalShell.svelte';
 	import Icon from './Icon.svelte';
 	import { betStepTarget } from './betStep';
-	import { FL_BOX, flLay, flScale, type FlLay } from './fastLaneBox';
+	import { FL_BOX, flLay, flScale, flUpHeroArt, type FlLay } from './fastLaneBox';
 	// THE AMOUNT'S KEYS are the sign bar's own bet symbols (2026-11-23, as the Autoplay card's stepper took them from
 	// the approved mock menus_r1_2026-11-23: a bare red < and a bare green >, ui/sign/signDraw.ts stepSvg), in the same
 	// press boxes; until then round grey keys with a minus and a plus
@@ -274,6 +274,15 @@
 	});
 	const say = $derived(runs(X.say[key] ?? ''));
 
+	// THE HERO ON AN UPRIGHT SCREEN (ui/fastLaneBox.ts flUpHeroArt): its row is what the column leaves, measured here in
+	// the menu's own px. The presents and the Ante's sign both scale with it and are dropped under 70 px of row (the
+	// style block's container rule); the sign also has a floor of its own, 63 CSS px tall (its ANTE and PLAY lines at
+	// 9 px). The Ante's card is one row taller than a feature's (its LEVEL stops), so its hero is the smaller one.
+	// (-1: not measured yet; a measured row of 0, the squeezed column's, has no hero)
+	let heroH = $state(-1);
+	const heroArt = $derived(lay !== 'up' || heroH < 0 ? 0 : flUpHeroArt({ heroH, s: box.s, ante: sel === 'ANTE' }));
+	const signGone = $derived(lay === 'up' && sel === 'ANTE' && heroArt === null);
+
 	// ---- presses -----------------------------------------------------------------------------------------------------
 	let actBtn = $state<HTMLButtonElement>();
 	let okBtn = $state<HTMLButtonElement>();
@@ -424,7 +433,7 @@
 
 			<button class="close" data-piece aria-label={T.close} onclick={(e) => (e.stopPropagation(), close())}><Icon name="close" s={lay === 'desk' ? 26 : 18} /></button>
 
-			<div class="hero" data-piece aria-hidden="true">
+			<div class="hero" class:nosign={signGone} data-piece data-fl-hero={heroArt === null ? 'none' : sel} bind:clientHeight={heroH} aria-hidden="true">
 				<div class="rays-box">
 					<svg class="rays" viewBox="-100 -100 200 200">
 						<defs>
@@ -545,6 +554,13 @@
 		transform-origin: 0 0;
 		box-sizing: border-box;
 		font-family: var(--read);
+		/* ONE LINE HEIGHT IN EVERY BROWSER (2026-11-23, Corey's iPhone: no sign over the Ante's card). Where a rule gives
+		   none, a browser takes the face's own: for Overpass Chromium reads 1.266 (the OS/2 typo numbers the face asks
+		   for) and Safari 1.532 (its hhea table), so every Overpass row without a line height of its own (the odds rows,
+		   the small spaced words) stood a fifth taller on an iPhone: about 22 px over the upright column, taken from
+		   the hero's row, which the taller Ante card had already brought near the 70 px where the hero is dropped. The
+		   number Chromium drew, written out (Outfit Text's own is 1.26). */
+		line-height: 1.266;
 		color: #f2f5f9;
 		pointer-events: auto;
 	}
@@ -718,6 +734,8 @@
 	}
 	.obj {
 		height: var(--art-h);
+		/* (the Ante's sign takes its size from this, see .sign) */
+		--sign-h: var(--art-h);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -750,12 +768,20 @@
 		width: auto;
 		display: block;
 	}
-	/* the Ante's sign: the game's own 10 sign with its face blanked, the level's three lines set on it */
+	/* the Ante's sign: the game's own 10 sign with its face blanked, the level's three lines set on it.
+	   ITS SIZE IS WRITTEN OUT (2026-11-23, Corey's iPhone: no sign over the Ante's card, and the PER PLAY tile showed its
+	   small sign with none of its words): its height is --sign-h, a length its place gives (the hero's art height, a
+	   tile's thumb height), and its width that height times the picture's 863 : 1188. It was `height: 100%` with
+	   `aspect-ratio`, a size the engine had to work out from a percentage inside a flex row; nothing is left to that
+	   now. The three lines' type is a share of the same height (it was the face's own container units). */
 	.sign {
 		position: relative;
-		display: inline-block;
-		height: 100%;
-		aspect-ratio: 863 / 1188;
+		display: block;
+		flex: none;
+		height: var(--sign-h);
+		width: calc(var(--sign-h) * 863 / 1188);
+		/* the face the lines stand in: 68.5 % of the sign's height */
+		--num-h: calc(var(--sign-h) * 0.685);
 	}
 	.sign img {
 		width: 100%;
@@ -776,22 +802,21 @@
 		font-weight: 900;
 		color: #0b0b0b;
 		line-height: 1;
-		container-type: size;
 	}
 	.sign .num i {
 		font-style: normal;
-		font-size: 21cqh;
+		font-size: calc(var(--num-h) * 0.21);
 		letter-spacing: 0.02em;
 		line-height: 0.98;
 	}
 	.sign .num b {
-		font-size: 42cqh;
+		font-size: calc(var(--num-h) * 0.42);
 		letter-spacing: -0.03em;
 		line-height: 0.95;
-		margin-top: 2cqh;
+		margin-top: calc(var(--num-h) * 0.02);
 	}
 	.sign .num b.wide {
-		font-size: 38cqh;
+		font-size: calc(var(--num-h) * 0.38);
 	}
 
 	/* ── the plate: a green guide sign ── */
@@ -1070,11 +1095,14 @@
 			opacity: 1;
 		}
 	}
+	/* (each layout gives the thumb's height as --thumb-h: the Ante's sign in it takes its size from that) */
 	.thumb {
 		display: flex;
 		align-items: flex-end;
 		justify-content: center;
 		flex: none;
+		height: var(--thumb-h);
+		--sign-h: var(--thumb-h);
 	}
 	.txt {
 		display: flex;
@@ -1243,7 +1271,7 @@
 		gap: 18px;
 	}
 	.desk .tile.wide .thumb {
-		height: 118px;
+		--thumb-h: 118px;
 	}
 	.desk .tile.wide .nm {
 		font-size: 26px;
@@ -1256,7 +1284,7 @@
 		flex-direction: column;
 	}
 	.desk .row.two .thumb {
-		height: 112px;
+		--thumb-h: 112px;
 		margin-bottom: 6px;
 	}
 	.desk .row.two .txt {
@@ -1327,6 +1355,12 @@
 		.up .rays-box {
 			display: none;
 		}
+	}
+	/* THE ANTE'S SIGN HAS A FLOOR (ui/fastLaneBox.ts flUpHeroArt): it scales down with its row like the presents, and
+	   goes where it would be under 63 CSS px tall, the size at which its ANTE and PLAY lines are 9 px */
+	.up .hero.nosign .obj,
+	.up .hero.nosign .rays-box {
+		display: none;
 	}
 	.up .tray {
 		grid-area: tray;
@@ -1465,7 +1499,7 @@
 	}
 	.up .thumb,
 	.side .thumb {
-		height: 58px;
+		--thumb-h: 58px;
 	}
 	.up .nm,
 	.side .nm {
@@ -1493,7 +1527,7 @@
 		height: 56px;
 	}
 	.up.short .thumb {
-		height: 46px;
+		--thumb-h: 46px;
 	}
 	.up.short .plate {
 		gap: 5px;
@@ -1521,7 +1555,7 @@
 		height: 50px;
 	}
 	.up.sq2 .thumb {
-		height: 42px;
+		--thumb-h: 42px;
 	}
 	.up.sq4 .note [data-average-note] {
 		display: none;
@@ -1601,7 +1635,7 @@
 		gap: 2px;
 	}
 	.side .row.two .thumb {
-		height: 46px;
+		--thumb-h: 46px;
 	}
 	.side .row.two .txt {
 		align-items: center;
@@ -1610,7 +1644,7 @@
 		height: 64px;
 	}
 	.side .tile.wide .thumb {
-		height: 52px;
+		--thumb-h: 52px;
 	}
 	/* (the foot's size: see .desk .note. At 400 x 225 it is about 21 design px, five lines in its 252 px column; the
 	   bottom row grows to hold it and BALANCE and PLAY AMOUNT keep to the row's foot) */

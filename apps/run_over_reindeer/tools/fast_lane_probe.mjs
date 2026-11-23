@@ -5,6 +5,7 @@
 // WATCHES: apps/run_over_reindeer/src/{ui/DenomModal.svelte};
 // WATCHES: ; gridRows, gridMaxH, .more, .opt, .grid, .low, lowInner, chipW, goFont, goAmtFont, totalRow, .gl, .sub
 // WATCHES: apps/run_over_reindeer/src/{ui/sign/signPanelLayout.ts,ui/BetAdjuster.svelte}; autoGeometry, autoClass, data-auto-layout, .adj, .head
+// WATCHES: apps/run_over_reindeer/src/ui/fastLaneBox.ts; flUpHeroArt, data-fl-hero, --sign-h, --thumb-h, .nosign, .txt
 // WATCHES: ; data-fit, data-fl-balance, data-fl-amount, data-fl-confirm-amount, data-fl-confirm-total, AMOUNT_SPACE, fitAmount
 // WATCHES: ; __reindeer.fastLane, __reindeer.hud, __reindeer.atRest, data-feature-menu, data-fl-confirm, data-fl-price
 // WATCHES: ; --fl-s, ::after, data-fl-step, data-squeeze, flSqueezeOff, anteOnShort, loadedShort, data-fl-low, data-fl-step, data-menu-foot, .note, .act, .price, .go, data-fl-status, data-act, data-card, data-lvl, data-piece, data-plate, .tile, .miles, .chip, .landing, .hudp
@@ -146,6 +147,19 @@ const plate = (p) =>
 			actDisabled: pl?.querySelector('[data-act]')?.disabled,
 			status: q('[data-fl-status]')?.textContent.trim() ?? null,
 			sign: q('.hero .sign .num b')?.textContent.trim() ?? null,
+			// (2026-11-23, Corey's iPhone: no sign over the Ante's card, no words on the PER PLAY tile) the hero's sign as
+			// drawn, what the game says of its hero (the mode, or 'none' where an upright screen has no room for it), and
+			// the Ante tile's words against its tile
+			hero: q('[data-fl-hero]')?.dataset.flHero ?? null,
+			signBox: (() => {
+				const b = q('.hero .sign')?.getBoundingClientRect();
+				return b ? { w: b.width, h: b.height } : null;
+			})(),
+			tileWords: (() => {
+				const t = q('.tile.wide')?.getBoundingClientRect();
+				const w = q('.tile.wide .txt')?.getBoundingClientRect();
+				return t && w ? { w: w.width, inside: w.left >= t.left - 0.5 && w.right <= t.right + 0.5, text: q('.tile.wide .txt').innerText.replace(/\s+/g, ' ').trim() } : null;
+			})(),
 			chips: Object.fromEntries([...document.querySelectorAll('.tile')].map((t) => [t.dataset.card, t.querySelector('.chip')?.textContent.trim() ?? null])),
 		};
 	});
@@ -297,6 +311,10 @@ async function runSize(browser, S) {
 		check(pl.key === k, `${tag}: stop ${k} shows its plate`, pl.key);
 		check(typeof cost === 'number' && pl.name === `ANTE ${cost}x`, `${tag}: stop ${k} name follows the RGS cost`, { name: pl.name, cost });
 		check(pl.sign === `${cost}X`, `${tag}: stop ${k} sign reads ${cost}X`, pl.sign);
+		// the sign's own box: the picture's 863 : 1188, at the size its place gives it; or none where the game says the
+		// upright screen has no room for it (tools/fast_lane_hero_test.mjs has the sizes)
+		check(pl.hero === 'none' ? !pl.signBox || pl.signBox.h === 0 : !!pl.signBox && pl.signBox.h > 0 && Math.abs(pl.signBox.w / pl.signBox.h - 863 / 1188) < 0.02, `${tag}: stop ${k}: the hero's sign is ${pl.hero === 'none' ? 'not drawn (no room on this screen)' : `drawn ${Math.round(pl.signBox?.w ?? 0)} x ${Math.round(pl.signBox?.h ?? 0)} px`}`, { hero: pl.hero, signBox: pl.signBox });
+		check(!!pl.tileWords && pl.tileWords.w > 0 && pl.tileWords.inside && /ANTE/.test(pl.tileWords.text), `${tag}: stop ${k}: the Ante's tile shows its words beside its sign (${pl.tileWords?.text})`, pl.tileWords);
 		check(pl.price === (await expectPrice(p, k)), `${tag}: stop ${k} price is the amount times the RGS cost`, { shown: pl.price, want: await expectPrice(p, k) });
 		check(pl.rows.length === 3 && pl.rows[0] === 'Free Spins', `${tag}: stop ${k} shows its odds rows`, pl.rows);
 		await layout(p, S, `ante ${k}`);
