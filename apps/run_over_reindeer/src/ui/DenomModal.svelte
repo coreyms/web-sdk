@@ -219,7 +219,12 @@
 	}
 	/* THE CLOSE KEY'S PRESS AREA (2026-11-23, the probe host: drawn 30 x 30 on a phone, pressed 30 x 30): the key keeps
 	   its drawn size and gets an unseen press area of 44 x 44 CSS px round its middle. It reaches into the card's own
-	   padding and the gap over the amounts, never onto an amount (the well's 6 px padding keeps them clear). */
+	   padding and the gap over the amounts, never onto an amount (the well's 6 px padding keeps them clear).
+	   THE KEY STANDS OVER THE WELL (z-index; the probe host at 320 x 568: the 26 px key's area was 44 wide and 41 tall):
+	   there the area reaches 3 px into the amounts' well, a later box that lay over it and took those 3 px. */
+	.x {
+		z-index: 1;
+	}
 	.x::after {
 		content: '';
 		position: absolute;

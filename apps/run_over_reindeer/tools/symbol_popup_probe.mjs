@@ -295,7 +295,12 @@ async function tapsThrough(c, label, start, maxMs = 300000, strict = false) {
 	while (!done && Date.now() - t0 < maxMs) {
 		if (strict && c.stopStrict) break;
 		if (strict && !started) {
-			started = !(await idleNow(p));
+			// (2026-11-23: an autoplay run now starts from the Autoplay card's START, inside `start`. The board is "not idle"
+			// from the moment that card is open, and a press on the board beside the card closes it (ui/ModalShell.svelte),
+			// so the first tap here, on cell 0,1, closed the card before START was pressed: the click then waited 30 s for a
+			// key that was gone, no run started, and every later tap opened the popup on an idle board. The taps wait until
+			// the card has gone, that is until START has been pressed and the run is on.)
+			started = !(await idleNow(p)) && !(await H(p, () => !!document.querySelector('.am-ui.layer.modals .go')).catch(() => true));
 			if (!started) {
 				await sleep(50);
 				continue;

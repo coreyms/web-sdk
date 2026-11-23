@@ -129,3 +129,36 @@ export const autoGeometry = (o: { cls: AutoClass; vw: number; tiny: boolean }) =
 };
 /** a tile's price line never draws under this share of its nominal size: it goes (or "until stopped" takes two lines) */
 export const AUTO_SUB_MIN = 0.9;
+
+// THE PRESS SCREEN'S SCENE PANEL (ui/LandingScreen.svelte): a small sign panel at the window's bottom left corner, in
+// the dock frame's own px (ui/hud/hudLayout.ts hudFrame gives the variant and the scale `u`). Its box per variant, its
+// distance from the window's edges, and its place.
+// CLEAR OF THE LED STRIP (2026-11-23, the probe host at 568 x 320: the panel's right edge lay a few px over the strip's
+// left end, where its words start). Where the strip stands in the panel's rows and the panel would reach it, the panel
+// is drawn narrower (its pills with it; its scale and its height stay), so `clear` CSS px of ground stay between them.
+export const SCENE_PICK = {
+	desktop: { w: 236, h: 70, cls: '' },
+	tablet: { w: 200, h: 64, cls: 'nar' },
+	portrait: { w: 236, h: 70, cls: '' },
+	landscape: { w: 196, h: 64, cls: 'nar' },
+	/** from the window's left and bottom edges: this many panel px, never under `edge` CSS px past a safe inset */
+	gap: 10,
+	edge: 6,
+	/** the least clear ground between the panel and the LED strip, CSS px */
+	clear: 4,
+	/** the panel is never narrower than this, in its own px (three pills that still hold their words) */
+	minW: 150,
+} as const;
+export type ScenePickVariant = 'desktop' | 'tablet' | 'portrait' | 'landscape';
+export const scenePickPlace = (o: { variant: ScenePickVariant; u: number; vw: number; vh: number; safe?: PanelInsets; strip?: Box | null }) => {
+	const P = SCENE_PICK;
+	const pick = P[o.variant];
+	const s = o.safe ?? { t: 0, r: 0, b: 0, l: 0 };
+	const x = Math.max(P.gap * o.u, s.l + P.edge);
+	const y = o.vh - pick.h * o.u - Math.max(P.gap * o.u, s.b + P.edge);
+	let w: number = pick.w;
+	const st = o.strip;
+	// the strip in the panel's rows, to its right, and nearer than the clear ground: the panel gives way
+	if (st && st.x > x && y < st.y + st.h && y + pick.h * o.u > st.y && x + w * o.u > st.x - P.clear) w = Math.max(P.minW, (st.x - P.clear - x) / o.u);
+	return { x, y, u: o.u, w, h: pick.h, cls: pick.cls };
+};

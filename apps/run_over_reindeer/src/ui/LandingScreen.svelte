@@ -10,6 +10,8 @@
 	import { MASTER, isPhoneSizeType, layoutKind } from '../game/layoutSpec';
 	import { hudFrame, readSafeInsets } from './hud/hudLayout';
 	import SceneSwitch from './hud/SceneSwitch.svelte';
+	import { scenePickPlace } from './sign/signPanelLayout';
+	import { signZones } from './sign/signZones';
 	import { LOAD_GATE } from '../game/constants';
 	import { sound } from '../game/sound';
 	import { prefetchOtherSceneSet } from '../game/scenePrefetch';
@@ -105,17 +107,15 @@
 	// of its own, at the screen's bottom left corner (the snow beside the LED billboard; on an upright phone under it), in
 	// the HUD's own mock px scaled as the HUD is (ui/hud/hudLayout.ts hudFrame), so it is the size the menu's row is. Up
 	// from the first frame; a press on it is not the continue press.
-	const pickHud = $derived(hudFrame({ kind, phone: isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()), vw: innerWidth.current ?? 1, vh: innerHeight.current ?? 1, safe: readSafeInsets() }));
-	const PICK = { desktop: { w: 236, h: 70, cls: '' }, tablet: { w: 200, h: 64, cls: 'nar' }, portrait: { w: 236, h: 70, cls: '' }, landscape: { w: 196, h: 64, cls: 'nar' } } as const;
-	const pick = $derived(PICK[pickHud.variant]);
-	const pickGap = 10;
-	const pickPlace = $derived.by(() => {
-		const u = pickHud.u;
-		const safe = readSafeInsets();
-		const x = Math.max(pickGap * u, safe.l + 6);
-		const y = (innerHeight.current ?? 1) - pick.h * u - Math.max(pickGap * u, safe.b + 6);
-		return { x, y, u };
-	});
+	// Its box and its place are ui/sign/signPanelLayout.ts scenePickPlace (2026-11-23): the same corner, and narrower
+	// where the LED strip (ui/sign/signZones.ts: the game's own place for it) stands in its rows and it would reach the
+	// strip's left end (the probe host at 568 x 320: a few px over the strip, where its words start).
+	const pickPhone = $derived(isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()));
+	const pickHud = $derived(hudFrame({ kind, phone: pickPhone, vw: innerWidth.current ?? 1, vh: innerHeight.current ?? 1, safe: readSafeInsets() }));
+	const pickPlace = $derived(
+		scenePickPlace({ variant: pickHud.variant, u: pickHud.u, vw: innerWidth.current ?? 1, vh: innerHeight.current ?? 1, safe: readSafeInsets(), strip: signZones(kind, innerWidth.current ?? 1, innerHeight.current ?? 1, pickPhone).strip }),
+	);
+	const pick = $derived({ w: pickPlace.w, h: pickPlace.h, cls: pickPlace.cls });
 
 	// THE RESUME CARD (2026-11-18, game/resumeRound.svelte.ts): with a round left open the screen asks Play Round or Skip to
 	// Result in place of PRESS ANYWHERE, once the game is loaded; the choice is this screen's press (its voice, the fade)

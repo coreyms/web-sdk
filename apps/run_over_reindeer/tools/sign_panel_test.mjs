@@ -1,6 +1,6 @@
 // @ts-nocheck: a node test script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/ui/{FeatureMenu.svelte,fastLaneBox.ts,BetAdjuster.svelte}; flLay, flScale, FL_BOX, --fl-s, ::after
-// WATCHES: apps/run_over_reindeer/src/{ui/LandingScreen.svelte,ui/DenomModal.svelte,ui/NoticeModal.svelte,ui/ReplayModal.svelte,ui/ResumeCard.svelte,components/SkipButton.svelte}; --pick-hit, rowH, hudFrame, SKIP_HUD.prompt
+// WATCHES: apps/run_over_reindeer/src/{ui/LandingScreen.svelte,ui/DenomModal.svelte,ui/NoticeModal.svelte,ui/ReplayModal.svelte,ui/ResumeCard.svelte,components/SkipButton.svelte}; --pick-hit, rowH, hudFrame, SKIP_HUD.prompt, scenePickPlace, SCENE_PICK, signZones
 // WATCHES: apps/run_over_reindeer/src/ui/{hudTheme.ts,sign/signPanelLayout.ts,sign/signLayout.ts,sign/signZones.ts,sign/SignMenuPanel.svelte,AutoplayModal.svelte}; SIGN_PANEL, signPanelTokens, MENU_PANEL, menuPanelPlace, menuPanelHeight, menuClass, autoClass, AUTO, autoGeometry, AUTO_SUB_MIN, lowInner, chipW, subLine
 // THE SIGN PANELS' LAYOUT TEST (2026-11-23, wip/signmenus): node only, no browser. It runs the Menu pop-out's own place
 // rule (src/ui/sign/signPanelLayout.ts) against the sign bar's own layout (src/ui/sign/signLayout.ts: where the Menu key
@@ -34,7 +34,13 @@
 //      440 x 742, the bet list's close key 30 x 30), at the same touch windows, each read from its own source:
 //        the press screen's Scene pills (ui/LandingScreen.svelte, at the dock frame's scale, ui/hud/hudLayout.ts hudFrame)
 //        the bet list's close key (44 x 44), its rows (44 px on every phone: 30 only on Popout S) and its columns (never
-//        more than fit at 44 px each); its "more" tab takes no press (the list scrolls under the finger)
+//        more than fit at 44 px each); its "more" tab takes no press (the list scrolls under the finger). The close
+//        key's area is worked out with what lies over it: on a 320 px wide phone the 26 px key's area reaches 3 px into
+//        the amounts' well, which took them (41 px tall, the probe host) until the key was raised over the well
+//  12. THE PRESS SCREEN'S SCENE PANEL KEEPS CLEAR OF THE LED STRIP (2026-11-23, the probe host at 568 x 320: its right
+//      edge lay over the strip's left end): at every window here the panel (signPanelLayout.ts scenePickPlace, at the dock
+//      frame's scale) is inside the window, 4 CSS px or more from the strip (ui/sign/signZones.ts) wherever the strip
+//      stands in its rows, and its pills still hold their words
 //        the notice's key and the replay card's key (their own height rules, worked out for the window)
 //        the resume card's two keys (the card at its own scale), the skip prompt's Yes and No, the Fast Lane's amount
 //        keys and close key (the menu's own touch target rule)
@@ -216,6 +222,10 @@ line(P.autoClass({ compact: false, portrait: false, vh: 675, drop: true }) === '
 	const PILL = { h: num(LS, /\.scene-pick :global\(\.sp-pill\) \{\n\t\theight: (\d+)px/), nar: num(LS, /\.scene-pick \.nar :global\(\.sp-pill\) \{\n\t\theight: (\d+)px/) };
 	const pillRule = has(LS, /\.scene-pick :global\(\.sp-pill\)::after \{[^}]*width: 100%;[^}]*height: max\(100%, var\(--pick-hit, 44px\)\);/) && has(LS, /style:--pick-hit="\{44 \/ pickPlace\.u\}px"/);
 	const closeRule = has(DM, /\n\t\.x::after \{[^}]*width: max\(100%, 44px\);[^}]*height: max\(100%, 44px\);/);
+	// the close key's drawn size and the gap under its row, per size class; whether the key stands over the well
+	const CLOSE = { key: { '': num(DM, /\n\t\.x \{\n\t\tflex: none;\n\t\twidth: (\d+)px/), tight: num(DM, /\.tight \.x \{\n\t\twidth: (\d+)px/), tiny: num(DM, /\.tiny \.x \{\n\t\twidth: (\d+)px/) }, gap: { '': num(DM, /\n\t\.panel \{[^}]*?\n\t\tgap: (\d+)px/), tight: num(DM, /\n\t\.tight \{\n\t\tgap: (\d+)px/), tiny: num(DM, /\n\t\.tiny \{\n\t\tgap: (\d+)px/) }, wellPad: num(DM, /\n\t\.block \{[^}]*?padding: (\d+)px/) };
+	const closeOver = has(DM, /\n\t\.x \{\n\t\tz-index: 1;\n\t\}/);
+	line(Object.values(CLOSE.key).every((v) => v > 0) && Object.values(CLOSE.gap).every((v) => v > 0) && CLOSE.wellPad > 0, `the bet list's close key is ${CLOSE.key['']} px (${CLOSE.key.tight} tight, ${CLOSE.key.tiny} tiny) over a ${CLOSE.gap['']} px gap (${CLOSE.gap.tight}, ${CLOSE.gap.tiny}); the well's padding is ${CLOSE.wellPad} px`, JSON.stringify(CLOSE));
 	const rowRule = has(DM, /const rowH = \$derived\(vh < 300 \? 30 : 44\);/) && has(DM, /const most = vh < 300 \? 8 : Math\.max\(1, Math\.min\(8, Math\.floor\(\(usable \+ GAP\) \/ \(44 \+ GAP\)\)\)\);/);
 	const moreInert = has(DM, /\.more \{[^}]*pointer-events: none;/);
 	const noticeRule = has(NM, /\.ok \{[^}]*height: max\(30px, min\(46px, 14vmin\)\);/);
@@ -252,6 +262,15 @@ line(P.autoClass({ compact: false, portrait: false, vh: 675, drop: true }) === '
 		const usable = Math.min(880, vw - 2 * (narrowCard ? 8 : 14)) - 2 * (narrowCard ? 10 : 14) - 2 * ((tight ? 2 : 3) + 6) - 4;
 		const most = Math.max(1, Math.min(8, Math.floor((usable + 6) / (44 + 6))));
 		line(rowRule && (usable - 6 * (most - 1)) / most >= 44, `${tag}: the bet list's rows are 44 px tall and its columns ${r1((usable - 6 * (most - 1)) / most)} px wide or more (${most} at most)`);
+		// its close key: the 44 px area reaches `under` px past the key; what of that lies in the well is the well's (a
+		// later box) unless the key stands over it; it must stop short of the amounts (the well's padding and 1 px line)
+		{
+			const c = tiny ? 'tiny' : tight ? 'tight' : '';
+			const under = Math.max(0, (44 - CLOSE.key[c]) / 2);
+			const inWell = Math.max(0, under - CLOSE.gap[c]);
+			const tall = Math.max(CLOSE.key[c], 44) - (closeOver ? 0 : inWell);
+			line(closeRule && tall >= 44 && inWell <= CLOSE.wellPad, `${tag}: the bet list's close key (${CLOSE.key[c]} px drawn) presses 44 x ${r1(tall)} px; its area reaches ${r1(inWell)} px into the well, short of the amounts`);
+		}
 		// the resume card (compact under 560 wide or 420 tall), at its own scale, and at 0.8 of it (a tall card on a short window)
 		const compact = vw < 560 || vh < 420;
 		for (const k of [1, 0.8]) {
@@ -262,6 +281,32 @@ line(P.autoClass({ compact: false, portrait: false, vh: 675, drop: true }) === '
 		// the skip prompt and the Fast Lane's amount keys
 		const fl = F.flScale(F.flLay(vw, vh), vw, vh);
 		line(skipRule && Math.max(SKIP_MIN.h, 44) >= 44 && F.flLay(vw, vh) !== 'desk' && Math.max(STEP, 44 / fl) * fl >= 43.99, `${tag}: the skip prompt's keys press 44 px tall or more; the Fast Lane's amount keys are drawn ${r1(STEP * fl)} px, pressed ${r1(Math.max(STEP, 44 / fl) * fl)}`);
+	}
+}
+// THE PRESS SCREEN'S SCENE PANEL AND THE LED STRIP (12)
+{
+	const H = await import(pathToFileURL(join(APP, 'src', 'ui', 'hud', 'hudLayout.ts')).href);
+	const FMET = JSON.parse(readFileSync(join(APP, 'tools', 'amount_fit_metrics.json'), 'utf8'));
+	const ADV = FMET.faces['Overpass|900'];
+	const wordW = (t, px, trackEm) => [...t].reduce((em, ch) => em + (ADV[ch] ?? FMET.missing), 0) * px + trackEm * px * t.length;
+	const WIN = [[568, 320], [640, 360], [667, 375], [736, 414], [740, 360], [780, 360], [800, 450], [812, 375], [832, 376], [844, 390], [932, 430], [400, 225], [1024, 576], [1200, 675], [1280, 720], [1366, 768], [1440, 900], [1920, 1080], [2560, 1080], [2560, 1440], [3440, 1440], [390, 844], [440, 742], [413, 586], [425, 812], [375, 667], [360, 640], [390, 620], [320, 568], [768, 1024], [800, 700]];
+	for (const [vw, vh] of WIN) {
+		const kind = kindOf(vw, vh);
+		const phone = Math.min(vw, vh) <= 480;
+		const f = H.hudFrame({ kind, phone, vw, vh, safe: { t: 0, r: 0, b: 0, l: 0 } });
+		const strip = Z.signZones(kind, vw, vh, phone).strip;
+		const p = P.scenePickPlace({ variant: f.variant, u: f.u, vw, vh, strip });
+		const R = { x0: p.x, y0: p.y, x1: p.x + p.w * p.u, y1: p.y + p.h * p.u };
+		const rows = R.y0 < strip.y + strip.h && R.y1 > strip.y;
+		const tag = `${vw}x${vh} press screen: the Scene panel (${r1(R.x0)}..${r1(R.x1)} x ${r1(R.y0)}..${r1(R.y1)}, ${r1(p.w)} panel px wide at ${p.u.toFixed(3)})`;
+		line(R.x0 >= 0 && R.y0 >= 0 && R.x1 <= vw && R.y1 <= vh, `${tag} is inside the window`);
+		const gapX = strip.x >= R.x1 ? strip.x - R.x1 : R.x0 >= strip.x + strip.w ? R.x0 - strip.x - strip.w : -Math.min(R.x1 - strip.x, strip.x + strip.w - R.x0);
+		line(!rows || gapX >= P.SCENE_PICK.clear - 0.01, `${tag} is ${rows ? `${r1(gapX)} px from the LED strip (from ${r1(strip.x)})` : 'in other rows than the LED strip'}`);
+		// its pills: the panel less its side padding (14 px, 11 on the narrow panel) and two gaps (7, 5), in three
+		const nar = p.cls === 'nar';
+		const pill = (p.w - 2 * (nar ? 11 : 14) - 2 * (nar ? 5 : 7)) / 3;
+		const word = wordW('SNOW', nar ? 10 : 11, 0.1);
+		line(p.w >= P.SCENE_PICK.minW && word <= pill - 2 * 1.6, `${tag}: its pills are ${r1(pill)} panel px wide and hold SNOW (${r1(word)})`);
 	}
 }
 // THE AUTOPLAY CARD'S PRICE LINES AND START (9): the card's own widths, the bundled face's advances (every digit a 0
