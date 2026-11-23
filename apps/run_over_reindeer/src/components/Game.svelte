@@ -13,6 +13,7 @@
 	import { IS_SOCIAL } from '../game/social';
 	import { applyRgsBetModes, betModeMeta } from '../game/betModeMeta';
 	import { markAssetsLoaded } from '../game/assetGate';
+	import { guardReplay, replayGuard } from '../game/replayGuard';
 	import { renderResolutionCap, renderResolutionFor } from '../game/deviceTier';
 	import { RENDER_RESIZE } from '../game/constants';
 	import { boot, reportPreload } from '../game/boot.svelte';
@@ -43,6 +44,10 @@
 	// multipliers into the table before anything reads a price from it.
 	applyRgsBetModes();
 	stateMeta.betModeMeta = betModeMeta;
+	// A REPLAY LINK THE RGS DOES NOT SERVE (game/replayGuard.ts): the error card, never the replay card on zeros. Here,
+	// before anything that shows or plays the round mounts.
+	guardReplay();
+	if (import.meta.env.DEV && typeof window !== 'undefined') ((window as unknown as { __reindeer?: Record<string, unknown> }).__reindeer ??= {}).replayGuard = () => ({ fault: replayGuard.fault });
 
 	// landing flow: the HTML LandingScreen collects the press, then the Pixi LoadingScreen plays
 	// the fade transition and calls onloaded. A replay has no landing screen to press.
