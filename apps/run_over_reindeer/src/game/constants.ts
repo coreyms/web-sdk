@@ -789,7 +789,7 @@ export const SKIP_HUD = {
  *  the entry waits for the press: game/scoreboard/scoreboardDraw.ts showRibbon). One place, so the two never differ. */
 export const INTRO_LINE = {
 	bonus: 'Every column Wild stays for the whole round and keeps its multiplier.',
-	super: 'Spin the wheel to reveal your starting column Wild: who, where and how big. Column Wilds stay all round.',
+	super: 'Spin the wheel to reveal your starting column Wild. Who, where and how big! Column Wilds stay all round.',
 } as const;
 
 // ---- THE SUPER WHEEL (game/road/superWheel.ts, game/superWheelPlan.ts) ------------------------------------------------
