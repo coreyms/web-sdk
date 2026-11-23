@@ -231,7 +231,8 @@ export const pressRegions = (boxes: Partial<Record<PressId, Box>>, pads: Partial
 				const c = pad(id);
 				for (const o of ids) {
 					if (o === id) continue;
-					// (the other key of the two: its pad, and its drawn diamond, which lies over this pad)
+					// (the other key of the two: its pad, up to the middle line where the two share ground, and its drawn
+					// diamond, which lies over this pad)
 					const lim = o === 'auto' || o === 'turbo' ? Math.min(Math.hypot(c[0] - pad(o)[0], c[1] - pad(o)[1]), 2 * distToPoly(c, sh[o])) : 2 * distToPoly(c, sh[o]);
 					d = Math.min(d, lim);
 				}
@@ -248,10 +249,15 @@ export const pressRegions = (boxes: Partial<Record<PressId, Box>>, pads: Partial
  *  shared a strip and each key held a 37 px circle. The drawn keys stay where he put them; only the unseen pads move:
  *  each as little as it takes to stand `gap` clear of the other pad, of the other key's diamond, of the Play's diamond
  *  (Corey: nothing touches the Spin's press region), of the bet symbols' press boxes, of Menu and the Fast Lane, and
- *  inside the window. Where the pads on the keys' centers are already clear (every other window of his) nothing moves.
+ *  inside the window. Where the pads on the keys' centers already stand that clear nothing moves (six of his nine phone
+ *  windows; 568 x 320 moves them 4.5 and 5.7 px, 667 x 375 1.3 px, 320 x 568 0.8 px).
  *  Where no such places exist within `reach` of the keys (the 400 x 225 mini player, a mouse window) the pads stay on
- *  the keys' centers, as before. Centers, CSS px. */
-export const PAD = { gap: 0.5, reach: 11, rounds: 200 };
+ *  the keys' centers, and their shared ground is split down the middle line (padShapes below). Centers, CSS px.
+ *  `gap` is 2 CSS px (2026-11-23, the probe host at 667 x 375: with the pads 0.5 px apart a point 21 px from Auto's
+ *  pad's middle, 23.5 px from Turbo's, landed on Turbo's pad. A browser tests a press as the whole CSS px it falls in
+ *  against an element's box snapped to whole px of its own plane, so a round HTML pad takes presses up to about 1.5 px
+ *  past its edge. The pads are exact shapes now, ui/sign/SignHud.svelte, and stand 2 px from every other press region.) */
+export const PAD = { gap: 2, reach: 11, rounds: 200, sides: 64 };
 export const padPlaces = (boxes: Partial<Record<PressId, Box>>, vw: number, vh: number): Partial<Record<'auto' | 'turbo', Pt>> => {
 	const R = TOUCH_MIN / 2;
 	const keys = (['auto', 'turbo'] as const).filter((k) => boxes[k]);
@@ -277,19 +283,20 @@ export const padPlaces = (boxes: Partial<Record<PressId, Box>>, vw: number, vh: 
 		}
 		return { q, d: inPoly(p, poly) ? -m : m };
 	};
-	/** the most any pad is short of standing clear (0 or less: every pad holds its whole 44 px circle) */
+	/** the most any pad is short of standing `gap` clear of every other press region and inside the window (0 or less:
+	 *  every pad holds its whole 44 px circle with the gap round it) */
 	const short = (c: Record<'auto' | 'turbo', Pt>) => {
 		let w = -Infinity;
 		for (const k of keys) {
-			for (const o of ids) if (o !== k) w = Math.max(w, R - near(c[k], sh[o]).d);
+			for (const o of ids) if (o !== k) w = Math.max(w, R + PAD.gap - near(c[k], sh[o]).d);
 			w = Math.max(w, R - c[k][0], R - c[k][1], c[k][0] - (vw - R), c[k][1] - (vh - R));
 		}
-		if (keys.length === 2) w = Math.max(w, R - Math.hypot(c.auto[0] - c.turbo[0], c.auto[1] - c.turbo[1]) / 2);
+		if (keys.length === 2) w = Math.max(w, R + PAD.gap / 2 - Math.hypot(c.auto[0] - c.turbo[0], c.auto[1] - c.turbo[1]) / 2);
 		return w;
 	};
 	if (!keys.length || short(home) <= 0.001) return home;
 	const c = Object.fromEntries(keys.map((k) => [k, [home[k][0], home[k][1]] as Pt])) as Record<'auto' | 'turbo', Pt>;
-	for (let it = 0; it < PAD.rounds && short(c) > -PAD.gap + 0.001; it++) {
+	for (let it = 0; it < PAD.rounds && short(c) > 0.001; it++) {
 		for (const k of keys)
 			for (const o of ids) {
 				if (o === k) continue;
@@ -320,7 +327,50 @@ export const padPlaces = (boxes: Partial<Record<PressId, Box>>, vw: number, vh: 
 		}
 	}
 	const moved = Math.max(...keys.map((k) => Math.hypot(c[k][0] - home[k][0], c[k][1] - home[k][1])));
-	return short(c) <= 0.001 && moved <= PAD.reach ? c : home;
+	return short(c) <= 0.01 && moved <= PAD.reach ? c : home;
+};
+
+/** a 44 px press circle on `c` as a shape (PAD.sides corners on the circle), CSS px */
+export const padCircle = (c: Pt): Pt[] => Array.from({ length: PAD.sides }, (_, i): Pt => [c[0] + (TOUCH_MIN / 2) * Math.cos((2 * Math.PI * i) / PAD.sides), c[1] + (TOUCH_MIN / 2) * Math.sin((2 * Math.PI * i) / PAD.sides)]);
+/** THE PADS' REAL SHAPES (2026-11-23): what takes Auto's and Turbo's presses beside their drawn diamonds. Each is its
+ *  44 px circle at padPlaces' center. Where the two circles would stand closer than `gap` (no clear places exist: the
+ *  pads are on the keys' centers) the shared ground is SPLIT DOWN THE MIDDLE LINE between the two centers: each circle
+ *  is cut `gap / 2` short of that line, so neither pad ever covers the other and a press on Auto's side is never
+ *  Turbo's. `split` says so. The page draws these shapes as they are (exact outlines, not rounded boxes). */
+export type PadShape = { c: Pt; poly: Pt[]; split: boolean };
+export const padShapes = (boxes: Partial<Record<PressId, Box>>, vw: number, vh: number): Partial<Record<'auto' | 'turbo', PadShape>> => {
+	const at = padPlaces(boxes, vw, vh);
+	const out: Partial<Record<'auto' | 'turbo', PadShape>> = {};
+	for (const k of ['auto', 'turbo'] as const) {
+		const c = at[k];
+		if (!c) continue;
+		let poly = padCircle(c);
+		let split = false;
+		const o = at[k === 'auto' ? 'turbo' : 'auto'];
+		if (o) {
+			const d = Math.hypot(o[0] - c[0], o[1] - c[1]);
+			if (d > 0 && d < TOUCH_MIN + PAD.gap - 0.01) {
+				// keep the side of the middle line this pad's center is on, set back half the gap
+				const nx = (o[0] - c[0]) / d;
+				const ny = (o[1] - c[1]) / d;
+				const lim = d / 2 - PAD.gap / 2;
+				const h = (p: Pt) => (p[0] - c[0]) * nx + (p[1] - c[1]) * ny - lim;
+				const cut: Pt[] = [];
+				for (let i = 0; i < poly.length; i++) {
+					const a = poly[i];
+					const b = poly[(i + 1) % poly.length];
+					const ha = h(a);
+					const hb = h(b);
+					if (ha <= 0) cut.push(a);
+					if (ha <= 0 !== hb <= 0) cut.push([a[0] + ((b[0] - a[0]) * ha) / (ha - hb), a[1] + ((b[1] - a[1]) * ha) / (ha - hb)]);
+				}
+				poly = cut;
+				split = true;
+			}
+		}
+		out[k] = { c, poly, split };
+	}
+	return out;
 };
 
 // ---- the bet symbols (the mock's stepDraw and stepBox), bar px ----

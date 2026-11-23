@@ -13,8 +13,9 @@
 //      sizes), by real shape: no piece on the board, the strip or the logo, none off the window, no bet symbol's press
 //      box on the Play's diamond, no press region under 44 CSS px. Inside his own range of windows that must hold;
 //      beyond it (and at the two popouts) what fails is listed.
-//   4. AUTO'S AND TURBO'S PRESS PADS (2026-11-23): at his nine phone windows each holds a whole 44 px circle clear of
-//      every other press region; only 568 x 320 and 667 x 375 move a pad; the 400 x 225 mini player is as it was.
+//   4. AUTO'S AND TURBO'S PRESS PADS (2026-11-23): by their real shapes, at his nine phone windows and at every
+//      sideways phone from 568 x 320 to 932 x 430, each is a whole 44 px circle 2 px or more from every other press
+//      region, neither pad in the other; the 400 x 225 mini player's two share their ground down the middle line.
 // The amount's widths have no font here: a widest amount of 4.4 em ("$100.00" in Overpass 900 is 4.36 em) and a 3.2 em
 // header stand in. Pass: every line PASS, "0 fail" and exit 0.
 import { register } from 'node:module';
@@ -225,10 +226,16 @@ for (const [vw, vh, name, must] of [[800, 450, 'Popout L', true], [400, 225, 'Po
 	else console.log(`     ${name} (${vw}x${vh}), listed only: ${txt}`);
 }
 // ---- 4. AUTO'S AND TURBO'S PRESS PADS (2026-11-23; the house rule's 44 CSS px touch area; Corey: nothing touches the
-// Spin's press region). At each of his nine phone windows: each pad's whole 44 px circle is clear of the other pad, the
-// other key's diamond, the Play's diamond, both bet symbols' press boxes, Menu and the Fast Lane, and inside the window;
-// the key's own center is inside its pad; the drawn keys are his boxes (section 1). Only 568 x 320 and 667 x 375 move a
-// pad at all. The 400 x 225 mini player (a mouse window) is as it was: its pads on the keys' centers. ----
+// Spin's press region). The pads' REAL SHAPES (signLayout.ts padShapes: what the page draws) are what is tested.
+//   a. At each of his nine phone windows: each pad is a whole 44 px circle, 2 px or more from the other pad, the other
+//      key's diamond, the Play's diamond, both bet symbols' press boxes, Menu and the Fast Lane, and inside the window;
+//      the key's own center is inside its pad; the drawn keys are his boxes (section 1).
+//   b. EVERY SIDEWAYS PHONE from 568 x 320 to 932 x 430 (the probe host, 667 x 375: a press inside Auto's pad landed
+//      on Turbo's): the width in steps of 4 px, the height in steps of 10 px, every shape of window from 3:2 to 21:9.
+//      The same rule at each; and by the shapes themselves: no point of one pad is in the other, and every point of
+//      Auto's pad is on Auto's side of the middle line between the two pads (and Turbo's on Turbo's). A window where
+//      the two share their ground (split down the middle line) is listed.
+//   c. The 400 x 225 mini player (a mouse window): its pads stay on the keys' centers, split down the middle line. ----
 {
 	const segD = (p, a, b) => {
 		const dx = b[0] - a[0];
@@ -241,38 +248,95 @@ for (const [vw, vh, name, must] of [[800, 450, 'Popout L', true], [400, 225, 'Po
 		for (let i = 0, j = P.length - 1; i < P.length; j = i++) if (P[i][1] > p[1] !== P[j][1] > p[1] && p[0] < ((P[j][0] - P[i][0]) * (p[1] - P[i][1])) / (P[j][1] - P[i][1]) + P[i][0]) c = !c;
 		return c;
 	};
-	const dist = (p, P) => (inP(p, P) ? 0 : Math.min(...P.map((a, i) => segD(p, a, P[(i + 1) % P.length]))));
+	/** the gap between two convex shapes (0 when they meet) */
+	const gap = (A, B) => L.shapeGap(A, B);
 	const read = (kind, vw, vh) => {
 		const { g, seat, problems } = at(kind, vw, vh);
 		const boxes = { play: g.box.play, auto: g.box.auto, turbo: g.box.turbo, menu: g.box.menu, bonus: g.box.bonus, down: seat.down, up: seat.up };
-		const pads = L.padPlaces(boxes, vw, vh);
+		const shapes = L.padShapes(boxes, vw, vh);
+		const pads = { auto: shapes.auto.c, turbo: shapes.turbo.c };
 		const home = { auto: [g.box.auto.x + g.box.auto.w / 2, g.box.auto.y + g.box.auto.h / 2], turbo: [g.box.turbo.x + g.box.turbo.w / 2, g.box.turbo.y + g.box.turbo.h / 2] };
 		const moved = { auto: Math.hypot(pads.auto[0] - home.auto[0], pads.auto[1] - home.auto[1]), turbo: Math.hypot(pads.turbo[0] - home.turbo[0], pads.turbo[1] - home.turbo[1]) };
-		// each pad's clearance past its 22 px radius from every other press region (negative: they meet)
+		// each pad's real shape against every other press region's shape (0: they meet), and against the window
 		const gaps = {};
 		for (const k of ['auto', 'turbo']) {
 			const o = k === 'auto' ? 'turbo' : 'auto';
-			gaps[`${k} pad to ${o} pad`] = Math.hypot(pads.auto[0] - pads.turbo[0], pads.auto[1] - pads.turbo[1]) - 44;
-			for (const id of [o, 'play', 'down', 'up', 'menu', 'bonus']) gaps[`${k} pad to ${id === 'down' ? '<' : id === 'up' ? '>' : id}`] = dist(pads[k], L.shapeOf(id, boxes[id])) - 22;
-			gaps[`${k} pad to the window`] = Math.min(pads[k][0], pads[k][1], vw - pads[k][0], vh - pads[k][1]) - 22;
+			gaps[`${k} pad to ${o} pad`] = gap(shapes[k].poly, shapes[o].poly);
+			for (const id of [o, 'play', 'down', 'up', 'menu', 'bonus']) gaps[`${k} pad to ${id === 'down' ? '<' : id === 'up' ? '>' : id}`] = gap(shapes[k].poly, L.shapeOf(id, boxes[id]));
 		}
-		return { g, seat, problems, boxes, pads, home, moved, gaps, press: L.pressRegions(boxes, pads) };
+		const edge = Math.min(...['auto', 'turbo'].flatMap((k) => shapes[k].poly.flatMap((q) => [q[0], q[1], vw - q[0], vh - q[1]])));
+		// the middle line between the two pads: every corner of a pad on its own side, and none inside the other pad
+		const mid = [(pads.auto[0] + pads.turbo[0]) / 2, (pads.auto[1] + pads.turbo[1]) / 2];
+		const n = [pads.turbo[0] - pads.auto[0], pads.turbo[1] - pads.auto[1]];
+		const side = (q) => ((q[0] - mid[0]) * n[0] + (q[1] - mid[1]) * n[1]) / Math.hypot(n[0], n[1]);
+		const cross = Math.max(...shapes.auto.poly.map((q) => side(q)), ...shapes.turbo.poly.map((q) => -side(q)));
+		const inOther = shapes.auto.poly.some((q) => inP(q, shapes.turbo.poly)) || shapes.turbo.poly.some((q) => inP(q, shapes.auto.poly));
+		// a whole 44 px circle: every corner of the shape 22 px from the pad's center (a cut one has nearer corners)
+		const whole = (k) => Math.min(...shapes[k].poly.map((q) => Math.hypot(q[0] - pads[k][0], q[1] - pads[k][1]))) > 21.99;
+		const least = Object.entries(gaps).sort((a, b) => a[1] - b[1])[0];
+		return { g, seat, problems, boxes, shapes, pads, home, moved, gaps, least, edge, cross, inOther, whole: whole('auto') && whole('turbo'), split: shapes.auto.split || shapes.turbo.split, press: L.pressRegions(boxes, pads) };
 	};
+	/** the rule a window must meet where the two pads have room: null when met, or what is short */
+	const short = (R) => {
+		const bad = [];
+		if (R.split) bad.push('the pads share their ground (split down the middle line)');
+		if (!R.whole) bad.push('a pad is not a whole 44 px circle');
+		if (R.least[1] < L.PAD.gap - 0.05) bad.push(`${R.least[0]} ${R.least[1].toFixed(2)} px`);
+		if (R.edge < -0.05) bad.push(`a pad ${(-R.edge).toFixed(2)} px off the window`);
+		if (R.cross > -L.PAD.gap / 2 + 0.05) bad.push(`a pad reaches ${R.cross.toFixed(2)} px past the middle line`);
+		if (R.inOther) bad.push('a point of one pad is inside the other');
+		if (Math.max(R.moved.auto, R.moved.turbo) > 22 - 4) bad.push('a key\'s center is not well inside its pad');
+		if (R.press.auto < 43.99 || R.press.turbo < 43.99) bad.push(`press Auto ${r1(R.press.auto)}, Turbo ${r1(R.press.turbo)}`);
+		// (Auto's and Turbo's own lines only: a long window outside his range may list Menu or the Fast Lane, section 3)
+		if (R.problems.some((x) => /^(auto|turbo) press region/.test(x))) bad.push(R.problems.filter((x) => /^(auto|turbo) press region/.test(x)).join(', '));
+		return bad.length ? bad.join('; ') : null;
+	};
+	// a. his windows
 	for (const o of ['portrait', 'phone']) {
 		for (const r of L.PHONE_PLACES[o]) {
 			const R = read(o, r.vw, r.vh);
-			const least = Object.entries(R.gaps).sort((a, b) => a[1] - b[1])[0];
-			const shifts = Math.max(R.moved.auto, R.moved.turbo);
-			const close = (r.vw === 568 && r.vh === 320) || (r.vw === 667 && r.vh === 375);
+			const bad = short(R);
 			line(
-				least[1] >= -0.001 && R.press.auto >= 43.99 && R.press.turbo >= 43.99 && Math.max(R.moved.auto, R.moved.turbo) < 22 - 4 && (close ? shifts > 0.1 : shifts < 0.001) && !R.problems.some((x) => /press region/.test(x)),
-				`${r.vw}x${r.vh} Auto and Turbo each hold a whole 44 px press circle, clear of every other press region${close ? ' (his two keys stand under 44 px apart: the pads stand apart)' : ' (the pads on the keys, nothing moved)'}`,
-				`Auto ${r1(R.press.auto)}, Turbo ${r1(R.press.turbo)}; pads moved ${R.moved.auto.toFixed(2)} and ${R.moved.turbo.toFixed(2)} px; the least room: ${least[0]} ${least[1].toFixed(2)} px; to the Play ${R.gaps['auto pad to play'].toFixed(2)} and ${R.gaps['turbo pad to play'].toFixed(2)}, to < ${Math.min(R.gaps['auto pad to <'], R.gaps['turbo pad to <']).toFixed(1)}, to > ${Math.min(R.gaps['auto pad to >'], R.gaps['turbo pad to >']).toFixed(1)}`,
+				!bad,
+				`${r.vw}x${r.vh} Auto and Turbo each hold a whole 44 px press circle, ${L.PAD.gap} px or more from every other press region`,
+				`${bad ? bad + ' | ' : ''}pads moved ${R.moved.auto.toFixed(2)} and ${R.moved.turbo.toFixed(2)} px from the keys' centers; the least room: ${R.least[0]} ${R.least[1].toFixed(2)} px; to the Play ${R.gaps['auto pad to play'].toFixed(2)} and ${R.gaps['turbo pad to play'].toFixed(2)}, to < ${Math.min(R.gaps['auto pad to <'], R.gaps['turbo pad to <']).toFixed(1)}, to > ${Math.min(R.gaps['auto pad to >'], R.gaps['turbo pad to >']).toFixed(1)}, to the window's edge ${R.edge.toFixed(2)}`,
 			);
 		}
 	}
+	// b. every sideways phone from 568 x 320 to 932 x 430
+	{
+		let n = 0;
+		let movedMost = { v: 0, at: '' };
+		let playLeast = { v: Infinity, at: '' };
+		let arrowLeast = { v: Infinity, at: '' };
+		let padLeast = { v: Infinity, at: '' };
+		const bad = [];
+		const splits = [];
+		for (let vh = 320; vh <= 430; vh += 10)
+			for (let vw = 568; vw <= 932; vw += 4) {
+				if (vw / vh < 1.5 || vw / vh > 2.34) continue;
+				const R = read('phone', vw, vh);
+				n++;
+				const b = short(R);
+				if (R.split) splits.push(`${vw}x${vh}`);
+				if (b) bad.push(`${vw}x${vh}: ${b}`);
+				const m = Math.max(R.moved.auto, R.moved.turbo);
+				if (m > movedMost.v) movedMost = { v: m, at: `${vw}x${vh}` };
+				const pl = Math.min(R.gaps['auto pad to play'], R.gaps['turbo pad to play']);
+				if (pl < playLeast.v) playLeast = { v: pl, at: `${vw}x${vh}` };
+				const ar = Math.min(R.gaps['auto pad to <'], R.gaps['turbo pad to <'], R.gaps['auto pad to >'], R.gaps['turbo pad to >']);
+				if (ar < arrowLeast.v) arrowLeast = { v: ar, at: `${vw}x${vh}` };
+				if (R.gaps['auto pad to turbo pad'] < padLeast.v) padLeast = { v: R.gaps['auto pad to turbo pad'], at: `${vw}x${vh}` };
+			}
+		line(
+			bad.length === 0,
+			`sideways phones 568x320 to 932x430 (${n} windows, the width by 4 px, the height by 10 px): at every one Auto's and Turbo's pads are whole 44 px circles ${L.PAD.gap} px or more from each other, the Play's diamond and the arrows' boxes, no point of one inside the other, each on its own side of the middle line`,
+			`${bad.slice(0, 5).join(' | ')}${bad.length ? ` (${bad.length} windows) | ` : ''}the pads' least gap ${padLeast.v.toFixed(2)} px (${padLeast.at}); to the Play ${playLeast.v.toFixed(2)} px at the least (${playLeast.at}); to an arrow's box ${arrowLeast.v.toFixed(1)} px (${arrowLeast.at}); a pad moved ${movedMost.v.toFixed(2)} px at the most (${movedMost.at}); the pads share their ground at ${splits.length ? splits.join(', ') : 'no window'}`,
+		);
+	}
+	// c. the mini player
 	const S = read('phone', 400, 225);
-	line(S.moved.auto === 0 && S.moved.turbo === 0, 'Popout S (400x225, a mouse window): the pads are on the keys\' centers, as before (nothing changed there)', `press Auto ${r1(S.press.auto)}, Turbo ${r1(S.press.turbo)}; listed: ${S.problems.join('; ') || 'none'}`);
+	line(S.moved.auto === 0 && S.moved.turbo === 0 && S.split && !S.inOther && S.cross <= -L.PAD.gap / 2 + 0.05, 'Popout S (400x225, a mouse window): the pads are on the keys\' centers and share their ground down the middle line (neither covers the other)', `the pads ${S.gaps['auto pad to turbo pad'].toFixed(2)} px apart; press Auto ${r1(S.press.auto)}, Turbo ${r1(S.press.turbo)}; listed: ${S.problems.join('; ') || 'none'}`);
 }
 for (const [vw, vh] of [[1920, 1080], [1200, 675], [1024, 576], [1280, 720], [1366, 768], [1440, 900], [2560, 1440], [2560, 1080], [3440, 1440], [1280, 800], [1024, 768]]) {
 	const { g, problems, zones, seat } = at('landscape', vw, vh);

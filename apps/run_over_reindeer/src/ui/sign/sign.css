@@ -47,11 +47,21 @@
 	cursor: default;
 	opacity: 1;
 }
-/* a press pad under a small key (ui/sign/SignHud.svelte): unseen, round, 44 CSS px */
-.hudp.sg .sgpad {
+/* THE PRESS PADS under the small keys (ui/sign/SignHud.svelte): one unseen svg over the whole plane, drawn first so it
+   lies under every control; each pad is an outline in it (a 44 CSS px circle, cut at the middle line where two share
+   their ground), and only the outlines take a press (the svg itself takes none). (The bar's own rules that turn every
+   press off, ui/Chrome.svelte .hud-off and .hud-held, are marked important and reach these too.) */
+.hudp.sg .sgpads {
 	position: absolute;
-	border-radius: 50%;
-	pointer-events: auto;
+	left: 0;
+	top: 0;
+	overflow: visible;
+	pointer-events: none;
+}
+.hudp.sg .sgpad {
+	fill: none;
+	stroke: none;
+	pointer-events: all;
 	cursor: pointer;
 }
 /* THE DIAMONDS (the Play, Auto, Turbo): the button is the diamond itself, a square turned 45 degrees (inline), so the

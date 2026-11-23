@@ -10,7 +10,7 @@
 // WATCHES: ; __reindeer.ringMethod, __reindeer.ringRounds, __reindeer.ringNow, __reindeer.spinSerial
 // WATCHES: apps/run_over_reindeer/src/{game/currency.ts,fixtures/fixtureRgs.ts};
 // WATCHES: apps/run_over_reindeer/src/{ui/sign/SignHud.svelte,ui/sign/signLayout.ts,ui/sign/signZones.ts,ui/sign/SignPlay.svelte,ui/hudTheme.ts};
-// WATCHES: ; __reindeer.sign, __reindeer.hud.bar, HUD_BAR, .sgw, .s-words, .s-ring, data-shape, data-total, data-bar, .sgpad, data-pad, padPlaces, __reindeer.sign.pads
+// WATCHES: ; __reindeer.sign, __reindeer.hud.bar, HUD_BAR, .sgw, .s-words, .s-ring, data-shape, data-total, data-bar, .sgpad, .sgpads, data-pad, padPlaces, padShapes, __reindeer.sign.pads
 // WATCHES: apps/run_over_reindeer/src/{game/actor.ts,game/utils.ts,game/stateGame.svelte.ts,ui/SpinHotkey.svelte};
 // WATCHES: ; __reindeer.pressReady, __reindeer.spinTail, roundSettled, roundTailFinish, landSmall, SPIN_TAIL, flipGraceMs, ledCountDone, data-resume-card
 // THE HUD PROBE (the house glass HUD from Manticore, "Win over Balance, Drop 6" plus round 6, in this game's "Frost"
@@ -1951,9 +1951,13 @@ async function tailSection(browser) {
 //   - every piece is drawn within 1 CSS px of his place (his own table, read through __reindeer.sign.his(), never a
 //     copy; at a window he did not set, of the place the rule answers: tools/sign_layout_test.mjs proves the rule)
 //   - every press region holds a 44 CSS px circle (2026-11-23: his own Auto and Turbo stand closer than 44 at
-//     568 x 320 and 667 x 375, and there their unseen press pads stand apart, signLayout.ts padPlaces: a press on a
-//     pad's middle and at eight points 21 px round it lands on that pad or its own key), and a press on each
-//     control's middle lands on that control
+//     568 x 320 and 667 x 375, and there their unseen press pads stand apart, signLayout.ts padPlaces). The pads are
+//     tested by their REAL SHAPES (padShapes, read through __reindeer.sign.pads): a press at points inside a pad's
+//     own outline (its middle, 16 rays half way out and 1.5 px inside the outline) lands on that pad or its own key,
+//     and along the line through the two pads' middles no press on one key's side of the middle line lands on the
+//     other key's pad. (The first form of this check pressed 21 px from the middle of a 44 px round box, 1 px
+//     inside it and 1.5 px from the other pad: a browser's own whole px test of a rounded box is looser than that.)
+//     And a press on each control's middle lands on that control
 //   - nothing is on the board, the LED strip or the logo by real shape, and no bet symbol's press box is on the Play
 //   - the amount fits its reserved width (the widest amount of the bet menu at the type size in use), the symbols hold
 //     still across bet steps, and a mode on seats them again; in three currencies at four of the sizes
@@ -2014,25 +2018,86 @@ const signRead = (p) =>
 			const at = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
 			hitOk[id] = !!at && (at === e || e.contains(at));
 		}
-		// AUTO'S AND TURBO'S PRESS PADS (2026-11-23): where the rule puts each one, where the page drew it, and what a press
-		// on its middle and at eight points 21 px round it lands on (its own pad or its own key, nothing else)
+		// AUTO'S AND TURBO'S PRESS PADS (2026-11-23): each pad's real shape (the rule's outline, CSS px: a 44 px circle, cut
+		// at the middle line where the two share their ground), where the page drew it, and what a press lands on at
+		// points INSIDE that shape: its middle, and along 16 rays from it half way out and 1.5 px inside the outline (its
+		// own pad or its own key, nothing else). THE MIDDLE LINE: along the line through the two pads' middles, every
+		// 1 px, a point more than 1 px on one key's side of the middle line never lands on the other key's pad (the
+		// pads are what could cover each other; a drawn key takes the presses on its own diamond).
+		// A point that lands elsewhere is reported with what took it (tag, class, marks, its box) and what lay under it.
 		const padHit = {};
 		const padsAt = S.pads ? S.pads() : null;
+		const who = (at) => (at ? `${at.tagName.toLowerCase()}${at.getAttribute('class') ? '.' + String(at.getAttribute('class')).trim().split(/\s+/).join('.') : ''}${['data-pad', 'data-hud', 'data-hud-step'].map((k) => (at.getAttribute(k) ? `[${k}=${at.getAttribute(k)}]` : '')).join('')}` : 'nothing');
+		const boxOf = (at) => {
+			const b = at.getBoundingClientRect();
+			return `${b.left.toFixed(1)},${b.top.toFixed(1)} ${b.width.toFixed(1)}x${b.height.toFixed(1)}`;
+		};
+		const padEl = (id) => document.querySelector(`.hudp .sgpad[data-pad="${id}"]`);
+		const keyEl = (id) => document.querySelector(SEL[id])?.closest('button');
+		const mine = (id, at) => !!at && (at === padEl(id) || at === keyEl(id) || !!keyEl(id)?.contains(at));
 		for (const id of ['auto', 'turbo']) {
-			const e = document.querySelector(`.hudp .sgpad[data-pad="${id}"]`);
-			const key = document.querySelector(SEL[id])?.closest('button');
-			if (!e || !key || !padsAt?.at?.[id]) continue;
-			const b = e.getBoundingClientRect();
-			const c = [b.left + b.width / 2, b.top + b.height / 2];
+			const e = padEl(id);
+			const key = keyEl(id);
+			const shape = padsAt?.shapes?.[id];
+			if (!e || !key || !shape) continue;
+			const P = shape.poly;
+			const c = shape.c;
+			// how far the outline is from the pad's middle along a direction
+			const reach = (dx, dy) => {
+				let best = Infinity;
+				for (let k = 0; k < P.length; k++) {
+					const a = P[k];
+					const b = P[(k + 1) % P.length];
+					const ex = b[0] - a[0];
+					const ey = b[1] - a[1];
+					const den = dx * ey - dy * ex;
+					if (Math.abs(den) < 1e-9) continue;
+					const t = ((a[0] - c[0]) * ey - (a[1] - c[1]) * ex) / den;
+					const w = ((a[0] - c[0]) * dy - (a[1] - c[1]) * dx) / den;
+					if (t > 0 && w >= -1e-9 && w <= 1 + 1e-9) best = Math.min(best, t);
+				}
+				return best;
+			};
 			const pts = [c];
-			for (let i = 0; i < 8; i++) pts.push([c[0] + 21 * Math.cos((i * Math.PI) / 4), c[1] + 21 * Math.sin((i * Math.PI) / 4)]);
+			for (let k = 0; k < 16; k++) {
+				const dx = Math.cos((k * Math.PI) / 8);
+				const dy = Math.sin((k * Math.PI) / 8);
+				const r = reach(dx, dy);
+				if (!Number.isFinite(r) || r < 3) continue;
+				pts.push([c[0] + dx * (r / 2), c[1] + dy * (r / 2)], [c[0] + dx * (r - 1.5), c[1] + dy * (r - 1.5)]);
+			}
 			const other = pts
 				.map((q) => {
 					const at = document.elementFromPoint(q[0], q[1]);
-					return at && (at === e || at === key || key.contains(at)) ? null : `(${Math.round(q[0])}, ${Math.round(q[1])}) lands on ${at ? at.getAttribute('data-pad') || at.getAttribute('data-hud') || at.getAttribute('data-hud-step') || at.className || at.tagName : 'nothing'}`;
+					if (mine(id, at)) return null;
+					const under = document.elementsFromPoint(q[0], q[1]).slice(0, 4);
+					return `(${q[0].toFixed(1)}, ${q[1].toFixed(1)}) lands on ${who(at)}${at ? ` at ${boxOf(at)}` : ''}; under it: ${under.slice(1).map(who).join(' > ') || 'nothing'}`;
 				})
 				.filter(Boolean);
-			padHit[id] = { drawn: [c[0], c[1], b.width], want: padsAt.at[id], key: padsAt.keys[id], other };
+			const b = e.getBoundingClientRect();
+			const xs = P.map((q) => q[0]);
+			const ys = P.map((q) => q[1]);
+			padHit[id] = { drawn: [b.left, b.top, b.right, b.bottom], want: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], c, key: padsAt.keys[id], split: shape.split, points: pts.length, other };
+		}
+		// the middle line between the two pads
+		let padLine = null;
+		if (padsAt?.shapes?.auto && padsAt?.shapes?.turbo && padEl('auto') && padEl('turbo')) {
+			const a = padsAt.shapes.auto.c;
+			const t = padsAt.shapes.turbo.c;
+			const d = Math.hypot(t[0] - a[0], t[1] - a[1]);
+			const n = [(t[0] - a[0]) / d, (t[1] - a[1]) / d];
+			const wrong = [];
+			let points = 0;
+			for (let v = -22; v <= d + 22; v += 1) {
+				const q = [a[0] + n[0] * v, a[1] + n[1] * v];
+				const s = v - d / 2;
+				if (Math.abs(s) <= 1) continue;
+				points++;
+				const at = document.elementFromPoint(q[0], q[1]);
+				const far = s < 0 ? 'turbo' : 'auto';
+				if (at && at === padEl(far)) wrong.push(`(${q[0].toFixed(1)}, ${q[1].toFixed(1)}), ${Math.abs(s).toFixed(1)} px on ${s < 0 ? "Auto's" : "Turbo's"} side, lands on ${who(at)} at ${boxOf(at)}`);
+			}
+			padLine = { apart: d, points, wrong };
 		}
 		const seat = S.seat();
 		// the widest amount of the bet menu at the type in use, measured in the page's own face
@@ -2056,6 +2121,7 @@ const signRead = (p) =>
 			dom,
 			hitOk,
 			padHit,
+			padLine,
 			widestPx,
 			value: val ? { x0: val.left, x1: val.right, text: document.querySelector('.hudp [data-hud="amount"] .value').textContent } : null,
 			win: { on: S.winOn(), opacity: box ? Number(getComputedStyle(box).opacity) : null, shape: box?.dataset.shape ?? null, text: document.querySelector('.hudp [data-hud="win"] .value')?.textContent ?? '', rects: Object.fromEntries([['glass', '.hudp .sgw .s-glass'], ['plate', '.hudp [data-hud="win"] .lbw'], ['value', '.hudp [data-hud="win"] .value']].map(([k, sel]) => { const q = document.querySelector(sel)?.getBoundingClientRect(); return [k, q ? { x: q.left, y: q.top, w: q.width, h: q.height } : null]; })) },
@@ -2211,14 +2277,19 @@ async function signHud(browser) {
 			if (S.listOnly) console.log(`     ${tag}, listed only: press regions under 44: ${small.join(', ') || 'none'}; problems: ${d.problems.join('; ') || 'none'}; amount ${r1(d.seat.px)} px${d.seat.under ? ' (under the floor)' : ''}`);
 			else check(small.length === 0, `${tag}: every press region holds a 44 CSS px circle`, small);
 			check(cannot.length === 0, `${tag}: a press on each control's middle lands on that control`, cannot);
-			// ---- Auto's and Turbo's press pads (where their drawn diamonds hold less than 44 px) ----
+			// ---- Auto's and Turbo's press pads (where their drawn diamonds hold less than 44 px), by their real shapes ----
 			{
 				const pads = Object.entries(d.padHit ?? {});
-				const off = pads.filter(([, q]) => Math.hypot(q.drawn[0] - q.want[0], q.drawn[1] - q.want[1]) > 0.6 || Math.abs(q.drawn[2] - 44) > 0.6).map(([id, q]) => `${id} drawn at ${r1(q.drawn[0])}, ${r1(q.drawn[1])} (${r1(q.drawn[2])} px) for ${r1(q.want[0])}, ${r1(q.want[1])}`);
+				const off = pads.filter(([, q]) => q.drawn.some((v, k) => Math.abs(v - q.want[k]) > 0.6)).map(([id, q]) => `${id} drawn ${q.drawn.map(r1).join(', ')} for ${q.want.map(r1).join(', ')}`);
 				const stray = pads.flatMap(([id, q]) => q.other.map((x) => `${id}: ${x}`));
-				const moved = pads.map(([id, q]) => `${id} ${r1(Math.hypot(q.want[0] - q.key[0], q.want[1] - q.key[1]))} px from its key's middle`).join(', ');
-				if (S.listOnly) console.log(`     ${tag}, listed only: the press pads: ${moved || 'none'}${stray.length ? '; ' + stray.join('; ') : ''}`);
-				else if (pads.length) check(off.length === 0 && stray.length === 0, `${tag}: Auto's and Turbo's 44 px press pads stand where the rule puts them (${moved}), and a press on each one's middle and at 8 points 21 px round it lands on that pad or its own key`, [...off, ...stray]);
+				const moved = pads.map(([id, q]) => `${id} ${r1(Math.hypot(q.c[0] - q.key[0], q.c[1] - q.key[1]))} px from its key's middle${q.split ? ', cut at the middle line' : ''}`).join(', ');
+				const tested = pads.reduce((n, [, q]) => n + q.points, 0);
+				const line = d.padLine;
+				if (S.listOnly) console.log(`     ${tag}, listed only: the press pads: ${moved || 'none'}${stray.length ? '; ' + stray.join('; ') : ''}${line?.wrong.length ? '; the middle line: ' + line.wrong.join('; ') : ''}`);
+				else if (pads.length) {
+					check(off.length === 0 && stray.length === 0, `${tag}: Auto's and Turbo's press pads are drawn as the rule's shapes (${moved}), and a press at each of ${tested} points inside a pad's own shape (its middle, and on 16 rays half way out and 1.5 px inside its outline) lands on that pad or its own key`, [...off, ...stray]);
+					if (line) check(line.wrong.length === 0, `${tag}: along the line through the two pads' middles (${r1(line.apart)} px apart, ${line.points} points 1 px apart) no press on one key's side of the middle line lands on the other key's pad`, line.wrong);
+				}
 			}
 			// ---- the scene and the Play ----
 			const real = d.problems.filter((x) => !/press region/.test(x));

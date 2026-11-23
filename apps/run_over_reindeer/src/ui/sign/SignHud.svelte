@@ -20,7 +20,7 @@
 	import HudReadout from '../hud/HudReadout.svelte';
 	import HudMenuPanel from '../hud/HudMenuPanel.svelte';
 	import { HEAD_LS, headWidth } from './signDraw';
-	import { DESKTOP, KEY_V, PHONE_PLACES, PHONE_REFS, PLAY_V, READOUT_TYPE, TEXT_MIN, amountLimits, padPlaces, readoutFit, pressRegions, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type PieceId } from './signLayout';
+	import { DESKTOP, KEY_V, PHONE_PLACES, PHONE_REFS, PLAY_V, READOUT_TYPE, TEXT_MIN, amountLimits, padCircle, padPlaces, padShapes, readoutFit, pressRegions, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type PieceId } from './signLayout';
 	import { signZones } from './signZones';
 	import { holdLights } from './ledBand';
 	import SignPlay from './SignPlay.svelte';
@@ -122,17 +122,22 @@
 	// under its neighbours). The pad calls the key's own handler under the key's own disabled rule.
 	// (2026-11-23) AUTO'S AND TURBO'S PADS STAND APART where his two keys are closer than 44 px (568 x 320: 37 px; the
 	// house rule's 44 px touch area): the drawn keys stay, the unseen pads move the least it takes to hold a whole 44 px
-	// circle each, clear of each other, the Play's diamond and the bet symbols' press boxes (signLayout.ts padPlaces).
+	// circle each, 2 px clear of each other, the Play's diamond and the bet symbols' press boxes (signLayout.ts
+	// padPlaces); where there is no room for that they share their ground down the middle line (padShapes).
+	// THE PADS ARE EXACT SHAPES (2026-11-23, the probe host at 667 x 375: a press 21 px from Auto's pad's middle landed
+	// on Turbo's): each is an outline in one unseen svg, in CSS px, so a press is tested against the outline itself. A
+	// round HTML box is tested as whole px against a box snapped to whole px, about 1.5 px loose.
 	const pressBoxes = $derived({ play: geo.box.play, auto: geo.box.auto, turbo: geo.box.turbo, menu: geo.box.menu, bonus: geo.box.bonus, down: seat.down, up: seat.up });
 	const padAt = $derived(padPlaces(pressBoxes, vw, vh));
+	const padShape = $derived(padShapes(pressBoxes, vw, vh));
 	const pads = $derived.by(() => {
-		const out: { id: string; x: number; y: number; d: number; press: () => void }[] = [];
-		const d = 44 / u;
+		const out: { id: string; d: string; press: () => void }[] = [];
+		const path = (poly: [number, number][]) => `M${poly.map((q) => `${q[0].toFixed(2)} ${q[1].toFixed(2)}`).join('L')}Z`;
 		const add = (id: PieceId, drawn: number, press: () => void) => {
 			if (drawn * u >= 44) return;
-			const b = B[id];
-			const at = id === 'auto' || id === 'turbo' ? padAt[id] : undefined;
-			out.push({ id, x: (at ? at[0] / u : b.x + b.w / 2) - d / 2, y: (at ? at[1] / u : b.y + b.h / 2) - d / 2, d, press });
+			const b = geo.box[id];
+			const shape = id === 'auto' || id === 'turbo' ? padShape[id]?.poly : undefined;
+			out.push({ id, d: path(shape ?? padCircle([b.x + b.w / 2, b.y + b.h / 2])), press });
 		};
 		if (!replay && !controls.jurisdiction().disabledAutoplay) add('auto', (B.auto.w * KEY_V) / Math.SQRT2, () => !controls.autoDisabled() && controls.autoPress());
 		if (!controls.jurisdiction().disabledTurbo) add('turbo', (B.turbo.w * KEY_V) / Math.SQRT2, () => !stateBet.isSpaceHold && controls.turboPress());
@@ -162,8 +167,9 @@
 			seat: () => JSON.parse(JSON.stringify({ ...seat, widest: widest.text })),
 			/** each press region's largest circle, CSS px */
 			press: () => pressRegions(pressBoxes, padAt),
-			/** Auto's and Turbo's press pads: where the rule puts each one's center (CSS px) and the keys' own centers */
-			pads: () => JSON.parse(JSON.stringify({ at: padAt, keys: { auto: [geo.box.auto.x + geo.box.auto.w / 2, geo.box.auto.y + geo.box.auto.h / 2], turbo: [geo.box.turbo.x + geo.box.turbo.w / 2, geo.box.turbo.y + geo.box.turbo.h / 2] } })),
+			/** Auto's and Turbo's press pads: where the rule puts each one's center (CSS px), each one's real shape (its
+			 *  outline's corners, CSS px, and whether the two share their ground down the middle line), the keys' centers */
+			pads: () => JSON.parse(JSON.stringify({ at: padAt, shapes: padShape, keys: { auto: [geo.box.auto.x + geo.box.auto.w / 2, geo.box.auto.y + geo.box.auto.h / 2], turbo: [geo.box.turbo.x + geo.box.turbo.w / 2, geo.box.turbo.y + geo.box.turbo.h / 2] } })),
 			/** what is wrong by real shape (a piece on the board, the strip or the logo, a symbol on the Play, a press under 44) */
 			problems: () => {
 				// BALANCE and the amount by what they draw: the header plate and the number, CSS px
@@ -200,10 +206,12 @@
 </script>
 
 <div class="hudp hud-group sg v-{kind === 'landscape' ? 'desktop' : kind === 'portrait' ? 'portrait' : 'landscape'}" class:menu-open={stateUi.menuOpen} data-plane="base" data-bar="sign" style={plane}>
-	{#each pads as pd (pd.id)}
-		<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-		<span class="sgpad" data-pad={pd.id} style:left="{pd.x}px" style:top="{pd.y}px" style:width="{pd.d}px" style:height="{pd.d}px" onclick={pd.press}></span>
-	{/each}
+	<svg class="sgpads" viewBox="0 0 {vw} {vh}" style:width="{vw / u}px" style:height="{vh / u}px" aria-hidden="true">
+		{#each pads as pd (pd.id)}
+			<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+			<path class="sgpad" data-pad={pd.id} d={pd.d} onclick={pd.press} />
+		{/each}
+	</svg>
 	<!-- the Win box (kept through a presentation, as the dock's WIN readout was) -->
 	<div class="sgw keep" class:on={winOn} data-hud="win-box" data-shape={geo.winShape} style:--rs={geo.rs.win} style:--hf="{winHead}px">
 		<i class="s-glass" style:left="{WG.x / u}px" style:top="{WG.y / u}px" style:width="{WG.w / u}px" style:height="{WG.h / u}px" style:border-radius="{WG.r / u}px"></i>
