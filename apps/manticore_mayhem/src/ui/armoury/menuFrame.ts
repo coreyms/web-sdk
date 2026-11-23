@@ -164,6 +164,14 @@ export const portraitCard = (f: MenuFrame, d: DesignAnchors, want: number, diamo
  *  `closeKey - nameGap` px on under it, over the room fitPortrait keeps clear of the tray) */
 export const closeTop = (d: DesignAnchors, noHero: boolean, rules: FrameRules): number => (noHero && d.name.place === 'under' ? d.contentTop - rules.portrait.nameGap : d.contentTop);
 
+/** THE MENU'S CLOSE KEY UNDER THE CONFIRM CARD (2026-11-24). Upright (the phone and the tablet) the card stands where
+ *  the key is, its Cancel on the frame art's corner diamond at the top right: there the key is out for as long as the
+ *  card is up (not drawn, inert, no place in the stacking order over the card) and Cancel is the way back. The desktop
+ *  box keeps it (its top right corner, 384 design px from the card) and so does the sideways layout (the rail's corner,
+ *  the slab in the middle): there it closes the whole menu, as it always has. One rule: ui/armoury/Armoury.svelte
+ *  reads it for the key, tools/gear_layout_test.mjs sweeps it. */
+export const closeUnderCard = (layout: ArmouryLayout): boolean => layout === 'desktop' || layout === 'sideways';
+
 /** what the game measures when the menu opens and on every resize (never per frame), CSS px in the viewport */
 export type Anchors = {
 	/** portrait: the top of the HUD's BALANCE / bet row */

@@ -109,8 +109,10 @@ export const ARMOURY = {
 		 *  it goes under the strip and the content starts this much lower (the tablet's 28 / 52). The hero is the piece
 		 *  that gives: under `minHero` design px it is dropped (spec risk 4: short phones, browser bars showing). The
 		 *  confirm card is `card` design px, centred, `cardGap` under the first content line; on a phone too short for it,
-		 *  it is scaled down to the room between that line and the bottom of the content (never over the HUD row) */
-		portrait: { w: 390, minHero: 44, gapToHud: 6, underClock: 2, nameBandMin: 16, minHitCss: 44, nameGap: 24, fitMin: 0.7, closeKey: 44, closeGap: 4, card: { w: 366, h: 549 }, cardGap: 4, rays: { perH: 1.22, max: 300 } },
+		 *  it is scaled down to the room between that line and the bottom of the content (never over the HUD row).
+		 *  `textMin` (2026-11-24): the plate's odds lines (heads, rows, foot) are never drawn under this many CSS px on a
+		 *  menu drawn small (fitMin), and never over `textMinCap` of the menu's own px (the widest row still fits) */
+		portrait: { w: 390, minHero: 44, gapToHud: 6, underClock: 2, nameBandMin: 16, minHitCss: 44, nameGap: 24, fitMin: 0.7, closeKey: 44, closeGap: 4, textMin: 9, textMinCap: 13, card: { w: 366, h: 549 }, cardGap: 4, rays: { perH: 1.22, max: 300 } },
 		tablet: { w: 569, minFrame: 512, maxContent: 720, nameTop: 28, contentTop: 52, cardTop: 40 },
 		/** phone sideways (page.css 427-482). The name sits `nameAbove` design px above the HUD's BALANCE label; the rail's
 		 *  tiles keep `edge` design px off the right edge (beyond the safe area) and the close sits `edge` px outside them;

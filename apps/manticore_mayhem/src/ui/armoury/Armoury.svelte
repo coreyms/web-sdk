@@ -46,7 +46,7 @@
 	import { numberToCurrencyString } from '../../game/amount';
 
 	import type { Controls } from '../controls.svelte';
-	import { closeTop, designAnchors, fitPortrait, portraitCard, type Anchors, type MenuFrame } from './menuFrame';
+	import { closeTop, closeUnderCard, designAnchors, fitPortrait, portraitCard, type Anchors, type MenuFrame } from './menuFrame';
 	import { armouryView } from './armouryView.svelte';
 	import HeroView from './HeroView.svelte';
 	import { fitConfirmAmount, fitPrice } from './fit';
@@ -102,6 +102,11 @@
 	let view = $state<ArmouryModeId>('BONUS');
 	let confirm = $state(false);
 	let confirmAt = 0;
+	/** when Cancel last took the card away (the close key's wrong press guard, pressClose) */
+	let cancelAt = 0;
+	/** THE CLOSE KEY IS OUT UNDER THE CARD (2026-11-24; menuFrame.ts closeUnderCard): upright the card stands where the
+	 *  key is, so for as long as the card is up the key is not drawn, inert and takes no press; Cancel is the way back */
+	const closeOut = $derived(confirm && !closeUnderCard(frame.layout));
 	let confirming = false;
 	let flash = $state(false);
 	/** the line after a switch off (SWITCH OFF / UNLOAD): which mode it was */
@@ -637,9 +642,20 @@
 	const cancel = () => {
 		if (!confirm || confirming) return false;
 		confirm = false; // silent, as today
+		cancelAt = performance.now();
 		armouryView.confirm = false;
 		tick().then(() => ctaEl?.focus({ preventScroll: true }));
 		return true;
+	};
+	/** A PRESS ON THE CLOSE KEY (2026-11-24). Upright the key and the card's Cancel share the top right corner, so two
+	 *  presses must never close the whole menu from the card: one that reaches the key while it is out under the card
+	 *  (it cannot: not drawn, inert; held here all the same) is Cancel's, and one in the first confirmGuardMs after a
+	 *  Cancel is dropped (the key comes back under the finger that pressed Cancel: the same wrong press guard CONFIRM
+	 *  has, kept under reduced motion). Escape and the DEV hook call close() itself, as before. */
+	const pressClose = () => {
+		if (closeOut) return cancel();
+		if (!closeUnderCard(frame.layout) && performance.now() - cancelAt < M.confirmGuardMs) return false;
+		return close();
 	};
 	const doConfirm = () => {
 		// the wrong click guard: CONFIRM is not live until it has faded in (kept under reduced motion: it is a guard)
@@ -1430,6 +1446,7 @@
 			style:--side-edge={touch ? `${sideEdge.toFixed(1)}px` : null}
 			style:--side-top={touch ? `${(da.safe.top + SIDE_TOP).toFixed(1)}px` : null}
 			style:--hit={touch ? `${hitPx(da.minHit)}px` : null}
+			style:--txt-min={swipeLay ? `${Math.min(LAY.portrait.textMin / frame.u, LAY.portrait.textMinCap).toFixed(2)}px` : null}
 			style:--xhit={touch ? null : `${hitPx(44 / frame.u)}px`}
 			role="dialog"
 			aria-modal="true"
@@ -1451,7 +1468,7 @@
 					<span id="arm-name">{TX.name}</span>
 				</span>
 			</div>
-			<button type="button" class="close lift" aria-label={TX.close} bind:this={closeEl} onclick={() => close()} style={closeStyle}>
+			<button type="button" class="close lift" class:out={closeOut} inert={closeOut} aria-label={TX.close} bind:this={closeEl} onclick={pressClose} style={closeStyle}>
 				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" /></svg>
 			</button>
 
@@ -2235,15 +2252,20 @@
 		column-gap: 7px;
 		row-gap: 0;
 	}
+	/* THE ODDS LINES' FLOOR (2026-11-24): a menu drawn small on a short upright phone (menuFrame.ts fitPortrait) drew
+	   these at the menu's scale, the heads down to 6 CSS px. --txt-min is ARMOURY.layout.portrait.textMin CSS px in the
+	   menu's own px (never over textMinCap: at 13 the widest row, SUPER ANTE's, still fits the plate, by Outfit's own
+	   widths), so the heads, the rows and the foot line are never drawn under it; sideways and the desktop box have
+	   no --txt-min and keep their sizes */
 	.arm.touch .qb .h {
-		font-size: 10px;
-		line-height: 14px;
+		font-size: max(10px, var(--txt-min, 0px));
+		line-height: max(14px, calc(var(--txt-min, 0px) * 1.1));
 		letter-spacing: 0.16em;
 	}
 	.arm.touch .qb .l,
 	.arm.touch .qb .o,
 	.arm.touch .qb .v.t {
-		font-size: 13px;
+		font-size: max(13px, var(--txt-min, 0px));
 		line-height: 20px;
 	}
 	.arm.touch .qb .v {
@@ -2257,12 +2279,12 @@
 		margin-left: -3px;
 	}
 	.arm.touch .q .p {
-		font-size: 12px;
+		font-size: max(12px, var(--txt-min, 0px));
 	}
 	.arm.touch .qfoot {
 		margin-top: 3px;
-		font-size: 11px;
-		line-height: 14px;
+		font-size: max(11px, var(--txt-min, 0px));
+		line-height: max(14px, calc(var(--txt-min, 0px) * 1.2));
 	}
 	/* the short upright screens (oddsTight above) */
 	.arm.touch.odds-tight.has-odds .detail-mv {
@@ -2273,13 +2295,13 @@
 		margin-top: 3px;
 	}
 	.arm.touch.odds-tight .qb .h {
-		font-size: 9px;
-		line-height: 12px;
+		font-size: max(9px, var(--txt-min, 0px));
+		line-height: max(12px, calc(var(--txt-min, 0px) * 1.1));
 	}
 	.arm.touch.odds-tight .qb .l,
 	.arm.touch.odds-tight .qb .o,
 	.arm.touch.odds-tight .qb .v.t {
-		font-size: 12px;
+		font-size: max(12px, var(--txt-min, 0px));
 		line-height: 17px;
 	}
 	.arm.touch.odds-tight .qb .v {
@@ -2288,8 +2310,8 @@
 	}
 	.arm.touch.odds-tight .qfoot {
 		margin-top: 1px;
-		font-size: 10px;
-		line-height: 12px;
+		font-size: max(10px, var(--txt-min, 0px));
+		line-height: max(12px, calc(var(--txt-min, 0px) * 1.2));
 	}
 	.arm.touch.odds-tight.has-odds .buy {
 		margin-top: 6px;
@@ -2913,11 +2935,26 @@
 		width: 20px;
 		height: 20px;
 	}
-	/* the card would sit on it: Cancel is the way back (portrait phone, tablet) */
+	/* the card would sit on it: Cancel is the way back (portrait phone, tablet). 2026-11-24: out for good while the card
+	   is up (menuFrame.ts closeUnderCard, the key's own `out` class and `inert`): not drawn, no box to press, and no
+	   place over the card in the stacking order (the touch key's z-index 3 stood over the card's auto, kept off it by
+	   its opacity and pointer rule alone) */
 	.arm.confirm.lay-portrait .close,
-	.arm.confirm.lay-tablet .close {
+	.arm.confirm.lay-tablet .close,
+	.arm .close.out {
 		opacity: 0;
+		visibility: hidden;
 		pointer-events: none;
+		z-index: auto;
+	}
+	/* THE CARD OVER THE WHOLE MENU (2026-11-24): on the touch layouts the card is the top of the menu's stacking order
+	   while it is up, and Cancel the top of the card's, over its whole press area (the 44 CSS px square of .c-x::after):
+	   nothing of the menu under the card can take a press through it */
+	.arm.touch.confirm .card {
+		z-index: 4;
+	}
+	.arm.touch.confirm .c-x {
+		z-index: 1;
 	}
 	/* a tile on a menu drawn small (a short upright phone, menuFrame.ts fitPortrait): its press area stays 44 CSS px
 	   tall, grown up and down into the group's own word and gap (26 design px between the two rows of tiles), never

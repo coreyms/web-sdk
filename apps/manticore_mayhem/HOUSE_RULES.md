@@ -89,6 +89,11 @@ loop, every move book driven).
   menu is open. With the hero dropped the close key stands in the name's row over room the fit keeps clear of the
   tray (`closeTop`, `closeRoom`); press areas are written rounded up (44 CSS px at the least), a tile's grows to
   44 px, and the confirm card never rises so far that Cancel's press area is cut by the window (`portraitCard`).
+  UNDER THE CONFIRM CARD (2026-11-24) only Cancel and CONFIRM take a press. Upright the menu's close key shares the
+  card's top right corner, so it is out while the card is up (`closeUnderCard`: hidden, `inert`, the card over it in
+  the stacking order) and drops a press in the first `confirmGuardMs` after a Cancel; the desktop box and the
+  sideways layout keep it, clear of the card. A press on the tint does nothing in any layout. The plate's odds lines
+  are never drawn under `ARMOURY.layout.portrait.textMin` CSS px (`--txt-min`, capped at `textMinCap` design px).
 - THE SIDEWAYS PHONE'S GEAR CHAIN (2026-11-22, `ui/gear/GearBarSideways.svelte`): a chain from the board frame's own
   top right wheel: Auto on the wheel, Turbo on Auto, the Play on Turbo at the right; Menu and the Armoury as standards
   under the logo; Win over Balance bottom left; the amount with `<` `>` bottom right. `gearLayout.ts` `SIDEWAYS` is

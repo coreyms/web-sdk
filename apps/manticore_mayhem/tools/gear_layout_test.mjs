@@ -844,6 +844,9 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	// tile's height and the gap between the two rows of tiles (the second group's word and gaps), design px
 	const DIAMOND = { x: 725.6 / 768, y: 50.5 / 1152 };
 	const TILE = { h: 54, between: 26 };
+	// (the card's foot ornament: CARD_ORNAMENT; CONFIRM's bottom stays `gap` card px over its apex)
+	const ORNAMENT = { top: 1000 / 1152, gap: 10 };
+	const onCancel = new Set();
 	const FRAMES = [[360, 640], [390, 664], [360, 780], [375, 504], [375, 512], [375, 528], [375, 554], [375, 585], [375, 627], [375, 717], [385, 598], [402, 573], [402, 597], [402, 643], [402, 661], [402, 704], [402, 786], [402, 874], [412, 891], [413, 586], [440, 655], [440, 679], [440, 701], [440, 742], [440, 868], [440, 956], [466, 678]];
 	const bad = [];
 	const floor = [];
@@ -894,6 +897,24 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 			if (cardY < -0.01 || cardY + cardH > G.hudTop - ARM.portrait.gapToHud * u + 0.5 || cardX < -0.01) fail(`the confirm card leaves its room (${f1(cardY)} to ${f1(cardY + cardH)})`);
 			if (xc.y - 22 < -0.01 || xc.x + 22 > vw + 0.01 || xc.x - 22 < -0.01) fail(`Cancel's press area is cut by the window (its middle ${f1(xc.x)}, ${f1(xc.y)})`);
 			if (C.k < 0.55) fail(`the confirm card at ${C.k.toFixed(2)}`);
+			// THE CONFIRM STATE (2026-11-24): Cancel and CONFIRM are the only pressable things besides the card. The menu's
+			// close key stands in the card's top right corner upright (its press box on Cancel's on most frames: counted),
+			// so it must be out under the card (menuFrame.ts closeUnderCard); the bar's lit minus and plus take nothing
+			// under the card (Chrome.svelte's armoury-confirm rule) and stand under it besides. CONFIRM stands somewhere
+			// between the card's text and its foot ornament (measured in the page): its zone here is the card's lower
+			// three quarters, 52 card px in from each side, widened to 44 CSS px
+			const ck = C.k * u;
+			const cHalf = Math.max((0.0929 * cardW) / 2, 22);
+			const cancelP = { x0: xc.x - cHalf, x1: xc.x + cHalf, y0: xc.y - cHalf, y1: xc.y + cHalf };
+			const keysP = { x0: cardX + 52 * ck, x1: cardX + cardW - 52 * ck, y0: cardY + 0.25 * cardH, y1: cardY + ORNAMENT.top * cardH - ORNAMENT.gap * ck };
+			const meet = (a, b) => a.x0 < b.x1 - 0.01 && b.x0 < a.x1 - 0.01 && a.y0 < b.y1 - 0.01 && b.y0 < a.y1 - 0.01;
+			if (meet(cancelP, keysP)) fail('Cancel\'s press area reaches CONFIRM\'s');
+			if (keysP.x1 - keysP.x0 < 44 || (48 * ck < 44 && keysP.y1 - keysP.y0 < 44)) fail('no room for CONFIRM\'s 44 px press area on the card');
+			if (meet(press, cancelP)) onCancel.add(`${vw}x${vh}`);
+			const liveUnder = [];
+			if (MF.closeUnderCard('portrait')) liveUnder.push(['the menu\'s close key', press]);
+			for (const id of ['down', 'up']) if (G.press[id]) liveUnder.push([`the bar's lit ${id}`, { x0: G.press[id].x, x1: G.press[id].x + G.press[id].w, y0: G.press[id].y, y1: G.press[id].y + G.press[id].h }]);
+			for (const [name, b] of liveUnder) for (const [what, k] of [['Cancel', cancelP], ['CONFIRM', keysP]]) if (meet(b, k)) fail(`under the confirm card ${name} lies on ${what}'s press area`);
 			if (need === 450) rows.push(`${vw}x${vh} menu ${k.toFixed(2)} (${f1(12 * u)} px text)${noHero ? `, close key ${f1(ARM.portrait.closeKey * u)} px in the name's row, ${f1(css(trayTop) - press.y1)} px over the tray` : ', hero kept'}; card ${C.k.toFixed(2)}`);
 		}
 	}
@@ -902,6 +923,56 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	for (const row of rows) console.log(`       ${row}`);
 	check(`armoury: on ${FRAMES.length} upright frames, for 380 to 470 px of tray and plate: the plate ends over the bar's lit row, the close key and its 44 px press area are clear of the tray, in the window and under the clock line, the tiles' press areas are 44 px and apart, and the confirm card's Cancel is whole in the window`, bad.length === 0, bad.slice(0, 5).join(' | '));
 	console.log(`     note: at the menu's floor (${ARM.portrait.fitMin} of its size) the plate would still run on: ${floor.join(', ') || 'nowhere'}`);
+	check(`armoury, the confirm card up, ${FRAMES.length} upright frames: the menu's close key is out (its press box would lie on Cancel's on ${onCancel.size} of them), so nothing pressable lies on Cancel's or CONFIRM's 44 px press areas, and the two are apart`, !MF.closeUnderCard('portrait') && !MF.closeUnderCard('tablet') && onCancel.size > 0 && bad.length === 0, bad.slice(0, 5).join(' | '));
+}
+
+// ---- 4f3. THE CONFIRM CARD ON EVERY SIDEWAYS FRAME (ui/armoury/menuFrame.ts closeUnderCard; Armoury.svelte's slab) ----
+// Sideways the card is the tray's own slab in the middle and the menu's close key stays live in the rail's top right
+// corner (it closes the whole menu, as on the desktop box): Cancel in the slab's corner and CONFIRM at its foot must be
+// clear of it and of the bar's lit minus and plus, with 44 px press areas in the window.
+{
+	const MF = await import('../src/ui/armoury/menuFrame.ts');
+	const ARM = (await import('../src/game/constants.ts')).ARMOURY.layout;
+	// COPY OF ui/armoury/Armoury.svelte: the slab's Cancel (34 px, 8 in from its top and right), CONFIRM (28 in from each
+	// side, 44 high, 4 over the slab's foot), the close key (44 px, SIDE_TOP 14 down, `edge` in from the right), design px
+	const X = { size: 34, inset: 8 };
+	const KEYS = { side: 28, h: 44 };
+	const CLOSE = { size: 44, top: 14 };
+	const SIDE = [[640, 320], [667, 325], [667, 355], [678, 402], [780, 360], [832, 376], [840, 360], [874, 338], [874, 402], [891, 412], [956, 376], [956, 440]];
+	const bad = [];
+	const meet = (a, b) => a.x0 < b.x1 - 0.01 && b.x0 < a.x1 - 0.01 && a.y0 < b.y1 - 0.01 && b.y0 < a.y1 - 0.01;
+	let least = Infinity;
+	for (const [vw, vh] of SIDE) {
+		for (const safe of [{ t: 0, r: 0, b: 0, l: 0 }, { t: 0, r: 47, b: 21, l: 47 }]) {
+			const fail = (why) => bad.push(`${vw}x${vh}${safe.r ? ' with safe areas' : ''}: ${why}`);
+			const F = MF.menuFrame({ kind: 'phone', phone: true, vw, vh, scale: 1, master: { width: 844, height: 390 }, fitWidth: vw, touchSideways: true }, ARM);
+			if (F.layout !== 'sideways') { fail(`the menu's layout is ${F.layout}`); continue; }
+			const u = F.u;
+			const d = MF.designAnchors(F, { safe: { top: safe.t, right: safe.r, bottom: safe.b, left: safe.l } }, ARM);
+			const slab = { x0: ((F.width - ARM.sideways.slab) / 2) * u, x1: ((F.width + ARM.sideways.slab) / 2) * u, y0: (d.safe.top + ARM.sideways.slabTop) * u };
+			const xm = { x: slab.x1 - (X.inset + X.size / 2) * u, y: slab.y0 + (X.inset + X.size / 2) * u };
+			const xh = Math.max((X.size * u) / 2, 22);
+			const cancelP = { x0: xm.x - xh, x1: xm.x + xh, y0: xm.y - xh, y1: xm.y + xh };
+			// CONFIRM: at the slab's foot, wherever that is (the slab's height follows its text): its column, 44 CSS px high
+			const kh = Math.max(KEYS.h * u, 44);
+			const keysCol = { x0: slab.x0 + KEYS.side * u, x1: slab.x1 - KEYS.side * u, y0: cancelP.y1, y1: vh };
+			if (keysCol.x1 - keysCol.x0 < 44 || kh > vh - cancelP.y1) fail('no room for CONFIRM\'s 44 px press area under Cancel\'s');
+			if (cancelP.x0 < -0.01 || cancelP.x1 > vw + 0.01 || cancelP.y0 < -0.01) fail(`Cancel's press area is cut by the window (${f1(cancelP.x0)} to ${f1(cancelP.x1)}, from ${f1(cancelP.y0)})`);
+			const live = [];
+			if (MF.closeUnderCard('sideways')) {
+				const cm = { x: (F.width - d.safe.right - ARM.sideways.edge - CLOSE.size / 2) * u, y: (CLOSE.top + CLOSE.size / 2) * u };
+				const ch = Math.max((CLOSE.size * u) / 2, 22);
+				live.push(['the menu\'s close key', { x0: cm.x - ch, x1: cm.x + ch, y0: cm.y - ch, y1: cm.y + ch }]);
+			}
+			// the whole slab's width is the card: nothing live may stand in its column or on Cancel's press area
+			const card = { x0: Math.min(slab.x0, cancelP.x0), x1: Math.max(slab.x1, cancelP.x1), y0: Math.min(slab.y0, cancelP.y0), y1: vh };
+			for (const [name, b] of live) {
+				if (meet(b, card)) fail(`under the confirm card ${name} lies on the slab or on Cancel's press area`);
+				least = Math.min(least, b.x0 - card.x1);
+			}
+		}
+	}
+	check(`armoury, the confirm card up, ${SIDE.length} sideways frames (with and without safe areas): Cancel's 44 px press area is in the window, CONFIRM has its own under it, and the menu's close key (kept live there) is at least ${f1(least)} px right of the slab and of Cancel's area`, MF.closeUnderCard('sideways') && MF.closeUnderCard('desktop') && bad.length === 0, bad.slice(0, 5).join(' | '));
 }
 
 // ---- 4g. THE FIVE RINGS (game/frameGears.ts FRAME_PINION, pinionRing; components/BoardFrame.svelte) ----
