@@ -14,9 +14,10 @@
 	import { SIGN } from '../hudTheme';
 	import { AUTO_ARROW, BOLT, glassInk, keyFrame, keyIcon } from './signDraw';
 
-	type Props = { kind: 'auto' | 'turbo'; controls: Controls; x: number; y: number; w: number; word?: boolean };
-	/** x, y, w: the key's box, bar px; word: Turbo shows its word */
-	const { kind, controls, x, y, w, word = true }: Props = $props();
+	type Props = { kind: 'auto' | 'turbo'; controls: Controls; x: number; y: number; w: number; word?: boolean; press?: (ev: MouseEvent) => void };
+	/** x, y, w: the key's box, bar px; word: Turbo shows its word; press: the bar's own press rule for a click this
+	 *  key gets (ui/sign/SignHud.svelte keyPress: whose press it is by where the pointer went down), else the key's own */
+	const { kind, controls, x, y, w, word = true, press }: Props = $props();
 
 	const level = $derived(controls.turboLevel());
 	const bars = $derived(controls.jurisdiction().disabledSuperTurbo ? 2 : 3);
@@ -50,7 +51,7 @@
 	style:border-radius="{frame.hit.r}px"
 	style:transform="rotate(45deg)"
 	disabled={kind === 'auto' ? controls.autoDisabled() : stateBet.isSpaceHold}
-	onclick={kind === 'auto' ? controls.autoPress : controls.turboPress}
+	onclick={press ?? (kind === 'auto' ? controls.autoPress : controls.turboPress)}
 	aria-label={kind === 'auto' ? 'Autoplay' : level === 2 ? 'Turbo: instant' : level === 1 ? 'Turbo: on' : 'Turbo'}
 >
 	<span class="s-up" data-hud="{kind}-box" style:left="{-off}px" style:top="{-off}px" style:width="{w}px" style:height="{w}px">

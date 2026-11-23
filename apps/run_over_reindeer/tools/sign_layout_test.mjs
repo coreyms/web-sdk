@@ -13,6 +13,8 @@
 //      sizes), by real shape: no piece on the board, the strip or the logo, none off the window, no bet symbol's press
 //      box on the Play's diamond, no press region under 44 CSS px. Inside his own range of windows that must hold;
 //      beyond it (and at the two popouts) what fails is listed.
+//   5. WHOSE PRESS IS IT, OF AUTO AND TURBO (2026-11-23, pressOwner): the drawn diamonds never overlap; a place is
+//      the key's whose drawing or pad it is in, else nobody's; were two drawn keys to overlap, Turbo's (drawn on top).
 //   4. AUTO'S AND TURBO'S PRESS PADS (2026-11-23): by their real shapes, at his nine phone windows and at every
 //      sideways phone from 568 x 320 to 932 x 430, each is a whole 44 px circle 2 px or more from every other press
 //      region, neither pad in the other; the 400 x 225 mini player's two share their ground down the middle line.
@@ -337,6 +339,76 @@ for (const [vw, vh, name, must] of [[800, 450, 'Popout L', true], [400, 225, 'Po
 	// c. the mini player
 	const S = read('phone', 400, 225);
 	line(S.moved.auto === 0 && S.moved.turbo === 0 && S.split && !S.inOther && S.cross <= -L.PAD.gap / 2 + 0.05, 'Popout S (400x225, a mouse window): the pads are on the keys\' centers and share their ground down the middle line (neither covers the other)', `the pads ${S.gaps['auto pad to turbo pad'].toFixed(2)} px apart; press Auto ${r1(S.press.auto)}, Turbo ${r1(S.press.turbo)}; listed: ${S.problems.join('; ') || 'none'}`);
+}
+// ---- 5. WHOSE PRESS IS IT, OF AUTO AND TURBO (2026-11-23, signLayout.ts pressOwner; the rule: where the two DRAWN keys
+// overlap, the one drawn on top; outside that, the key whose drawing or pad the place is in; anywhere else, neither).
+// The keys are drawn as diamonds, and Turbo is drawn after Auto. The probe host's tap at 844 x 390 (750.1, 162.5), in
+// both keys' upright boxes, turned Turbo on: by the drawn shapes it is in neither key and neither pad.
+//   a. the two drawn diamonds never overlap: at his nine phone windows and the 836 sideways windows of section 4
+//      (their boxes do); were they to, the place is Turbo's (two made up overlapping keys)
+//   b. 844 x 390: his tap is nobody's; each key's middle and each pad's ground is its own
+//   c. along the line through the two pads' middles, at every window: Auto's, then nobody's or the edge, then
+//      Turbo's, never Turbo's on Auto's side of the middle line by more than the slack, nor Auto's on Turbo's ----
+{
+	const setup = (kind, vw, vh) => {
+		const { g, seat } = at(kind, vw, vh);
+		const boxes = { play: g.box.play, auto: g.box.auto, turbo: g.box.turbo, menu: g.box.menu, bonus: g.box.bonus, down: seat.down, up: seat.up };
+		const pads = L.padShapes(boxes, vw, vh);
+		const mid = (b) => [b.x + b.w / 2, b.y + b.h / 2];
+		const own = (p) => L.pressOwner(boxes, pads, p);
+		const gap = L.shapeGap(L.shapeOf('auto', boxes.auto), L.shapeOf('turbo', boxes.turbo));
+		const boxesMeet = boxes.auto.x < boxes.turbo.x + boxes.turbo.w && boxes.turbo.x < boxes.auto.x + boxes.auto.w && boxes.auto.y < boxes.turbo.y + boxes.turbo.h && boxes.turbo.y < boxes.auto.y + boxes.auto.h;
+		// the line through the two pads' middles, every 0.5 px from 24 px before Auto's to 24 px past Turbo's
+		const a = pads.auto.c;
+		const t = pads.turbo.c;
+		const d = Math.hypot(t[0] - a[0], t[1] - a[1]);
+		const n = [(t[0] - a[0]) / d, (t[1] - a[1]) / d];
+		let wrong = null;
+		let bare = 0;
+		for (let v = -24; v <= d + 24; v += 0.5) {
+			const q = [a[0] + n[0] * v, a[1] + n[1] * v];
+			const o = own(q);
+			const s = v - d / 2;
+			if (o === null && v > 0 && v < d) bare += 0.5;
+			if ((o === 'turbo' && s < -L.PRESS_SLACK - 0.01) || (o === 'auto' && s > L.PRESS_SLACK + 0.01)) wrong ??= `${vw}x${vh}: ${Math.abs(s).toFixed(1)} px on ${s < 0 ? "Auto's" : "Turbo's"} side is ${o}'s`;
+		}
+		const mine = own(mid(boxes.auto)) === 'auto' && own(mid(boxes.turbo)) === 'turbo' && own(a) === 'auto' && own(t) === 'turbo';
+		return { boxes, pads, own, gap, boxesMeet, wrong, bare, mine, d };
+	};
+	// a + c: his windows and the sideways sweep
+	let least = { v: Infinity, at: '' };
+	let meet = 0;
+	let n = 0;
+	const bad = [];
+	const each = (kind, vw, vh) => {
+		const R = setup(kind, vw, vh);
+		n++;
+		if (R.boxesMeet) meet++;
+		if (R.gap < least.v) least = { v: R.gap, at: `${vw}x${vh}` };
+		if (R.gap <= 0) bad.push(`${vw}x${vh}: the two drawn diamonds overlap`);
+		if (R.wrong) bad.push(R.wrong);
+		if (!R.mine) bad.push(`${vw}x${vh}: a key's or a pad's middle is not its own`);
+	};
+	for (const o of ['portrait', 'phone']) for (const r of L.PHONE_PLACES[o]) each(o, r.vw, r.vh);
+	for (let vh = 320; vh <= 430; vh += 10) for (let vw = 568; vw <= 932; vw += 4) if (vw / vh >= 1.5 && vw / vh <= 2.34) each('phone', vw, vh);
+	line(bad.length === 0, `Auto and Turbo at ${n} windows (his nine and the sideways sweep): the two drawn diamonds never overlap, each key's and each pad's middle is its own, and along the line through the pads no place on one key's side of the middle line is the other's`, `${bad.slice(0, 4).join(' | ')}${bad.length ? ' | ' : ''}the diamonds' least gap ${least.v.toFixed(2)} px (${least.at}); their upright boxes overlap at ${meet} of the ${n} windows (a box takes no press: only the diamond and the pad do)`);
+	// b: the probe host's tap
+	{
+		const R = setup('phone', 844, 390);
+		const tap = [750.1, 162.5];
+		const dA = L.shapeGap([tap, tap, tap], L.shapeOf('auto', R.boxes.auto));
+		const dT = L.shapeGap([tap, tap, tap], L.shapeOf('turbo', R.boxes.turbo));
+		const pA = Math.hypot(tap[0] - R.pads.auto.c[0], tap[1] - R.pads.auto.c[1]) - 22;
+		const pT = Math.hypot(tap[0] - R.pads.turbo.c[0], tap[1] - R.pads.turbo.c[1]) - 22;
+		line(R.own(tap) === null && dA > L.PRESS_SLACK && dT > L.PRESS_SLACK && pA > L.PRESS_SLACK && pT > L.PRESS_SLACK, "844x390: the probe host's tap at (750.1, 162.5) is in neither drawn key and neither pad, so it is nobody's press", `owner ${R.own(tap)}; ${dA.toFixed(1)} px outside Auto's diamond, ${dT.toFixed(1)} px outside Turbo's; ${pA.toFixed(1)} px outside Auto's pad, ${pT.toFixed(1)} px outside Turbo's; the diamonds ${R.gap.toFixed(1)} px apart; ${R.bare.toFixed(1)} px of bare ground on the line between the pads' middles (${R.d.toFixed(1)} px apart)`);
+	}
+	// a: two made up keys whose diamonds overlap: the place in both is Turbo's (drawn after Auto, so on top)
+	{
+		const boxes = { auto: { x: 100, y: 100, w: 60, h: 60 }, turbo: { x: 130, y: 100, w: 60, h: 60 } };
+		const both = [145, 130];
+		const inBoth = L.shapeGap([both, both, both], L.shapeOf('auto', boxes.auto)) === 0 && L.shapeGap([both, both, both], L.shapeOf('turbo', boxes.turbo)) === 0;
+		line(inBoth && L.pressOwner(boxes, {}, both) === 'turbo' && L.pressOwner(boxes, {}, [112, 130]) === 'auto' && L.pressOwner(boxes, {}, [178, 130]) === 'turbo' && L.pressOwner(boxes, {}, [145, 60]) === null, 'two made up keys whose drawn diamonds overlap: a place in both is Turbo\'s (drawn on top), a place in one only is that key\'s, a place in neither is nobody\'s');
+	}
 }
 for (const [vw, vh] of [[1920, 1080], [1200, 675], [1024, 576], [1280, 720], [1366, 768], [1440, 900], [2560, 1440], [2560, 1080], [3440, 1440], [1280, 800], [1024, 768]]) {
 	const { g, problems, zones, seat } = at('landscape', vw, vh);

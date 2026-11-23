@@ -373,6 +373,39 @@ export const padShapes = (boxes: Partial<Record<PressId, Box>>, vw: number, vh: 
 	return out;
 };
 
+/** WHOSE PRESS IS IT, OF AUTO AND TURBO (2026-11-23). The rule (Corey's, through the probe host): where the two drawn
+ *  keys overlap, a press goes to the key drawn on top at that place; outside that, to the key whose drawing or pad it
+ *  is in; anywhere else, to neither.
+ *  WHAT IS DRAWN: each key is a diamond (its box's width corner to corner, shapeOf), not its box. The two BOXES overlap
+ *  (at 844 x 390 by about 22 x 24 px); the two diamonds do not, at any window swept (11 px apart there), so today there
+ *  is no ground where two drawn keys overlap. Turbo is drawn after Auto (ui/sign/SignHud.svelte), so it would be the
+ *  one on top, and it is asked first here.
+ *  WHY THE PAGE DECIDES THIS ITSELF: a browser gives a touch to a nearby button by the buttons' upright boxes and
+ *  their paint order, not by what is drawn (the probe host at 844 x 390: a tap in the bare ground between the two
+ *  diamonds, in both boxes, 1 px on Auto's side of the middle line, turned Turbo on), and it reports the click at a
+ *  place inside the button it chose. So the bar keeps the place the finger or the pointer went DOWN and asks this
+ *  rule whose press it is (SignHud.svelte keyPress).
+ *  `slack`: a place within PRESS_SLACK of a drawn key or a pad counts as on it, the nearer one (a browser tests whole
+ *  px, and a key's keyline is 0.6 px outside shapeOf's diamond). The Play's own diamond is never theirs. */
+export const PRESS_SLACK = 1.5;
+export const pressOwner = (boxes: Partial<Record<PressId, Box>>, pads: Partial<Record<'auto' | 'turbo', { poly: Pt[] }>>, p: Pt): 'auto' | 'turbo' | null => {
+	const keys = (['turbo', 'auto'] as const).filter((k) => boxes[k]);
+	const dia = (k: 'auto' | 'turbo') => shapeOf(k, boxes[k] as Box);
+	for (const k of keys) if (inPoly(p, dia(k))) return k;
+	if (boxes.play && inPoly(p, shapeOf('play', boxes.play))) return null;
+	for (const k of keys) if (pads[k] && inPoly(p, (pads[k] as { poly: Pt[] }).poly)) return k;
+	let best: 'auto' | 'turbo' | null = null;
+	let m = PRESS_SLACK;
+	for (const k of keys) {
+		const d = Math.min(distToPoly(p, dia(k)), pads[k] ? distToPoly(p, (pads[k] as { poly: Pt[] }).poly) : Infinity);
+		if (d <= m) {
+			m = d;
+			best = k;
+		}
+	}
+	return best;
+};
+
 // ---- the bet symbols (the mock's stepDraw and stepBox), bar px ----
 /** the drawn chevron for a symbol `size` bar px tall: its line, its white and dark outlines, half its width (a) and
  *  half its height (b) on the center line, and the whole drawn width and height */

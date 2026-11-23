@@ -10,7 +10,7 @@
 // WATCHES: ; __reindeer.ringMethod, __reindeer.ringRounds, __reindeer.ringNow, __reindeer.spinSerial
 // WATCHES: apps/run_over_reindeer/src/{game/currency.ts,fixtures/fixtureRgs.ts};
 // WATCHES: apps/run_over_reindeer/src/{ui/sign/SignHud.svelte,ui/sign/signLayout.ts,ui/sign/signZones.ts,ui/sign/SignPlay.svelte,ui/hudTheme.ts};
-// WATCHES: ; __reindeer.sign, __reindeer.hud.bar, HUD_BAR, .sgw, .s-words, .s-ring, data-shape, data-total, data-bar, .sgpad, .sgpads, data-pad, padPlaces, padShapes, __reindeer.sign.pads
+// WATCHES: ; __reindeer.sign, __reindeer.hud.bar, HUD_BAR, .sgw, .s-words, .s-ring, data-shape, data-total, data-bar, .sgpad, .sgpads, data-pad, padPlaces, padShapes, pressOwner, __reindeer.sign.pads, __reindeer.sign.owner, data-l, .am-ui
 // WATCHES: apps/run_over_reindeer/src/{game/actor.ts,game/utils.ts,game/stateGame.svelte.ts,ui/SpinHotkey.svelte};
 // WATCHES: ; __reindeer.pressReady, __reindeer.spinTail, roundSettled, roundTailFinish, landSmall, SPIN_TAIL, flipGraceMs, ledCountDone, data-resume-card
 // THE HUD PROBE (the house glass HUD from Manticore, "Win over Balance, Drop 6" plus round 6, in this game's "Frost"
@@ -1958,6 +1958,10 @@ async function tailSection(browser) {
 //     other key's pad. (The first form of this check pressed 21 px from the middle of a 44 px round box, 1 px
 //     inside it and 1.5 px from the other pad: a browser's own whole px test of a rounded box is looser than that.)
 //     And a press on each control's middle lands on that control
+//   - WHOSE PRESS IS IT, OF AUTO AND TURBO (2026-11-23): where the two drawn keys overlap, the key drawn on top
+//     (Turbo; the drawn diamonds overlap at no window, their upright boxes do); outside that, the key whose drawing
+//     or pad the place is in; anywhere else, neither. Touch taps on the phone sizes: bare ground between the two
+//     presses neither, each pad's ground nearest the other key presses its own key (__reindeer.sign.owner)
 //   - nothing is on the board, the LED strip or the logo by real shape, and no bet symbol's press box is on the Play
 //   - the amount fits its reserved width (the widest amount of the bet menu at the type size in use), the symbols hold
 //     still across bet steps, and a mode on seats them again; in three currencies at four of the sizes
@@ -2289,6 +2293,67 @@ async function signHud(browser) {
 				else if (pads.length) {
 					check(off.length === 0 && stray.length === 0, `${tag}: Auto's and Turbo's press pads are drawn as the rule's shapes (${moved}), and a press at each of ${tested} points inside a pad's own shape (its middle, and on 16 rays half way out and 1.5 px inside its outline) lands on that pad or its own key`, [...off, ...stray]);
 					if (line) check(line.wrong.length === 0, `${tag}: along the line through the two pads' middles (${r1(line.apart)} px apart, ${line.points} points 1 px apart) no press on one key's side of the middle line lands on the other key's pad`, line.wrong);
+				}
+			}
+			// ---- WHOSE PRESS IS IT, OF AUTO AND TURBO (2026-11-23, signLayout.ts pressOwner; the probe host's tap at
+			// 844 x 390 in the bare ground between the two diamonds turned Turbo on). THE RULE: where the two drawn keys
+			// overlap, the key drawn on top (Turbo, drawn after Auto; the drawn diamonds overlap at no window, their upright
+			// boxes do); outside that, the key whose drawing or pad the place is in; anywhere else, neither. Tested with
+			// TOUCH taps (a browser hands a touch to a nearby button by the buttons' boxes and paint order; the bar judges
+			// the press by where the finger went down), on the line through the two pads' middles:
+			//   bare ground, 1 px each side of the middle line (where the rule says nobody's): nothing happens
+			//   Auto's pad, 1.5 px inside its outline toward Turbo: Turbo's level stays, the autoplay card opens (closed again)
+			//   Turbo's pad, 1.5 px inside its outline toward Auto: Turbo steps one level, no autoplay card (set back)
+			if (S.touch && !S.listOnly && d.padLine && d.padHit?.auto && d.padHit?.turbo) {
+				const a = d.padHit.auto.c;
+				const t = d.padHit.turbo.c;
+				const dist = Math.hypot(t[0] - a[0], t[1] - a[1]);
+				const n = [(t[0] - a[0]) / dist, (t[1] - a[1]) / dist];
+				const on = (v) => [a[0] + n[0] * v, a[1] + n[1] * v];
+				const owner = (q) => p.evaluate((q) => window.__reindeer.sign.owner(q[0], q[1]), q);
+				const read = () => p.evaluate(() => ({ turbo: document.querySelector('.hudp [data-hud="turbo"]')?.dataset.l ?? null, card: !!document.querySelector('.am-ui.layer.modals .panel') }));
+				const tap = async (q) => {
+					await p.touchscreen.tap(q[0], q[1]);
+					await sleep(300);
+					const got = await read();
+					const under = await p.evaluate((q) => document.elementsFromPoint(q[0], q[1]).slice(0, 3).map((e) => `${e.tagName.toLowerCase()}${e.getAttribute('data-pad') ? `[data-pad=${e.getAttribute('data-pad')}]` : ''}${e.getAttribute('data-hud') ? `[data-hud=${e.getAttribute('data-hud')}]` : ''}`), q);
+					return { ...got, at: q.map(r1), under };
+				};
+				const settle0 = async (want) => {
+					// back to how it was: the autoplay card closed, Turbo at its level (presses on the key's own middle)
+					if (await p.evaluate(() => !!document.querySelector('.am-ui.layer.modals .panel'))) {
+						await p.click('.am-ui.layer.modals button.x[aria-label="Close"]').catch(() => {});
+						for (let k = 0; k < 20 && (await read()).card; k++) await sleep(150);
+					}
+					for (let k = 0; k < 3 && (await read()).turbo !== want; k++) {
+						await p.click('.hudp [data-hud="turbo"]');
+						await sleep(200);
+					}
+				};
+				const was = await read();
+				// bare ground
+				const bare = [];
+				for (const s of [-1, 1]) {
+					const q = on(dist / 2 + s);
+					if ((await owner(q)) !== null) continue;
+					const got = await tap(q);
+					bare.push({ side: s < 0 ? "1 px on Auto's side" : "1 px on Turbo's side", ...got });
+					await settle0(was.turbo);
+				}
+				if (bare.length) check(bare.every((b) => b.turbo === was.turbo && !b.card), `${tag}: a touch tap in the bare ground between Auto and Turbo (in neither drawn key and neither pad, ${bare.map((b) => `${b.side} of the middle line at ${b.at.join(', ')}`).join(' and ')}) presses neither key`, { was, bare });
+				else console.log(`     ${tag}: no bare ground on the line between Auto's and Turbo's pads (they stand ${r1(dist - 44)} px apart): the bare ground taps are not made`);
+				// each pad's ground nearest the other key
+				const qa = on(22 - 1.5);
+				const qt = on(dist - 22 + 1.5);
+				if ((await owner(qa)) === 'auto' && (await owner(qt)) === 'turbo') {
+					const ga = await tap(qa);
+					await settle0(was.turbo);
+					const gt = await tap(qt);
+					await settle0(was.turbo);
+					const stepped = gt.turbo !== null && gt.turbo !== was.turbo;
+					check(ga.turbo === was.turbo && ga.card && stepped && !gt.card, `${tag}: a touch tap in Auto's pad 1.5 px from its edge toward Turbo is Auto's (the autoplay card opens, Turbo stays at ${was.turbo}), and one in Turbo's pad 1.5 px from its edge toward Auto is Turbo's (its level steps, no autoplay card)`, { was, auto: ga, turbo: gt });
+					const end = await read();
+					check(end.turbo === was.turbo && !end.card, `${tag}: after the taps Turbo is back at ${was.turbo} and the autoplay card is closed`, end);
 				}
 			}
 			// ---- the scene and the Play ----

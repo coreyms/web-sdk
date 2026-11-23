@@ -20,7 +20,7 @@
 	import HudReadout from '../hud/HudReadout.svelte';
 	import HudMenuPanel from '../hud/HudMenuPanel.svelte';
 	import { HEAD_LS, headWidth } from './signDraw';
-	import { DESKTOP, KEY_V, PHONE_PLACES, PHONE_REFS, PLAY_V, READOUT_TYPE, TEXT_MIN, amountLimits, padCircle, padPlaces, padShapes, readoutFit, pressRegions, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type PieceId } from './signLayout';
+	import { DESKTOP, KEY_V, PHONE_PLACES, PHONE_REFS, PLAY_V, READOUT_TYPE, TEXT_MIN, amountLimits, padCircle, padPlaces, padShapes, readoutFit, pressOwner, pressRegions, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type PieceId } from './signLayout';
 	import { signZones } from './signZones';
 	import { holdLights } from './ledBand';
 	import SignPlay from './SignPlay.svelte';
@@ -130,17 +130,41 @@
 	const pressBoxes = $derived({ play: geo.box.play, auto: geo.box.auto, turbo: geo.box.turbo, menu: geo.box.menu, bonus: geo.box.bonus, down: seat.down, up: seat.up });
 	const padAt = $derived(padPlaces(pressBoxes, vw, vh));
 	const padShape = $derived(padShapes(pressBoxes, vw, vh));
+	// WHOSE PRESS IS IT (2026-11-23, signLayout.ts pressOwner; the probe host at 844 x 390: a tap in the bare ground
+	// between Auto's and Turbo's diamonds turned Turbo on). A browser gives a touch to a nearby button by the buttons'
+	// upright boxes and paint order, and reports the click inside the button it chose; the two diamonds' boxes overlap.
+	// So a click on Auto, on Turbo or on either pad is judged by where the pointer went DOWN (kept here from the
+	// window's pointerdown), by the drawn shapes: the key whose diamond or pad that place is in, or neither. A
+	// keyboard's or a script's press carries no place (detail 0): the control that got it takes it, under its own rule.
+	let pressDown: { x: number; y: number; t: number } | null = null;
+	$effect(() => {
+		const down = (e: PointerEvent) => {
+			pressDown = { x: e.clientX, y: e.clientY, t: e.timeStamp };
+		};
+		window.addEventListener('pointerdown', down, true);
+		return () => window.removeEventListener('pointerdown', down, true);
+	});
+	const keyPress = (ev: MouseEvent, got: 'auto' | 'turbo') => {
+		// (the pointerdown of this click, or the click's own place where there was none in the last 1.5 s)
+		const at: [number, number] = pressDown && ev.timeStamp - pressDown.t >= 0 && ev.timeStamp - pressDown.t < 1500 ? [pressDown.x, pressDown.y] : [ev.clientX, ev.clientY];
+		const who = ev.detail === 0 ? got : pressOwner(pressBoxes, padShape, at);
+		if (who === 'auto') {
+			if (!replay && !controls.jurisdiction().disabledAutoplay && !controls.autoDisabled()) controls.autoPress();
+		} else if (who === 'turbo') {
+			if (!controls.jurisdiction().disabledTurbo && !stateBet.isSpaceHold) controls.turboPress();
+		}
+	};
 	const pads = $derived.by(() => {
-		const out: { id: string; d: string; press: () => void }[] = [];
+		const out: { id: string; d: string; press: (ev: MouseEvent) => void }[] = [];
 		const path = (poly: [number, number][]) => `M${poly.map((q) => `${q[0].toFixed(2)} ${q[1].toFixed(2)}`).join('L')}Z`;
-		const add = (id: PieceId, drawn: number, press: () => void) => {
+		const add = (id: PieceId, drawn: number, press: (ev: MouseEvent) => void) => {
 			if (drawn * u >= 44) return;
 			const b = geo.box[id];
 			const shape = id === 'auto' || id === 'turbo' ? padShape[id]?.poly : undefined;
 			out.push({ id, d: path(shape ?? padCircle([b.x + b.w / 2, b.y + b.h / 2])), press });
 		};
-		if (!replay && !controls.jurisdiction().disabledAutoplay) add('auto', (B.auto.w * KEY_V) / Math.SQRT2, () => !controls.autoDisabled() && controls.autoPress());
-		if (!controls.jurisdiction().disabledTurbo) add('turbo', (B.turbo.w * KEY_V) / Math.SQRT2, () => !stateBet.isSpaceHold && controls.turboPress());
+		if (!replay && !controls.jurisdiction().disabledAutoplay) add('auto', (B.auto.w * KEY_V) / Math.SQRT2, (ev) => keyPress(ev, 'auto'));
+		if (!controls.jurisdiction().disabledTurbo) add('turbo', (B.turbo.w * KEY_V) / Math.SQRT2, (ev) => keyPress(ev, 'turbo'));
 		if (!replay && !controls.jurisdiction().disabledBuyFeature) add('bonus', B.bonus.h, () => !controls.bonusDisabled() && controls.bonusPress());
 		return out;
 	});
@@ -167,6 +191,8 @@
 			seat: () => JSON.parse(JSON.stringify({ ...seat, widest: widest.text })),
 			/** each press region's largest circle, CSS px */
 			press: () => pressRegions(pressBoxes, padAt),
+			/** whose press a place is, of Auto and Turbo ('auto', 'turbo' or null), by the drawn shapes (pressOwner) */
+			owner: (x: number, y: number) => pressOwner(pressBoxes, padShape, [x, y]),
 			/** Auto's and Turbo's press pads: where the rule puts each one's center (CSS px), each one's real shape (its
 			 *  outline's corners, CSS px, and whether the two share their ground down the middle line), the keys' centers */
 			pads: () => JSON.parse(JSON.stringify({ at: padAt, shapes: padShape, keys: { auto: [geo.box.auto.x + geo.box.auto.w / 2, geo.box.auto.y + geo.box.auto.h / 2], turbo: [geo.box.turbo.x + geo.box.turbo.w / 2, geo.box.turbo.y + geo.box.turbo.h / 2] } })),
@@ -251,8 +277,8 @@
 	>
 		<svg class="s-mi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" /></svg><span class="kl">MENU</span>
 	</button>
-	{#if !replay && !controls.jurisdiction().disabledAutoplay}<SignKey kind="auto" {controls} x={B.auto.x} y={B.auto.y} w={B.auto.w} />{/if}
-	{#if !controls.jurisdiction().disabledTurbo}<SignKey kind="turbo" {controls} x={B.turbo.x} y={B.turbo.y} w={B.turbo.w} word={geo.turboWord} />{/if}
+	{#if !replay && !controls.jurisdiction().disabledAutoplay}<SignKey kind="auto" {controls} x={B.auto.x} y={B.auto.y} w={B.auto.w} press={(ev) => keyPress(ev, 'auto')} />{/if}
+	{#if !controls.jurisdiction().disabledTurbo}<SignKey kind="turbo" {controls} x={B.turbo.x} y={B.turbo.y} w={B.turbo.w} word={geo.turboWord} press={(ev) => keyPress(ev, 'turbo')} />{/if}
 	<SignPlay {controls} x={B.play.x} y={B.play.y} d={B.play.w} css={geo.box.play.w} />
 	<div class="dc" style:--rs={geo.rs.bal} style:--hf="{headFs(geo.rs.bal)}px">
 		{#if !replay}

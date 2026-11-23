@@ -64,6 +64,10 @@ events (`game/bookEventHandlerMap.ts`). Every decision taken is one line in `doc
   are still placed by the dock's rules (`hudLayout.ts`): they did not move with the bar. With the sign bar the
   desktop strip is taller at 16:9 (`DESKTOP.stripH`) and the upright SKIP button stands on Menu's row, to Menu's left (`skipBox`). On phones Balance and the amount are
   1.35 of the size he set (`BOOST`, Corey 2026-11-22: "very small"); the bar is laid out from `PHONE_PLACES`.
+  A sign key takes presses as its drawn diamond; where that holds under 44 px an unseen press pad lies under every
+  control, an exact outline 2 px from every other press region (`padPlaces`, `padShapes`). A press on Auto, Turbo
+  or their pads is judged by where the pointer went down, by the drawn shapes (`pressOwner`, 2026-11-23): a browser
+  hands a touch to a nearby button by the buttons' upright boxes and paint order, and the diamonds' boxes overlap.
 - Active highlights use this game's own "Frost" accent (`accent-rgb` in `ui/hudTheme.ts`), never Manticore's gold
   (rule L6).
 - CSS `filter` in the HTML chrome, allowed as shipped (rule R2): only the `.slot-btn` hover and press lift
