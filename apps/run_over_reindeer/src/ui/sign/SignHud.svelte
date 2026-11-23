@@ -20,7 +20,7 @@
 	import HudReadout from '../hud/HudReadout.svelte';
 	import HudMenuPanel from '../hud/HudMenuPanel.svelte';
 	import { HEAD_LS, headWidth } from './signDraw';
-	import { DESKTOP, KEY_V, PHONE_PLACES, PHONE_REFS, PLAY_V, READOUT_TYPE, TEXT_MIN, amountLimits, pressRegions, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type PieceId } from './signLayout';
+	import { DESKTOP, KEY_V, PHONE_PLACES, PHONE_REFS, PLAY_V, READOUT_FIT, READOUT_TYPE, TEXT_MIN, amountLimits, fitSteps, readoutRoom, pressRegions, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type PieceId } from './signLayout';
 	import { signZones } from './signZones';
 	import { holdLights } from './ledBand';
 	import SignPlay from './SignPlay.svelte';
@@ -98,6 +98,21 @@
 		return w > room ? Math.max(4, (fs * room) / w) : fs;
 	});
 
+	// ---- BALANCE AND WIN ALWAYS FIT (2026-11-22; ui/sign/signLayout.ts readoutRoom, fitSteps): each number stands in the
+	// part of its box that is inside the window and clear of its row's neighbors, at the largest of its nominal size,
+	// 95 %, 90 % ... 50 % that fits there (smaller still for a longer string: never clipped, never abbreviated). The
+	// width is the string's with every digit a 0 wide, so the size changes only when the number gains a figure.
+	const fitIn = (text: string, nominal: number, roomCss: number) => {
+		void faceReady;
+		const k = fitSteps(em(text.replace(/\d/g, '0')) * nominal * u, Math.max(1, roomCss - 2 * READOUT_FIT.pad * u));
+		return { px: nominal * k.k, k: k.k, under: k.under };
+	};
+	const balText = $derived(replay ? (rh && !rh.isBase ? rh.base : '') : controls.balanceText());
+	const balRoom = $derived(readoutRoom(geo, 'bal', zones, safe));
+	const balFit = $derived(fitIn(balText, READOUT_TYPE.bal * geo.rs.bal, balRoom.w));
+	const winRoom = $derived(readoutRoom(geo, 'win', zones, safe));
+	const winFit = $derived(fitIn(controls.winOdoText() ?? winValue, READOUT_TYPE.win * geo.rs.win, winRoom.w));
+
 	// ---- THE PRESS PADS: a key whose drawn shape holds less than a 44 CSS px circle gets a 44 px round pad on its
 	// center, drawn first so it lies under every control: where a pad meets a neighbour, the neighbour's own shape takes
 	// the press (the dock's .hit::after rule; an element of its own here, because a turned button's ::after cannot lie
@@ -152,6 +167,15 @@
 				return signProblems(geo, zones, seat, { win: winOn, drawn });
 			},
 			winOn: () => winOn,
+			/** Balance's and Win's rooms (CSS px: x and width), the type each number is drawn at (CSS px), its share of the
+			 *  nominal size and whether it is past the floor */
+			readouts: () => ({ bal: { room: { ...balRoom }, px: balFit.px * u, k: balFit.k, under: balFit.under, text: balText }, win: { room: { ...winRoom }, px: winFit.px * u, k: winFit.k, under: winFit.under } }),
+			/** DEV: show another balance (the probe's long balances); answers the one it replaced, to put back */
+			tryBalance: (amount: number) => {
+				const was = stateBet.balanceAmount;
+				stateBet.balanceAmount = amount;
+				return was;
+			},
 			/** the LED borders' light: false holds every key's light on the frame it shows, true lets it run again (a probe
 			 *  that reads the pixels that differ between two captures holds it: tools/wheel_probe.mjs) */
 			lights: (on: boolean) => !holdLights(!on),
@@ -177,12 +201,13 @@
 			pre={hs.winPre()}
 			value={winValue}
 			odo={controls.winOdoText()}
-			x={B.win.x}
+			x={winRoom.x / u}
 			y={B.win.y}
-			w={B.win.w}
+			w={winRoom.w / u}
 			h={B.win.h}
 			nominal={READOUT_TYPE.win * geo.rs.win}
-			pad={8}
+			fontPx={winFit.px}
+			pad={0}
 			cls="sgr win {lit ? 'is-lit' : ''} {hs.winBig() ? 'is-big' : ''}"
 			hud="win"
 			face={OVER}
@@ -212,9 +237,9 @@
 	<SignPlay {controls} x={B.play.x} y={B.play.y} d={B.play.w} css={geo.box.play.w} />
 	<div class="dc" style:--rs={geo.rs.bal} style:--hf="{headFs(geo.rs.bal)}px">
 		{#if !replay}
-			<HudReadout label="BALANCE" value={controls.balanceText()} x={B.bal.x} y={B.bal.y} w={B.bal.w} h={B.bal.h} nominal={READOUT_TYPE.bal * geo.rs.bal} pad={8} cls="sgr bal {geo.just.bal === 'left' ? 'al-left' : ''}" hud="balance" lit face={OVER} />
+			<HudReadout label="BALANCE" value={controls.balanceText()} x={balRoom.x / u} y={B.bal.y} w={balRoom.w / u} h={B.bal.h} nominal={READOUT_TYPE.bal * geo.rs.bal} fontPx={balFit.px} pad={0} cls="sgr bal {geo.just.bal === 'left' ? 'al-left' : ''}" hud="balance" lit face={OVER} />
 		{:else if rh && !rh.isBase}
-			<HudReadout label="BASE AMOUNT" value={rh.base} x={B.bal.x} y={B.bal.y} w={B.bal.w} h={B.bal.h} nominal={READOUT_TYPE.bal * geo.rs.bal} pad={8} cls="sgr bal {geo.just.bal === 'left' ? 'al-left' : ''}" hud="balance" lit face={OVER} />
+			<HudReadout label="BASE AMOUNT" value={rh.base} x={balRoom.x / u} y={B.bal.y} w={balRoom.w / u} h={B.bal.h} nominal={READOUT_TYPE.bal * geo.rs.bal} fontPx={balFit.px} pad={0} cls="sgr bal {geo.just.bal === 'left' ? 'al-left' : ''}" hud="balance" lit face={OVER} />
 		{/if}
 	</div>
 	<div class="dc" style:--rs={geo.rs.amt} style:--hf="{headFs(geo.rs.amt)}px">

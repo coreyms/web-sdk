@@ -1964,6 +1964,8 @@ async function tailSection(browser) {
 //     is gone, not painted, a quarter second after its win clears and never shows without an amount, through rounds
 //     pressed back to back and through an Autoplay run; in free spins at every sideways size the Win box (its glass,
 //     its header plate and its number) is the size it is for WIN and clear of the LED strip
+//   - Balance keeps his anchor in a room inside the window, and a very long balance (10,000,000 at every size; in JPY,
+//     BTC and the social coin at four sizes, 1,000,000,000 GC) stays whole, inside the window and its room
 // Popout S (400 x 225) is the least important size: what fails there is listed, and only "everything can be pressed"
 // is asked of it.
 const SIGN_SIZES = [
@@ -2039,6 +2041,12 @@ const signRead = (p) =>
 			ring: ring ? { total: Number(ring.dataset.total), leds: ring.querySelectorAll('.ib').length, lit: ring.querySelectorAll('.ib.lit').length } : null,
 			gameType: window.__reindeer.gameType?.(),
 			mode: window.__reindeer.hud.mode(),
+			readouts: S.readouts(),
+			balValue: (() => {
+				const q = document.querySelector('.hudp [data-hud="balance"] .value');
+				const r = q?.getBoundingClientRect();
+				return r ? { x0: r.left, x1: r.right, text: q.textContent } : null;
+			})(),
 			skip: (() => {
 				const e = document.querySelector('[data-skip="button"]');
 				if (!e) return null;
@@ -2099,6 +2107,21 @@ const signRecJudge = (tag, rows, { stop = true } = {}) => {
 	}
 	check(shown > 5 && off > 30 && late.length === 0 && empty.length === 0, `${tag}: the Win box is gone (opacity 0, not painted) a quarter second after its win clears, and never shows without an amount (${shown} frames up, ${off} frames away)`, { late: late.slice(0, 3), empty: empty.slice(0, 3) });
 };
+/** A VERY LONG BALANCE (2026-11-22: 568 x 320 in BTC ran past the window): shown through the DEV hook, it must stay whole
+ *  (never abbreviated), inside the window and inside Balance's room, with nothing of Balance on the scene or the Play;
+ *  the balance is put back */
+const longBalance = async (tag, p, S, amount, digits) => {
+	const was = await p.evaluate((a) => window.__reindeer.sign.tryBalance(a), amount);
+	await sleep(250);
+	const e = await signRead(p);
+	await p.evaluate((a) => void window.__reindeer.sign.tryBalance(a), was);
+	await sleep(150);
+	const v = e?.balValue;
+	const rm = e?.readouts.bal.room;
+	const pr = (e?.problems ?? []).filter((x) => /^bal\b/.test(x));
+	const whole = !!v && (v.text.match(/\d/g) ?? []).join('').startsWith(digits);
+	check(!!v && whole && v.x0 >= -0.5 && v.x1 <= S.vp.width + 0.5 && v.x0 >= rm.x - 1 && v.x1 <= rm.x + rm.w + 1 && pr.length === 0, `${tag}: a very long balance (${v?.text}) is whole, inside the window and its room, at ${r1(e?.readouts.bal.px ?? 0)} CSS px (${Math.round((e?.readouts.bal.k ?? 0) * 100)} %${e?.readouts.bal.under ? ', past the floor' : ''})`, { value: v, room: rm, problems: pr });
+};
 const amountFits = (tag, d) => {
 	const s = d.seat;
 	const room = s.up.x - (s.down.x + s.down.w);
@@ -2129,7 +2152,9 @@ async function signHud(browser) {
 			// once a win has brought it up)
 			for (const id of Object.keys(SIGN_PIECES).filter((k) => k !== 'win')) {
 				const a = d.dom[id];
-				const b = want(id);
+				// (Balance's and Win's elements are their rooms: his box, less whatever of it is past the window's edge or over a
+				// neighbor in its row; anchored as he set them, checked just below)
+				const b = id === 'bal' ? { ...want(id), x: d.readouts.bal.room.x, w: d.readouts.bal.room.w } : want(id);
 				if (!a) {
 					off.push(`${id} not drawn`);
 					continue;
@@ -2139,6 +2164,14 @@ async function signHud(browser) {
 				if (dd > 1) off.push(`${id} ${r1(dd)} px`);
 			}
 			check(off.length === 0, `${tag}: every piece within 1 CSS px of ${ref ? 'his place' : S.his ? 'his place (his 1920 x 1080 layout by the rule)' : "the rule's place"}`, off);
+			{
+				// BALANCE KEEPS HIS ANCHOR: left set, his left edge (inside the window); centered, his center; never wider than his box
+				const hb = want('bal');
+				const rm = d.readouts.bal.room;
+				const left = d.geo.just.bal === 'left';
+				const anchored = left ? Math.abs(rm.x - Math.max(hb.x, 2 * d.geo.u)) <= 1 : Math.abs(rm.x + rm.w / 2 - (hb.x + hb.w / 2)) <= 1;
+				check(anchored && rm.w <= hb.w + 0.5 && rm.x >= 0 && rm.x + rm.w <= S.vp.width, `${tag}: Balance's room keeps his ${left ? 'left edge' : 'center'}, inside his box and the window (${r1(rm.x)} to ${r1(rm.x + rm.w)}; his box ${r1(hb.x)} to ${r1(hb.x + hb.w)})`, { room: rm, his: hb });
+			}
 			if (S.his && kind === 'landscape') {
 				const D = d.his.desktop;
 				const u = d.geo.u;
@@ -2187,6 +2220,7 @@ async function signHud(browser) {
 				await p.evaluate((m) => window.__reindeer.hud.setMode(m), base);
 				await sleep(400);
 			}
+			if (!S.listOnly) await longBalance(tag, p, S, 1e7, '10000000');
 			// ---- the words and the Win box ----
 			check(d.play.words.join(' ') === 'SPIN' && d.play.label === 'Spin' && !d.play.red, `${tag}: at rest the Play says SPIN on its green face`, d.play);
 			check(d.win.on === false && d.win.opacity === 0, `${tag}: the Win box is hidden at rest`, d.win);
@@ -2214,7 +2248,7 @@ async function signHud(browser) {
 				const e = await signRead(p);
 				shownGlass = e.win.rects.glass;
 				const a = e.dom.win;
-				const b = want('win');
+				const b = { ...want('win'), x: e.readouts.win.room.x, w: e.readouts.win.room.w };
 				const dd = a ? Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.w - b.w), Math.abs(a.h - b.h)) : 99;
 				check(dd <= 1, `${tag}: the Win box, up, within 1 CSS px of ${ref ? 'his place' : "the rule's place"}`, { off: r1(dd), drawn: a, his: b });
 			}
@@ -2322,8 +2356,9 @@ async function signHud(browser) {
 		}
 		// ---- three currencies: the amount still fits (two more boots at four of the sizes) ----
 		if (S.cur)
-			for (const cur of ['JPY', 'BTC']) {
-				const b = await boot(browser, S, `&currency=${cur}`);
+			for (const cur of ['JPY', 'BTC', 'XGC']) {
+				// (XGC is the social site's coin: its page is the social one)
+				const b = await boot(browser, S, `${cur === 'XGC' ? '&social=true' : ''}&currency=${cur}`);
 				try {
 					await settle(b.p, S);
 					const d = await signRead(b.p);
@@ -2331,6 +2366,7 @@ async function signHud(browser) {
 						amountFits(`signhud ${S.name} ${cur}`, d);
 						const pr = d.problems.filter((x) => !/press region/.test(x));
 						check(pr.length === 0, `signhud ${S.name} ${cur}: nothing on the scene or the Play`, pr);
+						await longBalance(`signhud ${S.name} ${cur}`, b.p, S, cur === 'XGC' ? 1e9 : 1e7, cur === 'XGC' ? '1000000000' : '10000000');
 					} else check(false, `signhud ${S.name} ${cur}: __reindeer.sign answers`);
 				} finally {
 					await b.ctx.close();

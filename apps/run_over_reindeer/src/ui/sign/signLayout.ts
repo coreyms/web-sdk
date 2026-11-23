@@ -563,6 +563,14 @@ export const signLayout = (v: SignView): SignGeo => {
 // piece, the window's edge), the amount's type shrinks in steps of 5 % to the floor (50 %); past the floor it keeps
 // shrinking to fit (an amount is never clipped) and `under` says so.
 export const AMOUNT_FIT = { floor: 50, margin: 4, minW: 44, playClear: 2 } as const;
+/** THE FIT IN STEPS (the amount's rule, and since 2026-11-22 Balance's and Win's): a string `full` wide at its nominal
+ *  size in `room`: the nominal size if it fits, else the largest of 95 %, 90 % ... down to the floor that does, else
+ *  whatever fits (`under`: past the floor; a number is never clipped and never abbreviated) */
+export const fitSteps = (full: number, room: number, floor: number = AMOUNT_FIT.floor) => {
+	if (full <= room || full <= 0) return { k: 1, under: false };
+	for (let s = 95; s >= floor - 0.001; s -= 5) if ((full * s) / 100 <= room) return { k: s / 100, under: false };
+	return { k: Math.max(0.05, Math.floor((room / full) * 1000) / 1000), under: true };
+};
 export type Seat = {
 	/** the amount's type, CSS px, and its share of the nominal size */
 	px: number;
@@ -639,20 +647,7 @@ export const seatAmount = (g: SignGeo, widestEm: number, headW: number, limits: 
 	// allows (the smallest move: none where his center already has the room on both sides).
 	const phone = g.kind !== 'landscape';
 	const room = Math.max(minW, phone ? limits[1] - limits[0] - 2 * (keyW + gap) : 2 * (Math.min(cx - limits[0], limits[1] - cx) - keyW - gap));
-	let k: number | null = 1;
-	let under = false;
-	if (full > room) {
-		k = null;
-		for (let s = 95; s >= AMOUNT_FIT.floor - 0.001; s -= 5)
-			if ((full * s) / 100 <= room) {
-				k = s / 100;
-				break;
-			}
-		if (k === null) {
-			k = Math.floor((room / full) * 1000) / 1000;
-			under = true;
-		}
-	}
+	const { k, under } = fitSteps(full, room);
 	const W = Math.max(minW, Math.min(room, Math.max(full * k, headW)));
 	const his = cx;
 	if (phone) {
@@ -696,6 +691,58 @@ export const seatAmount = (g: SignGeo, widestEm: number, headW: number, limits: 
 	const q = boxes(cx);
 	// (nudge: all the group moved from his center, CSS px)
 	return { px: nominal * k, k, under, W, amt: { x: cx - W / 2, y: b.y, w: W, h: b.h }, down: q.down, up: q.up, downC: q.downC, upC: q.upC, nudge: cx - his };
+};
+
+// ---- A READOUT'S ROOM (Balance, Win): where its number may stand ----
+// 2026-11-22, the probe host at 568 x 320 in BTC: the larger Balance ran past the window's left edge. A readout's box
+// is his place, but its number may only use the part of that box that is inside the window (READOUT_FIT.edge bar px
+// in) and clear of whatever stands in its row: the board, the strip, the logo, another piece's box, the Play's, Auto's
+// and Turbo's diamonds. A left set readout keeps his left edge and gives way on its right; a centered one keeps his
+// center and gives way evenly. The number is then fitted to that room by the amount's rule (fitSteps, the page
+// measures the text: ui/sign/SignHud.svelte), so a long balance shrinks before it can leave the window or meet a
+// neighbor.
+export const READOUT_FIT = { edge: 2, pad: 2 } as const;
+export const readoutRoom = (g: SignGeo, id: 'bal' | 'win', zones: Zones | null, safe: Insets = ZERO): { x: number; w: number } => {
+	const b = g.box[id];
+	const m = READOUT_FIT.edge * g.u;
+	const left = g.just[id] === 'left';
+	const cx = b.x + b.w / 2;
+	let L = Math.max(m, safe.l);
+	let R = g.vw - Math.max(m, safe.r);
+	if (g.kind === 'landscape') {
+		L = Math.max(L, g.area.x0 + m);
+		R = Math.min(R, g.area.x1 - m);
+	}
+	/** a point of the readout that is its own whatever gives way: his left edge (inside the window), or his center */
+	const at = left ? Math.max(b.x, L) + 1 : cx;
+	const rects: Box[] = [];
+	if (zones) {
+		rects.push(zones.board, zones.strip);
+		if (zones.logo) rects.push(zones.logo);
+	}
+	for (const o of ['menu', 'bonus', 'amt', 'bal', 'win'] as PieceId[]) if (o !== id) rects.push(g.box[o]);
+	for (const r of rects) {
+		if (Math.min(r.y + r.h, b.y + b.h) - Math.max(r.y, b.y) < 0.5 * g.u) continue;
+		if (r.x + r.w <= at) L = Math.max(L, r.x + r.w + m);
+		else if (r.x >= at) R = Math.min(R, r.x - m);
+	}
+	for (const o of ['play', 'auto', 'turbo'] as PieceId[]) {
+		const s = shapeOf(o, g.box[o]);
+		const dcx = (s[1][0] + s[3][0]) / 2;
+		const dcy = (s[0][1] + s[2][1]) / 2;
+		const v = s[1][0] - dcx;
+		const dy = Math.max(0, b.y - dcy, dcy - (b.y + b.h));
+		if (dy >= v) continue;
+		const hw = v - dy;
+		if (dcx + hw <= at) L = Math.max(L, dcx + hw + m);
+		else if (dcx - hw >= at) R = Math.min(R, dcx - hw - m);
+	}
+	if (left) {
+		const x0 = Math.max(b.x, L);
+		return { x: x0, w: Math.max(0, Math.min(b.x + b.w, R) - x0) };
+	}
+	const half = Math.max(0, Math.min(b.w / 2, cx - L, R - cx));
+	return { x: cx - half, w: 2 * half };
 };
 
 // ---- SKIP TO RESULT, upright (components/SkipButton.svelte through ui/hud/hudLayout.ts hudSkipRect) ----

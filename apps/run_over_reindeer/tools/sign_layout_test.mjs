@@ -16,13 +16,26 @@
 // The amount's widths have no font here: a widest amount of 4.4 em ("$100.00" in Overpass 900 is 4.36 em) and a 3.2 em
 // header stand in. Pass: every line PASS, "0 fail" and exit 0.
 import { register } from 'node:module';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..');
+// (the game's own formatter needs the shared state and two shared files: the stand-ins of tools/amount_fit_test.mjs)
+const SDK = join(APP, '..', '..');
+const LINGUI = pathToFileURL(join(APP, 'node_modules', '@lingui', 'core', 'dist', 'index.mjs')).href;
+const STATE_URL =
+	'data:text/javascript,' +
+	encodeURIComponent(`import { i18n } from ${JSON.stringify(LINGUI)};
+export const stateBet = { currency: 'USD', wageredBetAmount: 1 };
+export const stateI18n = { i18n };
+export const setLocale = (l) => { i18n.load(l, {}); i18n.activate(l); };`);
 register(
 	'data:text/javascript,' +
 		encodeURIComponent(`export async function resolve(s, c, n) {
+	if (s === 'state-shared') return { url: ${JSON.stringify(STATE_URL)}, shortCircuit: true };
+	if (s === 'constants-shared/bet') return { url: ${JSON.stringify(pathToFileURL(join(SDK, 'packages', 'constants-shared', 'bet.ts')).href)}, shortCircuit: true };
+	if (s === 'utils-shared/amount') return { url: ${JSON.stringify(pathToFileURL(join(SDK, 'packages', 'utils-shared', 'amount.ts')).href)}, shortCircuit: true };
 	if (s.startsWith('.') && !/\\.[a-z]+$/.test(s)) return n(s + '.ts', c);
 	return n(s, c);
 }`),
@@ -229,6 +242,63 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 	if (b.y < topLine - 0.5) bad.push(`over the top line (${r1(b.y)} against ${r1(topLine)})`);
 	if (his && Math.min(b.w, b.h) < 43.95) bad.push(`press area ${r1(Math.min(b.w, b.h))}`);
 	line(bad.length === 0, `${vw}x${vh} SKIP TO RESULT left of Menu`, `${bad.join('; ') || 'clear'} | box ${r1(b.x)}, ${r1(b.y)}, ${r1(b.w)} x ${r1(b.h)} | Menu from ${r1(m.x)} | logo to ${zones.logo ? r1(zones.logo.x + zones.logo.w) : '-'}, ${zones.logo ? r1(zones.logo.y) : '-'} down | top line ${r1(topLine)}`);
+}
+// ---- BALANCE AND WIN ALWAYS FIT: every window, the nine currencies, an everyday and a very long amount ----
+// The game's own formatter writes each amount; its width is the bundled Overpass 900's advances with every digit a 0
+// wide (tools/amount_fit_metrics.json), as the page measures it. For each readout: its room is inside the window and
+// clear of the scene and of the row's neighbors (readoutRoom), and the number, at the size the step rule gives, is no
+// wider than the room less its pad. Listed: the smallest type reached, and where a long amount goes past the 50 % floor.
+{
+	const state = await import(STATE_URL);
+	state.setLocale('en');
+	const cur = await import(pathToFileURL(join(APP, 'src', 'game', 'currency.ts')).href);
+	const M = JSON.parse(readFileSync(join(APP, 'tools', 'amount_fit_metrics.json'), 'utf8'));
+	const adv = M.faces['Overpass|900'];
+	const emOf = (t) => [...t].reduce((a, ch) => a + (adv[/\d/.test(ch) ? '0' : ch] ?? M.missing), 0);
+	const CODES = ['USD', 'EUR', 'CAD', 'MXN', 'JPY', 'USDT', 'BTC', 'XSC', 'XGC'];
+	const amounts = (code) => [10000, code === 'XGC' ? 1e9 : 1e7];
+	const windows = [...L.PHONE_PLACES.portrait.map((r) => ['portrait', r.vw, r.vh]), ...L.PHONE_PLACES.phone.map((r) => ['phone', r.vw, r.vh]), ['phone', 800, 450], ['landscape', 1920, 1080], ['landscape', 1200, 675], ['landscape', 1024, 576], ['landscape', 1440, 900], ['landscape', 2560, 1080]];
+	const bad = [];
+	const rows = [];
+	for (const [kind, vw, vh] of windows) {
+		const zones = Z.signZones(kind, vw, vh, kind !== 'landscape');
+		const g = L.signLayout({ kind, vw, vh, zones });
+		const least = { bal: [99, ''], win: [99, ''] };
+		const under = [];
+		for (const id of ['bal', 'win']) {
+			const room = L.readoutRoom(g, id, zones);
+			const b = g.box[id];
+			const s = [[room.x, b.y], [room.x + room.w, b.y], [room.x + room.w, b.y + b.h], [room.x, b.y + b.h]];
+			if (room.x < -0.01 || room.x + room.w > vw + 0.01) bad.push(`${vw}x${vh} ${id}: its room leaves the window (${r1(room.x)} to ${r1(room.x + room.w)})`);
+			if (room.w < 40 * g.u) bad.push(`${vw}x${vh} ${id}: a room of ${r1(room.w)} px`);
+			for (const z of [zones.board, zones.strip, zones.logo]) if (z && L.onZone(s, z)) bad.push(`${vw}x${vh} ${id}: its room is on a zone`);
+			for (const o of ['play', 'auto', 'turbo']) if (L.shapeGap(s, L.shapeOf(o, g.box[o])) === 0) bad.push(`${vw}x${vh} ${id}: its room meets ${o}`);
+			const nominal = (id === 'bal' ? 21 : 26) * g.rs[id] * g.u;
+			for (const code of CODES) {
+				state.stateBet.currency = code;
+				for (const a of amounts(code)) {
+					const t = cur.numberToCurrencyString(a, { fixed: true });
+					const full = emOf(t) * nominal;
+					const f = L.fitSteps(full, Math.max(1, room.w - 2 * L.READOUT_FIT.pad * g.u));
+					if (full * f.k > room.w - 2 * L.READOUT_FIT.pad * g.u + 0.01) bad.push(`${vw}x${vh} ${id} ${t}: ${r1(full * f.k)} px in ${r1(room.w)}`);
+					if (nominal * f.k < least[id][0]) least[id] = [nominal * f.k, t];
+					if (f.under) under.push(`${id} ${t} ${r1(nominal * f.k)} px`);
+				}
+			}
+		}
+		rows.push(`     ${vw}x${vh}: Balance from ${r1(21 * g.rs.bal * g.u)} px down to ${r1(least.bal[0])} (${least.bal[1]}) | Win from ${r1(26 * g.rs.win * g.u)} down to ${r1(least.win[0])} (${least.win[1]})${under.length ? ` | past the floor: ${under.length} (${under[0]})` : ''}`);
+		if (vw === 568 && vh === 320) {
+			state.stateBet.currency = 'BTC';
+			const room = L.readoutRoom(g, 'bal', zones);
+			for (const a of [1000, 10000, 1e7]) {
+				const t = cur.numberToCurrencyString(a, { fixed: true });
+				const f = L.fitSteps(emOf(t) * 21 * g.rs.bal * g.u, room.w - 2 * L.READOUT_FIT.pad * g.u);
+				rows.push(`       568x320 BTC, ${t}: ${r1(21 * g.rs.bal * g.u * f.k)} px (${Math.round(f.k * 100)} %), room ${r1(room.x)} to ${r1(room.x + room.w)} of 568`);
+			}
+		}
+	}
+	line(bad.length === 0, `Balance and Win fit their rooms: ${windows.length} windows x 9 currencies x an everyday and a very long amount (10,000,000.000000 BTC, 1,000,000,000.00 GC), every room inside the window and clear of the scene and the diamonds`, bad.slice(0, 5).join(' | '));
+	for (const r of rows) console.log(r);
 }
 // the safe areas (a real iPhone): nothing under the home indicator, nothing in a notch side, his places kept where clear
 {
