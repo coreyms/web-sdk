@@ -2,7 +2,7 @@
 """THE ARMOURY's pictures (the feature menu; spec ~/Desktop/Manticore Mayhem/feedback/armoury_build_r1/SPEC.md section 3).
 
   /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/build_armoury_assets.py            the small pictures, heroes.json {}
-  ... tools/build_armoury_assets.py --grids crown,dagger      also pack those heroes' angle grids (spec commit 11)
+  ... tools/build_armoury_assets.py --grids standard,dagger   also pack those heroes' angle grids (spec commit 11)
   ... tools/build_armoury_assets.py --grids all
   ... tools/build_armoury_assets.py --measure DIR             pack every grid into DIR (not static/) and print the sizes
   ... tools/build_armoury_assets.py --only standard           rebuild ONE hero's files only: hero-<art>(-half), grid- and
@@ -21,8 +21,8 @@ dagger at 2.5 degree steps for SUPER, the crown at 1 degree of yaw for EPIC; the
 OUTPUTS, static/assets/ui/armoury/ (only finished .webp and one .json; nothing else may go in, spec 3.4):
   plaque.webp              the price plaque, the prototype's file byte for byte (620 x 123)
   crest.webp               the header crest, from crest-day.png, CREST_H px high (the prototype's header art)
-  thumbs.webp              the tile and confirm card pictures: one sheet, six THUMB px cells in tray order
-                           (game/armouryData.ts ARMOURY_ART_ORDER), each picture contained and centred in its cell. The
+  thumbs.webp              the tile and confirm card pictures: one sheet, six THUMB px cells in THUMB_ORDER
+                           (game/armouryData.ts ARMOURY_THUMB_CELLS), each picture contained and centred in its cell. The
                            picture is the set's flat.png where it has one, else its straight-on frame (the prototype's art())
   hero-<art>.webp          the flat hero, full tier: the grid's STRAIGHT-ON FRAME on the grid's own canvas, HERO_H px high,
                            so a grid that arrives later swaps in with nothing shifting
@@ -65,8 +65,15 @@ CARD_LG_Q = 86
 FOLDER_MAX_MB = 10
 WEBP_MAX = 16383      # the WebP format's largest side
 
-# tray order (game/armouryData.ts ARMOURY_MODES): art key -> hero folder
-ORDER = ['crest-day', 'crest-fire', 'standard', 'dagger', 'crown', 'seal']
+# tray order (game/armouryData.ts ARMOURY_MODES / ARMOURY_ART_ORDER): the heroes, grids and strips this script writes.
+# Four since 2026-11-21 (the Epic and Mystery buys left the game); the crown's and the seal's heroes, grids and strips
+# were archived on 2026-11-23 (apps/manticore_mayhem/_archive/2026-11-23/static/assets/ui/armoury/).
+ORDER = ['crest-day', 'crest-fire', 'standard', 'dagger']
+# the cells of thumbs.webp, left to right (game/armouryData.ts ARMOURY_THUMB_CELLS): still six, FIXED by the shipped
+# sprite, so the crown and the seal keep their cells (unused by the menu). Dropping them is a change to
+# ARMOURY_THUMB_CELLS in the same run, when the Armoury art is next rebuilt.
+THUMB_ORDER = ['crest-day', 'crest-fire', 'standard', 'dagger', 'crown', 'seal']
+# art key -> hero folder (the crown and the seal for their thumbs cells only)
 HERO_FOR = {
     'crest-day': 'crest-day',
     'crest-fire': 'crest-fire',
@@ -212,8 +219,8 @@ def report_grid(art, info):
 
 
 def thumbs_sheet():
-    sheet = Image.new('RGBA', (THUMB * len(ORDER), THUMB), (0, 0, 0, 0))
-    for i, art in enumerate(ORDER):
+    sheet = Image.new('RGBA', (THUMB * len(THUMB_ORDER), THUMB), (0, 0, 0, 0))
+    for i, art in enumerate(THUMB_ORDER):
         pic, what = small_picture(art)
         pic.thumbnail((THUMB, THUMB), Image.LANCZOS)
         sheet.paste(pic, (i * THUMB + (THUMB - pic.width) // 2, (THUMB - pic.height) // 2), pic)
@@ -268,8 +275,8 @@ def main():
             tot['bytes'] += info['bytes']; tot['turn'] += info['turnBytes']; dec.append((info['decodedMB'], info['turnDecodedMB']))
         two = sorted((d for d, _ in dec), reverse=True)[:2]
         twot = sorted((t for _, t in dec), reverse=True)[:2]
-        print('  all six: %.2f MB of grids (desktop), %.2f MB of turn strips (phone); two held decoded at worst %.1f MB desktop, %.1f MB phone' % (
-            tot['bytes'] / 1048576, tot['turn'] / 1048576, sum(two), sum(twot)))
+        print('  all %d: %.2f MB of grids (desktop), %.2f MB of turn strips (phone); two held decoded at worst %.1f MB desktop, %.1f MB phone' % (
+            len(ORDER), tot['bytes'] / 1048576, tot['turn'] / 1048576, sum(two), sum(twot)))
         card = Image.open(CARD_LG).convert('RGBA')
         print('  card-frame-lg.webp %dx%d q%d: %.0f KB (source %.0f KB)' % (card.width, card.height, CARD_LG_Q, len(webp(card, CARD_LG_Q)) / 1024, os.path.getsize(CARD_LG) / 1024))
         return
@@ -282,7 +289,7 @@ def main():
     crest = Image.open(os.path.join(R1, 'crest-day.png')).convert('RGBA')
     crest = crest.crop(crest.getbbox())
     sizes['crest.webp'] = write(os.path.join(OUT, 'crest.webp'), webp(scaled(crest, CREST_H), 90))
-    # the thumbs sheet, tray order
+    # the thumbs sheet, THUMB_ORDER
     sizes['thumbs.webp'] = write(os.path.join(OUT, 'thumbs.webp'), webp(thumbs_sheet(), 86))
     # the flat heroes: the straight-on frame on the grid's own canvas
     for art in ORDER:

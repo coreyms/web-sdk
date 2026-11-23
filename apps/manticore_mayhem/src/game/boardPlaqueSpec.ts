@@ -586,7 +586,6 @@ export const BOARD_PLAQUE_SPEC = {
 				"day": "ui/board-plaque-phone.webp",
 				"night": "ui/board-plaque-night-phone.webp",
 				"fire": "ui/board-plaque-fire-phone.webp",
-				"nightHalf": "ui/board-plaque-night-phone-half.webp",
 				"shadow": "ui/board-plaque-shadow-phone.webp",
 				"crestDay": "ui/board-plaque-crest-phone.webp",
 				"crestNight": "ui/board-plaque-crest-night-phone.webp",
@@ -608,10 +607,6 @@ export const BOARD_PLAQUE_SPEC = {
 				"crest": [
 					64,
 					62
-				],
-				"nightHalf": [
-					336,
-					58
 				]
 			},
 			"scaleAboutAnchor": 1.0,

@@ -3,7 +3,6 @@ import stamps, { fileBytes } from './assetStamp';
 import { PHONE_TIER, renderResolutionFor } from './deviceTier';
 import { LABEL_CAPS } from './labelGlyphs';
 import { pickLabelCap } from './clusterLabel';
-import { titleVariant } from './stinger/bigTitle';
 import { CREATURE, LOAD_GATE, SUNSET_FORE } from './constants';
 
 // Pixi's texture loader fetches through a Worker it builds from a blob: URL, and its support probe
@@ -380,7 +379,8 @@ const assets = {
 	// The PHONE master's day gears, night plate, night + fire loops and night plaque load their FULL files on the phone
 	// tier too since 2026-11-03 (the density audit's item 3; Corey "Let's do item 2 to 5"): since 2026-10-17 a phone draws
 	// at a renderer resolution of up to 3, so the -half twins (board-gears-phone-half, board-gears-night-phone-half,
-	// board-frame-night-phone-half, board-plaque-night-phone-half; still in static/, loaded by nothing) gave 1.68 texture px
+	// board-frame-night-phone-half, board-plaque-night-phone-half; loaded by nothing, archived out of the build on 2026-11-23
+	// to apps/manticore_mayhem/_archive/2026-11-23/static/assets/ui/) gave 1.68 texture px
 	// per CSS px next to the 3.36 of the day plate on a sideways 956 x 440 phone. Cost: about +25 MB of GPU memory there.
 	boardGears_landscape: { type: 'sprites', src: stamp(new URL('../../assets/ui/board-gears-landscape.json', import.meta.url).href), preload: atBoot('landscape') },
 	boardGears_phone: { type: 'sprites', src: stamp(new URL('../../assets/ui/board-gears-phone.json', import.meta.url).href), preload: atBoot('phone') },
@@ -551,14 +551,10 @@ const assets = {
 		),
 		preload: false,
 	},
-	stingerTitles: {
-		type: 'sprites',
-		src: tiered(
-			stamp(new URL('../../assets/ui/stinger/stinger-titles.json', import.meta.url).href),
-			stamp(new URL('../../assets/ui/stinger/stinger-titles-half.json', import.meta.url).href),
-		),
-		preload: false,
-	},
+	// the plaque's own baked titles (stinger-titles, looks 0 and 1 of game/stinger/bigTitle.ts) are not loaded: the look is
+	// 3 (constants BIG_TITLE.look), whose bright titles replace every one of them. The atlas was archived out of the
+	// build on 2026-11-23 (apps/manticore_mayhem/_archive/2026-11-23/static/assets/ui/stinger/; it had been deleted from
+	// this table at run time since 2026-10-17), so looks 0 and 1 would need it back here first.
 	stingerGlyphs: {
 		type: 'sprites',
 		src: tiered(
@@ -576,7 +572,8 @@ const assets = {
 		src: tiered(stamp(new URL('../../assets/ui/bigwin/bigwin-titles-molten.json', import.meta.url).href), stamp(new URL('../../assets/ui/bigwin/bigwin-titles-molten-half.json', import.meta.url).href)),
 		preload: false,
 	},
-	// THE LOGO (game/logo/still.ts, components/Logo.svelte; the Citadel Tablet since 2026-11-17, tools/build_logo_tablet.py):
+	// THE LOGO (game/logo/still.ts, components/Logo.svelte; the Citadel Tablet 2026-11-17 to 11-18, its files and
+	// tools/build_logo_tablet.py archived on 2026-11-23 to apps/manticore_mayhem/_archive/2026-11-23/):
 	// one still, drawn in the canvas under the creature in every layout. Every tier, at boot: the landing screen has
 	// already fetched it (the same stamped URL, LOGO_STILL_URL), so this is a cache hit and one decode. The phone tier
 	// takes the 1280 px copy (3 device px per CSS px at its largest draw, the portrait landing screen).
@@ -622,10 +619,6 @@ export const STINGER_DATA_URLS = {
 export const LOGO_STILL_PATH = PHONE_TIER ? 'ui/logo-frame-phone.webp' : 'ui/logo-frame.webp';
 /** THE LOGO's lettering for this tier (drawn over the frame's panel: ui/LogoPicture.svelte, game/logo/still.ts) */
 export const LOGO_LETTERING_PATH = PHONE_TIER ? 'ui/logo-lettering-phone.webp' : 'ui/logo-lettering.webp';
-// the bright titles (looks 2 and 3, game/stinger/bigTitle.ts) replace every one of the plaque's own baked titles: their
-// atlas is not loaded then (full tier 268 KB / 3.78 MB on the GPU with mips, phone 159 KB / 1.73 MB)
-if (titleVariant() >= 2) delete (assets as unknown as Record<string, unknown>).stingerTitles;
-
 // Every asset carries its download size (scripts/stamp-assets.mjs fileBytes) so pixi-svelte's
 // AssetsLoader can weight the preload's progress by bytes rather than by file count.
 const bytesFor = (src: unknown): number | undefined => {

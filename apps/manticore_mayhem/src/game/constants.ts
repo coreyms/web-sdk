@@ -2654,7 +2654,7 @@ export const FOREGROUND_KICK = {
 // the slate's block is scaled to fit between the frame's points instead, game/introCards.ts INTRO_SLATE.margin)
 
 export const LOGO = {
-	/** the tablet's own size, px (static/assets/ui/logo-tablet.webp, tools/build_logo_tablet.py; the phone tier's copy is
+	/** the tablet's own size, px (logo-tablet.webp and tools/build_logo_tablet.py, archived 2026-11-23 to _archive/2026-11-23/; the phone tier's copy was
 	 *  1280 x 419 of the same picture): the box's aspect, and the units of the groove trace (game/logo/grooves.json) */
 	art: { width: 1938, height: 701 },
 	/** THE FRAME AND ITS LETTERING (2026-11-18, Corey's C1: images/key_frame_gpt_2026-11-18/final_C1, tools/build_logo_frame.py):

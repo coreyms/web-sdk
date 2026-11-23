@@ -188,7 +188,7 @@ export const INTRO_LOGO: Record<LayoutKind, { w: number; cx: number; cy: number 
 	phone: { w: LOGO.landing.phone.width, cx: LOGO.landing.phone.cx, cy: LOGO.landing.phone.cy },
 	portrait: { w: LOGO.landing.portrait.width, cx: LOGO.landing.portrait.cx, cy: LOGO.landing.portrait.cy },
 };
-/** the tablet's height per px of width (static/assets/ui/logo-tablet.webp, LOGO.art): the cards' band starts under its
+/** the tablet's height per px of width (the archived logo-tablet.webp, LOGO.art): the cards' band starts under its
  *  own bottom edge (since 2026-11-17: the old stacked logo's box was 17 % taller, and the band followed that) */
 // 2026-11-18, THE C1 FRAME: the band keeps the tablet's aspect it was approved with (constants LOGO.landingBandAspect),
 // and the frame (10 % taller for its width) is drawn with its bottom edge where the tablet's was: it grows upward

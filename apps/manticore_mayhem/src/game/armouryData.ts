@@ -2,7 +2,8 @@
 // Six until 2026-11-21, when the Epic buy and the Mystery buy left the game (Corey: "I'd also consider removing Epic
 // buy, and Mystery Buy from Manticore Mayhem. Leaving Epic Spins as spun into only.", then "yes"). Epic Free Spins
 // stay as a feature reached only by scatters (or by a bought round that lands them), so the crown and seal pictures
-// stay in the art folder and in thumbs.webp, unused by the menu.
+// stay only in thumbs.webp (its two unused cells), unused by the menu; their heroes, grids and strips were archived on
+// 2026-11-23 (apps/manticore_mayhem/_archive/2026-11-23/static/assets/ui/armoury/, with the six-hero heroes.json).
 // Game specific: what a future game changes (spec 10). The copy is game/armouryText.ts, the tuned numbers are
 // constants.ts ARMOURY, the pictures static/assets/ui/armoury/ (tools/build_armoury_assets.py).
 //

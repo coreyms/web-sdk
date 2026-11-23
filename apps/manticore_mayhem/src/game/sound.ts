@@ -11,8 +11,8 @@ export type MusicName = 'bgm_base' | 'bgm_bonus' | 'bgm_super' | 'bgm_epic' | 'b
 // One key per Manticore event (tools/build_audiosprite.py MM_EVENTS): a key with no Manticore
 // recording yet plays its borrowed Angry Mantis clip, or silence. Manticore's own since 2026-10-11: the five
 // sfx_win_* tier landings, the sfx_money_counter loop and the sfx_tile_double tick; the two fire loops (game/
-// fireSound.ts) and the chain sounds (game/chainSound.ts; sfx_chain_light_logo is the light rattle again, quieter:
-// the same sprite region with its own volume). The ui clicks are the house set
+// fireSound.ts) and the chain sounds (game/chainSound.ts; the sprite's sfx_chain_light_logo, the light rattle again, quieter,
+// is played by nothing since 2026-11-17 and has no name here). The ui clicks are the house set
 // shared across games; the scatter landings and the trigger's success are the marimba family (2026-11-17).
 export type SoundEffectName =
 	| 'sfx_scatter_land_1'
@@ -64,7 +64,6 @@ export type SoundEffectName =
 	| 'sfx_win_max'
 	| 'sfx_chain_heavy'
 	| 'sfx_chain_light'
-	| 'sfx_chain_light_logo'
 	| 'sfx_fire_super'
 	| 'sfx_fire_epic'
 	// the creature's own (game/creature.ts, 2026-10-13): one breath per idle loop, the snarl and the growl, two takes each
