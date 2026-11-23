@@ -11,6 +11,8 @@
 //     as far from each other as in his layout), the bottom row's three groups apart, the small word under the hub's count
 //   - the turning rule: at any travel of the haul each small gear's tooth sits in the Play gear's gap on the line of
 //     centers (the pitch point), and the folded angle a layer is drawn at is the same picture as the true angle
+//   - the haul as BoardFrame reports it: a Spin press turns the HTML gears its 4 links at every turbo level and never
+//     turns them back by a tile when the press is folded into the haul's base
 //   - the switch: desktop windows get the gear bar, the two popouts and every phone keep the dock, one constant rolls back
 import { registerHooks } from 'node:module';
 import { existsSync } from 'node:fs';
@@ -139,6 +141,48 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	check('turning: a folded angle is the true angle less whole teeth', foldWorst < 1e-6);
 	check('turning: the Play gear turns two teeth a link, against the frame wheel (which turns clockwise)', near(L.playAngle(1, 46), -2 * (360 / 46), 1e-9) && FRAME_WHEEL.teethPerLink === 2);
 	check('turning: the small gears turn the other way from the Play gear', L.smallAngle(L.playAngle(1, 46), 80.6, 46, 22) > L.smallAngle(0, 80.6, 46, 22));
+}
+
+// ---- 4b. the haul as BoardFrame reports it (its offset: base modulo 2 plus what the live presses have run) ----
+{
+	const F = await import('../src/game/frameGears.ts');
+	const backOut = (t) => --t * t * ((1.2 + 1) * t + 1.2) + 1;
+	/** play presses the way components/BoardFrame.svelte tickHaul does: each `links` over `ms` with the overshoot, folded
+	 *  into the base (modulo 2, the whole tiles kept in `wound`) when done; frames `dt` ms apart; returns the travel the
+	 *  HTML gears were told */
+	const play = (presses, dt) => {
+		const start = F.frameGears.links;
+		let base = 0.37;
+		let wound = start - base;
+		F.frameGearsAt(wound + base);
+		const live = presses.map((p) => ({ ...p }));
+		let seen = [];
+		const off = F.onFrameGears((l) => seen.push(l));
+		for (let t = 0; live.length; t += dt) {
+			let moving = 0;
+			for (let i = live.length - 1; i >= 0; i--) {
+				const p = live[i];
+				const u = Math.max(0, Math.min(1, (t - p.t0) / p.ms));
+				if (u >= 1) {
+					const m = (((base + p.links) % 2) + 2) % 2;
+					wound += base + p.links - m;
+					base = m;
+					live.splice(i, 1);
+				} else moving += p.links * backOut(u);
+			}
+			F.frameGearsAt(wound + base + moving);
+		}
+		off();
+		let back = 0;
+		for (let i = 1; i < seen.length; i++) back = Math.min(back, seen[i] - seen[i - 1]);
+		return { travel: F.frameGears.links - start, back, calls: seen.length };
+	};
+	for (const [tag, ms] of [['turbo 0', 1280], ['turbo 1', 1280 / 2.2], ['turbo 2', 1280 / 4]]) {
+		const r = play([{ t0: 80, ms, links: 4 }], 1000 / 60);
+		check(`the haul: a Spin press at ${tag} turns the HTML gears 4 links, and never back by a tile`, near(r.travel, 4, 1e-9) && r.back > -0.5, `travel ${r.travel.toFixed(4)}, largest step back ${r.back.toFixed(3)} (the overshoot's return)`);
+	}
+	const two = play([{ t0: 0, ms: 320, links: 4 }, { t0: 150, ms: 320, links: 4 }, { t0: 700, ms: 900, links: 1.4 }], 250);
+	check('the haul: two presses on top of each other and a War Standard run of 1.4 links, at 4 frames a second (a hitch): 9.4 links', near(two.travel, 9.4, 1e-9) && two.back > -0.5, `travel ${two.travel.toFixed(4)}`);
 }
 
 // ---- 5. the switch ----

@@ -292,8 +292,15 @@
 	};
 	/** the haul offset in LINKS (accumulated, modulo one tile = 2 links) and the presses still hauling. `target`: where
 	 *  every haul taken so far ends (modulo the tile); `runs` the War Standard's own hauls still moving (featureFx.chainRun) */
-	const haul = { base: 0, offset: 0, live: [] as { t0: number; rate: number; links: number }[], seen: 0, last: NaN, target: 0, runs: [] as (ChainRun & { taken: number })[], runSeen: 0 };
+	const haul = { base: 0, offset: 0, live: [] as { t0: number; rate: number; links: number }[], seen: 0, last: NaN, target: 0, runs: [] as (ChainRun & { taken: number })[], runSeen: 0, wound: 0 };
 	const mod2 = (x: number) => ((x % 2) + 2) % 2;
+	/** a finished haul folded into the base: the base modulo the tile, and the whole tiles taken off it kept in `wound`,
+	 *  so base + wound is the chain's true travel (the HTML gears of the game bar turn from it: game/frameGears.ts) */
+	const foldBase = (x: number) => {
+		const m = mod2(x);
+		haul.wound += x - m;
+		return m;
+	};
 	/** DEV: the War Standard's runs as taken (tools/manticore/banner_probe.js) */
 	const runLog: { t0: number; links: number; ms: number; ease: string }[] = [];
 	/** the uvs for the current haul offset: v - offset / 2 (one link is half the two-link tile), so the chain
@@ -430,7 +437,7 @@
 			const p = haul.live[i];
 			const u = clamp01(((now - p.t0) * p.rate - CHAIN_BOW.haulDelayMs) / Math.max(HAUL.ms, 1));
 			if (u >= 1) {
-				haul.base = mod2(haul.base + p.links);
+				haul.base = foldBase(haul.base + p.links);
 				haul.live.splice(i, 1);
 				continue;
 			}
@@ -441,7 +448,7 @@
 			if (now < r.t0) continue;
 			const u = r.ms > 0 ? clamp01((now - r.t0) / r.ms) : 1;
 			if (u >= 1) {
-				haul.base = mod2(haul.base + r.taken);
+				haul.base = foldBase(haul.base + r.taken);
 				haul.runs.splice(i, 1);
 				continue;
 			}
@@ -653,8 +660,9 @@
 		}
 		if (!chainsReady) return;
 		if (tickHaul(performance.now())) setUvs();
-		// the HTML gears of the game bar turn from this same travel, in this same tick (game/frameGears.ts)
-		frameGearsAt(haul.offset);
+		// the HTML gears of the game bar turn from this same travel, in this same tick (game/frameGears.ts): the offset
+		// plus the whole tiles the base has had folded off it
+		frameGearsAt(haul.wound + haul.offset);
 		// the gears follow the chain's own travel, this frame's (the overshoot too): a texture swap when the frame changes
 		gear.frame = gearFrameFor(haul.offset);
 		if (gear.frame !== gear.shown) setGears(gear.frame);

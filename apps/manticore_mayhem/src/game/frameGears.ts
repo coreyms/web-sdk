@@ -29,21 +29,17 @@ export const FRAME_WHEEL = {
 type Listener = (links: number) => void;
 const listeners = new Set<Listener>();
 
-/** the haul's travel in links since the page loaded (never wrapped), and the wrapped value it was built from */
-export const frameGears = { links: 0, last: NaN };
+/** the haul's travel in links since the page loaded, never wrapped */
+export const frameGears = { links: 0 };
 
-/** BoardFrame: the haul's offset as drawn this tick (links, modulo 2). The step between two ticks is under a link at
- *  every turbo level, so the shorter way round the modulus is the way it went. */
-export const frameGearsAt = (offset: number) => {
-	if (offset === frameGears.last) return;
-	if (!Number.isNaN(frameGears.last)) {
-		let d = offset - frameGears.last;
-		if (d > 1) d -= 2;
-		else if (d < -1) d += 2;
-		frameGears.links += d;
-	}
-	frameGears.last = offset;
-	for (const fn of listeners) fn(frameGears.links);
+/** BoardFrame: the chain's true travel as drawn this tick (links): its haul offset plus every whole tile it has folded
+ *  off the haul's base. (2026-11-22, Decimus's first run: the travel was first rebuilt here from the offset alone, one
+ *  tile at a time; a press is folded off two tiles at once, so the HTML gears turned back two links at the end of every
+ *  press. BoardFrame now counts the tiles itself and nothing is guessed.) */
+export const frameGearsAt = (links: number) => {
+	if (links === frameGears.links) return;
+	frameGears.links = links;
+	for (const fn of listeners) fn(links);
 };
 
 /** the HTML gears: called in BoardFrame's own tick whenever the wheels moved; returns the unsubscribe */
