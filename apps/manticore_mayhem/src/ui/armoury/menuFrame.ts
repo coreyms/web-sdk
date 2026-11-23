@@ -6,9 +6,10 @@
 // size test), never by a window rule of the menu's own:
 //   landscape chrome (desktop)                         -> desktop: the 1440 x 810 design box over the master rect
 //   phone sideways chrome, frame ratio >= scaledUnder  -> sideways: three columns, the HUD's own column lit on the left
-//   phone sideways chrome with the gear bar (copies)   -> desktop SCALED too, at every ratio (2026-11-23): the sideways
-//                                                         layout stands beside the HUD's lit column on the left, and the
-//                                                         gear bar has none (its amount is at the bottom right)
+//   phone sideways chrome, the gear bar on a touch     -> sideways at every ratio (2026-11-23: the desktop box at half
+//   phone (touchSideways)                                 scale is 7 px text and 22 px keys on a phone); its middle column
+//                                                         starts right of the gear bar's left column and its rail ends
+//                                                         above the bar's lit amount and arrows (Anchors.railTop)
 //   phone sideways chrome, frame ratio <  scaledUnder  -> desktop SCALED (owner 2026-10-13 22:18): the desktop box fitted
 //                                                         to the window, with the menu's own copies of the bet controls
 //                                                         (the 400 x 225 mini player, 800 x 450 popouts, 16:9 phones)
@@ -41,10 +42,9 @@ export type FrameInput = {
 	master: { width: number; height: number };
 	/** the chrome's fit frame width in master px (Chrome.svelte `fitWidth`: the portrait frame spans the viewport) */
 	fitWidth: number;
-	/** phone sideways chrome only: the HUD has no column of bet controls on the left for the sideways menu to stand
-	 *  beside (the gear bar: the amount and its arrows are at the bottom right), so the menu is the desktop box with its
-	 *  own copies of the bet controls at every ratio, as it already is under scaledUnderRatio */
-	copies?: boolean;
+	/** phone sideways chrome only: the gear bar is drawn and the phone is a touch phone: the sideways layout at every
+	 *  ratio (a 16:9 phone too), never the desktop box scaled down to it */
+	touchSideways?: boolean;
 };
 
 export type MenuFrame = {
@@ -69,7 +69,7 @@ export const pickLayout = (inp: FrameInput, rules: FrameRules): { layout: Armour
 	if (inp.kind === 'landscape') return { layout: 'desktop', hudCopies: false };
 	if (inp.kind === 'phone') {
 		const ratio = inp.vw / Math.max(1, inp.vh);
-		return inp.copies || ratio < rules.desktop.scaledUnderRatio ? { layout: 'desktop', hudCopies: true } : { layout: 'sideways', hudCopies: false };
+		return !inp.touchSideways && ratio < rules.desktop.scaledUnderRatio ? { layout: 'desktop', hudCopies: true } : { layout: 'sideways', hudCopies: false };
 	}
 	if (!inp.phone && inp.fitWidth >= rules.tablet.minFrame) return { layout: 'tablet', hudCopies: false };
 	return { layout: 'portrait', hudCopies: false };
@@ -114,6 +114,9 @@ export type Anchors = {
 	hudRight?: number;
 	/** sideways: the top left of the HUD's BALANCE readout (the menu's name sits above it) */
 	balance?: { x: number; y: number };
+	/** sideways, the gear bar: the top of its lit amount and arrows at the bottom right (their press boxes): the rail
+	 *  of mode tiles ends above it, so the bar's own + and - stay lit and live under the rail */
+	railTop?: number;
 	/** env(safe-area-inset-*) */
 	safe: { top: number; right: number; bottom: number; left: number };
 };
@@ -124,6 +127,8 @@ export type DesignAnchors = {
 	contentBottom: number;
 	/** sideways: where the middle column starts, design px from the frame's left */
 	midLeft: number;
+	/** sideways: design px kept clear under the rail, from the frame's bottom (0: the rail is the frame's whole height) */
+	railBottom: number;
 	/** where the name goes. Portrait phone: centred in the band above the clock strip ('band', y its centre), or, when
 	 *  that band is under nameBandMin design px high, under the strip ('under', y its top) with the content nameGap
 	 *  lower (the tablet's place). Sideways: 'above' the HUD's BALANCE, x its left, y nameAbove over its top */
@@ -142,6 +147,7 @@ export const designAnchors = (f: MenuFrame, a: Anchors, rules: FrameRules): Desi
 	let contentTop = safe.top;
 	let contentBottom = f.height - safe.bottom;
 	let midLeft = 0;
+	let railBottom = 0;
 	let name: DesignAnchors['name'] = { place: 'band', y: safe.top };
 	if (f.layout === 'portrait') {
 		if (a.clockBottom != null) contentTop = Math.max(contentTop, y(a.clockBottom) + rules.portrait.underClock);
@@ -161,9 +167,10 @@ export const designAnchors = (f: MenuFrame, a: Anchors, rules: FrameRules): Desi
 		midLeft = Math.max(rules.sideways.minLeft, a.hudRight != null ? (a.hudRight - f.left) / u + rules.sideways.hudGap : 0, safe.left);
 		contentTop = Math.max(safe.top, 0);
 		if (a.balance) name = { place: 'above', x: (a.balance.x - f.left) / u, y: y(a.balance.y) - rules.sideways.nameAbove };
+		if (a.railTop != null) railBottom = Math.max(0, f.height - y(a.railTop));
 	} else {
 		contentTop = 0;
 		contentBottom = f.height;
 	}
-	return { contentTop, contentBottom, midLeft, name, safe, minHit: rules.portrait.minHitCss / u };
+	return { contentTop, contentBottom, midLeft, railBottom, name, safe, minHit: rules.portrait.minHitCss / u };
 };

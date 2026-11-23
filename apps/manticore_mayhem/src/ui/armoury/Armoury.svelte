@@ -934,11 +934,26 @@
 			const r = (e: Element | null) => (e ? e.getBoundingClientRect() : null);
 			const lit = fit.querySelector('.hudp[data-plane="lit"]');
 			if (frame.layout === 'sideways') {
-				// the HUD's capsule: the lit plane's readouts and steppers, and its BALANCE
-				const parts = lit ? [...lit.querySelectorAll('.stat, button')].map((e) => e.getBoundingClientRect()).filter((b) => b.width > 0) : [];
-				if (parts.length) a.hudRight = Math.max(...parts.map((b) => b.right));
-				const bal = r(fit.querySelector('[data-hud="balance"]'));
-				if (bal && bal.width > 0) a.balance = { x: bal.left, y: bal.top };
+				const rects = (sel: string, root: Element | null = fit) => (root ? [...root.querySelectorAll(sel)].map((e) => e.getBoundingClientRect()).filter((b) => b.width > 0) : []);
+				if (fit.querySelector('.hudp.v-gear')) {
+					// THE GEAR BAR (ui/gear/GearBarSideways.svelte) has no capsule: a left column (the standards under the logo,
+					// Win over Balance) and, at the bottom right, the lit amount with its two arrows. The middle column starts
+					// right of the left column, the name goes over Win, and the rail ends above the amount and its arrows (each
+					// arrow's 44 px press box is 22 px round its drawn middle), so they stay lit and live
+					const col = rects('[data-piece="bal"], [data-piece="win"], [data-hud="menu-key"], .fb');
+					if (col.length) a.hudRight = Math.max(...col.map((b) => b.right));
+					const win = rects('[data-piece="win"]')[0] ?? rects('[data-piece="bal"]')[0];
+					if (win) a.balance = { x: win.left, y: win.top };
+					const steps = rects('button[data-hud-step]', lit).map((b) => (b.top + b.bottom) / 2 - 22);
+					const amt = rects('[data-piece="amt"]', lit).map((b) => b.top);
+					if (steps.length || amt.length) a.railTop = Math.min(...steps, ...amt) - 4;
+				} else {
+					// the HUD's capsule: the lit plane's readouts and steppers, and its BALANCE
+					const parts = rects('.stat, button', lit);
+					if (parts.length) a.hudRight = Math.max(...parts.map((b) => b.right));
+					const bal = r(fit.querySelector('[data-hud="balance"]'));
+					if (bal && bal.width > 0) a.balance = { x: bal.left, y: bal.top };
+				}
 			} else {
 				// the HUD's top: its highest readout (WIN, BALANCE, the amount). THE GEAR BAR (ui/gear/GearBarUpright.svelte)
 				// marks its own top, the gear train's band under the plaque: on a short phone its Win and Balance stand under
@@ -1384,6 +1399,7 @@
 			style:--cx={touch ? `${frame.contentLeft.toFixed(1)}px` : null}
 			style:--ml={touch ? `${da.midLeft.toFixed(1)}px` : null}
 			style:--rail="{LAY.sideways.rail}px"
+			style:--rail-b={touch && da.railBottom > 0 ? `${da.railBottom.toFixed(1)}px` : null}
 			style:--side-r={touch ? `${(LAY.sideways.rail + LAY.sideways.hudGap).toFixed(1)}px` : null}
 			style:--side-edge={touch ? `${sideEdge.toFixed(1)}px` : null}
 			style:--side-top={touch ? `${(da.safe.top + SIDE_TOP).toFixed(1)}px` : null}
@@ -3297,8 +3313,10 @@
 		right: 0;
 		top: 0;
 		width: var(--rail);
-		height: 100%;
+		height: calc(100% - var(--rail-b, 0px));
 	}
+	/* (THE GEAR BAR, 2026-11-23: its lit amount and arrows stand at the bottom right, under the rail, which ends above
+	   them: --rail-b, ui/armoury/menuFrame.ts railBottom. The rail's content is 312 design px high, the rail 342 there.) */
 	.arm.lay-sideways .tray {
 		position: absolute;
 		inset: 0;

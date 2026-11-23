@@ -514,10 +514,41 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 {
 	const MF = await import('../src/ui/armoury/menuFrame.ts');
 	const { ARMOURY } = await import('../src/game/constants.ts');
-	const pick = (vw, vh, copies) => MF.pickLayout({ kind: 'phone', phone: true, vw, vh, scale: Math.min(vw / 1480, vh / 740), master: { width: 1480, height: 740 }, fitWidth: 1480, copies }, ARMOURY.layout);
-	check('the Armoury on a sideways phone: with the gear bar the desktop box with its own bet controls at every ratio; with the dock the sideways menu as before (844 x 390), the box on the 16:9 frames either way', pick(844, 390, true).layout === 'desktop' && pick(844, 390, true).hudCopies && pick(874, 402, true).hudCopies && pick(844, 390, false).layout === 'sideways' && !pick(844, 390, false).hudCopies && pick(844, 390).layout === 'sideways' && pick(800, 450, false).hudCopies && pick(667, 375, false).hudCopies);
-	const f = MF.menuFrame({ kind: 'phone', phone: true, vw: 844, vh: 390, scale: 390 / 740, master: { width: 1480, height: 740 }, fitWidth: 1480, copies: true }, ARMOURY.layout);
-	check('the Armoury on a sideways phone with the gear bar: the box is inside the window', f.left >= -0.01 && f.top >= -0.01 && f.left + f.width * f.u <= 844.01 && f.top + f.height * f.u <= 390.01, `${f1(f.left)}, ${f1(f.top)}, ${f1(f.width * f.u)} x ${f1(f.height * f.u)}, scale ${f.u.toFixed(3)}`);
+	const inp = (vw, vh, touchSideways) => ({ kind: 'phone', phone: true, vw, vh, scale: Math.min(vw / 1480, vh / 740), master: { width: 1480, height: 740 }, fitWidth: 1480, touchSideways });
+	const pick = (vw, vh, t) => MF.pickLayout(inp(vw, vh, t), ARMOURY.layout);
+	check('the Armoury on a sideways phone: with the gear bar on a touch phone its own sideways layout at every ratio; otherwise the ratio rule as before (sideways from 1.9, the desktop box with its own bet controls under it: 16:9 phones on the dock, the popouts)', pick(844, 390, true).layout === 'sideways' && pick(667, 375, true).layout === 'sideways' && !pick(667, 375, true).hudCopies && pick(844, 390, false).layout === 'sideways' && pick(844, 390).layout === 'sideways' && pick(800, 450, false).hudCopies && pick(667, 375, false).hudCopies && pick(568, 320, false).hudCopies && pick(400, 225).hudCopies);
+	// THE SIDEWAYS MENU OVER THE GEAR BAR, without a browser: the frame, and the anchors ui/armoury/Armoury.svelte measure()
+	// reads off the bar (the left column's right edge, Win's top left for the name, the top of the lit amount and its
+	// arrows' press boxes less 4 px for the rail), through menuFrame.ts designAnchors
+	const S = ARMOURY.layout.sideways;
+	const rows = [];
+	for (const [vw, vh] of [[844, 390], [874, 402], [667, 375]]) {
+		const G = L.sidewaysLayout(vw, vh);
+		const f = MF.menuFrame(inp(vw, vh, true), ARMOURY.layout);
+		const left = ['bal', 'win', 'menu', 'arm'].map((id) => G.box[id]);
+		const anchors = { safe: { top: 0, right: 0, bottom: 0, left: 0 }, hudRight: Math.max(...left.map((b) => b.x + b.w)), balance: { x: G.box.win.x, y: G.box.win.y }, railTop: Math.min(G.press.down.y, G.press.up.y, G.box.amt.y) - 4 };
+		const da = MF.designAnchors(f, anchors, ARMOURY.layout);
+		const u = f.u;
+		const mid = f.width - da.midLeft - (S.rail + S.hudGap);
+		const railH = f.height - da.railBottom;
+		const bad = [];
+		if (f.layout !== 'sideways' || f.hudCopies) bad.push('not the sideways layout');
+		if (f.left < -0.01 || f.top < -0.01 || f.left + f.width * u > vw + 0.01 || f.top + f.height * u > vh + 0.01) bad.push('the frame is off the window');
+		if (mid * u < 200) bad.push(`the middle column (the plate, Activate) ${f1(mid * u)} px wide`);
+		if (da.midLeft * u < anchors.hudRight) bad.push('the middle column on the bar\'s left column');
+		if ((f.width - S.rail) * u < da.midLeft * u + 200) bad.push('the rail on the middle column');
+		// the rail's content: 14 top, PER SPIN's heading 44 and its tiles 112, a 6 gap, FEATURE BUYS' heading 16 and tiles 112, 8 between
+		if (railH < 14 + 44 + 112 + 6 + 16 + 112 + 8) bad.push(`the rail ${f1(railH)} design px high`);
+		if (railH * u > Math.min(G.press.down.y, G.press.up.y, G.box.amt.y) - 3.9) bad.push('the rail over the lit amount or its arrows');
+		if (G.box.amt.x < (f.width - S.rail) * u - 0.01 && G.press.down.x < (f.width - S.rail) * u - 60) bad.push('the amount group far left of the rail');
+		const nameY = da.name.y * u;
+		if (da.name.place !== 'above' || nameY < G.box.menu.y + G.box.menu.h || nameY + 14 * u > G.box.win.y) bad.push(`the name at ${f1(nameY)} not between the standards and Win`);
+		if (!near(da.minHit * u, 44, 1e-6)) bad.push('touch boxes under 44 px');
+		if (12 * u < 9) bad.push(`12 design px text is ${f1(12 * u)} px`);
+		rows.push(`${vw}x${vh}: scale ${u.toFixed(3)}, the middle column ${f1(da.midLeft * u)} to ${f1((f.width - S.rail - S.hudGap) * u)} (${f1(mid * u)} px), the rail from ${f1((f.width - S.rail) * u)} down to ${f1(railH * u)}, the amount's row from ${f1(Math.min(G.press.down.y, G.press.up.y))}, the name at ${f1(nameY)}, 12 px text ${f1(12 * u)} px${bad.length ? '; ' + bad.join('; ') : ''}`);
+		check(`the Armoury's sideways menu over the gear bar at ${vw} x ${vh}: inside the window, every column wide, the rail above the lit amount and arrows, the name between the standards and Win, 44 px touch boxes, text 9 px or more`, bad.length === 0, rows[rows.length - 1]);
+	}
+	check('the Armoury at 568 x 320: the gear bar is not drawn there (the dock), so the menu is the dock\'s own (the box by the ratio rule), unchanged', L.sidewaysLayout(568, 320) === null && pick(568, 320, false).hudCopies);
 	// upright: the bar's top for the menu is the band under the plaque, also where Win and Balance stand under the logo
 	const LS = await import('../src/game/layoutSpec.ts');
 	const tops = [];
