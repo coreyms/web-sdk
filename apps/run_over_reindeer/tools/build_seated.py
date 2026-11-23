@@ -294,7 +294,7 @@ def main():
             pic, piv, k = figure_picture(c, cur["height"], cur["keep"], cur["pivot"], dens)
             pictures[f"seat_{c}"] = pic
             # the pivot as an anchor (0..1 of the picture), and the picture's size in road px at the built height
-            spec["characters"].setdefault(c, {"height": cur["height"], "keep": cur["keep"], "still": os.path.relpath(STILLS[c], SRC), "tiers": {}})
+            spec["characters"].setdefault(c, {"height": cur["height"], "keep": cur["keep"], "tiers": {}})
             spec["characters"][c]["tiers"][tier] = {"anchor": [round(piv[0] / pic.shape[1], 5), round(piv[1] / pic.shape[0], 5)], "width": round(pic.shape[1] / dens, 3), "height": round(pic.shape[0] / dens, 3), "px": [pic.shape[1], pic.shape[0]]}
             tier_pics[(tier, c)] = (pic, piv)
         full_cache = {}
@@ -391,7 +391,10 @@ def main():
             "// per vehicle frame the built placement (at: where the pivot sits; height: the still's trimmed height), the front\n"
             "// layer's and the shadow silhouette's boxes per tier. split: the check (the most alpha of a hidden driver pixel that\n"
             "// shows, at rest and leaned 9 degrees both ways). clipsBudget: the keyed clips' GPU MB at the drawn size (not packed).\n"
-            f"export const SEATED_ART = {body} as const;\n"
+            # where each driver's still came from: a comment, never a field of the runtime object (a field ships in the
+            # game's bundle as text; 2026-11-23)
+            + "".join(f"// {c}'s still: {os.path.relpath(STILLS[c], SRC)}\n" for c in spec["characters"])
+            + f"export const SEATED_ART = {body} as const;\n"
         )
     print(json.dumps(report, indent=1))
 

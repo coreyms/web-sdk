@@ -75,7 +75,7 @@ export const createControls = () => {
 	const canAffordAuto = () => autoSpinCost() > 0 && autoSpinCost() <= stateBet.balanceAmount;
 	// Full price of one press for the spin-button face: the FULL currency string, never
 	// abbreviated (Stake review 2026-09-20). The button measures it and shrinks or drops the line
-	// if it will not fit (SquareSpin.svelte + game/textFit.ts).
+	// if it will not fit (ui/hud/HudSpin.svelte, ui/sign/SignPlay.svelte).
 	const playCostText = () => numberToCurrencyString(betCostFull());
 
 	const sound = (type: 'soundPressGeneral' | 'soundPressBet' | 'soundPressMinor' | 'soundPressSub' | 'soundPressBonus') =>
@@ -333,7 +333,7 @@ export const createControls = () => {
 	// hidden by the chrome AND refused here, so nothing can reach it via a hotkey or a stale button.
 	// Consumed: disabledBuyFeature, disabledAutoplay, disabledTurbo, disabledSuperTurbo,
 	// disabledSlamstop, disabledSpacebar, socialCasino (Game.svelte), minimumRoundDuration
-	// (utils-xstate), displayRTP / displayNetPosition / displaySessionTimer (MenuButton.svelte).
+	// (utils-xstate), displayRTP / displayNetPosition / displaySessionTimer (ui/hud/HudMenuPanel.svelte, ui/sign/SignMenuPanel.svelte).
 	// disabledFullscreen: the game has no fullscreen control of its own, so there is nothing to hide.
 	const jurisdiction = () => stateConfig.jurisdiction;
 	const bonusDisabled = () => held() || !isIdle() || jurisdiction().disabledBuyFeature;

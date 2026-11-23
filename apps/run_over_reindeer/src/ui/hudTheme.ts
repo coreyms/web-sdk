@@ -162,7 +162,7 @@ export const HUD_THEME: Record<string, string> = {
 	'feature-on-deep-2-rgb': '118, 19, 26',
 	'feature-on-rim': '#ff8a8a',
 	/** NEW (the engraved mark, 2026-11-19): the inlay's gold, light to dark (the mock's warm gold on the holly green), and
-	 *  the hub's accent (BonusButton's --pm-core) */
+	 *  the hub's accent (the --pm-core of the old BonusButton, archived 2026-11-23) */
 	'mark-g1-rgb': '252, 228, 146',
 	'mark-g2-rgb': '238, 196, 88',
 	'mark-g3-rgb': '200, 144, 40',

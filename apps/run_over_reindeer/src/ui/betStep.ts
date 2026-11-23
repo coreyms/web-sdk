@@ -1,4 +1,4 @@
-// Bet stepping shared by the HUD's inline −/+ buttons (StepButton) and the modal BetAdjuster.
+// Bet stepping shared by the HUD's −/+ keys (ui/hud/HudStep.svelte) and the modal BetAdjuster.
 // Never step onto an option state-shared's correctBetAmount would clamp: it caps any pick at
 // balance ÷ costMultiplier ('activate' modes only, mirroring its betCostMultiplier), so an
 // unaffordable option becomes an off-menu amount the next spin posts and the RGS rejects into a
@@ -25,7 +25,7 @@ export const betStepTarget = (dir: 1 | -1) => {
 // menu (finite, known from authenticate) × the active mode's multiplier, so the −/+ buttons hold
 // still across bet steps and only re-seat when a mode is armed. Before the font is ready the
 // width is estimated from length. `cap` keeps a trillion-scale GC menu from pushing the stepper
-// into the neighbouring readout: TrioStat's fit shrinks the amount instead.
+// into the neighbouring readout: the readout's own fit shrinks the amount instead.
 export const betSlotWidth = (height: number, cap: number) => {
 	const mult = stateBetDerived.activeBetMode()?.costMultiplier ?? 1;
 	let widest = 0;

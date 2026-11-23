@@ -2486,7 +2486,7 @@ export const SPIN_TAIL = { flipGraceMs: 35 };
 /** the autoplay button's two faces */
 export const AUTOPLAY_COLOURS = { on: '#5f9149', stop: '#e32400' } as const;
 
-/** the price line on the Spin button's face (ui/SquareSpin.svelte) */
+/** the price line on the old Spin button's face (ui/SquareSpin.svelte, archived 2026-11-23: nothing reads it now) */
 export const SPIN_PRICE_FIT = {
 	boxFrac: 0.86,
 	nominal: 0.23,

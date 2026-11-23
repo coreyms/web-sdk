@@ -1,6 +1,6 @@
 // Width of a string in the HTML chrome's number face (Sora, --ui-font-num), measured on an
 // offscreen 2D canvas. Used to pre-size the SPIN readout's slot (betStep.ts) and to shrink an
-// amount that would overflow its column (TrioStat). Nothing is rasterised to the page: the
+// amount that would overflow its column. Nothing is rasterised to the page: the
 // measurement is a metrics call. Before the bundled font has loaded the browser measures the
 // fallback face, so callers keep a length-based estimate for that window.
 let ctx: CanvasRenderingContext2D | null = null;

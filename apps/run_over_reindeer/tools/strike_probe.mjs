@@ -1,5 +1,5 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
-// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadFeatures.ts}, apps/run_over_reindeer/strike_probe.json;
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadFeatures.ts};
 // WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.clock, __reindeer.planRun, __reindeer.road, __reindeer.runMemory
 // WATCHES: ; __reindeer.step, __reindeer.strike, __reindeer.tune, ROUND, STRIKE
 // THE STRIKE PROBE (the rig's run views, the middle path of 2026-11-12): per-frame numbers for the reindeer's strike.
@@ -25,19 +25,21 @@
 // (planRun from a fixed start pose: a unit-style scan of every distance), and reads the run views' GPU memory. With
 // STRIP=<dir> it saves a 3x crop of every pose of one strike from each side on the desktop.
 //
-//   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 OUT=<file.json> [STRIP=<dir>] \
+//   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3014 [OUT=<file.json>] [STRIP=<dir>] \
 //     node tools/strike_probe.mjs
 // Uses the dev server that is already running (it never starts one). One headless browser, closed at the end. Take
 // the shared browser lock around it (mkdir /tmp/hud_mock_shot.lock ... rmdir).
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
 const APP = process.env.APP || 'http://localhost:3014';
-const OUT = process.env.OUT || 'strike_probe.json';
+// (the report goes to the system's temporary folder unless OUT says where: never into the tracked tree, 2026-11-23)
+const OUT = process.env.OUT || join(tmpdir(), 'strike_probe.json');
 const STRIP = process.env.STRIP || '';
 const K = 0.18465;
 const BOARD_X = 142;
@@ -520,6 +522,7 @@ const main = async () => {
 		await browser.close();
 	}
 	writeFileSync(OUT, JSON.stringify(report, null, 1));
+	console.log(`report: ${OUT}`);
 	for (const L of report.layouts) {
 		console.log(`${L.name} (${L.kind}): ready ${L.ready}; run views ${JSON.stringify(L.memory)}`);
 		for (const s of L.strikes) {

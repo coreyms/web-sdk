@@ -21,9 +21,15 @@
 // out (new URL('../../../assets/...', import.meta.url) from a source file three folders deep), a root address
 // (/assets/..., not built from the page's base) or a file missing from the build FAILS this check (exit 1): such a
 // build works from a site's root and 404s from the subfolder Stake serves a game from.
+// STAGING ONLY FILES (2026-11-23, Corey "CC1"; scripts/production-strip.mjs): the `?rescap=` column densities
+// (columns/*-d150-*, *-d215-*, cloud-backdrop-d150 / -d215) ship in a staging build and are left out of a production
+// build by the build itself. One of them in a production build FAILS this check; a staging build passes with them.
+// The showcase books (fixtures/showcaseBooks.ts, `sameBookAs`) and local paths (`/Users/`, `Desktop/`) are markers too
+// (the books were in every production bundle until 2026-11-23, the paths came from the art tools' spec files).
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, relative, extname } from 'node:path';
 import { sweepAddresses, problemLines } from './build-addresses.mjs';
+import { stagingOnlyFiles } from './production-strip.mjs';
 
 export const STAGING_MARKERS = [
 	'ROR_STAGING_BUILD', // game/staging.ts: window.__rorBuild
@@ -33,13 +39,16 @@ export const STAGING_MARKERS = [
 	'ROR_TUNE_PANEL', // staging/tune/mountTune.ts: the `?tune=1` tuning panel's host (dev and staging only since 2026-11-16)
 	'ror-tune-remembered-v1', // staging/tune/tuneStore.ts: the panel's remembered values (staging only, 2026-11-17)
 	'ror-tune-panel', // the same host's DOM id (a second trace, in case the marker string is ever renamed)
+	'sameBookAs', // fixtures/showcaseBooks.ts: the showcase books' own field (the fixture RGS's data, dev and staging only; 2026-11-23)
 ];
 /** strings that must be in NO build, production or staging: dev server only code (a staging build is not expected to
  *  carry them, so --expect-staging does not ask for them) */
 export const NEVER_MARKERS = [
-	'audiodiag', // ui/MenuButton.svelte: the iOS audio readout's query parameter, DEV only since 2026-10-21 (Corey "no longer needed")
+	'audiodiag', // the old ui/MenuButton.svelte (archived 2026-11-23): the iOS audio readout's query parameter, DEV only since 2026-10-21 (Corey "no longer needed")
 	'ringMethod', // ui/hud/HudSpin.svelte: the Spin ring's rest method knob on the dev hook (hud_probe `home`, 2026-11-20)
 	'ringRounds', // the same dev hook's record of the ring's rounds
+	'/Users/', // a local path (an art tool's provenance written into a spec object ships as text; 2026-11-23)
+	'Desktop/', // the same, from the Desktop game folder (`~/Desktop/Run Over Reindeer/...`)
 ];
 /** strings the SHIPPED index.html must not carry, production or staging (Corey 2026-10-21 on src/app.html's developer
  *  comments: "they shouldn't be in the production or staging builds"; scripts/prune-build.mjs strips them). The
@@ -109,6 +118,13 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
 		for (const l of problemLines(addresses.problems)) console.error(l);
 		process.exit(1);
 	}
+	// the staging only files: none in a production build
+	const stagingOnly = stagingOnlyFiles(build);
+	if (stagingOnly.length && !expectStaging) {
+		console.error(`[check-production-bundle] FAIL: ${stagingOnly.length} staging only file(s) in ${build} (the ?rescap= column densities; a production build leaves them out by itself, scripts/production-strip.mjs). Was this built with PUBLIC_STAGING=1, or did the strip not run?`);
+		for (const f of stagingOnly.slice(0, 20)) console.error(`  assets/${f}`);
+		process.exit(1);
+	}
 	const shellHits = await scanShell(build);
 	if (shellHits.length) {
 		console.error(`[check-production-bundle] FAIL: the shipped index.html in ${build} carries developer comments or local paths. No build may carry them (scripts/prune-build.mjs strips them; did it warn?).`);
@@ -126,7 +142,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
 			console.error(`[check-production-bundle] --expect-staging: this is NOT a complete staging build. Missing: ${missing.join(', ')}. Was it built with PUBLIC_STAGING=1?`);
 			process.exit(1);
 		}
-		console.log(`[check-production-bundle] staging build confirmed: all ${STAGING_MARKERS.length} markers present (${files} files, ${(bytes / 1024).toFixed(0)} KB scanned; ${addresses.checked} addresses inside the game folder, their files in the build). DO NOT UPLOAD THIS BUILD TO STAKE.`);
+		console.log(`[check-production-bundle] staging build confirmed: all ${STAGING_MARKERS.length} markers present (${files} files, ${(bytes / 1024).toFixed(0)} KB scanned; ${addresses.checked} addresses inside the game folder, their files in the build; ${stagingOnly.length} staging only files, the ?rescap= column densities). DO NOT UPLOAD THIS BUILD TO STAKE.`);
 		process.exit(0);
 	}
 	if (hits.length) {
@@ -135,5 +151,5 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
 		console.error('Rebuild WITHOUT PUBLIC_STAGING (and without a turbo cache hit from a staging build: pnpm turbo run build --filter=manticore_mayhem... --force).');
 		process.exit(1);
 	}
-	console.log(`[check-production-bundle] PASS: no staging code in ${build} (${files} files, ${(bytes / 1024).toFixed(0)} KB scanned, ${STAGING_MARKERS.length + NEVER_MARKERS.length} markers; index.html has no comments; ${addresses.checked} addresses inside the game folder, their files in the build).`);
+	console.log(`[check-production-bundle] PASS: no staging code in ${build} (${files} files, ${(bytes / 1024).toFixed(0)} KB scanned, ${STAGING_MARKERS.length + NEVER_MARKERS.length} markers; index.html has no comments; ${addresses.checked} addresses inside the game folder, their files in the build; no staging only files).`);
 }

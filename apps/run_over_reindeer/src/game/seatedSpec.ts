@@ -4,6 +4,8 @@
 // per vehicle frame the built placement (at: where the pivot sits; height: the still's trimmed height), the front
 // layer's and the shadow silhouette's boxes per tier. split: the check (the most alpha of a hidden driver pixel that
 // shows, at rest and leaned 9 degrees both ways). clipsBudget: the keyed clips' GPU MB at the drawn size (not packed).
+// grandma's still: references/mockups/grandma_car_seated_v4.png
+// santa's still: references/mockups/santa_sleigh_seated_v13.png
 export const SEATED_ART = {
 	"frames": {
 		"H1_R": {
@@ -999,7 +1001,6 @@ export const SEATED_ART = {
 		"grandma": {
 			"height": 122.5,
 			"keep": 16,
-			"still": "references/mockups/grandma_car_seated_v4.png",
 			"tiers": {
 				"full": {
 					"anchor": [
@@ -1030,7 +1031,6 @@ export const SEATED_ART = {
 		"santa": {
 			"height": 128,
 			"keep": 22,
-			"still": "references/mockups/santa_sleigh_seated_v13.png",
 			"tiers": {
 				"full": {
 					"anchor": [

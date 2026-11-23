@@ -134,7 +134,8 @@ const assets = {
 		preload: true,
 	},
 	// (THE CAST SHADOWS, game/road/shadows.ts, have no texture of their own since round 2: each is a twin of its owner's
-	// picture. Round 1's ellipse, road/shadow.webp and shadow-phone.webp from tools/build_shadows.py, is no longer loaded.)
+	// picture. Round 1's ellipse, road/shadow.webp and shadow-phone.webp from tools/build_shadows.py, was archived on 2026-11-23 to the
+	// web-sdk repo's _archive/2026-11-23/apps/run_over_reindeer/ with game/shadowSpec.ts and the tool.)
 	// THE WAGON'S CHRISTMAS TREE (tools/build_wagon_tree.py, game/road/wagonTree.ts): the tree, the front rail and the ropes
 	// per direction, and their shadow silhouette (desktop about 1.7 MB on the GPU, phone 0.25)
 	wagonTree: {

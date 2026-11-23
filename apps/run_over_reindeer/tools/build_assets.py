@@ -535,6 +535,11 @@ def build_symbols(spec):
                 if name.startswith(("stoplight", "num_", "word_", "cloud_")):
                     continue  # placed by their own numbers (spec.stoplight, spec.feature), never on the rules page
                 sizes[name] = {"width": round(im.width / scale, 1), "height": round(im.height / scale, 1)}
+                # only the pictures the rules page and the symbol popup draw (ui/GameInfoModal.svelte and
+                # components/SymbolPopup.svelte pictureOf: the cars and the sleigh in their _R pose, the signs, the
+                # present). The _L poses and the placeholder reindeer_run pair were never asked for (archived 2026-11-23).
+                if name.endswith("_L") or name.startswith("reindeer_run"):
+                    continue
                 # the rules page pictures: 2 px per road px is plenty for a 60 px table cell at 3x
                 small = resize(im, 2 / scale)
                 small.save(os.path.join(OUT, "symbols", "single", f"{name}.webp"), quality=90, method=6)
