@@ -32,10 +32,11 @@ export const DISCLAIMER =
 //
 // Numbers come from config.ts (which mirrors game_config.py) and prices from the RGS (modeCost, ui/GameInfoModal.svelte). The few
 // game_config.py constants that config.ts does not carry are pinned here, each with its source name.
-/** AUTOPLAY NEVER PLAYS A LOADED FEATURE (ui/controls.svelte.ts loadAutoplay and buyMode, 2026-11-19): one sentence in the
+/** AUTOPLAY NEVER PLAYS A LOADED FEATURE (ui/controls.svelte.ts startAutoplay, 2026-11-19; START begins the run at once
+ *  since 2026-11-23, so no feature can be loaded on a waiting run): one sentence in the
  *  Autoplay row (where the Armoury is drawn) and one in the Armoury's row (where Autoplay is drawn) */
-const AUTO_PLAYS_BASE = 'Autoplay plays base game spins (Ante spins while an Ante is on) and never a loaded Free Spins or Super Free Spins round: loading a run unloads one.';
-const FEATURE_NOT_IN_AUTO = 'Autoplay never plays a loaded feature: loading an Autoplay run unloads it, and a feature cannot be loaded while a run waits on the Spin button.';
+const AUTO_PLAYS_BASE = 'Autoplay plays base game spins (Ante spins while an Ante is on) and never a loaded Free Spins or Super Free Spins round: starting a run unloads one.';
+const FEATURE_NOT_IN_AUTO = 'Autoplay never plays a loaded feature: starting an Autoplay run unloads it.';
 const STING_MAX_PER_SPIN = 5; // game_config.STING_MAX_PER_SPIN
 const SWIPE_MAX_PER_SPIN = 'twice'; // game_config.SWIPE_MAX_PER_SPIN = 2
 // Feature rates against the Base Game, measured on the 2026.10.16 books (feedback/math_reshape_r1/data/
@@ -148,9 +149,9 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 					text: [
 						soc('Plays one round at the SPIN amount.', 'Plays one round at the PLAY amount.'),
 						!j.disabledSlamstop && !j.disabledTurbo ? 'While the reels drop it turns into **STOP**, which lands the result at once.' : '',
-						((x) => (x ? `With ${x} loaded, it shows what the next press starts.` : ''))(
-							[!j.disabledAutoplay ? 'Autoplay' : '', !j.disabledBuyFeature ? 'a feature' : ''].filter(Boolean).join(' or '),
-						),
+						// a feature loads onto it; an Autoplay run never does (START in the ticket begins the run, 2026-11-23)
+						!j.disabledBuyFeature ? 'With a feature loaded, it shows what the next press starts.' : '',
+						!j.disabledAutoplay ? 'During Autoplay a press stops the run.' : '',
 					]
 						.filter(Boolean)
 						.join(' '),
@@ -178,7 +179,7 @@ export const gameInfoText = (amount: (x: number) => string, j: RulesFlags = {}) 
 				},
 				autoplay: {
 					name: 'Autoplay',
-					text: 'Opens the Autoplay ticket: the number of spins, plus a **Stop options** fold with a stop-on-loss limit, a stop-on-single-win limit, **Stop on Free Games** (autoplay ends when a feature triggers; the feature still plays out) and **Autoplay Bonuses** (feature screens continue on their own). **LOAD** parks the run on the Spin button. Spin starts it, and Spin again stops it at any time.' + (j.disabledBuyFeature ? '' : ' ' + AUTO_PLAYS_BASE) + ' After a feature ends, Autoplay waits about a second before its next spin, so there is time to stop it. During a run the Spin button is green with the spins left and this button is red with an X.',
+					text: 'Opens the Autoplay ticket: the number of spins, plus a **Stop options** fold with a stop-on-loss limit, a stop-on-single-win limit, **Stop on Free Games** (autoplay ends when a feature triggers; the feature still plays out) and **Autoplay Bonuses** (feature screens continue on their own). **START** begins the run at once, and Spin stops it at any time.' + (j.disabledBuyFeature ? '' : ' ' + AUTO_PLAYS_BASE) + ' After a feature ends, Autoplay waits about a second before its next spin, so there is time to stop it. During a run the Spin button is green with the spins left and this button is red with an X.',
 				},
 				feature: {
 					name: soc('Bonus Buy', 'Feature Menu'),

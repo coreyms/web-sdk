@@ -113,7 +113,7 @@
 			emit: (event: any) => context.eventEmitter.broadcast(event),
 			/** arm a bet mode by its RGS key (BASE / ANTE / SUPER_ANTE / BONUS / SUPER; raw, DEV only: it does not check isOfferedMode) */
 			setMode: (key: string) => (stateBet.activeBetModeKey = key),
-			/** the autoplay run's stops as amounts and its count (ui/controls.svelte.ts startLoadout): armoury_probe autofeature */
+			/** the autoplay run's stops as amounts and its count (ui/controls.svelte.ts startAutoplay): armoury_probe autofeature */
 			autoLimits: () => ({ loss: stateBet.autoSpinsLossLimitAmount, win: stateBet.autoSpinsSingleWinLimitAmount, count: stateBet.autoSpinsCounter }),
 			/** THE DIM FOLLOWS THE WIN (constants WIN_DIM): the dim level for a win set paying `x` times the bet */
 			winDim: (x: number) => winDimFor(x),

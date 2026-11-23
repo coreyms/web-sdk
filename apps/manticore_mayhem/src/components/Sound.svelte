@@ -7,7 +7,7 @@
 		// (utils-sound createMusic: a looping media element never fires 'ended').
 		| { type: 'soundMusic'; name: MusicName; loop?: boolean }
 		// UI voices (Corey 2026-09-02): minor click = turbo / autoplay / denomination / menu / the
-		// ACTIVATE-LOAD buttons / the landing continue; sub = every other button inside the autoplay
+		// ACTIVATE buttons / the landing continue; sub = every other button inside the autoplay
 		// card; bonus = the bonus head button. Everything else keeps the general click.
 		| { type: 'soundPressMinor' }
 		| { type: 'soundPressSub' }

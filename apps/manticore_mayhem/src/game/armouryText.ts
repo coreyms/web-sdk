@@ -53,8 +53,6 @@ export const ARMOURY_TEXT = {
 	close: 'Close',
 	volatility: 'VOLATILITY',
 	balanceShort: soc('Balance too low at this bet', 'Balance too low at this play amount'),
-	/** a buy while an autoplay run waits on Spin (ui/controls.svelte.ts buyMode, 2026-11-19): ACTIVATE is unavailable */
-	autoFirst: 'Unavailable: unload Autoplay first',
 	/** the chip on a mode that is on: on its tile, and leading the plate's status line (the status templates below start
 	 *  with it: "ON. Active now. ..."; the menu draws it as the chip and the rest as the line, `afterTag`) */
 	onTag: { spin: 'ON', buy: 'LOADED' } satisfies Record<ArmouryGroup, string>,

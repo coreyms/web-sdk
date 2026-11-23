@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { soc } from '../game/social';
-	// Autoplay Loadout (design approved 2026-08-26): configure a run, preview its TRUE total, then LOAD
-	// it onto the spin button — pressing Spin is what starts it. Loss/win stops are multiples of one
+	// Autoplay Loadout (design approved 2026-08-26): configure a run, preview its TRUE total, then START it. START
+	// begins the run at once (Corey 2026-11-23: the LOAD step that parked the run on the Spin button is gone; a tester
+	// expected LOAD to be the starting point; ui/controls.svelte.ts startAutoplay). Loss/win stops are multiples of one
 	// spin's play amount. AUTOPLAY NEVER PLAYS A LOADED FEATURE (2026-11-19, ui/controls.svelte.ts autoSpinCost): with
-	// a buy loaded the ticket prices the base game the run will play, says LOAD unloads the buy, and Stop on Free Games
+	// a buy loaded the ticket prices the base game the run will play, says START unloads the buy, and Stop on Free Games
 	// is available as always (until 2026-11-19 the ticket priced the loaded buy and switched that toggle off, though the
 	// run has always played base spins).
 	// Black glass (Corey's "Black Glass Panels" pick, 2026-09-09): the sheet opens on the spin count,
-	// the true total and one gold LOAD; the loss stop, single-win stop and the two toggles live behind
+	// the true total and one gold START; the loss stop, single-win stop and the two toggles live behind
 	// a STOP OPTIONS fold whose closed row summarises what is set, and the sheet opens unfolded
 	// whenever something non-default is set — a stop is never hidden. Gold = the chosen count, white
 	// = a chosen limit, red = OFF. Fonts stay the chrome's own (Outfit labels, Sora numbers).
@@ -43,7 +44,7 @@
 	// POPOUT S ONLY (harsh review 2026-11-17 m3): the two-column sideways sheet inside a window no wider than 480 and no
 	// taller than 300 CSS px (Stake's Popout S, 400x225). No phone (sideways ones are 568 wide and up, upright ones taller
 	// than 300), no 800x450 Popout L and no desktop can match it. Tighter gaps so the four chip columns hold "1000", the
-	// infinity sign and the price lines, and a two-line LOAD (the amount under the words)
+	// infinity sign and the price lines, and a two-line START (the amount under the words)
 	const popS = $derived(wide && vw <= 480 && vh <= 300);
 	// the armed-mode pill reads "SUPER · $250.00 / SPIN", not "SUPER FREE SPINS · $250.00 / SPIN":
 	// the mode word alone, since "/ SPIN" already says the rest and the long labels clipped the
@@ -63,7 +64,7 @@
 	let stopFree = $state(false);
 	let autoBonuses = $state(false);
 
-	/** the loaded buy LOAD will unload ("SUPER FREE SPINS"), or null */
+	/** the loaded buy START will unload ("SUPER FREE SPINS"), or null */
 	const unloads = $derived(controls.armedBuy() !== null ? (modeChipData()?.label ?? controls.armedBuy()) : null);
 	// autoplay bonuses only exists while stop-on-free-games is off
 	const stopFreeOn = $derived(stopFree);
@@ -128,11 +129,9 @@
 	});
 	const headFits = $derived(headW === 0 || headNeedW <= headW);
 
-	const load = () => {
-		controls.loadAutoplay({ count, lossMult, winMult, stopFree: stopFreeOn, autoBonuses: stopFreeOn ? false : autoBonuses });
+	const start = () => {
+		controls.startAutoplay({ count, lossMult, winMult, stopFree: stopFreeOn, autoBonuses: stopFreeOn ? false : autoBonuses });
 	};
-	// reopening while a loadout waits: allow clearing it
-	const hasLoadout = $derived(controls.autoLoadout() !== null);
 </script>
 
 <ModalShell {open} onclose={close} {master} {scale} {left} {top} dim="rgba(6,4,10,0.55)" zIndex={3}>
@@ -144,7 +143,7 @@
 				<button class="slot-btn hg x" bind:this={xEl} onclick={() => (controls.sound('soundPressSub'), close())} aria-label="Close"><Icon name="close" s={16} /></button>
 			</div>
 			{#if unloads !== null}
-				<div class="drop" data-auto-drop>LOAD unloads <b>{unloads}</b>. Autoplay plays base game spins, never a loaded feature.</div>
+				<div class="drop" data-auto-drop>START unloads <b>{unloads}</b>. Autoplay plays base game spins, never a loaded feature.</div>
 			{/if}
 
 			<div class="cols"><div class="c1">
@@ -217,14 +216,10 @@
 				{/if}
 			</div>
 
-			<button class="slot-btn hg go" onclick={load}>
-				{#if count === Infinity}LOAD AUTO SPINS{:else}LOAD <span class="slot-num n">{countText(count)}</span> AUTO SPINS<i class="dot"></i><span class="slot-num n mv">{totalText}</span>{/if}
+			<button class="slot-btn hg go" onclick={start}>
+				{#if count === Infinity}START AUTO SPINS{:else}START <span class="slot-num n">{countText(count)}</span> AUTO SPINS<i class="dot"></i><span class="slot-num n mv">{totalText}</span>{/if}
 			</button>
-			<div class="cap">Loads to the Spin button. Pressing Spin starts the run; pressing again stops it.</div>
-			{#if hasLoadout}
-				<!-- a run already parked on the Spin button: LOAD above replaces it, this clears it -->
-				<button class="slot-btn hg unload" onclick={() => { controls.sound('soundPressSub'); controls.clearAutoplay(); close(); }}>UNLOAD CURRENT AUTO SPINS</button>
-			{/if}
+			<div class="cap">Starts the run now. Press Spin to stop it at any time.</div>
 			</div></div>
 		</div>
 		<div class="stepper" onclick={(e) => e.stopPropagation()} role="presentation">
@@ -236,7 +231,7 @@
 <style>
 	/* THE AUTOPLAY MENU in the HUD's glass (HUD round 5, "Drop 6", 2026-11-12): the panel frame is ChromeStyles .am-glass
 	   (the HUD's obsidian glass); every part inside wears the HUD's own pieces: glass chips with the 1 px white-top /
-	   gold-bottom edge, a gold rim on the chosen one, the Spin's gold-edged glass for LOAD, glass toggles. Every colour is
+	   gold-bottom edge, a gold rim on the chosen one, the Spin's gold-edged glass for START, glass toggles. Every colour is
 	   a ui/hudTheme.ts token. Content and behaviour as before. Desktop and tablet: a panel over the board; portrait: a sheet
 	   from the bottom (the bet stepper over it); phone sideways: a wide, low panel in two columns. */
 	.center {
@@ -663,7 +658,7 @@
 	.toggle.on .knob::after {
 		transform: translateX(20px);
 	}
-	/* LOAD: the Spin's gold-edged glass, wide; UNLOAD a small ember capsule */
+	/* START: the Spin's gold-edged glass, wide */
 	.go {
 		display: flex;
 		align-items: center;
@@ -698,26 +693,11 @@
 		width: 5px;
 		height: 5px;
 	}
-	.unload {
-		align-self: center;
-		height: 34px;
-		border-radius: 999px;
-		padding: 0 16px;
-		border: 1px solid;
-		border-color: rgba(var(--hud-feature-rim-rgb), 0.46);
-		background: linear-gradient(180deg, rgba(var(--hud-feature-deep-1-rgb), 0.8), rgba(var(--hud-feature-deep-2-rgb), 0.86));
-		box-shadow: inset 0 0 12px rgba(var(--hud-feature-rgb), 0.45);
-		font-size: 10.5px;
-		font-weight: 900;
-		letter-spacing: 0.14em;
-		color: rgb(var(--hud-ink-rgb));
-		margin-top: -2px;
-	}
 	/* the footer line steps aside while the fold is open: the 720-tall landscape master has no room for both */
 	.fold.open ~ .cap {
 		display: none;
 	}
-	/* the loaded buy LOAD unloads: shown at every size (the cap below steps aside on phones, this line never does) */
+	/* the loaded buy START unloads: shown at every size (the cap below steps aside on phones, this line never does) */
 	.drop {
 		margin: -4px 2px 0;
 		text-align: center;
@@ -859,7 +839,7 @@
 
 	/* ── Popout S only (400x225; popS above: wide, at most 480 x 300 CSS px, never a phone, 800x450 or a desktop) ──
 	   the panel padding and the gaps give the chips their room (a chip about 40 px: "1000" at 14 px, the 30 px infinity
-	   sign, "$1,000.00" at 7.2 px), and LOAD runs on two lines: the words, then the amount (no dot) */
+	   sign, "$1,000.00" at 7.2 px), and START runs on two lines: the words, then the amount (no dot) */
 	.pops {
 		padding: 10px 10px 12px;
 	}

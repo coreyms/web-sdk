@@ -135,7 +135,7 @@ export const pointerIsMouse = (): boolean =>
  *  so line 5 says so and line 6 is skipped (an empty line is never shown: the cadence goes on to the next) */
 export const tipLines = (mouse: boolean, superAnte = false, recapLine = false): string[] => [
 	mouse ? 'Click a symbol to see its wins' : 'Tap a symbol to see its wins',
-	// THE RECAP (1.0.04, PLAQUE_RECAP): skipped ('') while autoplay runs or is loaded, and with nothing to show
+	// THE RECAP (1.0.04, PLAQUE_RECAP): skipped ('') while autoplay runs, and with nothing to show
 	recapLine ? (mouse ? PLAQUE_RECAP.lineMouse : PLAQUE_RECAP.lineTouch) : '',
 	'5 touching symbols make a cluster',
 	'A win on a lit tile doubles it',

@@ -17,6 +17,7 @@
 	// so none is shown. House rules: no backdrop-filter, no filter, no mask; the pop is opacity and a small scale; DEV hooks
 	// only on window.__manticore; fonts the chrome already loads (Cinzel, Sora, Outfit Text).
 	import { onMount } from 'svelte';
+	import { stateBet } from 'state-shared';
 	import { fade } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import { bookEventAmountToCurrencyString } from '../game/amount';
@@ -132,10 +133,11 @@
 					return { x: r.left, y: r.top, w: r.width, h: r.height, rows: [...box.querySelectorAll('[data-recap-row]')].map((el) => (el as HTMLElement).dataset.recapRow), title: box.querySelector('.rc-title')?.textContent ?? null, total: box.querySelector('.rc-total-v')?.textContent ?? null };
 				},
 				openRow: (i: number) => (openRow = i),
-				/** an autoplay count loaded on the Spin button (the controls' own loadAutoplay shape), or null: the "tap the
-				 *  plaque" line's skip rule is checked with it */
-				loadAuto: (count: number | null) => {
-					context.stateGame.autoLoadout = count === null ? null : { count, lossMult: null, winMult: null, stopFree: false, autoBonuses: false };
+				/** a run's spins left as the HUD reads them (stateBet.autoSpinsCounter), or null for none: the "tap the
+				 *  plaque" line's skip rule is checked with it. Nothing is played: the counter is only read once a round
+				 *  starts, and the probe sets it back before the next one (a run is never loaded since 2026-11-23) */
+				autoRun: (count: number | null) => {
+					stateBet.autoSpinsCounter = count ?? 0;
 				},
 				log: () => log.map((e) => ({ ...e })),
 			};

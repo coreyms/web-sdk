@@ -5,7 +5,7 @@
 	// Armoury, icon only, a chain of gears (ui/gear/gearLayout.ts UPRIGHT); the Armoury's icon is the game's PolyMath mark.
 	// The bar turns the one layer marked data-turn. What each does, its sounds and its disabled rules are the dock's
 	// keys', unchanged (ui/hud/HudKey.svelte, ui/hud/HudArmoury.svelte):
-	//   Auto     lit while a run is loaded on the Spin or running; its press opens the Autoplay menu, or stops a live run
+	//   Auto     lit while a run is running; its press opens the Autoplay menu, or stops a live run
 	//   Turbo    three level pips (0, 1, 2); two under the operator's disabledSuperTurbo; lit at levels 1 and 2
 	//   Menu     lit while the help menu is open (controls.menuPress)
 	//   Armoury  controls.bonusPress; disabled whenever controls.bonusDisabled() says. With a mode on (Ante, Super Ante,
@@ -35,9 +35,8 @@
 	const level = $derived(controls.turboLevel());
 	const bars = $derived(controls.jurisdiction().disabledSuperTurbo ? 2 : 3);
 	const running = $derived(controls.autoRunning());
-	const loaded = $derived(controls.autoLoadout() !== null);
 	const onLabel = $derived(kind === 'arm' ? (controls.anteActive() ? modeShortLabel(stateBet.activeBetModeKey) : controls.armedLabel()) : null);
-	const on = $derived(kind === 'auto' ? running || loaded : kind === 'menu' ? stateUi.menuOpen : kind === 'arm' ? onLabel !== null : false);
+	const on = $derived(kind === 'auto' ? running : kind === 'menu' ? stateUi.menuOpen : kind === 'arm' ? onLabel !== null : false);
 	// the drawing: made again only if its size, its teeth or the pip count changes
 	const G = $derived(geo ?? { R: DESKTOP_GEARS[kind === 'turbo' ? 'turbo' : 'auto'].R, teeth: DESKTOP_GEARS.auto.teeth, dep: TOOTH.height, word: DESKTOP.text.word });
 	const art = $derived(smallGearArt(kind, G.R, G.teeth, G.word, bars, G.dep));

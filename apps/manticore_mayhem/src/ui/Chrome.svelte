@@ -132,7 +132,7 @@
      longer mounted, so stateBet.isSpaceHold stays false and the bet machine's checkSpaceHold never chains a round;
      SpinHotkey (in place of the shared OnHotkey) ignores the key's auto-repeat, so a held Space plays one round. -->
 <!-- Space must never spin under an open modal: with a buy mode armed that press is a real 100×–300×
-     purchase behind the dialog, and with a parked autoplay loadout it starts the whole run.
+     purchase behind the dialog.
      pressGates: while a press-to-continue presentation is up, Space belongs to it alone — otherwise
      the same press also hit controls.spin → stopButtonClick, force-enabling turbo. -->
 <SpinHotkey

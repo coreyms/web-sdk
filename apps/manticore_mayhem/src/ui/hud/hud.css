@@ -709,7 +709,7 @@
 }
 /* LIT KEYS (bet bar fix, Corey: "make the Auto and Turbo Buttons change colors when active"): the key itself changes,
    its fill, its rim, its glow and its ink, not only the word.
-     ON   Auto with a run loaded, Turbo on, the open Menu, the picked scene: the theme's deep "on" glass, accent rim
+     ON   Auto with a run live, Turbo on, the open Menu, the picked scene: the theme's deep "on" glass, accent rim
      HOT  Auto with a run playing, Turbo at instant: the theme's bright "hot" fill, a pale rim and a wider glow
    The level bars and the bolt follow the key's ink (currentColor), so they read on either fill. */
 .hudp .auto.is-on,
@@ -1378,8 +1378,7 @@
 .hudp .spin.m-feature .cnt {
 	font-size: calc(var(--d) * 0.4);
 }
-.hudp .spin.m-armed,
-.hudp .spin.m-loaded {
+.hudp .spin.m-armed {
 	border-color: rgb(var(--hud-accent-hi-rgb));
 }
 @media (hover: hover) and (pointer: fine) {
@@ -1459,7 +1458,7 @@
 .hudp .spin .rh {
 	transition: rotate 0.55s cubic-bezier(0.3, 1.6, 0.45, 1);
 }
-.hudp .spin:is([data-st='idle'], [data-st='loaded'], [data-st='armed']):not(:disabled) .rh {
+.hudp .spin:is([data-st='idle'], [data-st='armed']):not(:disabled) .rh {
 	animation:
 		hud-ring-breathe 3.4s ease-in-out infinite,
 		hud-ring-kick 2.8s linear infinite;

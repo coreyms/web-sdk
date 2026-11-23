@@ -10,7 +10,7 @@ import { getContext } from '../game/context';
 import { betCostFull } from '../game/modeChipData';
 import { isOfferedMode, modeShortLabel } from '../game/betModeMeta';
 import { soc } from '../game/social';
-import type { AutoLoadout } from '../game/stateGame.svelte';
+import type { AutoRun } from '../game/stateGame.svelte';
 import { SLAM_HURRY } from '../game/constants';
 import { hudWinOdometer } from '../game/hudWin.svelte';
 import { armouryView } from './armoury/armouryView.svelte';
@@ -63,17 +63,15 @@ export const createControls = () => {
 	};
 	const cancelArmed = () => {
 		stateBet.activeBetModeKey = 'BASE';
-		context.stateGame.autoLoadout = null; // one gesture, clean slate: mode AND autoplay unload
 	};
 	const autoRunning = () => stateBetDerived.hasAutoBetCounter();
 	const autoCount = () => stateBet.autoSpinsCounter;
 	const autoCountText = () => (stateBet.autoSpinsCounter === Infinity ? INFINITY_MARK : `${stateBet.autoSpinsCounter}`);
 	const canAfford = () => betCostFull() > 0 && betCostFull() <= stateBet.balanceAmount;
-	// AUTOPLAY NEVER PLAYS A LOADED FEATURE (2026-11-19, the rule startLoadout below has kept since the Stake review of
-	// 2026-09-20, now on the screen too): a loaded buy and a loaded run never coexist. LOAD in the Autoplay ticket unloads
-	// a loaded buy at once (loadAutoplay), the Armoury cannot load one while a run waits on Spin (buyMode,
-	// ui/armoury/Armoury.svelte), and every amount the ticket shows is the price of what the run will play: the base
-	// amount with a buy loaded (it is unloaded on LOAD), the full Ante price with an Ante on (an Ante persists).
+	// AUTOPLAY NEVER PLAYS A LOADED FEATURE (2026-11-19, the rule startAutoplay below has kept since the Stake review of
+	// 2026-09-20, now on the screen too): START in the Autoplay ticket unloads a loaded buy as the run begins
+	// (startAutoplay), and every amount the ticket shows is the price of what the run will play: the base amount with a
+	// buy loaded (it is unloaded on START), the full Ante price with an Ante on (an Ante persists).
 	const autoSpinCost = () => (armedBuy() ? stateBet.betAmount : betCostFull());
 	const canAffordAuto = () => autoSpinCost() > 0 && autoSpinCost() <= stateBet.balanceAmount;
 	// Full price of one press for the spin-button face — the FULL currency string, never
@@ -98,11 +96,6 @@ export const createControls = () => {
 		}
 		sound('soundPressBet');
 		if (isIdle()) {
-			// a loaded autoplay run: the Spin press is what starts it
-			if (context.stateGame.autoLoadout) {
-				startLoadout();
-				return;
-			}
 			// an armed buy mode (BONUS/SUPER) plays ONE feature round: bookEventHandlerMap's
 			// finalWin drops it back to BASE when the round ends (Stake review 2026-09-20)
 			context.eventEmitter.broadcast({ type: 'bet' });
@@ -143,8 +136,11 @@ export const createControls = () => {
 		return true;
 	};
 
-	// ── autoplay (loadout flow: configure → LOAD to the spin button → Spin starts the run) ──
-	const autoLoadout = () => context.stateGame.autoLoadout;
+	// ── autoplay (START in the ticket begins the run at once; Spin, or the Autoplay key, stops it) ──
+	// NO LOAD STEP (Corey 2026-11-23, both games, after a tester of the sister game could not find how to begin a run:
+	// "they expected it to start when hitting Load to Button that it would be the Starting point"). The ticket's key
+	// names the count and the total and the player presses it: that press is the confirmation, so it starts the run as
+	// the first Spin press of a loaded run used to (same checks, same press sound, same start). Nothing waits on Spin.
 	const autoDisabled = () => held() || stateBet.isSpaceHold || (!isIdle() && !autoRunning()) || !canAffordAuto();
 	const autoPress = () => {
 		if (jurisdiction().disabledAutoplay || held()) return;
@@ -155,48 +151,38 @@ export const createControls = () => {
 		}
 		stateModal.modal = { name: 'autoSpin' }; // SDK modal-name union; our AutoplayModal owns it
 	};
-	/** park a configured run on the spin button; nothing plays until Spin is pressed */
-	const loadAutoplay = (loadout: AutoLoadout) => {
-		// a loaded buy is unloaded here, when the run is loaded, not at the Spin press: from now the HUD, the Spin key and
-		// the Armoury all show the base game the run will play (the Armoury's plate says it was unloaded)
-		const dropped = armedBuy();
-		if (dropped) {
-			stateBet.activeBetModeKey = 'BASE';
-			armouryView.unloadedByAutoplay = dropped;
-		}
-		context.stateGame.autoLoadout = loadout;
+	/** START: close the ticket and begin the run, by the same refusals as a Spin press at rest */
+	const startAutoplay = (run: AutoRun) => {
+		if (jurisdiction().disabledAutoplay || held()) return;
 		stateModal.modal = null;
-		sound('soundPressMinor'); // the autoplay card's ACTIVATE (LOAD) — minor click, like the bonus ACTIVATEs
-	};
-	const clearAutoplay = () => {
-		context.stateGame.autoLoadout = null;
-		armouryView.unloadedByAutoplay = null;
-	};
-	const startLoadout = () => {
-		const loadout = context.stateGame.autoLoadout;
-		if (!loadout || held()) return;
-		// An autoplay run never plays a bought feature: the run would re-buy at the feature price on
-		// every press with no per-round confirmation (Stake review 2026-09-20). Drop the armed buy
-		// before the run starts, exactly as the SDK's own AutoSpinsStartButton does. Ante persists. (Since 2026-11-19
-		// loadAutoplay already unloads it when the run is loaded and buyMode refuses one on top of a run, so this is the
-		// last guard, not the place the player learns of it.)
+		// a round in play: nothing starts (the ticket cannot open then; this is the last guard)
+		if (!isIdle()) return;
+		// short of one spin of what the run will play (a loaded buy unloads, so the base or Ante price): Spin's own
+		// refusal, the balance notice in place of the ticket. Nothing is sent and nothing is unloaded.
+		if (!canAffordAuto()) {
+			sound('soundPressMinor');
+			stateModal.modal = { name: 'autoSpinMessage', message: 'insufficientBalance' };
+			return;
+		}
+		sound('soundPressBet'); // the Spin press's own sound: this press plays the run's first spin
+		// An autoplay run never plays a bought feature: the run would re-buy at the feature price on every press with no
+		// per-round confirmation (Stake review 2026-09-20). Drop the armed buy before the run starts, exactly as the SDK's
+		// own AutoSpinsStartButton does (the ticket's line said START unloads it). Ante persists.
 		if (armedBuy()) stateBet.activeBetModeKey = 'BASE';
-		armouryView.unloadedByAutoplay = null;
 		const perSpin = betCostFull();
-		stateBet.autoSpinsCounter = loadout.count;
+		stateBet.autoSpinsCounter = run.count;
 		// loss stop = cumulative net loss since the run began (SDK tracks balance delta); win stop =
 		// one spin's win. Both as multiples of a single spin's play amount; null = off.
-		stateBet.autoSpinsLossLimitAmount = loadout.lossMult ? loadout.lossMult * perSpin : Infinity;
-		stateBet.autoSpinsSingleWinLimitAmount = loadout.winMult ? loadout.winMult * perSpin : Infinity;
-		// the SDK text fields carry a narrow preset union used only by its own (unmounted) UI — the
+		stateBet.autoSpinsLossLimitAmount = run.lossMult ? run.lossMult * perSpin : Infinity;
+		stateBet.autoSpinsSingleWinLimitAmount = run.winMult ? run.winMult * perSpin : Infinity;
+		// the SDK text fields carry a narrow preset union used only by its own (unmounted) UI; the
 		// real limits are the amount fields above
 		stateUi.autoSpinsLossLimitText = INFINITY_MARK;
 		stateUi.autoSpinsSingleWinLimitText = INFINITY_MARK;
 		// the run is always base/ante now (any armed buy was dropped above), so the player's choice stands
-		context.stateGame.autoStopOnFreeGames = loadout.stopFree;
+		context.stateGame.autoStopOnFreeGames = run.stopFree;
 		// door screens self-continue only while the run is live (autoBonusesRunning checks the counter)
-		context.stateGame.autoPlayBonuses = loadout.autoBonuses;
-		context.stateGame.autoLoadout = null; // consumed: one load = one run
+		context.stateGame.autoPlayBonuses = run.autoBonuses;
 		context.eventEmitter.broadcast({ type: 'autoBet' });
 	};
 
@@ -238,7 +224,7 @@ export const createControls = () => {
 		// turbo / autoplay / denomination / menu share the minor click, the rest the general click
 		sound('soundPressBonus');
 		// THE ARMOURY (owner 2026-10-13 22:18, answer 1): with a mode on, the button OPENS the menu on that mode;
-		// switching off (and unloading a waiting autoplay run with it, cancelArmed) happens inside the menu
+		// switching off (cancelArmed) happens inside the menu
 		stateModal.modal = { name: 'buyBonus' };
 	};
 	const activateMode = (mode: string) => {
@@ -250,9 +236,8 @@ export const createControls = () => {
 		stateModal.modal = null;
 	};
 	const buyMode = (mode: string) => {
-		// never on top of a loaded autoplay run (the Armoury's ACTIVATE is unavailable then and says so)
 		// only a mode the game offers (game/betModeMeta.ts isOfferedMode): the Epic and Mystery buys left on 2026-11-21
-		if (held() || context.stateGame.autoLoadout || !isOfferedMode(mode)) return;
+		if (held() || !isOfferedMode(mode)) return;
 		// arm only: the feature loads onto the spin button for ONE round. Nothing is charged and
 		// nothing plays until the player presses Spin, and the round's finalWin returns the game to
 		// the base game, so the next feature round is a fresh selection + confirmation.
@@ -344,7 +329,7 @@ export const createControls = () => {
 		playCost: betCostFull,
 		autoSpinCost,
 		spinDisabled, showStop, spin, slamStop, boardTap,
-		autoDisabled, autoPress, autoLoadout, loadAutoplay, clearAutoplay,
+		autoDisabled, autoPress, startAutoplay,
 		turboPress, turboLevel,
 		bonusDisabled, bonusPress, activateMode, buyMode, jurisdiction,
 		betOptions, betDisabled, openDenom, setBet,

@@ -115,6 +115,7 @@ export const recapIdle = (): boolean =>
  *  anything, else nothing */
 export const recapTarget = (): 'last' | 'feature' | null => (recap.offer && recap.feature ? 'feature' : recapHasClears() ? 'last' : null);
 
-/** the "tap the plaque" explainer line is skipped while autoplay runs or is loaded on the Spin button (Corey 2026-10-20:
- *  "omit that line of text when autospin is active or loaded on top the play button") and while there is nothing to open */
-export const recapLineOn = (): boolean => !stateBetDerived.hasAutoBetCounter() && !sg.autoLoadout && recapTarget() !== null;
+/** the "tap the plaque" explainer line is skipped while autoplay runs (Corey 2026-10-20: "omit that line of text when
+ *  autospin is active or loaded on top the play button"; since 2026-11-23 a run is never loaded, START begins it) and
+ *  while there is nothing to open */
+export const recapLineOn = (): boolean => !stateBetDerived.hasAutoBetCounter() && recapTarget() !== null;

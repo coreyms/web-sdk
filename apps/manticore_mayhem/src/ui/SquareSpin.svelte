@@ -18,7 +18,7 @@
 	const countText = $derived(controls.autoCountText());
 	const countFont = $derived(countText.length > 3 ? 0.28 : countText === '∞' ? 0.55 : 0.32);
 	// The old state colours stay (Corey 16:20): red fill while stopping, green fill while an autoplay
-	// run is live, a green outline with a loadout parked, gold with a buy mode armed, white otherwise.
+	// run is live, gold with a buy mode armed, white otherwise.
 	// THE BRONZE PLATE (2026-10-15, ui/ChromeStyles.svelte .am-plate): the fills tint its glass
 	// (.plate-stop, .plate-run), the outline colour is its bezel metal (`metal` below).
 	const glassTint = $derived(showStop ? 'plate-stop' : autoActive ? 'plate-run' : '');
@@ -32,17 +32,13 @@
 	const showFreeSpins = $derived(!replay || replayState.phase === 'playing');
 	const freegame = $derived(controls.freeSpin() !== null);
 	const fs = $derived(controls.freeSpin());
-	// a parked autoplay loadout: green outline, spins + per-spin price; pressing starts the run
-	const loaded = $derived(controls.autoLoadout());
 	// PRICE FIT (Stake review 2026-09-20, FIX 4): the price is the FULL currency string, never
 	// K/M-abbreviated, and the button must never overflow. Measure it once per string/size change
 	// (game/textFit.ts — a metrics call, not a render) and shrink to the SPIN_PRICE_FIT floor;
 	// below the floor the line is dropped and the button shows only the mode word. The HUD's
 	// SPIN / TOTAL readout always prints the full amount, so nothing becomes unreadable.
 	const priceText = $derived(controls.playCostText() ?? '');
-	const priceNominal = $derived(
-		size * (loaded ? (armed ? SPIN_PRICE_FIT.nominalLoadedArmed : SPIN_PRICE_FIT.nominalLoaded) : SPIN_PRICE_FIT.nominal),
-	);
+	const priceNominal = $derived(size * SPIN_PRICE_FIT.nominal);
 	const priceFont = $derived(
 		fitFont({
 			text: priceText,
@@ -54,9 +50,9 @@
 		}),
 	);
 	// during free games the button keeps its own outline (white, now the pale iron bezel): colour marks an idle
-	// button only. Otherwise bronze, green with a run live or a loadout parked, gold with a buy mode armed. The green
+	// button only. Otherwise bronze, green with a run live, gold with a buy mode armed. The green
 	// is the Autoplay green (ChromeStyles --auto-*, Corey 2026-10-21 "deeper green and Manticore Red").
-	const metal = $derived(freegame ? 'plate-silver' : autoActive || loaded ? 'plate-green' : armed ? 'plate-gold' : '');
+	const metal = $derived(freegame ? 'plate-silver' : autoActive ? 'plate-green' : armed ? 'plate-gold' : '');
 </script>
 
 <button
@@ -81,12 +77,6 @@
 		<div class="count">
 			<span class="slot-num num" style:font-size="{size * countFont}px">{countText}</span>
 			<span class="active" style:font-size="{Math.max(9, size * 0.115)}px">Active</span>
-		</div>
-	{:else if loaded}
-		<div class="count">
-			<span class="auto-loaded" style:font-size="{Math.max(9, size * 0.105)}px">AUTO {loaded.count === Infinity ? '∞' : loaded.count}</span>
-			{#if armed}<span class="armed-label" style:font-size="{Math.max(8, size * 0.095)}px">{armedLabel}</span>{/if}
-			{#if priceFont !== null}<span class="slot-num num" style:font-size="{priceFont}px">{priceText}</span>{/if}
 		</div>
 	{:else if armed}
 		<div class="count">
@@ -133,15 +123,6 @@
 	.armed-label {
 		font-weight: 900;
 		letter-spacing: 1.2px;
-		color: #ffdc4a;
-		text-transform: uppercase;
-		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
-		white-space: nowrap;
-	}
-	.auto-loaded {
-		font-weight: 900;
-		letter-spacing: 1.2px;
-		/* the game's gold (--ui-gold, as .armed-label), not Angry Mantis's lime #9cd92f (harsh review 2026-10-20 must-fix 7) */
 		color: #ffdc4a;
 		text-transform: uppercase;
 		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);

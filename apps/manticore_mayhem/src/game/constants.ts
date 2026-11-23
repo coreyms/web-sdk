@@ -1000,7 +1000,7 @@ export const PLAQUE_CELEBRATE = {
 };
 
 /** THE AUTOPLAY STATE COLOURS (Corey 2026-10-21, second harsh review, his option A: "deeper green and Manticore Red").
- *  The meaning stays: green = Autoplay on (a loadout parked on the Spin button, or a run live: the Autoplay button's
+ *  The meaning stays: green = Autoplay on (a run live: the Autoplay button's
  *  glass and bezel, the Spin button's bezel, its live count's glass and its "ACTIVE"), red = stop (the Autoplay button
  *  while a run is live: its X stops it). Until then the shades were Angry Mantis's: its brand lime #9CD92F and a pink
  *  #ff5a8a. `on` is a deeper, less saturated green that sits with the bronze and the gold, clearly not the lime; `stop`
@@ -1149,8 +1149,8 @@ export const PLAQUE_BADGE = {
 
 /** THE RECAP (1.0.04; STORYBOARD.md section 6; Corey 2026-10-20: the recap is in 1.0.04; components/SpinRecap.svelte,
  *  game/recap.svelte.ts). Words (no "bet", "buy", "cash", "money", "paid"): the explainer line that points at the plaque
- *  (line 2; skipped while autoplay runs or is loaded on the Spin button, Corey: "omit that line of text when autospin is
- *  active or loaded on top the play button", and while there is no spin with clears to show), the offer the plaque shows
+ *  (line 2; skipped while autoplay runs, Corey: "omit that line of text when autospin is active or loaded on top the
+ *  play button" (since 2026-11-23 a run is never loaded: START begins it), and while there is no spin with clears to show), the offer the plaque shows
  *  after a feature (until the next spin), and the box's headings. Sizes are CSS px at k = 1, where k follows the plaque's
  *  width on screen (refPlaqueCss), held to [minK, maxK]; every text size has a floor. The offer's size is a share of the
  *  explainer lines' font, fitted to offerFill of the dark field's width. */
@@ -3927,8 +3927,6 @@ export const BONUS_MODE_LABEL = {
 export const SPIN_PRICE_FIT = {
 	boxFrac: 0.86,
 	nominal: 0.23,
-	nominalLoaded: 0.19,
-	nominalLoadedArmed: 0.17,
 	minScale: 0.7,
 	weight: 800,
 	letterSpacing: -0.5,

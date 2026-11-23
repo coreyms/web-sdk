@@ -236,7 +236,6 @@ export const stateGame = $state({
 	 *  own (0 = none). Speed only: timeScale() below is the one reader. Not persisted, never shown on the turbo
 	 *  button, cleared when the spin is over (stopButtonEnable). */
 	hurryLevel: 0 as 0 | 1 | 2,
-	autoLoadout: null as AutoLoadout | null,
 	autoStopOnFreeGames: false,
 	autoPlayBonuses: false,
 	/** count of ACTIVE press-to-continue gates; while > 0 Chrome's Space hotkey belongs to them */
@@ -253,8 +252,8 @@ export const stateGame = $state({
 	sessionRecap: null as null | { mode: BonusMode; spinsPlayed: number; totalSessionWin: number },
 });
 
-/** a configured autoplay run waiting on the spin button (built in AutoplayModal, consumed on start) */
-export type AutoLoadout = {
+/** a configured autoplay run (built in AutoplayModal, started at once by its START: ui/controls.svelte.ts startAutoplay) */
+export type AutoRun = {
 	count: number; // Infinity allowed
 	lossMult: number | null;
 	winMult: number | null;
