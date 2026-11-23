@@ -176,13 +176,22 @@ export const hubArrowSvg = (): string => {
 	return `<svg class="rs" viewBox="-50 -50 100 100" aria-hidden="true" focusable="false">${defs}${trails}<g id="${id}" fill="url(#${id}g)" stroke="#0d0903" stroke-width="${f2(A.ink)}" stroke-linejoin="round" paint-order="stroke">${studs}<path d="M${head.map(ps).join('L')}Z" fill="url(#${id}h)"/></g></svg>`;
 };
 
-/** SPIN in the game's gold lettering (the mock: 36 px on a hub of radius 92.52, spaced 0.12 em, a 2.2 px ink line), in
- *  the Spin face's -50..50 box. --gs0..2 turn it to steel. `size`, `ink`, `hubR`: another table's own (the upright
- *  phone: 19.4 px with a 1.2 px line on a hub of radius 46.05). */
-export const spinWordSvg = (size = 36, ink = 2.2, hubR = 92.52): string => {
+/** SPIN as open gold letters (the mock: 36 px on a hub of radius 92.52, spaced 0.12 em, a 2.2 px line), in the Spin
+ *  face's -50..50 box. --gs0..2 turn it to steel. `size`, `line`, `hubR`: another table's own (the upright phone: 19.4
+ *  px with a 1.2 px line on a hub of radius 46.05; gearLayout scales the line with the hub and keeps it to SPIN_LINE_MIN).
+ *  THE LOOK (Corey 2026-11-23, on the staging build: "the SPIN text came out much more Bold than intended, need to
+ *  achieve the Mock's Look here"): the mock as it drew on his screen, a thin gold line along each letter's outline in
+ *  the mock's gold gradient, the dark hub showing inside the letters, no fill. The mock's code asked for solid gold
+ *  letters over a dark ink line (paint-order stroke) and Chromium draws them so (its check/gears shots); his browser drew
+ *  the gold gradient in the line's shape and nothing inside, and that open face is the look he approved. The first port
+ *  copied the code, doubled the line (2 x 2.2 = 4.4 px where the mock's helper was handed half its outline, so 2.2
+ *  in all), and on staging his browser drew that as a gold band twice as wide, nearly filling each letter: the heavy
+ *  word. Drawn here on purpose as the open face, so every browser shows the same: the gradient on the line, no fill,
+ *  no paint-order, and the line the mock's own 2.2 px. */
+export const spinWordSvg = (size = 36, line = 2.2, hubR = 92.52): string => {
 	const id = `gs${++uid}`;
 	const k = 50 / hubR;
-	return `<svg class="rdy" viewBox="-50 -50 100 100" aria-hidden="true" focusable="false"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--gs0)"/><stop offset=".5" style="stop-color:var(--gs1)"/><stop offset="1" style="stop-color:var(--gs2)"/></linearGradient></defs><text x="0" y="0" text-anchor="middle" dominant-baseline="central" font-size="${f2(size * k)}" letter-spacing="${f2(size * 0.12 * k)}" fill="url(#${id})" stroke="#0b0703" stroke-width="${f2(ink * 2 * k)}" stroke-linejoin="round" paint-order="stroke">SPIN</text></svg>`;
+	return `<svg class="rdy" viewBox="-50 -50 100 100" aria-hidden="true" focusable="false"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--gs0)"/><stop offset=".5" style="stop-color:var(--gs1)"/><stop offset="1" style="stop-color:var(--gs2)"/></linearGradient></defs><text x="0" y="0" text-anchor="middle" dominant-baseline="central" font-size="${f2(size * k)}" letter-spacing="${f2(size * 0.12 * k)}" fill="none" stroke="url(#${id})" stroke-width="${f2(line * k)}" stroke-linejoin="round">SPIN</text></svg>`;
 };
 
 /** A SMALL GEAR (Auto, Turbo): solid iron, no spokes; a face out to the tooth roots with the game's icon, the word and

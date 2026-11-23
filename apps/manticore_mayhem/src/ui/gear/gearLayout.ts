@@ -271,6 +271,13 @@ const circleInBox = (c: { cx: number; cy: number; R: number }, r: Box) => {
 	return inside ? c.R : Math.max(0, c.R - d);
 };
 
+/** SPIN's gold line on a phone (ui/gear/gearArt.ts spinWordSvg, open letters): his table's line, scaled with the hub as
+ *  the word is, never under this many CSS px, so it stays a line on the smallest hubs (an upright 362 x 600 or a
+ *  sideways 640 x 340 would scale it to about 0.5 and 0.6). The desktop word scales with its box and never needs it:
+ *  2.2 px at 1920 x 1080, 1.22 px at the smallest desktop hub (radius 51.3, 980 x 540). */
+export const SPIN_LINE_MIN = 0.75;
+const spinLine = (line: number, k: number) => Math.max(SPIN_LINE_MIN, line * k);
+
 /** the smallest side a press box may have, CSS px (house rule L4) */
 export const MIN_PRESS = 44;
 /** the gears stay this far inside the window */
@@ -566,7 +573,7 @@ export const sidewaysLayout = (vw: number, vh: number, safe: Safe = { t: 0, r: 0
 		how,
 		scale: { std: kStd, readout: kRo },
 		fitW: { win: box.win.w - 6, bal: box.bal.w - 6, amt: how === 'row' ? Math.min(amt.w - 4, up.x - dn.x - 0.32 * T.arrow - 2) : amt.w - 4 },
-		text: { label: T.text.label, number: T.amt.number, bal: num.bal, win: num.win, word, spin: (T.text.spin * hubR) / hub0, spinInk: T.text.spinInk, count: Math.max(13, (14.4 * hubR) / hub0), sub: Math.max(8, (6.5 * hubR) / hub0), hub0 },
+		text: { label: T.text.label, number: T.amt.number, bal: num.bal, win: num.win, word, spin: (T.text.spin * hubR) / hub0, spinInk: spinLine(T.text.spinInk, hubR / hub0), count: Math.max(13, (14.4 * hubR) / hub0), sub: Math.max(8, (6.5 * hubR) / hub0), hub0 },
 		scene: { boardK, plate, logo, cells },
 		/** the top line's studio name (ui/ClockStrip.svelte, right side) as the dock draws it, and whether the Play covers it */
 		chainTop: logo.y + logo.h * 0.965,
@@ -802,7 +809,7 @@ export const uprightLayout = (vw: number, vh: number, safeBottom = 0, T: Upright
 		fitW: { win: winFit, bal: T.box.bal.w - 6, amt: row.fit },
 		where: { win: moved.includes('win') ? 'under the logo' : 'between the Armoury and the Play gear', bal: moved.includes('bal') ? 'under the logo' : 'under Turbo', amt: row.where },
 		gapSpin: Math.min(circleToBox(play, row.down), circleToBox(play, row.up)),
-		text: { label: T.text.label, number: T.text.number, spin: (T.text.spin * hubR) / hub0, spinInk: T.text.spinInk, count: Math.max(15, (T.text.count * hubR) / hub0), sub: T.text.sub, hub0 },
+		text: { label: T.text.label, number: T.text.number, spin: (T.text.spin * hubR) / hub0, spinInk: spinLine(T.text.spinInk, hubR / hub0), count: Math.max(15, (T.text.count * hubR) / hub0), sub: T.text.sub, hub0 },
 		scene: { boardK, logoBottom, plateTop },
 	};
 };

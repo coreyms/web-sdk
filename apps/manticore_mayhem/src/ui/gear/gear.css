@@ -487,10 +487,22 @@
 	opacity: 0.55;
 }
 /* (one class short on purpose, here and on the disabled < and >: the chrome's own fade under a presentation, ui/Chrome.svelte
-   .hud-off, must still win over a disabled key's opacity) */
+   .hud-off, must still win over a disabled key's opacity)
+   DISABLED (a round in play, 2026-11-23; Corey: "we need to change this so the whole logo doesn't go transparent, the
+   change should be much smaller so it's not distracting, such as lightly changing the color of the PolyMath Logo in
+   there"): the standard, its border, chain and rod stay whole (opacity 1 over the chrome's .slot-btn:disabled 0.55);
+   only the mark at rest steps one gold down the mark's own ramp (--hud-mark-g2 to g3, the same 0.65 on the cloth), a
+   0.2 s fade. With a mode on, the inlaid mark and the name are left as they are. The native disabled attribute still
+   takes no press. */
 .v-gear .gs.gs-arm:disabled {
-	opacity: 0.5;
+	opacity: 1;
 	cursor: default;
+}
+.hudp.v-gear .gs.gs-arm .em-rest path {
+	transition: fill 0.2s ease;
+}
+.hudp.v-gear .gs.gs-arm:disabled:not(.is-on) .em-rest path {
+	fill: rgba(var(--hud-mark-g3-rgb), 0.65);
 }
 .hudp.v-gear .gs.gs-arm .lb {
 	position: absolute;
@@ -622,6 +634,16 @@
 /* the Armoury's mark: the game's gold at rest, dark on the lit face with a mode on, steel when disabled at rest */
 .hudp.v-gear .gk .pm {
 	fill: rgb(var(--hud-mark-g2-rgb));
+	transition: fill 0.2s ease;
+}
+/* while a round plays (the standard's rule, 2026-11-23): no veil over the Armoury's gear; only its mark at rest steps
+   halfway from --hud-mark-g2 (240, 200, 116) to g3 (208, 154, 56). Half a step, as the solid mark on the dark iron
+   shows a step about as plainly as the standard's mark at 0.65 on its cloth shows a whole one. */
+.hudp.v-gear .gk.gk-arm.is-busy:disabled .off {
+	opacity: 0;
+}
+.hudp.v-gear .gk.gk-arm.is-busy:disabled:not(.is-on) .pm {
+	fill: rgb(224, 177, 86);
 }
 .hudp.v-gear .gk.is-on .pm {
 	fill: #2a1606;

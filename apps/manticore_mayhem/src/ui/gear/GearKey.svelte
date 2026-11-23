@@ -14,7 +14,8 @@
 	//            key's label for a screen reader names it, as on the dock
 	// Disabled: at rest (a held round, nothing to play a run with) the gear is steel, the mock's disabled drawing; while a
 	// round plays (Auto and the Armoury are disabled through every hand-played round) it only dims under a veil, so the
-	// gear does not flip between iron and steel on every spin.
+	// gear does not flip between iron and steel on every spin. The Armoury takes no veil while a round plays (Corey
+	// 2026-11-23: "the change should be much smaller so it's not distracting"): only its mark steps a little dimmer.
 	// The press box is the whole gear (the square round its tips) and never changes size; a press sinks the drawing.
 	// CLASS NAMES: the kind is gk-auto, gk-turbo, gk-menu, gk-arm, never the dock's own auto / turbo / menuk (ui/hud/hud.css
 	// paints those as glass keys wherever they stand under .hudp).
