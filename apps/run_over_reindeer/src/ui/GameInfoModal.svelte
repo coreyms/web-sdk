@@ -292,7 +292,7 @@
 
 			<section bind:this={sectionEls.guide} data-guide>
 				<h2>User Interface Guide</h2>
-				<p>{T.guide.intro}</p>
+				<p>{@render rich(T.guide.intro)}</p>
 				<div class="guide">
 					{#each GUIDE as g (g.id)}
 						<div class="guide-row" data-guide-row={g.id}>
@@ -310,7 +310,7 @@
 
 			<section bind:this={sectionEls.lines}>
 				<h2>Lines</h2>
-				<p>{T.lines.intro}</p>
+				<p>{@render rich(T.lines.intro)}</p>
 				<!-- one small picture per line: five columns by four lanes, the line's cells lit -->
 				<div class="lines" style:grid-template-columns="repeat({lineCols}, minmax(0, 1fr))">
 					{#each config.paylines as rows, i (i)}
