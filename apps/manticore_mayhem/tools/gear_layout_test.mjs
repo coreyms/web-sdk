@@ -830,6 +830,32 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	check('the Armoury on an upright phone: the gear bar\'s top is in its band under the plaque (within 3 px of the plaque\'s plate), never the readouts under the logo', tops.every(([, t, plate]) => t >= plate && t <= plate + 3), tops.map(([k, t, plate, ro]) => `${k}: ${f1(t)} (plate ${f1(plate)}, highest of Win and Balance ${f1(ro)})`).join('; '));
 }
 
+// ---- 4g. THE FIVE RINGS (game/frameGears.ts FRAME_PINION, pinionRing; components/BoardFrame.svelte) ----
+{
+	const FG = await import('../src/game/frameGears.ts');
+	const { BOARD_ART } = await import('../src/game/boardArtSpec.ts');
+	const { readFileSync } = await import('node:fs');
+	check('rings: four on the frame (two wheels, two pinions) beside the hub\'s, lit by the one ringAt() the hub reads', FG.FRAME_RINGS.join() === 'wheel-L,wheel-R,pinion-L,pinion-R' && typeof FG.ringAt === 'function');
+	for (const kind of ['landscape', 'portrait', 'phone']) {
+		const G = BOARD_ART.relight.layouts[kind].gears;
+		const art = BOARD_ART.art;
+		const mid = (FG.FRAME_WHEEL.center.L[0] + FG.FRAME_WHEEL.center.R[0]) / 2;
+		const q = { L: FG.pinionRing('L', G.pinion_L.box), R: FG.pinionRing('R', G.pinion_R.box) };
+		const inBox = (c, b) => c.x - c.r > b[0] && c.x + c.r < b[0] + b[2] && c.y - c.r > b[1] && c.y + c.r < b[1] + b[3];
+		// each ring inside its own loop's box; the two mirrored about the art's center line; inside the wheel, toward the
+		// board, on the top rail; 27 px of the loop's cell
+		check(`rings ${kind}: each pinion's ring is inside its own gear's box, the two mirrored about the board's center line (${f1(q.L.x)}, ${f1(q.L.y)} and ${f1(q.R.x)}, ${f1(q.R.y)}, radius ${f1(q.R.r)})`, inBox(q.L, G.pinion_L.box) && inBox(q.R, G.pinion_R.box) && near(q.L.x + q.R.x, 2 * mid, 3) && near(q.L.y, q.R.y, 1.5) && near(q.L.r, q.R.r, 0.6) && near(q.R.r, 27, 1.2), `center line ${f1(mid)}`);
+		check(`rings ${kind}: the pinion stands inside its wheel toward the board (clear of the wheel's own ring), on the art`, q.R.x < FG.FRAME_WHEEL.center.R[0] - FG.FRAME_WHEEL.ringR - q.R.r && q.L.x > FG.FRAME_WHEEL.center.L[0] + FG.FRAME_WHEEL.ringR + q.L.r && q.L.x - q.L.r > art[0] && q.R.x + q.R.r < art[2]);
+	}
+	// the small ring's art: a 256 px PNG (its middle line FRAME_PINION.texR from the center), beside the wheels' 512 px one
+	const png = (f) => { const b = readFileSync(new URL(`../static/assets/ui/${f}`, import.meta.url)); return [b.readUInt32BE(16), b.readUInt32BE(20)]; };
+	const small = png('gear-ring-small.png');
+	const big = png('gear-ring.png');
+	// 3 px per CSS px at the largest draw: the board's scale on a 3840 x 2160 screen is the wheel's 73 CSS px over its 65
+	const css4k = (FG.FRAME_PINION.ringR * 73) / 65;
+	check(`rings: the small ring's art is 256 px square with its middle line ${FG.FRAME_PINION.texR} px out (${f1(FG.FRAME_PINION.texR / css4k)} px per CSS px on a 3840 x 2160 screen), the wheels' 512 px`, small.join() === '256,256' && big.join() === '512,512' && FG.FRAME_PINION.texR / css4k >= 2.95 && FG.FRAME_PINION.texR + 5 * (FG.FRAME_PINION.texR / FG.FRAME_PINION.ringR) + 1 < 128);
+}
+
 // ---- 5. the switch ----
 {
 	const k = (kind, vw, vh, mode) => L.barKind({ kind, vw, vh }, mode);

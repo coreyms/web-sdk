@@ -350,6 +350,8 @@ const assets = {
 	// THE LIGHT RING on the frame's two top wheels (gear bar 2026-11-22; tools/build_gear_ring.py, game/frameGears.ts): one
 	// small white ring, tinted and faded by components/BoardFrame.svelte. In at boot so it never uploads mid-play.
 	gearRing: { type: 'sprite', src: stamp(new URL('../../assets/ui/gear-ring.png', import.meta.url).href), preload: true },
+	// (the same ring for the frame's two pinions, drawn for their size: tools/build_gear_ring.py)
+	gearRingSmall: { type: 'sprite', src: stamp(new URL('../../assets/ui/gear-ring-small.png', import.meta.url).href), preload: true },
 	boardWells: { type: 'sprite', src: tiered(stamp(new URL('../../assets/ui/board-wells.webp', import.meta.url).href), stamp(new URL('../../assets/ui/board-wells-half.webp', import.meta.url).href)), preload: true },
 	boardWellsGlow: { type: 'sprite', src: tiered(stamp(new URL('../../assets/ui/board-wells-glow.webp', import.meta.url).href), stamp(new URL('../../assets/ui/board-wells-glow-half.webp', import.meta.url).href)), preload: true },
 	// THE BOARD FRAME and its chain loop tiles (tools/build_board_layers.py from the board_v5j renders;

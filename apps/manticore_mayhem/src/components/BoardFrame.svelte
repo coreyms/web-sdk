@@ -62,7 +62,7 @@
 	import { sceneLight } from '../game/scene';
 	import { loadFrameNightLate } from '../game/deferredLoad';
 	import { bannerBackSlot, boardPlateSlot, boardPlaqueSlot, frameLight } from '../game/boardPlateSlot';
-	import { FRAME_WHEEL, frameGearsAt, ringAt } from '../game/frameGears';
+	import { FRAME_PINION, FRAME_WHEEL, frameGearsAt, pinionRing, ringAt } from '../game/frameGears';
 
 	const context = getContext();
 	const parent = getContextParent();
@@ -127,16 +127,22 @@
 	// while its free spins play, a pulse as a win lands). Its own container, drawn right after `under` at the same depth
 	// and moved with the same kick, so the frame's own layer list is untouched. A tint and an opacity only: no filter, no
 	// mask, no texture made here (static/assets/ui/gear-ring.png, tools/build_gear_ring.py: RING_TEX_R px to its middle line).
+	// THE TWO PINIONS TOO (2026-11-24, Corey: "Was there a reason it didn't get applied to the smaller inner gears?"):
+	// the small gear on the top rail inside each wheel carries the same ring on its own brass ring, lit by the same
+	// call in the same tick (one loop below), so the hub and the four frame rings come on and go off together. Its own
+	// art (gear-ring-small.png: the same script, drawn for a 27 px ring, a thinner halo that stays inside the teeth).
 	const RING_TEX_R = 216;
 	const rings = new PIXI.Container({ zIndex: -1, label: 'wheel-rings' });
-	const ringSprites = (['L', 'R'] as const).map((side) => {
-		const sprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
-		sprite.anchor.set(0.5);
-		sprite.label = `wheel-ring-${side}`;
-		sprite.visible = false;
-		rings.addChild(sprite);
-		return { side, sprite };
-	});
+	const ringSprites = (['wheel', 'pinion'] as const).flatMap((part) =>
+		(['L', 'R'] as const).map((side) => {
+			const sprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
+			sprite.anchor.set(0.5);
+			sprite.label = `${part}-ring-${side}`;
+			sprite.visible = false;
+			rings.addChild(sprite);
+			return { part, side, sprite, texR: part === 'wheel' ? RING_TEX_R : FRAME_PINION.texR };
+		}),
+	);
 	const ringLit = { rgb: -1, level: -1 };
 
 	const chains = new PIXI.Container({ zIndex: 1 });
@@ -194,6 +200,7 @@
 			fire: assets?.[`boardFrameFire_${kind}`],
 			gears: { day: gearTable(assets, kind, 'day'), night: gearTable(assets, kind, 'night'), fire: gearTable(assets, kind, 'fire') },
 			ring: assets?.gearRing,
+			ringSmall: assets?.gearRingSmall,
 		};
 	});
 	// the other layouts' night sets are not registered at boot: this layout's is fetched the first time it shows
@@ -518,12 +525,22 @@
 		}
 		setGears(gear.frame);
 		// the wheels' light rings: each on its wheel's center, its middle line on the wheel's brass ring
-		for (const { side, sprite } of ringSprites) {
-			if (!t.ring) continue;
-			const c = r.map(FRAME_WHEEL.center[side][0], FRAME_WHEEL.center[side][1]);
-			sprite.texture = t.ring;
-			sprite.position.set(c.x, c.y);
-			sprite.scale.set((FRAME_WHEEL.ringR * r.m) / RING_TEX_R);
+		for (const { part, side, sprite, texR } of ringSprites) {
+			if (part === 'wheel') {
+				if (!t.ring) continue;
+				const c = r.map(FRAME_WHEEL.center[side][0], FRAME_WHEEL.center[side][1]);
+				sprite.texture = t.ring;
+				sprite.position.set(c.x, c.y);
+				sprite.scale.set((FRAME_WHEEL.ringR * r.m) / texR);
+			} else {
+				// the pinion's ring: on its own brass ring, through this layout's own box for the loop
+				if (!t.ringSmall) continue;
+				const q = pinionRing(side, spec.gears[`pinion_${side}`].box);
+				const c = r.map(q.x, q.y);
+				sprite.texture = t.ringSmall;
+				sprite.position.set(c.x, c.y);
+				sprite.scale.set((q.r * r.m) / texR);
+			}
 		}
 		if (t.shadow && t.frame) {
 			const box = spec.shadow.box;
@@ -867,7 +884,7 @@
 					relight: relightState(),
 					/** THE WHEELS' LIGHT RINGS (game/frameGears.ts; tools/manticore/hud_probe.js section `gear`): each sprite's
 					 *  center and its middle line's radius in master units, whether it draws, its color and strength */
-					wheelRings: ringSprites.map(({ side, sprite }) => ({ side, x: sprite.x, y: sprite.y, r: RING_TEX_R * sprite.scale.x, visible: sprite.visible, alpha: Number(sprite.alpha.toFixed(4)), tint: sprite.tint as number, tex: [sprite.texture.width, sprite.texture.height], blend: sprite.blendMode as string, filters: Array.isArray(sprite.filters) ? sprite.filters.length : sprite.filters ? 1 : 0, mask: !!sprite.mask })),
+					wheelRings: ringSprites.map(({ part, side, sprite, texR }) => ({ part, side, name: `${part}-${side}`, x: sprite.x, y: sprite.y, r: texR * sprite.scale.x, visible: sprite.visible, alpha: Number(sprite.alpha.toFixed(4)), tint: sprite.tint as number, tex: [sprite.texture.width, sprite.texture.height], blend: sprite.blendMode as string, filters: Array.isArray(sprite.filters) ? sprite.filters.length : sprite.filters ? 1 : 0, mask: !!sprite.mask })),
 					/** the tool's numbers for this layout: the plate's crop and sizes, each loop's box, the shadow's, the checks */
 					relightSpec: { frame: fs, layout: RL.layouts[k], checks: RL.checks },
 					/** the old cell-well sprite in the board container: null since it left the game (2026-10-28, asset grade #4;

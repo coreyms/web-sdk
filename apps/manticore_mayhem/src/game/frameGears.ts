@@ -26,6 +26,31 @@ export const FRAME_WHEEL = {
 	ringW: 4,
 } as const;
 
+/** THE FRAME'S PINION (2026-11-24): the small gear on the top rail just inside each wheel (the relight parts pinion_L,
+ *  pinion_R: eight paddle teeth round a brass ring). Corey, of the rings on the two wheels: "The outer gears got the
+ *  matching ring light ups, and that looks great. Was there a reason it didn't get applied to the smaller inner gears?"
+ *  There was none: his first ask named "the smaller gears on both sides of the board with their rings", and it was read
+ *  as the wheels alone. Measured in the shipped loops (board-gears-landscape, the mean of each loop's 20 frames): the
+ *  pinion's own brass ring is `ringR` px from its center in a loop cell `cell` px wide and tall, the center at `at` in
+ *  that cell (the left one is the right one's mirror). Each layout draws the cell in its own box (game/boardArtSpec.ts
+ *  relight.layouts.<kind>.gears.pinion_<side>.box, render px), so the center and the radius are taken through that box.
+ *  The pinion turns in place, so its ring stands still on it like the wheel's. `texR`: the small ring art's middle line
+ *  (static/assets/ui/gear-ring-small.png, tools/build_gear_ring.py). */
+export const FRAME_PINION = {
+	cell: { R: [124, 142], L: [125, 142] } as Record<'L' | 'R', readonly [number, number]>,
+	at: { R: [69.5, 70], L: [54, 70] } as Record<'L' | 'R', readonly [number, number]>,
+	ringR: 27,
+	ringW: 3,
+	texR: 90,
+} as const;
+/** the pinion's ring in a layout: its center and radius in render px, from that layout's own box for the loop */
+export const pinionRing = (side: 'L' | 'R', box: readonly number[]) => {
+	const k = box[2] / FRAME_PINION.cell[side][0];
+	return { x: box[0] + FRAME_PINION.at[side][0] * k, y: box[1] + (FRAME_PINION.at[side][1] * box[3]) / FRAME_PINION.cell[side][1], r: FRAME_PINION.ringR * k };
+};
+/** THE FIVE RINGS that light together: the Play hub's (HTML) and these four on the frame (canvas sprites) */
+export const FRAME_RINGS = ['wheel-L', 'wheel-R', 'pinion-L', 'pinion-R'] as const;
+
 type Listener = (links: number) => void;
 const listeners = new Set<Listener>();
 

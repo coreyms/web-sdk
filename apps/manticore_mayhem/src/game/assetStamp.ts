@@ -560,6 +560,7 @@ export default {
 	"ui/board-wells-glow.webp": "c4cd102f",
 	"ui/board-wells-half.webp": "71f9c371",
 	"ui/board-wells.webp": "8d1869a1",
+	"ui/gear-ring-small.png": "7b831f98",
 	"ui/gear-ring.png": "02600fa6",
 	"ui/intro/card-clusters-poster.jpg": "bbb00666",
 	"ui/intro/card-clusters.mp4": "9370d1e5",
@@ -1186,6 +1187,7 @@ export const fileBytes = {
 	"ui/board-wells-glow.webp": 70000,
 	"ui/board-wells-half.webp": 12816,
 	"ui/board-wells.webp": 48734,
+	"ui/gear-ring-small.png": 11150,
 	"ui/gear-ring.png": 27034,
 	"ui/intro/card-clusters-poster.jpg": 54358,
 	"ui/intro/card-clusters.mp4": 824373,
@@ -1272,4 +1274,4 @@ export const landingSizes = {
 
 // Byte totals of the three loading phases the landing screen waits on (the JS bundle is added by
 // scripts/prune-build.mjs at build time): ONE loading scale across the splash and the landing bar.
-export const bootSizes = {"landing":3330177,"preload":1439241,"audio":1176550} as const;
+export const bootSizes = {"landing":3330177,"preload":1450391,"audio":1176550} as const;

@@ -37,7 +37,7 @@
 	import { onMount, untrack } from 'svelte';
 	import { stateUi } from 'state-shared';
 	import { getContext } from '../../game/context';
-	import { frameGears, gearRing, onFrameGears, ringAt, RING_COLOR, type RingKind } from '../../game/frameGears';
+	import { FRAME_RINGS, frameGears, gearRing, onFrameGears, ringAt, RING_COLOR, type RingKind } from '../../game/frameGears';
 	import type { Controls } from '../controls.svelte';
 	import { replayState } from '../replayState.svelte';
 	import type { HudFrame } from '../hud/hudLayout';
@@ -168,7 +168,7 @@
 				angles: { ...angles, reduced },
 				drawn: turns.map((t) => ({ layer: t.el.dataset.turn, period: t.period, transform: t.el.style.transform })),
 				/** the hub ring's state: its kind (null: brass), its color, and the strength the frame's wheels draw it at */
-				ring: { kind: ringKind, pulse: r.kind, color: r.level > 0 ? hex(r.rgb) : null, level: r.level },
+				ring: { kind: ringKind, pulse: r.kind, color: r.level > 0 ? hex(r.rgb) : null, level: r.level, frame: [...FRAME_RINGS] },
 				/** the hub's ring as drawn now: its colored ring, halo and pale flash (opacities), the ring's color */
 				hub: hubNow(host),
 			};
