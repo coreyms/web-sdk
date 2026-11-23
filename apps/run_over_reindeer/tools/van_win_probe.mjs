@@ -1,7 +1,8 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/road/roadSounds.ts,game/road/vanWin.ts};
-// WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.clock, __reindeer.fixtures, __reindeer.hud, __reindeer.road
-// WATCHES: ; __reindeer.roadSounds, __reindeer.roadSprites, __reindeer.step, __reindeer.tune, __reindeer.turbo, __reindeer.vans, VAN_WIN
+// WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.clock, __reindeer.fixtures, __reindeer.hud, __reindeer.pressReady
+// WATCHES: ; __reindeer.road, __reindeer.roadSounds, __reindeer.roadSprites, __reindeer.roundIdle, __reindeer.step, __reindeer.tune
+// WATCHES: ; __reindeer.turbo, __reindeer.vans, VAN_WIN
 // WATCHES: ; .landing, .hudp, .spin
 // THE VAN WIN PROBE (Corey 2026-11-15: the van, H3, lurches and backfires, then rocks with a flashlight in its windows
 // when it wins; constants VAN_WIN, game/road/vanWin.ts). A posed book (handed to the fixtures through the dev hook;
@@ -14,6 +15,8 @@
 //     never wider than the glass is deep at their slots (they stay inside the windows)
 //   - the frame the win's hold ends, every van is upright on its mark and nothing is drawn; the same after the round
 //   - a slam stop during the win, turbo 2: nothing left once the win goes
+//   - every round it plays: the press on a ready Spin key started a round and its lines showed (a line of its own, so a
+//     round that never started is never read as a game fault); the slam press has its own line too (2026-11-22, below)
 //   - the WebGL draw calls per frame with the van's win on and off at the same frozen moment; the sprites
 //   - no page errors, no console errors
 // With OUT=<dir>: per-frame tables (van_table_<size>.md), the frames for a 60 fps clip (van_frames_<size>/), stills
@@ -63,8 +66,10 @@ const check = (ok, msg, detail) => {
 		fail += 1;
 		fails.push(msg);
 	}
-	console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}${!ok && detail !== undefined ? ' ' + (typeof detail === 'string' ? detail : JSON.stringify(detail).slice(0, 700)) : ''}`);
+	// (the detail's flags come first in each object and the cut is long: a cut at 700 once hid the slam's flag)
+	console.log(`${ok ? 'PASS' : 'FAIL'} ${msg}${!ok && detail !== undefined ? ' ' + (typeof detail === 'string' ? detail : JSON.stringify(detail).slice(0, 2400)) : ''}`);
 };
+const skip = (msg, why) => console.log(`SKIP ${msg}: not judged, ${why}`);
 
 const DRAW_COUNTER = () => {
 	window.__dc = { calls: 0, frames: 0 };
@@ -108,24 +113,56 @@ async function boot(browser, S) {
 
 const R = (p, fn, arg) => p.evaluate(fn, arg);
 
-/** a spin of the posed book, the clock frozen once the lines show; steps it frame by frame to the round's end */
-async function playWin(p, S, { turbo = 0, slamAt = null, frames = null, shots = null } = {}) {
+/** THE PRESS MUST START A ROUND (2026-11-22, Decimus: the slam line failed on desktop and portrait with slammed false and
+ *  12 rows; by hand the game was right). Since the Spin key change (web-sdk 88392637, ui/controls.svelte.ts "THE ROUND'S
+ *  TAIL") the key reads Spin from the round's finalWin, the same moment atRest() turns true (bookEventHandlerMap's finalWin
+ *  clears stateGame.busy), while the round machine still runs its tail (the strip's count, the end-round). A press in the
+ *  first SPIN_TAIL.flipGraceMs after that change only completes the readout and starts nothing; a later one is kept until
+ *  the machine is idle and only then starts its round. This probe pressed right after waiting for atRest(), so the press
+ *  after a winning round started no round at once (or none at all); the wait for the lanes to stop then broke on the old
+ *  board, still at rest, the clock was frozen and the stepping read a board with no win (the slam frame never came; the
+ *  turbo 2 run passed on no win at all). Now: wait (real time, the clock running) for the round machine itself
+ *  (__reindeer.roundIdle, as tools/rider_probe_lib.mjs stepRound and tools/police_lights_probe.mjs do), then queue the
+ *  book and empty the sound log (nothing of the round before can come after that), press, and see the new round start
+ *  (the board leaves rest: actor.ts onNewGameStart sets busy) before anything is stepped. */
+async function startRound(p, { book, turbo }) {
+	await R(p, () => window.__reindeer.clock(1));
+	let ready = false;
+	for (let i = 0; i < 100 && !ready; i++) {
+		ready = await R(p, () => (window.__reindeer.roundIdle ? window.__reindeer.roundIdle() : window.__reindeer.pressReady ? window.__reindeer.pressReady() : true));
+		if (!ready) await sleep(100);
+	}
 	await R(p, ({ book, turbo }) => {
 		const h = window.__reindeer;
 		h.clock(1);
 		h.turbo(turbo);
 		h.roadSounds(true);
 		h.fixtures.queue(book, 1);
-	}, { book: BOOK, turbo });
+	}, { book, turbo });
 	await p.click('.hudp button.spin');
+	let started = false;
+	for (let i = 0; i < 40 && !started; i++) {
+		started = !(await R(p, () => window.__reindeer.atRest()));
+		if (!started) await sleep(50);
+	}
+	return { ready, started };
+}
+
+/** a spin of the posed book, the clock frozen once the lines show; steps it frame by frame to the round's end */
+async function playWin(p, S, { turbo = 0, slamAt = null, frames = null, shots = null } = {}) {
+	const { ready, started } = await startRound(p, { book: BOOK, turbo });
 	// let it run in real time until every lane has stopped, then freeze the board clock and step it to the frame the
 	// lines show (so the win is seen from its very first frame)
 	let shown = false;
+	let landed = false;
 	const before = [];
 	for (let i = 0; i < 800; i++) {
 		const s = await R(p, () => ({ stopped: window.__reindeer.road().lanesStopped.every(Boolean) && window.__reindeer.road().atRest, vans: window.__reindeer.vans() }));
 		before.push(s.vans);
-		if (s.stopped) break;
+		if (s.stopped) {
+			landed = true;
+			break;
+		}
 		await sleep(10);
 	}
 	await R(p, () => window.__reindeer.clock(0));
@@ -142,13 +179,18 @@ async function playWin(p, S, { turbo = 0, slamAt = null, frames = null, shots = 
 	}
 	const rows = [];
 	let slammed = false;
+	// (the win showing on the frame before the slam frame: the press is made only then, so a press made is a slam of the win)
+	let winAtSlam = null;
 	for (let i = 0; i < 400; i++) {
 		if (slamAt !== null && i === slamAt) {
-			// the Spin pressed while the lines show: a slam stop / skip of the win
-			await R(p, () => window.__reindeer.clock(1));
-			await p.click('.hudp button.spin').catch(() => {});
-			slammed = true;
-			await R(p, () => window.__reindeer.clock(0));
+			winAtSlam = !!rows[i - 1]?.win;
+			if (winAtSlam) {
+				// the Spin pressed while the lines show: a slam stop / skip of the win
+				await R(p, () => window.__reindeer.clock(1));
+				await p.click('.hudp button.spin').catch(() => {});
+				slammed = true;
+				await R(p, () => window.__reindeer.clock(0));
+			}
 		}
 		const s = await R(p, (ms) => {
 			const h = window.__reindeer;
@@ -168,8 +210,12 @@ async function playWin(p, S, { turbo = 0, slamAt = null, frames = null, shots = 
 	await sleep(400);
 	const after = await R(p, () => window.__reindeer.vans());
 	await R(p, () => window.__reindeer.turbo(0));
-	return { before, rows, after, slammed };
+	return { before, rows, after, slammed, winAtSlam, ready, started, landed, shown };
 }
+
+/** the round's own line: the press on a ready key started it and its lines showed (printed before the game's lines) */
+const checkStart = (S, label, W) =>
+	check(W.started && W.landed && W.shown, `${S.name}: ${label}: the press on a ready Spin key started a round and its lines showed`, { ready: W.ready, started: W.started, landed: W.landed, shown: W.shown, nrows: W.rows?.length });
 
 // a van at rest after its win: nothing drawn, upright on its mark; one driving (a slam stop drives the board away, a new
 // spin brings it in) is judged on the win's drawing only (the road moves and dives it, not the win)
@@ -185,6 +231,7 @@ try {
 		const frameDir = OUT && VIDEO ? join(OUT, `van_frames_${S.name}`) : null;
 		if (frameDir) mkdirSync(frameDir, { recursive: true });
 		const W = await playWin(p, S, { frames: frameDir });
+		checkStart(S, 'the win', W);
 		// (before the win a van may be driving in, tilted by its own brake dive: only the win's motion and drawing count)
 		const idle = (c) => c.phase === 'off' && c.glows === 0 && c.puffs === 0 && Math.abs(c.skew) < 1e-9;
 		check(W.before.length > 0 && W.before.every((list) => list.every(idle)), `${S.name}: no van does anything of its win before the lines show (${W.before.length} samples)`, W.before.flat().find((c) => !idle(c)));
@@ -231,22 +278,22 @@ try {
 		}
 
 		// THE COST, and the stills: the win again, frozen on the puffs and on a bright flashlight
-		await R(p, ({ book }) => {
-			const h = window.__reindeer;
-			h.roadSounds(true);
-			h.fixtures.queue(book, 1);
-		}, { book: BOOK });
-		await p.click('.hudp button.spin');
+		// (the press waits for a ready key and must start a round, as in playWin: startRound)
+		const C = await startRound(p, { book: BOOK, turbo: 0 });
 		// freeze once the lanes have stopped, then step to the frame the lines show (the win's first frame)
 		for (let i = 0; i < 800; i++) {
-			if (await R(p, () => window.__reindeer.road().lanesStopped.every(Boolean) && window.__reindeer.road().atRest)) break;
+			if (await R(p, () => window.__reindeer.road().lanesStopped.every(Boolean) && window.__reindeer.road().atRest)) {
+				C.landed = true;
+				break;
+			}
 			await sleep(10);
 		}
 		await R(p, () => window.__reindeer.clock(0));
-		for (let i = 0; i < 200; i++) {
-			if (await R(p, (ms) => (window.__reindeer.roadSounds().some((e) => e.what === 'lines') ? true : (window.__reindeer.step(ms, 1), false)), FRAME)) break;
+		for (let i = 0; i < 200 && !C.shown; i++) {
+			C.shown = await R(p, (ms) => (window.__reindeer.roadSounds().some((e) => e.what === 'lines') ? true : (window.__reindeer.step(ms, 1), false)), FRAME);
 			await sleep(0);
 		}
+		checkStart(S, 'the cost', C);
 		const cost = {};
 		// the puff moment (the second puff a third through its life), then the brightest glow in the rocking
 		const glowFrame = (() => {
@@ -309,10 +356,19 @@ try {
 		}
 
 		// A SLAM STOP during the win, and TURBO 2
-		const slam = await playWin(p, S, { slamAt: Math.ceil((T.lurchMs + 120) / FRAME) });
+		const slamAt = Math.ceil((T.lurchMs + 120) / FRAME);
+		const slam = await playWin(p, S, { slamAt });
+		checkStart(S, 'the slam', slam);
+		// THE SLAM PRESS, a line of its own (2026-11-22): a press never made is the probe's fault, never the game's, so it
+		// fails here by name and the game's line below is not judged on a round that had no slam
+		const slamFlags = { slammed: slam.slammed, winAtSlam: slam.winAtSlam, slamAt, nrows: slam.rows.length, started: slam.started, shown: slam.shown };
+		check(slam.slammed, slam.slammed ? `${S.name}: the slam press was made while the win showed (frame ${slamAt})` : `${S.name}: the slam press was not made: no win was showing at the slam frame (${slamAt})`, slamFlags);
 		const leftAfterSlam = slam.rows.filter((r) => !r.vans.some((c) => c.winActive) && !r.vans.every(still));
-		check(slam.slammed && leftAfterSlam.length === 0 && slam.after.every(still), `${S.name}: a slam stop during the win: nothing left once the win goes, every van upright on its mark`, { left: leftAfterSlam[0], after: slam.after });
+		const slamLine = `${S.name}: a slam stop during the win: nothing left once the win goes, every van upright on its mark`;
+		if (slam.slammed) check(leftAfterSlam.length === 0 && slam.after.every(still), slamLine, { ...slamFlags, leftN: leftAfterSlam.length, bad: slam.after.filter((c) => !still(c)).map((c) => c.cell), left: leftAfterSlam[0], after: slam.after });
+		else skip(slamLine, 'the slam press was not made (its own FAIL line above)');
 		const t2 = await playWin(p, S, { turbo: 2 });
+		checkStart(S, 'turbo 2', t2);
 		check(t2.rows.filter((r) => !r.vans.some((c) => c.winActive) && !r.vans.every(still)).length === 0 && t2.after.every(still), `${S.name}: turbo 2: the van moves only while the win shows, still after`);
 		check(errs.length === 0, `${S.name}: no page errors, no console errors`, errs);
 		result[S.name] = { tune: T, rows: W.rows.length, cost };
