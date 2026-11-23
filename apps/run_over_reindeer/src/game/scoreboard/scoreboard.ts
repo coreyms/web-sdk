@@ -22,6 +22,10 @@
 //                    minDevicePx device px (ledGrid densityFor: the pitch x the renderer's resolution / k), else one per dot as
 //                    before. Decided for both faces together; a layout, a resolution change or the tune panel that changes it
 //                    rebuilds both faces at once (never two densities on screen). The grille's holes then carry the soft dot.
+//   THE SMALLEST DOT (2026-11-22, constants LED_BOARD.pitch, layout.ts ledPitchGeo): the dot count follows the window. A dot
+//                    is at least the layout class's floor in CSS px and a whole number of renderer pixels, each face whole
+//                    dots, the grille's hole made for exactly that size (no shrunk tile); the strip keeps its own dots
+//                    where it is short. A show that is up is made ahead for a new grid before the board changes to it.
 // PART B (2026-11-17): the back board's staged scenes (scoreboardDraw.ts backScene: the Free Spins and Super entries, the Total
 // Win, Mega's jam, Epic's honk meter, Max's race), the bonus round's cards on the back board (card(), cardPress()), the tier
 // sounds through `onTier` (each tier once), the shakes (shakeY: Board moves the road and the logo by it), and the Grandma
@@ -29,15 +33,15 @@
 import * as PIXI from 'pixi.js';
 
 import { INTRO_LINE, LED_BOARD } from '../constants';
-import { C, faceDrawn, mk, setFaceClear, setScreenScaleMax, shimmer, wildsDrawn, type Cv } from '../landing/ledScreens';
+import { C, faceClearNow, faceDrawn, mk, screenScaleMaxNow, setFaceClear, setScreenScaleMax, shimmer, wildsDrawn, type Cv } from '../landing/ledScreens';
 import { renderResolutionFor } from '../deviceTier';
-import { clearP, copyFace, copyP, densityFor, fillP, ledN } from './ledGrid';
-import { type ScoreboardGeo, type Rect } from './layout';
-import { backScene, clearTitle, showRibbon, borderGlint, countBorder, dissolveFace, entryWaitOf, flashesOf, powerOnFace, plowOf, raceCardOf, ridersOf, titlesOf, gagWordsAt, setBoardClass, setBoardPitch, titleOf, makeFaceCanvases, maxRaceAtOf, maxRaceOf, powerOffFace, showCounter, showGag, showSmall, showWin, stripFlourish, type CartoonState, type Face } from './scoreboardDraw';
+import { clearP, copyFace, copyP, fillP, ledN } from './ledGrid';
+import { ledPitchGeo, type ScoreboardGeo, type Rect } from './layout';
+import { backScene, boardPitchNow, rowDotsNow, setRowDots, clearTitle, showRibbon, borderGlint, countBorder, dissolveFace, entryWaitOf, flashesOf, powerOnFace, plowOf, raceCardOf, ridersOf, titlesOf, gagWordsAt, setBoardClass, setBoardPitch, titleOf, makeFaceCanvases, maxRaceAtOf, maxRaceOf, powerOffFace, showCounter, showGag, showSmall, showWin, stripFlourish, type CartoonState, type Face } from './scoreboardDraw';
 import { amountNow, backOffset, brightOf, dimAlpha, endShow, isCard, landCard, newCardShow, newPressShow, newShow, phaseOf, seatedAt, shakeAt, skipShow, tierNow, type Show } from './show';
 import { newRace, type RaceOutcome } from './race';
 import { pickStrip, type StripItem, type StripTruth } from './stripArbiter';
-import { pressScreenAt, pressScreenNameAt, scatterWordsOf, showGagShort, showPressLine, showScatterCount, showWheelLine, type ScatterFace, type WheelLine } from './stripDraw';
+import { pressCycleMs, pressScreenAt, pressScreenNameAt, scatterWordsOf, showGagShort, showPressLine, showScatterCount, showWheelLine, type ScatterFace, type WheelLine } from './stripDraw';
 // (2026-11-19) the round 1 LED ideas Corey picked (constants LED_BOARD.ideas): the entries, the Total Win's ladder, the strip's
 // new cartoons in the rotation, the press screen's light string
 import { cartoons, pressScreensLit, showCartoonNow } from './ambient';
@@ -50,9 +54,16 @@ import { warmRun } from './warmGate';
 
 const col = (hex: string) => Number.parseInt(hex.slice(1), 16);
 const GRILLE = { cells: 16, cellPx: 16 };
+/** the lit dot's share of the pitch: the smallest dot rule's while it is on (constants LED_BOARD.pitch.fill), else the grid's */
+const gridFill = () => (LED_BOARD.pitch.on ? LED_BOARD.pitch.fill : LED_BOARD.grid.fill);
 
+/** THE GRILLE'S TILE (makeGrille): CELLS x CELLS holes, `cellPx` tile pixels each. `exact`: made for a face whose LEDs are
+ *  that many whole renderer pixels (constants LED_BOARD.pitch.snap), drawn one tile pixel per renderer pixel, no mipmaps;
+ *  else the 16 px tile shrunk to the LED's size with mipmaps, as before the smallest dot rule */
+type GrilleTile = { key: string; tex: PIXI.Texture; canvas: Cv; cellPx: number; exact: boolean; soft: boolean; measured: { across: number; down: number; open: number } | null };
 type GpuFace = {
 	F: Face;
+	tile: GrilleTile;
 	halo: Cv;
 	tex: PIXI.Texture;
 	haloTex: PIXI.Texture;
@@ -94,8 +105,13 @@ export type CardRequest = { kind: 'fs' | 'sfs' | 'total'; spins: number; amount:
  *  two scratch faces the size and density of the real ones (CPU canvases only, never a texture; let go once it is done),
  *  the card's clock at each LED step and the order they are drawn in, and its readouts for the dev hook */
 type WarmJob = {
-	kind: CardRequest['kind'];
-	req: CardRequest;
+	kind: CardRequest['kind'] | 'regrid';
+	/** (null: a grid made ahead for the show that is up, `grid` and `live` below) */
+	req: CardRequest | null;
+	/** A GRID MADE AHEAD (constants LED_BOARD.warm.regrid; ensureFaces, regridHolds): the window changed size while a show was
+	 *  up, so the show is drawn ahead on scratch faces of the new grid, from its clock now on, before the board changes to it */
+	grid: { geo: ScoreboardGeo; key: string } | null;
+	live: Show | null;
 	show: Show | null;
 	back: Face | null;
 	strip: Face | null;
@@ -159,18 +175,10 @@ export class Scoreboard {
 	private readonly stripHousing = new PIXI.Graphics();
 	/** the press catcher while a win counts or holds (a tap anywhere on the canvas skips; the HTML HUD stays on top) */
 	private readonly catcher = new PIXI.Sprite(PIXI.Texture.WHITE);
-	private grilleTex: PIXI.Texture;
-	/** whether the grille tile carries the soft dot (LED_BOARD.density.softDot, on the finer grid only) */
-	private grilleSoft = false;
-	/** the grid knobs the tile was made for (LED_BOARD.grid shape, fill, rowScale) */
-	private grilleShape = '';
-	private grilleFill = -1;
-	private grilleRow = -1;
+	/** the grille's tiles in use, by look and size (makeGrille; one per face where the strip keeps its own dots) */
+	private readonly tiles = new Map<string, GrilleTile>();
 	/** the device px per CSS px the faces were placed for (LED_BOARD.grid.snap) */
 	private placedRatio = 0;
-	/** the tile's canvas and its dots as measured (the probe: a dot's share of the pitch across and down at half strength) */
-	private grilleCanvas: Cv | null = null;
-	private gridMeasured: { across: number; down: number } | null = null;
 	/** THE FINER GRID (LED_BOARD.density): the faces' LEDs per dot now, and the renderer's device px per CSS px (Board sets it
 	 *  to the renderer's resolution; until then the device's, as game/deviceTier.ts would pick it) */
 	private faceK = 1;
@@ -180,6 +188,19 @@ export class Scoreboard {
 	private strip: GpuFace | null = null;
 	private back: GpuFace | null = null;
 	private geo: ScoreboardGeo | null = null;
+	/** THE SMALLEST DOT RULE (constants LED_BOARD.pitch; layout.ts ledPitchGeo): the place as the layout pass gave it (`geo0`)
+	 *  and the scene pieces of its snow cover; `geo` above is that place with the faces laid out for the renderer's
+	 *  resolution, made again only when the place, the resolution or the rule's numbers change (`ruled*`) */
+	private geo0: ScoreboardGeo | null = null;
+	private pieces: CoverPiece[] = [];
+	private ruled: ScoreboardGeo | null = null;
+	private ruledFrom: ScoreboardGeo | null = null;
+	private ruledRatio = 0;
+	private ruledStamp = NaN;
+	/** the tiles the faces were built with (a change of an LED's size in renderer pixels rebuilds them, not the pictures) */
+	private tileKey = '';
+	/** whether the faces as built were placed by the rule (the dot font step follows it) */
+	private faceRuled = false;
 	private faceKey = '';
 	/** the scoreboard's own clock (real ms) and the last content step drawn */
 	private clock = 0;
@@ -272,7 +293,6 @@ export class Scoreboard {
 		this.stripRoot.addChild(this.stripHousing);
 		this.root.addChild(this.dim, this.backRoot, this.coverA, this.coverB, this.coverSnap, this.stripRoot, this.catcher);
 		this.backRoot.visible = false;
-		this.grilleTex = this.makeGrille(false);
 		this.grilleNow();
 		const sh = mk(32, 32);
 		const gr = sh.ctx.createLinearGradient(0, 0, 32 * 0.6, 32);
@@ -284,33 +304,36 @@ export class Scoreboard {
 		scoreboardDev.board = this;
 	}
 
-	/** the grille's tile: CELLS x CELLS round soft holes in the housing's dark, one hole per LED (made once per look,
-	 *  mipmapped). `soft` (the finer grid's soft dot, mock led_density_r1): a faint skirt baked round each hole, so a lit LED's
-	 *  own light shows a little in the gap round it */
-	private makeGrille(soft: boolean): PIXI.Texture {
+	/** the grille's tile: CELLS x CELLS round soft holes in the housing's dark, one hole per LED (made once per look and
+	 *  size). `soft` (the finer grid's soft dot, mock led_density_r1): a faint skirt baked round each hole, so a lit LED's
+	 *  own light shows a little in the gap round it. `exact` (the smallest dot rule's snapped faces, mock
+	 *  led_dot_size_r1_2026-11-22): the tile is made at `cellPx` pixels a hole, the LED's own size in renderer pixels, each
+	 *  tile pixel the hole's share of that pixel (the stamp drawn 4 times finer and averaged), so nothing is shrunk on the
+	 *  GPU and a dot and its gap stay apart; else the 16 px tile with mipmaps, as before */
+	private makeGrille(soft: boolean, cellPx: number, exact: boolean, key: string): GrilleTile {
 		const n = GRILLE.cells;
-		const s = GRILLE.cellPx;
+		const s = exact ? Math.max(1, Math.round(cellPx)) : GRILLE.cellPx;
+		const q = exact ? 4 : 1;
+		const Q = s * q;
 		const Gd = LED_BOARD.grid;
 		const tile = mk(n * s, n * s);
-		tile.ctx.fillStyle = C.base;
-		tile.ctx.fillRect(0, 0, n * s, n * s);
-		const stamp = mk(s, s);
+		const stamp = mk(Q, Q);
 		const sc = stamp.ctx;
 		// (LED_BOARD.grid: today's tile exactly at round, 0.73, row 1; the mock's grid group otherwise)
-		const fill = Gd.fill;
+		const fill = gridFill();
 		const row = Gd.rowScale;
 		if (Gd.shape === 'square') {
-			const w = Math.max(1, fill * s);
-			const h = Math.max(1, Math.min(s, fill * row * s));
+			const w = Math.max(1, fill * Q);
+			const h = Math.max(1, Math.min(Q, fill * row * Q));
 			sc.fillStyle = 'rgba(0,0,0,0.5)';
-			sc.fillRect((s - w) / 2 - 1, (s - h) / 2 - 1, w + 2, h + 2);
+			sc.fillRect((Q - w) / 2 - q, (Q - h) / 2 - q, w + 2 * q, h + 2 * q);
 			sc.fillStyle = 'rgba(0,0,0,1)';
-			sc.fillRect((s - w) / 2, (s - h) / 2, w, h);
+			sc.fillRect((Q - w) / 2, (Q - h) / 2, w, h);
 		} else {
 			sc.save();
-			sc.translate(s / 2, s / 2);
+			sc.translate(Q / 2, Q / 2);
 			sc.scale(1, row);
-			const R = Gd.shape === 'soft' ? s * 0.62 * (fill / 0.73) : s * 0.47 * (fill / 0.73);
+			const R = Gd.shape === 'soft' ? Q * 0.62 * (fill / 0.73) : Q * 0.47 * (fill / 0.73);
 			const rg = sc.createRadialGradient(0, 0, 0, 0, 0, R);
 			if (Gd.shape === 'soft') {
 				rg.addColorStop(0, 'rgba(0,0,0,1)');
@@ -324,44 +347,73 @@ export class Scoreboard {
 				rg.addColorStop(1, 'rgba(0,0,0,0)');
 			}
 			sc.fillStyle = rg;
-			sc.fillRect(-s, -s, 2 * s, 2 * s);
+			sc.fillRect(-Q, -Q, 2 * Q, 2 * Q);
 			if (soft && Gd.shape === 'round') {
-				const r2 = sc.createRadialGradient(0, 0, 0, 0, 0, s * 0.72 * (fill / 0.73));
+				const r2 = sc.createRadialGradient(0, 0, 0, 0, 0, Q * 0.72 * (fill / 0.73));
 				r2.addColorStop(0, 'rgba(0,0,0,0.5)');
 				r2.addColorStop(0.6, 'rgba(0,0,0,0.3)');
 				r2.addColorStop(1, 'rgba(0,0,0,0)');
 				sc.fillStyle = r2;
-				sc.fillRect(-s, -s, 2 * s, 2 * s);
+				sc.fillRect(-Q, -Q, 2 * Q, 2 * Q);
 			}
 			sc.restore();
 		}
-		tile.ctx.globalCompositeOperation = 'destination-out';
-		for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) tile.ctx.drawImage(stamp, i * s, j * s);
-		tile.ctx.globalCompositeOperation = 'source-over';
-		this.grilleSoft = soft;
-		this.grilleShape = Gd.shape;
-		this.grilleFill = Gd.fill;
-		this.grilleRow = Gd.rowScale;
-		this.grilleCanvas = tile;
-		this.gridMeasured = null;
-		return new PIXI.Texture({ source: new PIXI.CanvasSource({ resource: tile as unknown as PIXI.ICanvas, autoGenerateMipmaps: true, scaleMode: 'linear' }) });
+		if (!exact) {
+			tile.ctx.fillStyle = C.base;
+			tile.ctx.fillRect(0, 0, n * s, n * s);
+			tile.ctx.globalCompositeOperation = 'destination-out';
+			for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) tile.ctx.drawImage(stamp, i * s, j * s);
+			tile.ctx.globalCompositeOperation = 'source-over';
+			const tex = new PIXI.Texture({ source: new PIXI.CanvasSource({ resource: tile as unknown as PIXI.ICanvas, autoGenerateMipmaps: true, scaleMode: 'linear' }) });
+			return { key, tex, canvas: tile, cellPx: s, exact, soft, measured: null };
+		}
+		// one hole: each of its pixels the plate's share of that pixel (the stamp's q x q samples averaged), laid CELLS x CELLS
+		const d = stamp.ctx.getImageData(0, 0, Q, Q).data;
+		const cell = new Uint8Array(s * s);
+		for (let j = 0; j < s; j++)
+			for (let i = 0; i < s; i++) {
+				let a = 0;
+				for (let b = 0; b < q; b++) for (let c = 0; c < q; c++) a += d[((j * q + b) * Q + i * q + c) * 4 + 3];
+				cell[j * s + i] = 255 - Math.round(a / (q * q));
+			}
+		const base = col(C.base);
+		const id = tile.ctx.createImageData(n * s, n * s);
+		for (let y = 0; y < n * s; y++)
+			for (let x = 0; x < n * s; x++) {
+				const o = (y * n * s + x) * 4;
+				id.data[o] = (base >> 16) & 255;
+				id.data[o + 1] = (base >> 8) & 255;
+				id.data[o + 2] = base & 255;
+				id.data[o + 3] = cell[(y % s) * s + (x % s)];
+			}
+		tile.ctx.putImageData(id, 0, 0);
+		const tex = new PIXI.Texture({ source: new PIXI.CanvasSource({ resource: tile as unknown as PIXI.ICanvas, scaleMode: 'linear' }) });
+		return { key, tex, canvas: tile, cellPx: s, exact, soft, measured: null };
+	}
+	/** the tile for a face whose LEDs are `px` renderer pixels (`exact`: whole ones), made once per look and size */
+	private tileFor(px: number, soft: boolean, exact: boolean): GrilleTile {
+		const Gd = LED_BOARD.grid;
+		const key = `${exact ? Math.round(px) : 'mip'}|${soft ? 1 : 0}|${Gd.shape}|${gridFill()}|${Gd.rowScale}`;
+		let t = this.tiles.get(key);
+		if (!t) this.tiles.set(key, (t = this.makeGrille(soft, px, exact, key)));
+		return t;
 	}
 
 	// ---- THE PLACE ------------------------------------------------------------------------------------------------------------
 	/** the place for the screen as it is now; a change of the dots across rebuilds the faces. `pieces`: the scene's pieces the
 	 *  snow cover is cut from (road px) */
 	layout(g: ScoreboardGeo, pieces: CoverPiece[]) {
+		this.geo0 = g;
+		this.pieces = pieces;
+		// (the faces for the place and the renderer's resolution now; the same grid in a new place is only placed again)
+		const before = this.geo;
+		if (!this.ensureFaces() && this.geo && this.geo === before) this.applyGeo(this.geo);
+	}
+	/** the place `g` (the layout's, with its faces laid out by the smallest dot rule) on the faces as they are: the layouts'
+	 *  per board numbers, the faces' and the housings' places, the dim, the catcher, the snow cover */
+	private applyGeo(g: ScoreboardGeo) {
 		this.geo = g;
-		// the back board's title knobs are per layout class (constants LED_BOARD.titles)
-		setBoardClass(g.cls);
-		// (the back board's dot pitch: the Total Win ladder's label floor, LED_BOARD.sizeD.ladderLabelMinCss)
-		setBoardPitch(g.back.face.w / Math.max(1, g.back.face.dotsW));
-		// (board size d on desktop and tablet: the press screen's figure may grow with the face, LED_BOARD.sizeD)
-		setScreenScaleMax((g.cls === 'desktop' || g.cls === 'tablet') && LED_BOARD.size === 'd' ? LED_BOARD.sizeD.pressScaleMax : 6);
-		// (the press screen's face screen keeps its line above the rows the strip's snow cap covers at its highest bump, as
-		// this file's drawHousing draws the cap: LED_SIGN.face)
-		setFaceClear((g.back.face.y + g.back.face.h - (g.strip.housing.y - 1.3 * g.strip.cap)) / g.pitch);
-		this.ensureFaces();
+		this.boardNumbers(g, this.back!.F, this.faceRuled && this.back!.F.k === 1);
 		this.placeFace(this.strip!, g.strip.face);
 		this.placeFace(this.back!, g.back.face);
 		this.drawHousing(this.stripHousing, g, g.strip.housing, g.strip.face, g.strip.cap);
@@ -372,54 +424,162 @@ export class Scoreboard {
 		this.catcher.position.set(0, 0);
 		this.catcher.width = g.W;
 		this.catcher.height = g.H;
-		this.buildCover(g, pieces);
+		this.buildCover(g, this.pieces);
 		this.place();
 	}
+	/** the layouts' per board numbers for place `g` and a back face of `B`'s dots (the live face, or a grid made ahead) */
+	private boardNumbers(g: ScoreboardGeo, B: { dotsW: number; dotsH: number }, dotRows: boolean) {
+		// (the dot font step, LED_BOARD.pitch.dotRowCap: only on faces the smallest dot rule placed at one LED per layout dot)
+		setRowDots(dotRows);
+		// the back board's title knobs are per layout class (constants LED_BOARD.titles)
+		setBoardClass(g.cls);
+		// (the back board's dot pitch: the Total Win ladder's label floor, LED_BOARD.sizeD.ladderLabelMinCss)
+		setBoardPitch(g.back.face.w / Math.max(1, B.dotsW));
+		// (board size d on desktop and tablet: the press screen's figure may grow with the face, LED_BOARD.sizeD)
+		setScreenScaleMax((g.cls === 'desktop' || g.cls === 'tablet') && LED_BOARD.size === 'd' ? LED_BOARD.sizeD.pressScaleMax : 6);
+		// (the press screen's face screen keeps its line above the rows the strip's snow cap covers at its highest bump, as
+		// this file's drawHousing draws the cap: LED_SIGN.face)
+		setFaceClear((g.back.face.y + g.back.face.h - (g.strip.housing.y - 1.3 * g.strip.cap)) / (g.back.face.h / Math.max(1, B.dotsH)));
+	}
+	/** a draw for another grid (a grid made ahead): the layouts' per board numbers set for it, and put back after, whatever
+	 *  the draw does (a warm draw stops with a throw) */
+	private withGrid(g: ScoreboardGeo, draw: () => void) {
+		const pitch = boardPitchNow();
+		const scale = screenScaleMaxNow();
+		const clear = faceClearNow();
+		const cls = this.geo?.cls ?? g.cls;
+		const dots = rowDotsNow();
+		this.boardNumbers(g, g.back.face, !!g.led?.ruled && g.led.back.k === 1);
+		try {
+			draw();
+		} finally {
+			setRowDots(dots);
+			setBoardClass(cls);
+			setBoardPitch(pitch);
+			setScreenScaleMax(scale);
+			setFaceClear(clear);
+		}
+	}
 
-	/** THE FACES FOR THE PLACE AND THE DENSITY NOW: both rebuilt together when the dots across, the board's height or the
-	 *  density (LED_BOARD.density: the pitch x the renderer's resolution, the tune panel) change, so the two faces never show
-	 *  two densities and no canvas of the old one is kept. Returns whether they were rebuilt. Called by layout() and on every
-	 *  frame (numbers only: nothing is allocated unless something changed). */
+	/** THE PLACE WITH ITS FACES LAID OUT FOR THE RENDERER'S RESOLUTION (constants LED_BOARD.pitch; layout.ts ledPitchGeo): made
+	 *  again only when the place, the resolution or the rule's own numbers change (every frame: a few comparisons) */
+	private ruleFor(ratio: number): ScoreboardGeo | null {
+		const g0 = this.geo0;
+		if (!g0) return null;
+		const P = LED_BOARD.pitch;
+		const K = LED_BOARD.density;
+		const stamp = (P.on ? 1 : 0) + P.desktopCss * 3 + P.phoneCss * 7 + (P.snap ? 11 : 0) + P.minPx * 13 + (P.words === 'auto' ? 17 : P.words * 19) + P.stripMinRows * 23 + P.miniShort * 29 + (K.on ? 31 : 0) + K.k * 37 + K.minDevicePx * 41;
+		if (this.ruled && this.ruledFrom === g0 && this.ruledRatio === ratio && this.ruledStamp === stamp) return this.ruled;
+		this.ruled = ledPitchGeo(g0, ratio);
+		this.ruledFrom = g0;
+		this.ruledRatio = ratio;
+		this.ruledStamp = stamp;
+		return this.ruled;
+	}
+
+	/** THE FACES FOR THE PLACE, THE RESOLUTION AND THE RULE NOW: both rebuilt together when the dots across or down or the
+	 *  words' density change (the window's size, the renderer's resolution, the tune panel), so the two faces never show two
+	 *  densities and no canvas of the old one is kept. A SHOW THAT IS UP IS NEVER REBUILT IN ONE FRAME (2026-11-22, constants
+	 *  LED_BOARD.warm.regrid): the faces keep their dots, stretched to the new place, while the show is drawn ahead on scratch
+	 *  faces of the new grid a little each frame (regridHolds, warmStep); the board changes to the new grid once that is
+	 *  done, drawing from the caches. Returns whether the faces were rebuilt. Called by layout() and on every frame (numbers
+	 *  only: nothing is allocated unless something changed). */
 	private ensureFaces(): boolean {
-		const g = this.geo;
+		const g = this.ruleFor(this.deviceRatio());
 		if (!g) return false;
-		const ratio = this.deviceRatio();
-		const k0 = densityFor(g.pitch, ratio);
-		// (LED_BOARD.grid.snap, today off: on the finer grid each LED a whole number of device px, at least 2)
-		const k = LED_BOARD.grid.snap && k0 > 1 ? (g.pitch * ratio) / Math.max(2, Math.round((g.pitch * ratio) / k0)) : k0;
+		const L = g.led!;
+		const k = L.back.k;
 		const soft = k > 1 && LED_BOARD.density.softDot;
 		const Gd = LED_BOARD.grid;
-		const tileSame = soft === this.grilleSoft && Gd.shape === this.grilleShape && Gd.fill === this.grilleFill && Gd.rowScale === this.grilleRow;
+		const exactB = L.back.snapped && Math.abs(L.back.px - Math.round(L.back.px)) < 1e-6;
+		const exactS = L.strip.snapped && Math.abs(L.strip.px - Math.round(L.strip.px)) < 1e-6;
 		this.grilleNow();
 		const sw = g.strip.face.dotsW;
 		const sh = g.strip.face.dotsH;
 		const bw = g.back.face.dotsW;
 		const bh = g.back.face.dotsH;
+		const key = `${sw}x${sh}|${bw}x${bh}|${k}`;
+		const tileKey = `${exactB ? Math.round(L.back.px) : 'mip'}|${exactS ? Math.round(L.strip.px) : 'mip'}|${soft ? 1 : 0}|${Gd.shape}|${gridFill()}|${Gd.rowScale}`;
 		const S = this.strip;
 		const B = this.back;
-		if (S && B && S.F.k === k && S.F.dotsW === sw && S.F.dotsH === sh && B.F.dotsW === bw && B.F.dotsH === bh && tileSame) {
+		if (S && B && key === this.faceKey && tileKey === this.tileKey) {
+			if (g !== this.geo) this.applyGeo(g);
 			// (a snapped face sits at a whole multiple of the device px: placed again when the resolution changes)
-			if (Gd.snap && ratio !== this.placedRatio) {
+			else if (Gd.snap && this.deviceRatio() !== this.placedRatio) {
 				this.placeFace(S, g.strip.face);
 				this.placeFace(B, g.back.face);
 			}
 			return false;
 		}
+		if (S && B && key !== this.faceKey && this.regridHolds(g, key)) {
+			if (g !== this.geo) this.applyGeo(g);
+			return false;
+		}
 		this.destroyFace(this.strip);
 		this.destroyFace(this.back);
-		if (!tileSame) {
-			this.grilleTex.destroy(true);
-			this.grilleTex = this.makeGrille(soft);
-		}
 		this.faceK = k;
-		this.faceKey = `${sw}x${sh}|${bh}|${k}`;
-		this.strip = this.makeFace(sw, sh, k);
-		this.back = this.makeFace(bw, bh, k);
+		// (a card made ahead for the grid before, still to come up, is made again for this one, a little each frame)
+		if (key !== this.faceKey) for (const j of this.warmJobs) if (j.state === 'done' && !j.used && j.kind !== 'regrid') this.warmAgain(j);
+		this.faceKey = key;
+		this.tileKey = tileKey;
+		this.faceRuled = L.ruled;
+		this.strip = this.makeFace(sw, sh, k, this.tileFor(L.strip.px, soft, exactS));
+		this.back = this.makeFace(bw, bh, k, this.tileFor(L.back.px, soft, exactB));
+		// (the tiles no face shows any more)
+		for (const [tk, t] of this.tiles)
+			if (t !== this.strip.tile && t !== this.back.tile) {
+				t.tex.destroy(true);
+				this.tiles.delete(tk);
+			}
 		this.stripRoot.addChild(this.strip.root);
 		this.backRoot.addChild(this.back.root);
 		this.stepAt = -1;
-		this.mark('density', `${k} LEDs per dot (${this.faceKey})`);
+		this.mark('density', `${k} LEDs per dot (${this.faceKey}; ${Math.round(L.back.css * 100) / 100} CSS px a dot, the strip ${Math.round(L.strip.css * 100) / 100}${L.ruled ? '' : ', no smallest dot rule'})`);
+		this.applyGeo(g);
 		return true;
+	}
+	/** A SHOW THAT IS UP HOLDS THE GRID while it is made ahead for the new one: true while the board should keep its faces
+	 *  (the job is queued or running, within LED_BOARD.warm.regridMaxMs of real time); false: change now (no show up, the
+	 *  job done or failed, or it took too long). One job at a time, for the newest grid asked for. */
+	private regridHolds(g: ScoreboardGeo, key: string): boolean {
+		const W = LED_BOARD.warm;
+		const s = this.show;
+		let j = this.warmJobs.find((x) => x.kind === 'regrid' && !x.used);
+		const up = W.on && W.regrid && !!s && s.t < s.exitAt;
+		if (j && (!up || j.grid!.key !== key || j.live !== s)) {
+			if (j.state === 'queued' || j.state === 'running') this.warmEnd(j, 'dropped', up ? 'another grid or show' : 'no show up');
+			j.used = true;
+			j = undefined;
+		}
+		if (!up) return false;
+		if (!j) {
+			// (the finished ones: the last six kept for the readout, as prepare keeps them)
+			const old = this.warmJobs.filter((x) => x.state !== 'queued' && x.state !== 'running');
+			if (old.length > 6) {
+				const drop = new Set(old.slice(0, old.length - 6));
+				this.warmJobs = this.warmJobs.filter((x) => !drop.has(x));
+			}
+			this.warmJobs.push({ kind: 'regrid', req: null, grid: { geo: g, key }, live: s, show: null, back: null, strip: null, faceKey: '', times: [], order: [], next: 0, coarseDone: false, madeAt: new Map(), state: 'queued', why: '', samples: 0, made: 0, ms: 0, frames: 0, maxFrameMs: 0, queuedAt: performance.now(), doneAt: null, used: false });
+			this.mark('regrid', `${this.faceKey} to ${key}: the ${s!.kind} show is made ahead first`);
+			return true;
+		}
+		if (j.state === 'queued' || j.state === 'running') {
+			if (performance.now() - j.queuedAt <= W.regridMaxMs) return true;
+			this.warmEnd(j, 'dropped', 'took too long');
+		}
+		j.used = true;
+		return false;
+	}
+	/** a finished job put back in the queue (its card is still to come and the grid changed) */
+	private warmAgain(j: WarmJob) {
+		j.state = 'queued';
+		j.why = 'the grid changed';
+		j.faceKey = '';
+		j.next = 0;
+		j.samples = 0;
+		j.coarseDone = false;
+		j.doneAt = null;
+		j.madeAt.clear();
 	}
 
 	/** THE SCENE SWAP'S PICTURE (game/scene/sceneSnapshot.ts): the cover's containers (drawn into the picture as they are),
@@ -505,7 +665,7 @@ export class Scoreboard {
 		this.coverTintFor = -1;
 	}
 
-	private makeFace(dotsW: number, dotsH: number, k: number): GpuFace {
+	private makeFace(dotsW: number, dotsH: number, k: number, tile: GrilleTile): GpuFace {
 		const F = makeFaceCanvases(dotsW, dotsH, k);
 		// (the halo at half the face's size in DOTS at any density: the glow keeps its size and cost)
 		const halo = mk(Math.ceil(dotsW / 2), Math.ceil(dotsH / 2));
@@ -526,24 +686,25 @@ export class Scoreboard {
 		root.addChild(unlit, content, grille, litOver, glow, sheen);
 		// one grille sprite per CELLS x CELLS LEDs
 		const n = GRILLE.cells;
-		const s = GRILLE.cellPx;
+		const s = tile.cellPx;
 		for (let j = 0; j < F.ledH; j += n)
 			for (let i = 0; i < F.ledW; i += n) {
 				const cw = Math.min(n, F.ledW - i);
 				const ch = Math.min(n, F.ledH - j);
-				const t = cw === n && ch === n ? this.grilleTex : new PIXI.Texture({ source: this.grilleTex.source, frame: new PIXI.Rectangle(0, 0, cw * s, ch * s) });
+				const t = cw === n && ch === n ? tile.tex : new PIXI.Texture({ source: tile.tex.source, frame: new PIXI.Rectangle(0, 0, cw * s, ch * s) });
 				const sp = new PIXI.Sprite(t);
 				sp.label = `${i},${j},${cw},${ch}`;
 				grille.addChild(sp);
 			}
-		return { F, halo, tex, haloTex, root, unlit, content, glow, grille, litOver, sheen, key: '', switchAt: -1e9, switchKind: null };
+		return { F, tile, halo, tex, haloTex, root, unlit, content, glow, grille, litOver, sheen, key: '', switchAt: -1e9, switchKind: null };
 	}
 	/** the grid as built (the probe): the knobs, the tile's dot measured through its middle (where the plate is under half
 	 *  strength, as a share of the pitch, across and down), whether the soft dot is in, the lit over sprite */
 	gridInfo() {
-		if (!this.gridMeasured && this.grilleCanvas) {
-			const s = GRILLE.cellPx;
-			const d = this.grilleCanvas.ctx.getImageData(0, 0, s, s).data;
+		const T = this.back?.tile ?? null;
+		if (T && !T.measured) {
+			const s = T.cellPx;
+			const d = T.canvas.ctx.getImageData(0, 0, s, s).data;
 			let across = 0;
 			let down = 0;
 			const m = s >> 1;
@@ -551,9 +712,12 @@ export class Scoreboard {
 				if (d[(m * s + i) * 4 + 3] < 128) across += 1;
 				if (d[(i * s + m) * 4 + 3] < 128) down += 1;
 			}
-			this.gridMeasured = { across: across / s, down: down / s };
+			// (and the hole's open share of its cell: the plate's strength over the whole cell, taken from 1)
+			let plate = 0;
+			for (let i = 3; i < d.length; i += 4) plate += d[i];
+			T.measured = { across: across / s, down: down / s, open: Math.round((1 - plate / (255 * s * s)) * 1000) / 1000 };
 		}
-		return { ...LED_BOARD.grid, soft: this.grilleSoft, measured: this.gridMeasured, litOverShown: !!this.back?.litOver.visible, grilleAlpha: this.back?.grille.alpha ?? null, unlitTint: this.back ? this.back.unlit.tint : null };
+		return { ...LED_BOARD.grid, fill: gridFill(), soft: T?.soft ?? false, measured: T?.measured ?? null, tilePx: T?.cellPx ?? null, tileExact: T?.exact ?? false, stripTilePx: this.strip?.tile.cellPx ?? null, litOverShown: !!this.back?.litOver.visible, grilleAlpha: this.back?.grille.alpha ?? null, unlitTint: this.back ? this.back.unlit.tint : null };
 	}
 	/** THE GRID'S LIVE KNOBS (LED_BOARD.grid): the unlit quad's color, the gaps' darkness (the grille's alpha); numbers only */
 	private grilleNow() {
@@ -570,7 +734,8 @@ export class Scoreboard {
 		let r = r0;
 		const ratio = this.deviceRatio();
 		this.placedRatio = ratio;
-		if (LED_BOARD.grid.snap && G.F.k > 1) {
+		// (a face the smallest dot rule placed is already whole LEDs on whole pixels)
+		if (LED_BOARD.grid.snap && G.F.k > 1 && !this.geo?.led?.ruled) {
 			const ps = Math.max(1, Math.round((r0.w * ratio) / G.F.ledW));
 			const w = (G.F.ledW * ps) / ratio;
 			const h = (G.F.ledH * ps) / ratio;
@@ -594,7 +759,7 @@ export class Scoreboard {
 	private destroyFace(G: GpuFace | null) {
 		if (!G) return;
 		// (the grille's corner frames first: the root's destroy empties its children)
-		for (const sp of G.grille.children as PIXI.Sprite[]) if (sp.texture !== this.grilleTex) sp.texture.destroy(false);
+		for (const sp of G.grille.children as PIXI.Sprite[]) if (sp.texture !== G.tile.tex) sp.texture.destroy(false);
 		G.root.destroy({ children: true });
 		G.tex.destroy(true);
 		G.haloTex.destroy(true);
@@ -787,7 +952,7 @@ export class Scoreboard {
 		if (!LED_BOARD.on || !LED_BOARD.warm.on) return;
 		for (const req of list) {
 			for (const j of this.warmJobs) if (j.kind === req.kind && (j.state === 'queued' || j.state === 'running')) this.warmEnd(j, 'dropped', 'asked for again');
-			this.warmJobs.push({ kind: req.kind, req, show: null, back: null, strip: null, faceKey: '', times: [], order: [], next: 0, coarseDone: false, madeAt: new Map(), state: 'queued', why: '', samples: 0, made: 0, ms: 0, frames: 0, maxFrameMs: 0, queuedAt: performance.now(), doneAt: null, used: false });
+			this.warmJobs.push({ kind: req.kind, req, grid: null, live: null, show: null, back: null, strip: null, faceKey: '', times: [], order: [], next: 0, coarseDone: false, madeAt: new Map(), state: 'queued', why: '', samples: 0, made: 0, ms: 0, frames: 0, maxFrameMs: 0, queuedAt: performance.now(), doneAt: null, used: false });
 		}
 		// (the finished ones: the last six kept for the readout)
 		const old = this.warmJobs.filter((j) => j.state !== 'queued' && j.state !== 'running');
@@ -861,24 +1026,40 @@ export class Scoreboard {
 	}
 	/** a job's scratch faces and samples, for the faces as they are now */
 	private warmSetup(job: WarmJob) {
-		const B = this.back!.F;
-		const S = this.strip!.F;
 		const W = LED_BOARD.warm;
-		job.back = makeFaceCanvases(B.dotsW, B.dotsH, B.k);
-		job.strip = makeFaceCanvases(S.dotsW, S.dotsH, S.k);
-		job.faceKey = this.faceKey;
-		const s = (job.show = newCardShow(job.req));
-		// the card's clock at each LED step from the rise (the face is drawn from the first step the board shows) to tailMs past
-		// its press line (the explanation's wipe and page, the landing's blink and fireworks)
 		const step = 1000 / Math.max(1, LED_BOARD.fps);
-		const end = (s.pressLineAt ?? s.countEnd) + Math.max(0, W.tailMs);
-		job.times = [];
-		for (let t = LED_BOARD.rise.backAtMs + 1; t <= end; t += step) job.times.push(t);
 		const every = Math.max(1, Math.round(W.coarseEvery));
-		job.order = job.times.map((_, i) => i).filter((i) => i % every === 0 || i === job.times.length - 1);
 		job.next = 0;
 		job.coarseDone = false;
 		job.madeAt.clear();
+		job.times = [];
+		if (job.grid) {
+			// A GRID MADE AHEAD: scratch faces of the new grid, the show that is up (a copy: its clock is set per sample) from
+			// its clock now to tailMs past its press line or count (the press screen: once round its screens)
+			const G = job.grid.geo;
+			const k = G.led?.back.k ?? 1;
+			job.back = makeFaceCanvases(G.back.face.dotsW, G.back.face.dotsH, k);
+			job.strip = makeFaceCanvases(G.strip.face.dotsW, G.strip.face.dotsH, k);
+			job.faceKey = job.grid.key;
+			const live = job.live!;
+			const s = (job.show = { ...live });
+			const t0 = live.t;
+			const end = s.kind === 'press' ? t0 + pressCycleMs() : Math.min(s.exitAt, Math.max(t0, s.pressLineAt ?? s.countEnd) + Math.max(0, W.tailMs));
+			for (let t = t0; t <= end; t += step) job.times.push(t);
+			if (!job.times.length) job.times.push(t0);
+		} else {
+			const B = this.back!.F;
+			const S = this.strip!.F;
+			job.back = makeFaceCanvases(B.dotsW, B.dotsH, B.k);
+			job.strip = makeFaceCanvases(S.dotsW, S.dotsH, S.k);
+			job.faceKey = this.faceKey;
+			const s = (job.show = newCardShow(job.req!));
+			// the card's clock at each LED step from the rise (the face is drawn from the first step the board shows) to tailMs past
+			// its press line (the explanation's wipe and page, the landing's blink and fireworks)
+			const end = (s.pressLineAt ?? s.countEnd) + Math.max(0, W.tailMs);
+			for (let t = LED_BOARD.rise.backAtMs + 1; t <= end; t += step) job.times.push(t);
+		}
+		job.order = job.times.map((_, i) => i).filter((i) => i % every === 0 || i === job.times.length - 1);
 	}
 	/** one sample of a job: the card at its clock `t` on the scratch faces, back board and strip, as update() draws them */
 	private warmDraw(job: WarmJob, t: number) {
@@ -893,8 +1074,24 @@ export class Scoreboard {
 			clearTitle(F.out.ctx.canvas);
 			clearIdeas(F.out.ctx.canvas);
 		}
-		this.paintBack(job.back!, s);
-		showRibbon(job.strip!, s);
+		if (!job.grid) {
+			this.paintBack(job.back!, s);
+			showRibbon(job.strip!, s);
+			return;
+		}
+		// (a grid made ahead: the show as drawStrip and drawBack draw it, with the layouts' numbers of the new grid)
+		this.withGrid(job.grid.geo, () => {
+			if (s.arrive) this.paintBack(job.back!, s);
+			const F = job.strip!;
+			if (s.kind === 'press') showPressLine(F, s.t, this.pressReady, this.pressText?.ticker ?? '');
+			else if (isCard(s)) showRibbon(F, s);
+			else if (s.arrive && s.t < s.contentAt) return;
+			else if (s.kind === 'small') showSmall(F, s);
+			else {
+				showWin(F, s);
+				if (!s.arrive) stripFlourish(F, s);
+			}
+		});
 	}
 	/** a job ends: its scratch faces and show are let go (the readout keeps its numbers) */
 	private warmEnd(job: WarmJob, state: WarmJob['state'], why: string) {
@@ -903,6 +1100,7 @@ export class Scoreboard {
 		job.back = null;
 		job.strip = null;
 		job.show = null;
+		// (a grid made ahead keeps `live`, the show it was made for: regridHolds tells by it whose grid this is)
 		job.doneAt ??= performance.now();
 		this.mark('warm', `${job.kind} ${state}: ${why} (${job.samples} samples, ${job.made} made, ${Math.round(job.ms)} ms over ${job.frames} frames)`);
 	}
@@ -914,12 +1112,14 @@ export class Scoreboard {
 		if (!W.on || !this.back || !this.strip) return;
 		const budget = W.budgetMs - spentMs;
 		if (budget <= 0.25) return;
-		// (a small win made ahead goes first: it comes up within a second or so, a card later)
-		if (this.smallWarmStep(budget)) return;
-		const job = this.warmJobs.find((j) => j.state === 'queued' || j.state === 'running');
+		// (a grid made ahead for the show that is up goes first: the board waits on it; then a small win made ahead: it
+		// comes up within a second or so, a card later)
+		const regrid = this.warmJobs.find((j) => j.kind === 'regrid' && (j.state === 'queued' || j.state === 'running'));
+		if (!regrid && this.smallWarmStep(budget)) return;
+		const job = regrid ?? this.warmJobs.find((j) => j.state === 'queued' || j.state === 'running');
 		if (!job) return;
 		const t0 = performance.now();
-		if (job.faceKey !== this.faceKey || !job.back) this.warmSetup(job);
+		if (job.faceKey !== (job.grid ? job.grid.key : this.faceKey) || !job.back) this.warmSetup(job);
 		job.state = 'running';
 		job.frames += 1;
 		const every = Math.max(1, Math.round(W.coarseEvery));
@@ -960,7 +1160,7 @@ export class Scoreboard {
 	/** DEV / probe: the cards made ahead (queued, running, the last finished) */
 	warmInfo() {
 		const now = performance.now();
-		return this.warmJobs.map((j) => ({ kind: j.kind, state: j.state, why: j.why, samples: j.samples, of: j.order.length, steps: j.times.length, made: j.made, ms: Math.round(j.ms * 10) / 10, frames: j.frames, maxFrameMs: Math.round(j.maxFrameMs * 10) / 10, agoMs: Math.round(now - j.queuedAt), tookMs: j.doneAt === null ? null : Math.round(j.doneAt - j.queuedAt), used: j.used, amount: j.req.amount, spins: j.req.spins }));
+		return this.warmJobs.map((j) => ({ kind: j.kind, state: j.state, why: j.why, samples: j.samples, of: j.order.length, steps: j.times.length, made: j.made, ms: Math.round(j.ms * 10) / 10, frames: j.frames, maxFrameMs: Math.round(j.maxFrameMs * 10) / 10, agoMs: Math.round(now - j.queuedAt), tookMs: j.doneAt === null ? null : Math.round(j.doneAt - j.queuedAt), used: j.used, amount: j.req?.amount ?? 0, spins: j.req?.spins ?? 0, grid: j.grid?.key ?? null }));
 	}
 	/** DEV / probe: the small win made ahead last (null: none asked for) */
 	smallWarmInfo() {
@@ -1185,10 +1385,7 @@ export class Scoreboard {
 		if (!this.geo || !this.strip || !this.back) return;
 		// THE FINER GRID'S RULE on every frame (the renderer's resolution settles after a resize; the tune panel): a change
 		// rebuilds both faces in place
-		if (this.ensureFaces()) {
-			this.placeFace(this.strip, this.geo.strip.face);
-			this.placeFace(this.back, this.geo.back.face);
-		}
+		this.ensureFaces();
 		// real ms (a slow device keeps the show's length); a stall (a hidden tab) counts as at most a quarter second
 		const dt = Math.min(250, Math.max(0, dtMs));
 		this.clock += dt;
@@ -1558,7 +1755,8 @@ export class Scoreboard {
 	 *  none: it is frames of textures the scene already holds) */
 	gpuBytes(): number {
 		const face = (G: GpuFace | null) => (G ? (G.F.ledW * G.F.ledH + G.halo.width * G.halo.height) * 4 : 0);
-		const grille = Math.round(this.grilleTex.source.pixelWidth * this.grilleTex.source.pixelHeight * 4 * (4 / 3));
+		let grille = 0;
+		for (const t of this.tiles.values()) grille += Math.round(t.canvas.width * t.canvas.height * 4 * (t.exact ? 1 : 4 / 3));
 		return face(this.strip) + face(this.back) + grille + 32 * 32 * 4;
 	}
 	/** DEV / probe: a face's picture as drawn on the last step: its lit LEDs and a hash of its pixels (png: the LEDs too, a
@@ -1578,6 +1776,17 @@ export class Scoreboard {
 		// the title as drawn this step (the back board), the entry's wait as drawn (the strip)
 		return { lit, dots: F.ledW * F.ledH, hash: (h >>> 0).toString(16), W: F.dotsW, H: F.dotsH, k: F.k, ledW: F.ledW, ledH: F.ledH, png: png ? F.out.toDataURL('image/png') : null, explain: explainOf(F.out.ctx.canvas), title: titleOf(F.out.ctx.canvas), titles: titlesOf(F.out.ctx.canvas), entryWait: entryWaitOf(F.out.ctx.canvas), raceCard: raceCardOf(F.out.ctx.canvas), plow: plowOf(F.out.ctx.canvas), riders: ridersOf(F.out.ctx.canvas), ideas: ideasOf(F.out.ctx.canvas), flashes: flashesOf(F.out.ctx.canvas) };
 	}
+	/** DEV / probe: the dots as built now (snapshot().leds) */
+	ledsInfo() {
+		const g = this.geo;
+		const L = g?.led;
+		if (!g || !L || !this.back || !this.strip) return null;
+		const r = (v: number) => Math.round(v * 1000) / 1000;
+		const face = (G: GpuFace, rect: Rect, grid: { css: number; px: number }) => ({ across: G.F.ledW, down: G.F.ledH, layoutAcross: G.F.dotsW, layoutDown: G.F.dotsH, k: G.F.k, pitchCss: r(rect.w / G.F.ledW), pitchPx: r((rect.w / G.F.ledW) * L.ratio), rulePitchCss: r(grid.css), rulePitchPx: r(grid.px), tilePx: G.tile.cellPx, tileExact: G.tile.exact });
+		const job = this.warmJobs.find((j) => j.kind === 'regrid' && !j.used) ?? null;
+		const held = `${g.strip.face.dotsW}x${g.strip.face.dotsH}|${g.back.face.dotsW}x${g.back.face.dotsH}|${L.back.k}` !== this.faceKey;
+		return { ruled: L.ruled, floorCss: L.floor, ratio: r(L.ratio), key: this.faceKey, back: face(this.back, g.back.face, L.back), strip: face(this.strip, g.strip.face, L.strip), held, regrid: job ? { to: job.grid!.key, state: job.state, samples: job.samples, of: job.order.length, ms: Math.round(job.ms * 10) / 10, frames: job.frames, maxFrameMs: Math.round(job.maxFrameMs * 10) / 10 } : null };
+	}
 	snapshot() {
 		const g = this.geo;
 		const r = (v: number) => Math.round(v * 100) / 100;
@@ -1593,6 +1802,11 @@ export class Scoreboard {
 			/** THE FINER GRID (LED_BOARD.density): the LEDs per dot of both faces, the LED's pitch (CSS px) and size in device px,
 			 *  the renderer's resolution the rule read, and the rule's least device px */
 			grid: this.gridInfo(),
+			/** THE SMALLEST DOT RULE (constants LED_BOARD.pitch): the dots as built now, per face: the LEDs across and down, the
+			 *  layout dots they carry, an LED's pitch in CSS px and in the renderer's pixels; whether the rule placed them, its
+			 *  floor, the resolution it read; a grid being made ahead for a show that is up (the faces then still hold the grid
+			 *  before, stretched: `held`) */
+			leds: this.ledsInfo(),
 			density: g ? { k: this.faceK, strip: this.strip?.F.k ?? null, back: this.back?.F.k ?? null, ledPitch: r(g.pitch / this.faceK), devicePx: r((g.pitch * this.deviceRatio()) / this.faceK), ratio: r(this.deviceRatio()), minDevicePx: LED_BOARD.density.minDevicePx, stripLeds: this.strip ? `${this.strip.F.ledW}x${this.strip.F.ledH}` : null, backLeds: this.back ? `${this.back.F.ledW}x${this.back.F.ledH}` : null, faceRoots: { strip: this.stripRoot.children.length - 1, back: this.backRoot.children.length - 1 } } : null,
 			strip: g ? { x: r(g.strip.box.x), y: r(g.strip.box.y), w: r(g.strip.box.w), h: r(g.strip.box.h), housingBottom: r(g.strip.housing.y + g.strip.housing.h), dotsW: g.strip.face.dotsW, dotsH: g.strip.face.dotsH, capTop: r(g.strip.housing.y - g.strip.cap * 1.3) } : null,
 			back: g
@@ -1652,7 +1866,8 @@ export class Scoreboard {
 		this.strip = null;
 		this.back = null;
 		for (const t of this.coverFrames.splice(0)) t.destroy(false);
-		this.grilleTex.destroy(true);
+		for (const t of this.tiles.values()) t.tex.destroy(true);
+		this.tiles.clear();
 		this.sheenTex.destroy(true);
 		this.root.destroy({ children: true });
 		if (scoreboardDev.board === this) scoreboardDev.board = null;

@@ -7,6 +7,7 @@
 // WATCHES: apps/run_over_reindeer/src/{game/landing/ledScreens.ts,game/ledWildsSpec.ts}; LED_SIGN.wilds
 // WATCHES: apps/run_over_reindeer/src/game/scoreboard/stripDraw.ts; LED_SIGN.face, LED_SIGN.holdS, __reindeer.pressScreenJump, __reindeer.pressScreens, __reindeer.ledFaceAudit
 // WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.bookAmount, __reindeer.fixtures, __reindeer.gagsAsked, __reindeer.hud
+// WATCHES: apps/run_over_reindeer/src/game/scoreboard/layout.ts; LED_BOARD.pitch, LED_BOARD.warm.regrid, __reindeer.scoreboardLeds
 // WATCHES: ; LED_BOARD.density, __reindeer.raceSeed, __reindeer.raceTally, __reindeer.raceTrace, __reindeer.roadBoard, __reindeer.roadSounds, __reindeer.scene
 // WATCHES: ; __reindeer.scoreboard, __reindeer.scoreboardCard, __reindeer.scoreboardCardEnd, __reindeer.scoreboardCardPress
 // WATCHES: ; __reindeer.scoreboardFace, __reindeer.scoreboardDev, __reindeer.scoreboardGag, __reindeer.scoreboardLower, __reindeer.scoreboardManual
@@ -87,12 +88,15 @@
 // the same size, no byte different). Reported: the LIGHTS table (the worst line win window per rate, with and without a
 // multiplier). HITCH_LIGHTS=0 turns the amounts made ahead off (each made on the frame it shows: the old timing) and the small
 // win's warm off, to compare; HITCH_BASE=0 skips the base spins.
-// THE FINER GRID (section density, 2026-11-19, constants LED_BOARD.density, game/scoreboard/ledGrid.ts), at the device's own
-// pixel ratio: the rule (1.5 LEDs per dot where an LED stays at least 2 device px: 1440 x 900 at 2x, 1920 x 1080 at 1x, the
-// phones at 3x and a sideways phone at 2x; today's grid on a 1440 x 900 desktop at 1x and an upright phone at 2x), both faces
-// at one density with one face each, their LEDs, the GPU budget, a one dot chase border the same number of LEDs all round,
-// the draw cost per layout; a rotation (sideways to upright at 2x and back) and the tune panel switch the density cleanly
-// (never two densities on screen, no face left over); M4 and the currency's drawRow check again on the finer grid
+// THE DOTS (section density; THE SMALLEST DOT RULE since 2026-11-22, wip/ledpitch, constants LED_BOARD.pitch, game/scoreboard/
+// layout.ts ledPitchGeo, read through __reindeer.scoreboard().leds; the finer grid of 2026-11-19, LED_BOARD.density, where the
+// rule leaves it), at the device's own pixel ratio: the rule placed the grid (a dot at least the layout class's floor in CSS
+// px, a whole number of the renderer's pixels on both faces, the grille's tile made for exactly that size, the strip at
+// least stripMinRows rows), the words' density the case expects (1 LED per layout dot at every size here but the 2560 x 1440
+// screen, which keeps 1.5), both faces at one density with one face each, their LEDs, the GPU budget, a one dot chase border
+// the same number of LEDs all round, the draw cost per layout; the tune panel's switches (the density, and the rule itself:
+// off gives the grid before it) and a rotation (sideways to upright at 2x and back) change the grid cleanly (never two
+// densities on screen, no face left over); M4 and the currency's drawRow check again where the case is deep
 // THE LED ANIMATION FIXES (section ledAnim, 2026-11-19, wip/ledanim), at the device's own pixel ratio (desktop 1440 x 900 at
 // 2x and 1x, wide 1920 x 1080 at 1x, upright 390 x 844 at 3x and 2x, sideways 844 x 390 at 3x: both grids, every layout
 // class), driven by hand:
@@ -285,7 +289,10 @@ async function sizeChecks(p, S, memory) {
 		if (E.size === 'd') {
 			const bf = sb.back.face;
 			const RB = E.board;
-			check(near(bf.x, RB.x) && near(bf.x + bf.w, RB.x + RB.width) && bf.y >= RB.y - 0.6 && bf.y <= RB.y + sb.pitch + 0.6 && near(sb.back.housing.w, st.w) && near(sb.back.housing.x, st.x), `${tag}: BOARD SIZE d: the back board's face ${r1(bf.x)}..${r1(bf.x + bf.w)} x from ${r1(bf.y)} on the reel board's ${r1(RB.x)}..${r1(RB.x + RB.width)} x from ${r1(RB.y)} (within 0.6 px across, one dot down), the strip as wide as the back board (${r1(st.w)} and ${r1(sb.back.housing.w)})`, { bf, RB, st, back: sb.back.housing });
+			// (2026-11-22, the smallest dot rule: the face is whole dots centred on the reel board's box, so each edge is within
+			// half a dot of it, and the face's own row of slack is one dot)
+			const half = sb.pitch / 2 + 0.6;
+			check(bf.x >= RB.x - 0.6 && bf.x <= RB.x + half && bf.x + bf.w <= RB.x + RB.width + 0.6 && bf.x + bf.w >= RB.x + RB.width - half && Math.abs(bf.x + bf.w / 2 - (RB.x + RB.width / 2)) <= 0.6 && bf.y >= RB.y - 0.6 && bf.y <= RB.y + sb.pitch + 0.6 && near(sb.back.housing.w, st.w) && near(sb.back.housing.x, st.x), `${tag}: BOARD SIZE d: the back board's face ${r1(bf.x)}..${r1(bf.x + bf.w)} x from ${r1(bf.y)} on the reel board's ${r1(RB.x)}..${r1(RB.x + RB.width)} x from ${r1(RB.y)} (whole dots centred on it: within half a dot across, one dot down), the strip as wide as the back board (${r1(st.w)} and ${r1(sb.back.housing.w)})`, { bf, RB, st, back: sb.back.housing });
 		}
 		// (390 x 620: Corey accepted the game's own strip height on 2026-11-17, 6.1 px under the mock's by-eye 58: the
 		// expected height there is the game's rule, E.h, and the strip must stand between the road's edge and the HUD)
@@ -305,8 +312,19 @@ async function sizeChecks(p, S, memory) {
 		if (M) check(Math.abs(dm.w) <= 6 && Math.abs(dm.x) <= 6 && Math.abs(dm.y) <= 6 && Math.abs(dm.h) <= 6, `${tag}: against the mock's own numbers (${M.w} x ${M.h} at ${M.x}, ${M.y}): w ${dm.w}, x ${dm.x}, y ${dm.y}, h ${dm.h} (within 6 px: the mock read the road's edges by eye)`, dm);
 		check(st.housingBottom <= E.hud + 0.5, `${tag}: the strip ends (${st.housingBottom}) above the HUD's top (${r1(E.hud)})`);
 		if (E.columns) check(sb.back.housing.x >= E.columns[0] && sb.back.housing.x + sb.back.housing.w <= E.columns[1], `${tag}: held sideways the strip and the back board stand between the HUD's columns (${r1(E.columns[0])} to ${r1(E.columns[1])})`);
-		if (S.pitch !== null) check(Math.abs(sb.pitch - (S.name === 'desktop' ? 2.49 : S.name === 'wide' ? 3.31 : S.name === 'side' ? 1.56 : 1.3)) <= 0.03, `${tag}: the dot pitch ${sb.pitch} CSS px (the press screen's)`);
-		check(st.dotsH >= 14 && st.dotsW >= 200, `${tag}: the strip's face ${st.dotsW} x ${st.dotsH} dots (the mock's smallest: 16 tall at 1920 x 1080), the back board's ${sb.back.dotsW} x ${sb.back.dotsH}`);
+		// THE SMALLEST DOT RULE (2026-11-22, constants LED_BOARD.pitch; the game's own readout, scoreboard().leds): the rule
+		// placed the grid, a dot at least its layout class's floor in CSS px and a whole number of the renderer's pixels on
+		// both faces, the strip at least stripMinRows rows (or its dots at the least pixels), the dot count the face's width
+		// over the pitch (it follows the window: no fixed 362 across)
+		{
+			const PR = await R(p, () => ({ ...window.__reindeer.tune.ledBoard.pitch }));
+			const L = sb.leds;
+			const floor = sb.cls === 'portrait' || sb.cls === 'phone' ? PR.phoneCss : PR.desktopCss;
+			const whole = (v) => Math.abs(v - Math.round(v)) < 0.01;
+			check(!!L && L.ruled && L.floorCss === floor && L.back.pitchCss >= floor - 0.001 && whole(L.back.pitchPx) && whole(L.strip.pitchPx) && L.back.pitchPx >= PR.minPx && L.strip.pitchPx >= PR.minPx && L.strip.pitchCss <= L.back.pitchCss + 0.001 && L.back.tileExact && L.back.tilePx === Math.round(L.back.pitchPx) && L.strip.tilePx === Math.round(L.strip.pitchPx), `${tag}: THE SMALLEST DOT RULE placed the grid: a dot ${L?.back.pitchCss} CSS px = ${L?.back.pitchPx} renderer px (the floor ${floor}), the strip's ${L?.strip.pitchCss} = ${L?.strip.pitchPx}, the grille's holes made at ${L?.back.tilePx} and ${L?.strip.tilePx} px`, L);
+			check(!!L && L.back.across === Math.round(L.back.layoutAcross * L.back.k) && Math.abs(L.back.across * L.back.pitchCss - sb.back.face.w) <= 0.05 && Math.abs(L.back.down * L.back.pitchCss - sb.back.face.h) <= 0.05 && L.strip.across === Math.round(L.strip.layoutAcross * L.strip.k) && L.strip.across * L.strip.pitchCss <= st.w, `${tag}: the dot count follows the window: ${L?.back.across} x ${L?.back.down} dots on the back board (${L?.back.layoutAcross} x ${L?.back.layoutDown} layout dots at ${L?.back.k}), ${L?.strip.across} x ${L?.strip.down} on the strip, whole dots filling each face`, L);
+			check(st.dotsH >= PR.stripMinRows || Math.round(L?.strip.pitchPx) === PR.minPx, `${tag}: the strip's face ${st.dotsW} x ${st.dotsH} dots (at least ${PR.stripMinRows} rows), the back board's ${sb.back.dotsW} x ${sb.back.dotsH}`);
+		}
 		check(sb.gpuBytes <= 1.2 * 1048576, `${tag}: the scoreboard holds ${(sb.gpuBytes / 1048576).toFixed(3)} MB of GPU textures (budget 1.2 MB; the snow cover adds none)`);
 		memory[S.name] = { gpuMB: Math.round((sb.gpuBytes / 1048576) * 1000) / 1000, strip: `${st.dotsW}x${st.dotsH}`, back: `${sb.back.dotsW}x${sb.back.dotsH}`, cover: sb.cover };
 	}
@@ -2616,13 +2634,26 @@ async function ladderMarkChecks(browser) {
 /** THE FINER GRID (2026-11-19): the density rule per layout at the device's own pixel ratio, a clean switch on a rotation and
  *  on the tune panel, a one dot border the same LEDs all round, the cost; M4 and the currency check again at 1.5 */
 const DENSITY_CASES = [
-	{ name: 'density desktop@2', vp: { width: 1440, height: 900 }, dpr: 2, phone: false, want: 1.5, deep: true },
+	// (want: the LEDs per layout dot. Since the smallest dot rule, 2026-11-22, the finer words stay only where the face still
+	// holds 1.5 x the layout's dots at the floor's pitch: the 2560 x 1440 screen, whose renderer runs at 1.5 under the pixel
+	// ceiling, `res`. stake: Stake's 1200 x 675 review window, the size the rule was asked for.
+	// (2026-11-23, wip/signplus: THE SIGN BAR'S TALLER DESKTOP STRIP. With the glass dock the strip there was 47 CSS px and
+	// the rule stepped the strip's own dots down to reach stripMinRows: `stripOwn`. With the sign bar, ui/hudTheme.ts
+	// HUD_BAR 'sign', the desktop strip is Corey's own height, signLayout.ts DESKTOP.stripH: 63.1 CSS px at 1200 x 675, and
+	// the board's dots already give it 17 rows at 2x and 14 at 1x, so the strip keeps the board's dots: the rule applied
+	// inside the strip box the bar gives, by the layout's numbers. With the sign bar no window of the layout test's steps
+	// the strip down, so no case here asks for the strip's own dots under the sign bar; `stripOwnDock` asks for them only
+	// while the bar in use is the dock.)
+	{ name: 'density desktop@2', vp: { width: 1440, height: 900 }, dpr: 2, phone: false, want: 1, deep: true },
 	{ name: 'density desktop@1', vp: { width: 1440, height: 900 }, dpr: 1, phone: false, want: 1 },
-	{ name: 'density wide@1', vp: { width: 1920, height: 1080 }, dpr: 1, phone: false, want: 1.5 },
-	{ name: 'density upright@3', vp: { width: 390, height: 844 }, dpr: 3, phone: true, want: 1.5, deep: true },
+	{ name: 'density wide@1', vp: { width: 1920, height: 1080 }, dpr: 1, phone: false, want: 1 },
+	{ name: 'density big@2', vp: { width: 2560, height: 1440 }, dpr: 2, res: 1.5, phone: false, want: 1.5 },
+	{ name: 'density stake@2', vp: { width: 1200, height: 675 }, dpr: 2, phone: false, want: 1, stripOwnDock: true },
+	{ name: 'density stake@1', vp: { width: 1200, height: 675 }, dpr: 1, phone: false, want: 1, stripOwnDock: true },
+	{ name: 'density upright@3', vp: { width: 390, height: 844 }, dpr: 3, phone: true, want: 1, deep: true },
 	{ name: 'density upright@2', vp: { width: 390, height: 844 }, dpr: 2, phone: true, want: 1 },
-	{ name: 'density sideways@3', vp: { width: 844, height: 390 }, dpr: 3, phone: true, want: 1.5 },
-	{ name: 'density sideways@2', vp: { width: 844, height: 390 }, dpr: 2, phone: true, want: 1.5, rotate: true },
+	{ name: 'density sideways@3', vp: { width: 844, height: 390 }, dpr: 3, phone: true, want: 1 },
+	{ name: 'density sideways@2', vp: { width: 844, height: 390 }, dpr: 2, phone: true, want: 1, rotate: true },
 ].filter((s) => !ONLY.length || ONLY.includes(s.name.split(' ')[1].split('@')[0]) || ONLY.includes('density'));
 /** the scoreboard's density now and its faces (both faces' k, their LEDs, one face root each) */
 const densityNow = (p) =>
@@ -2632,7 +2663,7 @@ const densityNow = (p) =>
 		const st = h.scoreboardFace('strip');
 		const bk = h.scoreboardFace('back');
 		const D = h.tune.ledBoard.density;
-		return { cls: s.cls, pitch: s.pitch, density: s.density, gpuBytes: s.gpuBytes, strip: st && { W: st.W, H: st.H, k: st.k, ledW: st.ledW, ledH: st.ledH }, back: bk && { W: bk.W, H: bk.H, k: bk.k, ledW: bk.ledW, ledH: bk.ledH }, rule: { k: D.k, min: D.minDevicePx, on: D.on }, res: window.__reindeer.renderRes?.cap ?? null };
+		return { bar: h.hud?.bar ?? 'dock', cls: s.cls, pitch: s.pitch, density: s.density, leds: s.leds, pitchRule: { ...h.tune.ledBoard.pitch }, gpuBytes: s.gpuBytes, strip: st && { W: st.W, H: st.H, k: st.k, ledW: st.ledW, ledH: st.ledH }, back: bk && { W: bk.W, H: bk.H, k: bk.k, ledW: bk.ledW, ledH: bk.ledH }, rule: { k: D.k, min: D.minDevicePx, on: D.on }, res: window.__reindeer.renderRes?.cap ?? null };
 	});
 const densityOk = (d) => !!d?.density && d.strip.k === d.back.k && d.density.k === d.strip.k && d.density.faceRoots.strip === 1 && d.density.faceRoots.back === 1 && d.strip.ledW === Math.round(d.strip.W * d.strip.k) && d.back.ledH === Math.round(d.back.H * d.back.k);
 async function densityChecks(browser) {
@@ -2642,11 +2673,19 @@ async function densityChecks(browser) {
 		const { ctx, p, errs } = await boot(browser, S);
 		try {
 			const d = await densityNow(p);
-			// the rule, worked out here: an LED of the finer grid at least minDevicePx device px (the renderer's resolution)
+			// THE SMALLEST DOT RULE (2026-11-22), the game's own readout: the rule placed the grid at the renderer's resolution, a
+			// dot at least the layout class's floor, whole renderer pixels on both faces, the tile made for that size; the words'
+			// density the case expects, and where it is the finer one the face holds at least 1.5 x the layout's dots
 			const ratio = d.density.ratio;
-			const want = d.rule.on && (d.pitch * ratio) / d.rule.k >= d.rule.min ? d.rule.k : 1;
-			check(Math.abs(ratio - S.dpr) < 0.01, `${tag}: the rule reads the renderer's resolution (${ratio}, the device's ${S.dpr})`, d.density);
-			check(d.density.k === S.want && d.density.k === want, `${tag}: ${d.density.k} LEDs per dot (want ${S.want}; the rule: pitch ${d.pitch} x ${ratio} / ${d.rule.k} = ${r1((d.pitch * ratio) / d.rule.k)} device px against ${d.rule.min})`, d.density);
+			const L = d.leds;
+			const PR = d.pitchRule;
+			const floor = d.cls === 'portrait' || d.cls === 'phone' ? PR.phoneCss : PR.desktopCss;
+			const whole = (v) => Math.abs(v - Math.round(v)) < 0.01;
+			check(Math.abs(ratio - (S.res ?? S.dpr)) < 0.01, `${tag}: the rule reads the renderer's resolution (${ratio}, the device's ${S.dpr}${S.res ? `, under the pixel ceiling ${S.res}` : ''})`, d.density);
+			check(!!L && L.ruled && L.floorCss === floor && L.back.pitchCss >= floor - 0.001 && whole(L.back.pitchPx) && whole(L.strip.pitchPx) && L.back.tileExact && L.back.tilePx === Math.round(L.back.pitchPx) && L.strip.tilePx === Math.round(L.strip.pitchPx) && !L.held, `${tag}: THE SMALLEST DOT RULE: a dot ${L?.back.pitchCss} CSS px = ${L?.back.pitchPx} renderer px (the floor ${floor}), the strip's ${L?.strip.pitchCss} = ${L?.strip.pitchPx}, ${L?.back.across} x ${L?.back.down} dots on the back board`, L);
+			check(d.density.k === S.want && L?.back.k === S.want && L?.strip.k === S.want, `${tag}: ${d.density.k} LEDs per layout dot (want ${S.want})`, d.density);
+			if (S.stripOwn || (S.stripOwnDock && d.bar !== 'sign')) check(L.strip.pitchPx < L.back.pitchPx && d.strip.H >= PR.stripMinRows, `${tag}: THE STRIP'S OWN DOTS: ${L.strip.pitchPx} renderer px against the board's ${L.back.pitchPx}, so it has ${d.strip.H} rows (at least ${PR.stripMinRows})`, L);
+			else check(L.strip.pitchPx === L.back.pitchPx && d.strip.H >= PR.stripMinRows, `${tag}: the strip keeps the board's dots (${L.strip.pitchPx} renderer px), ${d.strip.H} rows${S.stripOwnDock ? " (the sign bar's taller desktop strip: no stepping down is needed)" : ''}`, L);
 			check(densityOk(d), `${tag}: both faces at ${d.density.k} (strip ${d.strip.k}, back ${d.back.k}), one face each (${d.density.faceRoots.strip}, ${d.density.faceRoots.back}): the strip ${d.strip.W} x ${d.strip.H} dots in ${d.strip.ledW} x ${d.strip.ledH} LEDs, the back board ${d.back.W} x ${d.back.H} in ${d.back.ledW} x ${d.back.ledH}`, d);
 			check(d.gpuBytes <= 1.2 * 1048576, `${tag}: the scoreboard holds ${(d.gpuBytes / 1048576).toFixed(3)} MB of GPU textures (budget 1.2 MB)`);
 			if (d.density.k > 1) check(d.density.devicePx >= d.rule.min, `${tag}: an LED is ${d.density.devicePx} device px (at least ${d.rule.min})`);
@@ -2657,19 +2696,22 @@ async function densityChecks(browser) {
 			const gr = await R(p, async () => {
 				const h = window.__reindeer;
 				const G0 = h.scoreboard().grid;
-				const fill = h.tune.ledBoard.grid.fill;
-				h.tune.ledBoard.grid.fill = 0.86;
+				// (the fill is the smallest dot rule's while it is on: LED_BOARD.pitch.fill)
+				const fill = h.tune.ledBoard.pitch.fill;
+				h.tune.ledBoard.pitch.fill = 0.86;
 				await new Promise((r) => setTimeout(r, 300));
 				const wide = h.scoreboard().grid;
-				h.tune.ledBoard.grid.fill = fill;
+				h.tune.ledBoard.pitch.fill = fill;
 				await new Promise((r) => setTimeout(r, 300));
 				return { G0, wide, back: h.scoreboard().grid, k: h.scoreboard().density.k, roots: h.scoreboard().density.faceRoots };
 			});
 			const G0 = gr.G0;
 			const m = G0.measured;
 			check(G0.shape === 'round' && G0.fill === 0.73 && G0.rowScale === 1 && G0.gapDark === 1 && G0.litOver === 0 && G0.snap === false && G0.unlit === true && !G0.litOverShown && G0.grilleAlpha === 1 && G0.unlitTint === 0x22262d && G0.soft === d.density.k > 1, `${tag}: THE DOT GRID as picked (today's): round, fill 0.73, row 1, gaps 1, no lit over, no snap, unlit dots shown${G0.soft ? ', the soft skirt on the finer grid' : ''}`, G0);
-			check(!!m && Math.abs(m.across - m.down) < 0.001 && (G0.soft ? m.across >= G0.fill - 0.01 : Math.abs(m.across - G0.fill) <= 0.07), `${tag}: the tile's dot measured round, ${m?.across} of the pitch across and ${m?.down} down (fill ${G0.fill}${G0.soft ? ', with the skirt' : ''})`, m);
-			check(!!gr.wide.measured && gr.wide.measured.across > m.across && gr.back.measured.across === m.across && gr.roots.strip === 1 && gr.roots.back === 1, `${tag}: the fill knob is live (0.86: ${gr.wide.measured?.across} across) and back to ${gr.back.measured?.across}, one face each`, gr);
+			// (a tile made at the dot's own size, tileExact: its hole is tilePx pixels across, so the measure is within one of them)
+			const tol = G0.tileExact ? 1 / G0.tilePx + 0.02 : 0.07;
+			check(!!m && Math.abs(m.across - m.down) < 0.001 && (G0.soft ? m.across >= G0.fill - 0.01 - (G0.tileExact ? tol : 0) : Math.abs(m.across - G0.fill) <= tol), `${tag}: the tile's dot measured round, ${m?.across} of the pitch across and ${m?.down} down (fill ${G0.fill}${G0.soft ? ', with the skirt' : ''}${G0.tileExact ? `, a hole of ${G0.tilePx} px` : ''}; its open share ${m?.open})`, m);
+			check(!!gr.wide.measured && gr.wide.measured.open > m.open && gr.wide.measured.across >= m.across && gr.back.measured.open === m.open && gr.roots.strip === 1 && gr.roots.back === 1, `${tag}: the fill knob is live (0.86: the hole's open share ${gr.wide.measured?.open} against ${m.open}) and back to ${gr.back.measured?.open}, one face each`, gr);
 			// a ONE DOT chase border the same LEDs all round (the short Grandma line's gold chase), and the cost per layout
 			const r = await R(p, async () => {
 				const h = window.__reindeer;
@@ -2712,7 +2754,12 @@ async function densityChecks(browser) {
 				h.scoreboardManual(false);
 				return { u: Math.max(1, Math.round(f.k)), top, bottom, left, right, sfs, total, upload: snap.cost.uploadBytes, sfsLit: { lit: sfsLit.lit, dots: sfsLit.dots } };
 			});
-			check([r.top, r.bottom, r.left, r.right].every((v) => v === r.u), `${tag}: the one dot chase border is ${r.u} LED${r.u > 1 ? 's' : ''} all round (top ${r.top}, bottom ${r.bottom}, left ${r.left}, right ${r.right})`, r);
+			// (2026-11-22: a strip under 11 rows at one LED per layout dot keeps its rows for its words and draws no border,
+			// scoreboardDraw.ts BORDER_MIN_ROWS: Stake's 1200 x 675 window)
+			// COPY OF apps/run_over_reindeer/src/game/scoreboard/scoreboardDraw.ts:BORDER_MIN_ROWS
+			const BORDER_MIN_ROWS = 11;
+			const bu = d.strip.k === 1 && d.strip.H < BORDER_MIN_ROWS ? 0 : r.u;
+			check([r.top, r.bottom, r.left, r.right].every((v) => v === bu), bu ? `${tag}: the one dot chase border is ${r.u} LED${r.u > 1 ? 's' : ''} all round (top ${r.top}, bottom ${r.bottom}, left ${r.left}, right ${r.right})` : `${tag}: a strip of ${d.strip.H} rows draws no chase border (top ${r.top}, bottom ${r.bottom}, left ${r.left}, right ${r.right})`, r);
 			check(r.sfsLit.lit > r.sfsLit.dots * 0.03, `${tag}: the Super entry's page is lit (${r.sfsLit.lit} of ${r.sfsLit.dots} LEDs)`);
 			table.push({ case: S.name, k: d.density.k, devicePx: d.density.devicePx, strip: `${d.strip.W}x${d.strip.H} dots = ${d.strip.ledW}x${d.strip.ledH} LEDs`, back: `${d.back.W}x${d.back.H} dots = ${d.back.ledW}x${d.back.ledH} LEDs`, gpuMB: Math.round((d.gpuBytes / 1048576) * 1000) / 1000, uploadKB: Math.round(r.upload / 1024), sfsDrawMs: r.sfs, totalDrawMs: r.total });
 			// THE TUNE PANEL: the density off and on again, both faces switch together on the next frame
@@ -2726,7 +2773,19 @@ async function densityChecks(browser) {
 				await new Promise((r) => setTimeout(r, 300));
 				return { off, on: read() };
 			});
-			check(tu.off.k === 1 && tu.off.strip === 1 && tu.off.back === 1 && tu.on.k === d.density.k && tu.on.strip === tu.on.k && tu.on.back === tu.on.k && tu.off.roots.strip === 1 && tu.on.roots.back === 1, `${tag}: the tune panel's switch: off gives today's grid on both faces, on gives ${d.density.k} again (one face each)`, tu);
+			check(tu.off.k === 1 && tu.off.strip === 1 && tu.off.back === 1 && tu.on.k === d.density.k && tu.on.strip === tu.on.k && tu.on.back === tu.on.k && tu.off.roots.strip === 1 && tu.on.roots.back === 1, `${tag}: the tune panel's switch: off gives one LED per layout dot on both faces, on gives ${d.density.k} again (one face each)`, tu);
+			// THE RULE'S OWN SWITCH: off gives the grid before it (not ruled, the mipmapped tile), on the ruled grid again
+			const ru = await R(p, async () => {
+				const h = window.__reindeer;
+				const read = () => { const s = h.scoreboard(); return { ruled: s.leds.ruled, key: s.leds.key, exact: s.leds.back.tileExact, across: s.leds.back.across, roots: s.density.faceRoots }; };
+				h.tune.ledBoard.pitch.on = false;
+				await new Promise((r) => setTimeout(r, 300));
+				const off = read();
+				h.tune.ledBoard.pitch.on = true;
+				await new Promise((r) => setTimeout(r, 300));
+				return { off, on: read() };
+			});
+			check(ru.off.ruled === false && ru.off.exact === false && ru.off.key !== L.key && ru.on.ruled === true && ru.on.key === L.key && ru.on.exact === true && ru.off.roots.strip === 1 && ru.on.roots.back === 1, `${tag}: the rule's switch: off gives the grid before it (${ru.off.across} dots across, the shrunk tile), on the ruled grid again (${ru.on.across})`, ru);
 			if (S.deep) {
 				if (SEC('m4')) await m4Checks(p, { ...S, name: S.name });
 				if (SEC('currency') && S.dpr === 2) await currencyChecks(p, { ...S, name: S.name });
@@ -2746,10 +2805,10 @@ async function densityChecks(browser) {
 				};
 				const up = await watch({ width: 390, height: 844 });
 				const last = up.at(-1);
-				check(up.every((x) => x.strip === x.back && x.k === x.strip) && last.cls === 'portrait' && last.k === 1 && last.roots.strip === 1 && last.roots.back === 1, `${tag}: turned upright (390 x 844 at 2x): today's grid (k ${last.k}), both faces at one density on all ${up.length} frames of the change, one face each`, up.filter((x) => x.strip !== x.back).slice(0, 3).concat([last]));
+				check(up.every((x) => x.strip === x.back && x.k === x.strip) && last.cls === 'portrait' && last.k === 1 && last.roots.strip === 1 && last.roots.back === 1, `${tag}: turned upright (390 x 844 at 2x): one LED per layout dot (k ${last.k}), both faces at one density on all ${up.length} frames of the change, one face each`, up.filter((x) => x.strip !== x.back).slice(0, 3).concat([last]));
 				const back = await watch(S.vp);
 				const end = back.at(-1);
-				check(back.every((x) => x.strip === x.back && x.k === x.strip) && end.cls === 'phone' && end.k === 1.5 && end.roots.strip === 1 && end.roots.back === 1 && end.gpu === d.gpuBytes, `${tag}: turned back sideways: 1.5 again on both faces, one face each, the GPU bytes as at the start (${(end.gpu / 1048576).toFixed(3)} MB)`, end);
+				check(back.every((x) => x.strip === x.back && x.k === x.strip) && end.cls === 'phone' && end.k === S.want && end.roots.strip === 1 && end.roots.back === 1 && end.gpu === d.gpuBytes, `${tag}: turned back sideways: ${S.want} again on both faces, one face each, the GPU bytes as at the start (${(end.gpu / 1048576).toFixed(3)} MB)`, end);
 			}
 			check(errs.length === 0, `${tag}: no page errors`, errs);
 		} catch (e) {

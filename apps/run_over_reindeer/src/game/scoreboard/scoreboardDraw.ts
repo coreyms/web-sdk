@@ -16,13 +16,13 @@
 // sparkles, bulbs, single dots, scan lines and edges, stripes, the honk meter) are set in whole LEDs (ledN). Every place,
 // size and text box the probes read is in today's dots. At k = 1 every path is exactly as before.
 import { SCOREBOARD_ART } from '../scoreboardArtSpec';
-import { LED_FONT, drawText, letterGap, mk, textInk, textW, type Cv } from '../landing/ledScreens';
+import { LED_FONT, dotGlyphGrid, drawText, letterGap, mk, textInk, textW, type Cv } from '../landing/ledScreens';
 import { ledSignCanvas, signAdv } from './ledSigns';
 import { warmGate } from './warmGate';
 import { INTRO_LINE, LED_BOARD } from '../constants';
 import { amountNow, tierNow, type Show } from './show';
 import { newRace, raceProgress, type Race } from './race';
-import { blit, blitP, clearP, copyFace, copyP, dotAt, fillP, kOf, ledN, lwOf, mkFace, overpassReady, ringPts } from './ledGrid';
+import { blit, blitP, clearP, copyFace, copyP, dotAt, fillP, kOf, ledN, lwOf, mkFace, noteText, overpassReady, ringPts, textAuditOn } from './ledGrid';
 
 /** the Max scene's races, one run after another, per show (decoration only: the race's own random source) */
 const maxRaces = new WeakMap<Show, Map<number, Race>>();
@@ -250,6 +250,33 @@ function gallop(g: Ctx, x: number, yBottom: number, h: number, t: number): numbe
 
 // ---- THE AMOUNT: a heavy face per glyph at the dot size, tabular digit cells (the mock's vglyph / drawRow) -------------------
 const vgCache = new Map<string, { c: Cv; adv: number }>();
+/** THE DOT FONT STEP (2026-11-22, constants LED_BOARD.pitch.dotRowCap and dotRowCap2; the smallest dot rule): on a face the
+ *  rule placed at one LED per layout dot, the heavy face drawn small is only blobs (the strip's PRESS SPIN at a cap of 5; a
+ *  heavy E's bars close up under about 20 dots). There a row whose cap is dotRowCap dots or under is set in the 5 x 7 dot
+ *  font at size 1 (7 dots tall), one up to dotRowCap2 at size 2 (14 tall, its corners rounded as the lines' size 2), and only
+ *  a taller one in the heavy face: the sizes the press screen's lines already step through (1, 2, heavy from 21). Only the
+ *  glyphs, their advances and the gap between cells change (vglyph, advOf, rowInfo): a row's colours, size searches and
+ *  placing are the same code. The glyph is centred on the cap's rows. A sign the dot font lacks (a currency sign's LED
+ *  glyph, ledSigns.ts) is made at the dot font's height. The scoreboard sets it with the faces (setRowDots). */
+let ROW_DOTS = false;
+export const setRowDots = (on: boolean) => {
+	ROW_DOTS = on;
+};
+export const rowDotsNow = () => ROW_DOTS;
+/** the dot font's size a row of cap `cap` is set in now: 1 or 2, or 0: the heavy face */
+const dotSize = (cap: number): 0 | 1 | 2 => (!ROW_DOTS ? 0 : cap <= LED_BOARD.pitch.dotRowCap ? 1 : cap <= LED_BOARD.pitch.dotRowCap2 ? 2 : 0);
+/** the rows a row's glyphs take: the cap, or the dot font's 7 or 14 */
+export const rowCapEff = (cap: number) => {
+	const z = dotSize(cap);
+	return z ? 7 * z : cap;
+};
+/** where the dot font's glyph starts under the cap's top row (above it, where the cap is under the glyph's height) */
+const dotTop = (cap: number, z: number) => Math.floor((cap - 7 * z) / 2);
+/** the rows a dot font row's canvas keeps above the cap's top row (the glyph of a cap under 7 starts above it: dotTop) */
+const DOT_LIFT = 3;
+const rowLift = (cap: number) => (dotSize(cap) ? DOT_LIFT : 0);
+/** the cache keys' part for the face a row is set in */
+const rowFace = (cap: number) => (dotSize(cap) ? '.' : '');
 /** A GLYPH'S ADVANCE ALONE (2026-11-22, wip/ledhitch): exactly the `adv` vglyph gives it (a sign's from its outline,
  *  ledSigns.ts signAdv; a letter's the font's measure at the cap, rounded up), without drawing the glyph. The size searches
  *  (fitCap and the layouts' own loops) ask rowInfo's width at every cap they try; through vglyph each try drew ten digits
@@ -258,13 +285,16 @@ const vgCache = new Map<string, { c: Cv; adv: number }>();
 const advCache = new Map<string, number>();
 let advCtx: Ctx | null = null;
 function advOf(ch: string, cap: number): number {
-	const key = ch + '|' + cap;
+	const key = rowFace(cap) + ch + '|' + cap;
 	const made = vgCache.get(key);
 	if (made) return made.adv;
 	let a = advCache.get(key);
 	if (a !== undefined) return a;
-	const sa = signAdv(ch, cap);
-	if (sa !== null) a = sa;
+	const z = dotSize(cap);
+	const dots = z ? dotGlyphGrid(ch, z) : null;
+	const sa = dots ? null : signAdv(ch, z ? 7 * z : cap);
+	if (dots) a = dots.w;
+	else if (sa !== null) a = sa;
 	else {
 		advCtx ??= mk(4, 4).ctx;
 		advCtx.font = `900 ${cap / 0.72}px ${LED_FONT}`;
@@ -275,9 +305,30 @@ function advOf(ch: string, cap: number): number {
 	return a;
 }
 function vglyph(ch: string, cap: number) {
-	const key = ch + '|' + cap;
+	const key = rowFace(cap) + ch + '|' + cap;
 	let g = vgCache.get(key);
 	if (g) return g;
+	// THE DOT FONT STEP: the sign's 5 x 7 dots, centred on the cap's rows (a cap under 7: a row over each edge), in a canvas
+	// padded as the heavy glyphs' are (one dot left and above)
+	const z = dotSize(cap);
+	if (z) {
+		const dots = dotGlyphGrid(ch, z);
+		const sign = dots ? null : ledSignCanvas(ch, 7 * z);
+		if (dots || sign) {
+			warmGate();
+			// (DOT_LIFT rows kept above the cap's top row: drawRow lays the row that much higher)
+			const y0 = 1 + DOT_LIFT + dotTop(cap, z);
+			const adv = dots ? dots.w : sign!.adv;
+			const c = mk(adv + 2, Math.max(Math.ceil(cap * 1.4) + 2 + DOT_LIFT, y0 + (dots ? 7 * z : sign!.c.height) + 1));
+			if (dots) {
+				c.ctx.fillStyle = '#fff';
+				for (let j = 0; j < dots.h; j++) for (let i = 0; i < dots.w; i++) if (dots.d[j * dots.w + i]) c.ctx.fillRect(1 + i, y0 + j, 1, 1);
+			} else c.ctx.drawImage(sign!.c, 0, y0 - 1);
+			g = { c, adv };
+			vgCache.set(key, g);
+			return g;
+		}
+	}
 	// a currency sign: its LED glyph (ledSigns.ts), never the font's or a fallback font's
 	const sign = ledSignCanvas(ch, cap);
 	if (sign) {
@@ -338,11 +389,12 @@ function vglyphK(ch: string, cap: number, k: number, wt: number) {
 }
 const riCache = new Map<string, { dcell: number; sp: number; cells: number[]; w: number }>();
 function rowInfo(str: string, cap: number) {
-	const key = str + '|' + cap;
+	const key = rowFace(cap) + str + '|' + cap;
 	let r = riCache.get(key);
 	if (r) return r;
 	const dcell = Math.max(...'0123456789'.split('').map((d) => advOf(d, cap)));
-	const sp = Math.max(1, Math.round(cap * 0.07));
+	// (the dot font's own gap between cells: one dot scale)
+	const sp = dotSize(cap) || Math.max(1, Math.round(cap * 0.07));
 	const cells = [...str].map((ch) => (/\d/.test(ch) ? dcell : advOf(ch, cap)));
 	const w = cells.reduce((a, b) => a + b, 0) + sp * (cells.length - 1);
 	r = { dcell, sp, cells, w };
@@ -353,7 +405,9 @@ function rowInfo(str: string, cap: number) {
 function fitCap(str: string, maxW: number, capMax: number) {
 	let cap = Math.max(5, Math.floor(capMax));
 	while (cap > 5 && rowInfo(str, cap).w > maxW) cap--;
-	return cap;
+	// THE DOT FONT STEP: a row set in the dot font takes that font's own height, 7 or 14 (never a cap its glyphs do not fill),
+	// and on a strip too short for the heavy face the caller centres 7 rows, not 5
+	return rowCapEff(cap);
 }
 let rowTmp: Cv | null = null;
 /** style: a color, 'gold', or 'cut' (the glyphs punch unlit dots out of what is under them); `wt`: the weight on the finer
@@ -362,7 +416,9 @@ function drawRow(g: Ctx, str: string, x: number, y: number, cap: number, style: 
 	const k = kOf(g);
 	if (k !== 1) return drawRowK(g, str, x, y, cap, style, pulse, k, wt);
 	const ri = rowInfo(str, cap);
-	const h = Math.ceil(cap * 1.4) + 2;
+	if (textAuditOn()) noteText({ canvas: g.canvas, str, x: Math.round(x), y: Math.round(y) + (dotSize(cap) ? dotTop(cap, dotSize(cap)) : 0), w: ri.w, h: rowCapEff(cap), s: cap, kind: 'row', dots: dotSize(cap) > 0 });
+	const lift = rowLift(cap);
+	const h = Math.max(Math.ceil(cap * 1.4) + 2, rowCapEff(cap) + 2) + lift;
 	rowTmp ??= mk(8, 8);
 	if (rowTmp.width < ri.w + 4 || rowTmp.height < h) {
 		rowTmp.width = Math.max(rowTmp.width, ri.w + 4);
@@ -380,7 +436,9 @@ function drawRow(g: Ctx, str: string, x: number, y: number, cap: number, style: 
 	if (style !== 'cut') {
 		t.globalCompositeOperation = 'source-in';
 		if (style === 'gold') {
-			const gr = t.createLinearGradient(0, 1, 0, cap + 1);
+			// (over the glyphs' own rows: the cap's, or the dot font's 7 or 14 centred on it)
+			const g0 = 1 + lift + (lift ? dotTop(cap, dotSize(cap)) : 0);
+			const gr = t.createLinearGradient(0, g0, 0, g0 + rowCapEff(cap));
 			gr.addColorStop(0, '#fff6b0');
 			gr.addColorStop(0.45, '#ffd02a');
 			gr.addColorStop(1, '#ff9010');
@@ -396,7 +454,7 @@ function drawRow(g: Ctx, str: string, x: number, y: number, cap: number, style: 
 	}
 	const op = g.globalCompositeOperation;
 	if (style === 'cut') g.globalCompositeOperation = 'destination-out';
-	g.drawImage(rowTmp, 0, 0, ri.w + 4, h, Math.round(x), Math.round(y) - 1, ri.w + 4, h);
+	g.drawImage(rowTmp, 0, 0, ri.w + 4, h, Math.round(x), Math.round(y) - 1 - lift, ri.w + 4, h);
 	g.globalCompositeOperation = op;
 	return ri.w;
 }
@@ -412,6 +470,7 @@ let rowKeptBytes = 0;
 const ROW_KEEP_BYTES = 3 * 1048576;
 function drawRowK(g: Ctx, str: string, x: number, y: number, cap: number, style: string, pulse: number, k: number, wt: number): number {
 	const ri = rowInfo(str, cap);
+	if (textAuditOn()) noteText({ canvas: g.canvas, str, x: Math.round(x * k) / k, y: Math.round(y * k) / k, w: ri.w, h: cap, s: cap, kind: 'row', dots: false });
 	const capP = Math.round(cap * k);
 	const h = Math.ceil(capP * 1.4) + 2;
 	const w = Math.ceil((ri.w + 4) * k);
@@ -610,7 +669,7 @@ function boardTitle(g: Ctx, str: string, cx: number, y: number, ts: number, styl
 // ---- THE AMOUNTS BY THEIR DOTS (2026-11-17): a row's lit columns from its glyphs' own lit columns -----------------------------
 const glyphInk = new Map<string, { l: number; r: number }>();
 const inkOfGlyph = (ch: string, cap: number) => {
-	const key = ch + '|' + cap;
+	const key = rowFace(cap) + ch + '|' + cap;
 	let k = glyphInk.get(key);
 	if (k) return k;
 	warmGate();
@@ -650,21 +709,23 @@ function rowInk(str: string, cap: number) {
 const inkVCache = new Map<string, { t: number; b: number }>();
 /** (on the finer grid: drawn on a face of that density, its lit LED rows read back as the dots they are in) */
 function rowInkV(str: string, cap: number, k = 1) {
-	const key = str + '|' + cap + '|' + k;
+	const key = rowFace(cap) + str + '|' + cap + '|' + k;
 	let v = inkVCache.get(key);
 	if (v) return v;
 	warmGate();
 	const ri = rowInfo(str, cap);
-	const c = mkFace(ri.w + 8, Math.ceil(cap * 1.4) + 8, k);
-	drawRow(c.ctx, str, 2, 2, cap, '#ffffff', 0);
+	// (rows kept above the row's top: a dot font row of a cap under 7 starts above it)
+	const up = 2 + (k === 1 ? rowLift(cap) : 0);
+	const c = mkFace(ri.w + 8, Math.max(Math.ceil(cap * 1.4), rowCapEff(cap)) + 6 + up, k);
+	drawRow(c.ctx, str, 2, up, cap, '#ffffff', 0);
 	const d = c.ctx.getImageData(0, 0, c.width, c.height).data;
 	let t = Infinity;
 	let b = -Infinity;
 	for (let y = 0; y < c.height; y++)
 		for (let x = 0; x < c.width; x++)
 			if (d[(y * c.width + x) * 4 + 3] > 0) {
-				t = Math.min(t, Math.floor(y / k) - 2);
-				b = Math.max(b, Math.floor(y / k) - 2);
+				t = Math.min(t, Math.floor(y / k) - up);
+				b = Math.max(b, Math.floor(y / k) - up);
 				break;
 			}
 	v = Number.isFinite(t) ? { t, b } : { t: 0, b: cap - 1 };
@@ -751,7 +812,13 @@ function perimeterDots(g: Ctx, pts: number[][], count: number, colorOf: (i: numb
 /** THE CHASE BORDER, in LEDs (2026-11-19): `thick` dots of rings (ledN LEDs, the same all round), each color `seg` dots
  *  long (ledN LEDs), running a dot every 60 ms (the same speed on the finer grid: an LED every 60 / k ms); `inset` dots in
  *  from the face's edge (the Super entry's inner border) */
+/** A SHORT STRIP KEEPS ITS ROWS FOR ITS WORDS (2026-11-22, the smallest dot rule): on a face of one LED per layout dot under
+ *  BORDER_MIN_ROWS rows the 5 x 7 font fills the height, and a border's top and bottom rows ran through the words' own (the
+ *  desktop strip at 1200 x 675: 9 rows). There the chase border and the count's blinking frame are not drawn. */
+const BORDER_MIN_ROWS = 11;
+const noBorder = (H: number) => ROW_DOTS && H < BORDER_MIN_ROWS;
 function chaseBorder(g: Ctx, W: number, H: number, t: number, cols: string[], thick: number, seg: number, inset = 0) {
+	if (noBorder(H)) return;
 	const k = kOf(g);
 	const o = Math.round(inset * k);
 	const PW = Math.round((inset + W) * k) - o;
@@ -882,7 +949,8 @@ const LOOK: Look[] = [
 			// (in LEDs: the bulbs `step` dots apart, `ins` dots in, each one dot thick, on the face's grid)
 			const q = kOf(g);
 			const pts = ringPts(Math.round(W * q), Math.round(H * q), Math.round(ins * q), ledN(q, step), ledN(q, 1));
-			pts.forEach(([x, y], i) => bulb(g, x, y, BULBS[i % 4], hash(i * 5.1 + Math.floor(t / 180 + hash(i) * 3)) > 0.3));
+			// (a short strip keeps its rows for its words: noBorder)
+			if (!noBorder(H)) pts.forEach(([x, y], i) => bulb(g, x, y, BULBS[i % 4], hash(i * 5.1 + Math.floor(t / 180 + hash(i) * 3)) > 0.3));
 			sparkles(g, W, H, t, Math.round(W / 10), ['#ffd23a', '#ffffff'], 9);
 		},
 	},
@@ -894,6 +962,8 @@ const LOOK: Look[] = [
 		bg(g, W, H, t) {
 			g.fillStyle = '#ffd60a';
 			g.fillRect(0, 0, W, H);
+			// (a short strip keeps its rows for its words: the plain warning yellow, no stripes; noBorder)
+			if (noBorder(H)) return;
 			// (in LEDs: the bands, the stripes' width and their run a dot every 40 ms, whole LEDs on the face's grid)
 			const q = kOf(g);
 			const PW = Math.round(W * q);
@@ -914,7 +984,7 @@ const LOOK: Look[] = [
 type WinLay = { stacked: boolean; tag?: boolean; m: number; ts: number; titleX?: number; titleY: number; numX?: number; numW?: number; numY: number; cap: number; cx?: number };
 const wlCache = new Map<string, WinLay>();
 function winLayout(W: number, H: number, finalStr: string, titles: string[], size = 1, extraGap = 0, liftK = 0, maxTs = 5): WinLay {
-	const key = W + 'x' + H + '|' + finalStr + '|' + titles.join(',') + '|' + size + '|' + extraGap + '|' + liftK + '|' + maxTs;
+	const key = W + 'x' + H + '|' + finalStr + '|' + titles.join(',') + '|' + size + '|' + extraGap + '|' + liftK + '|' + maxTs + (ROW_DOTS ? '|.' : '');
 	let r = wlCache.get(key);
 	if (r) return r;
 	const m = H >= 30 ? 4 : 2;
@@ -1086,6 +1156,7 @@ export function showWin(F: Face, s: Show, back = false) {
 /** the back board's flashing border while a big count runs */
 export function countBorder(F: Face, s: Show) {
 	if (s.t >= s.countEnd || Math.floor(s.t / 120) % 2 === 0) return;
+	if (noBorder(F.dotsH)) return;
 	const g = F.out.ctx;
 	// (in LEDs: one dot wide, the same all round)
 	const W = F.ledW;
@@ -1262,8 +1333,10 @@ function raceCard(g: Ctx, race: Race, W: number, H: number, ct: number) {
 	const pic: ArtName = reindeer ? 'reindeer_col' : 'H4';
 	const picH = (ph: number) => (reindeer ? ph : ph * 0.75);
 	// the words: two rows (WINNER over the name) on a tall strip, one row on a short one, shortened until they fit
+	// (2026-11-22: WINNER at size 2 over the name is 24 rows and the border's two: on a strip of 22 to 25 rows it was cut;
+	// both rows at size 1 there)
 	const two = H >= 22;
-	const rows = two ? [[line, s], [name, 1]] : [[`${name} ${line}`, 1]];
+	const rows = two ? [[line, H >= 26 ? s : 1], [name, 1]] : [[`${name} ${line}`, 1]];
 	const widthOf = (r: (string | number)[][]) => Math.max(...r.map(([w, z]) => textW(w as string, z as number)));
 	let ph = Math.round(H * 0.82);
 	const minPh = Math.max(6, Math.round(H * 0.45));

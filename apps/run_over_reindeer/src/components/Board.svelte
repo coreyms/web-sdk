@@ -1261,6 +1261,12 @@
 				}),
 			/** the cards made ahead (constants LED_BOARD.warm): queued, running and the last finished, with their samples and cost */
 			scoreboardWarm: () => scoreboard?.warmInfo() ?? [],
+			/** THE LED BOARD'S DOTS AS BUILT (2026-11-22, wip/ledpitch; constants LED_BOARD.pitch, the smallest dot rule): per face
+			 *  (back, strip) the dots `across` and `down`, the layout dots they carry and the dots per layout dot `k`, a dot's
+			 *  `pitchCss` and `pitchPx` (the renderer's pixels: whole where the rule snapped it), the grille tile's hole size;
+			 *  `ruled` (false: the mini player, or the rule off), its `floorCss`, the renderer `ratio` it read; `held` and
+			 *  `regrid` while a show that is up is being made ahead for a new grid (LED_BOARD.warm.regrid) */
+			scoreboardLeds: () => scoreboard?.ledsInfo() ?? null,
 			/** the strip's small win made ahead last (constants LED_BOARD.warm.small, 2026-11-22): its samples, pictures and cost */
 			scoreboardSmallWarm: () => scoreboard?.smallWarmInfo() ?? null,
 			/** THE FRAMES ROUND EACH LINE WIN (2026-11-22, wip/winlights; led_board_probe.mjs section hitch): for each line win as it

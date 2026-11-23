@@ -2047,8 +2047,12 @@ export const LED_BOARD = {
 	 *  the card makes its pictures as it comes up, as before. `small` (2026-11-22, wip/winlights; scoreboard.ts prepareSmall):
 	 *  the strip's small win a line win will show is drawn ahead the same way from the moment the win starts (its first step,
 	 *  the landed amount, the hop, every step of its count), first in the same budget; off, it makes its pictures as it comes
-	 *  up, as before. */
-	warm: { on: true, budgetMs: 3, coarseEvery: 4, tailMs: 3000, small: true },
+	 *  up, as before. `regrid` (2026-11-22, wip/ledpitch; scoreboard.ts ensureFaces, regridHolds): since the dot count follows
+	 *  the window (LED_BOARD.pitch), a resize or a turn of the phone while a show is up (the press screen, a card, a win)
+	 *  does not rebuild the board in one frame: the faces keep their dots, stretched to the new place, while the show is
+	 *  drawn ahead on scratch faces of the new grid in the same budget, and the board changes to the new grid when that is
+	 *  done or after `regridMaxMs` of real time at the latest. off: the faces are rebuilt at once, as before. */
+	warm: { on: true, budgetMs: 3, coarseEvery: 4, tailMs: 3000, small: true, regrid: true, regridMaxMs: 4000 },
 	strip: {
 		desktop: { width: 0.62, topShare: 0.15, heightRoad: 125, heightShare: 0.85, roadY: 851, pad: 0, lanesW: 1535, backShare: 0.778 } as StripRule,
 		portrait: { width: 0.9, topShare: 0, heightRoad: 0, heightShare: 0.75, roadY: 948, pad: 0, lanesW: 0, backShare: 0.52 } as StripRule,
@@ -2196,6 +2200,34 @@ export const LED_BOARD = {
 	 *  faint skirt baked round each hole of the grille on the finer grid (his pick: the light of today's dot size at the
 	 *  finer pitch). Live: a change rebuilds both faces on the next frame. */
 	density: { on: true, k: 1.5, minDevicePx: 2, smallWeight: 700, bodyWeight: 700, softDot: true },
+	/** THE SMALLEST DOT (Corey 2026-11-22: "when it's at a smaller resolution like the stake resolution it just looks like a
+	 *  blurry board. It must be recongizeable as an LED board at all sizes for phone and Desktop, not the mini player."; his
+	 *  pick from the live mock led_dot_size_r1_2026-11-22, its defaults: "it got the Proposed Look right in every default";
+	 *  game/scoreboard/layout.ts ledPitchGeo, scoreboard.ts ensureFaces and makeGrille). The dot COUNT now follows the window:
+	 *    desktopCss  the smallest dot pitch on the desktop and tablet layouts, CSS px (his 2.5)
+	 *    phoneCss    the smallest on an upright phone and a phone held sideways, CSS px (his 2)
+	 *    fill        the lit dot's share of the pitch (the dot's width at half strength over the pitch; his 0.73)
+	 *    snap        each dot a whole number of the renderer's pixels (his: on), never under minPx of them; the face is made of
+	 *                whole dots, centred in its housing, and the grille's hole is drawn for exactly that size (no shrunk tile)
+	 *    words       'auto': the finer words of `density` (1.5 dots per layout dot) only where the face still holds at least 1.5 x
+	 *                the layout's own dots, else one dot per layout dot and the plain 5 x 7 dot font (his); 1 or 1.5 forces one
+	 *  A dot is never smaller than the board's own before the rule (a big screen keeps its dots). The layouts (every card's
+	 *  size search and wrap) work from the live grid as they always did on phones.
+	 *    stripMinRows  THE STRIP'S OWN ANSWER (2026-11-22, the coordinator's check of the mock at 1200 x 675: at the board's
+	 *                pitch the strip under the reels was about 7 rows and its lines blobs): the strip keeps the board's pitch
+	 *                where that leaves it this many rows; where it does not (a short strip: the desktop at 1200 x 675 and
+	 *                under) its own dots step down a renderer pixel at a time until it has them, never under minPx. Eight rows
+	 *                is the 5 x 7 dot font and a spare row: the room the strip had before the rule at 1200 x 675.
+	 *    miniShort   THE MINI PLAYER IS LEFT AS IT WAS (his words above): a window whose short side is under this many CSS px
+	 *                (Stake's 400 x 225 popout) keeps the grid of `density`. The 800 x 450 popout is laid out as a phone held
+	 *                sideways and takes the rule with it.
+	 *    dotRowCap, dotRowCap2  THE DOT FONT STEP (scoreboardDraw.ts setRowDots): on a face the rule placed at one dot per
+	 *                layout dot, an amount or a line whose cap is dotRowCap dots or under is set in the 5 x 7 dot font (7
+	 *                dots tall), one up to dotRowCap2 in that font at size 2 (14 tall), and only a taller one in the heavy
+	 *                face, which drawn small is blobs (a heavy E's bars close up under about 20 dots). The same steps the
+	 *                press screen's lines take (size 1, size 2, heavy from 21 dots)
+	 *  off: the board before the rule, exactly. Live: a change rebuilds both faces (a card that is up is made ahead first). */
+	pitch: { on: true, desktopCss: 2.5, phoneCss: 2, fill: 0.73, snap: true, minPx: 2, words: 'auto' as 'auto' | 1 | 1.5, stripMinRows: 8, miniShort: 300, dotRowCap: 13, dotRowCap2: 20 },
 	/** THE DOT GRID (Corey 2026-11-20, led_board_size_r1_2026-11-20 round 2, the grid group of his settings; game/scoreboard/
 	 *  scoreboard.ts makeGrille, placeFace). The grille tile over both faces and how it is laid. His pick is TODAY'S GRID, value
 	 *  for value: round dots, fill 0.73, row scale 1, gap darkness 1, no lit over, no snap, unlit dots shown (each line below
