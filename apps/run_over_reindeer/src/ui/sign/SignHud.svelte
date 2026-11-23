@@ -171,6 +171,7 @@
 			hud="win"
 			face={OVER}
 			burstOff
+			tabular
 		/>
 	</div>
 	{#if !replay && !controls.jurisdiction().disabledBuyFeature}<SignFastLane {controls} x={B.bonus.x} y={B.bonus.y} w={B.bonus.w} h={B.bonus.h} {u} />{/if}

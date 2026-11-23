@@ -78,8 +78,15 @@
 		face?: string;
 		fontPx?: number;
 		burstOff?: boolean;
+		/** DIGITS IN CELLS (2026-11-22, the probe host's cards section: the sign bar's WIN changed width by 5 % between the
+		 *  roll and the landing). The sign bar's face, Overpass, has no tabular figures (its 1 is 0.416 em, its 0 0.667), so
+		 *  `font-variant-numeric: tabular-nums` does nothing there: the odometer's windows are a 0 wide and the landed digits
+		 *  were their own widths. With this, every digit of the number stands in a cell one 0 wide (CSS 1ch: hud.css .tg), in
+		 *  every state: the plain number and its 550 ms count, the odometer's zeros, its roll and its landing. The fit already
+		 *  measures digits as zeros, so nothing is clipped. The dock's face has tabular figures and passes nothing. */
+		tabular?: boolean;
 	};
-	const { label, value, pre = '', x, y, w, h, cls = '', nominal, onclick, disabled = false, ariaLabel, hud, lit = false, keep = false, pad = 12, odo = null, face, fontPx, burstOff = false }: Props = $props();
+	const { label, value, pre = '', x, y, w, h, cls = '', nominal, onclick, disabled = false, ariaLabel, hud, lit = false, keep = false, pad = 12, odo = null, face, fontPx, burstOff = false, tabular = false }: Props = $props();
 	const interactive = $derived(!!onclick && !disabled);
 	const odoOn = $derived(hud === 'win' && !!odo);
 	/** the text the readout is fitted to: the odometer's total while it plays (its zeros, its windows and its landing all
@@ -354,5 +361,5 @@
 >
 	<span class="lbw">{#if pre}<span class="pre">{pre}</span>{/if}<span class="label">{label}</span></span>
 	<!-- (the odometer's markup is one line: a space between its boxes would widen the number) -->
-	<span class="value" class:odo={odoOn} bind:this={valEl} style:font-size={font !== nominal || face ? `${font}px` : undefined} aria-hidden={odoOn ? 'true' : undefined} data-odo={odoOn ? odoMode : undefined}>{#if !odoOn}{value}{:else if odoMode === 'roll'}{#each odoChars as ch}{#if ch.d}<span class="od"><span class="odz">0</span><span class="ods">{#each STRIP as dd}<i>{dd}</i>{/each}</span></span>{:else}<span class="oc">{ch.c}</span>{/if}{/each}{:else}{#each odoChars as ch}<span class="oc">{ch.d && odoMode !== 'done' ? '0' : ch.c}</span>{/each}{/if}</span>
+	<span class="value" class:odo={odoOn} bind:this={valEl} style:font-size={font !== nominal || face ? `${font}px` : undefined} aria-hidden={odoOn ? 'true' : undefined} data-odo={odoOn ? odoMode : undefined}>{#if !odoOn}{#if tabular}{#each [...value] as c}{#if c >= '0' && c <= '9'}<span class="tg">{c}</span>{:else}{c}{/if}{/each}{:else}{value}{/if}{:else if odoMode === 'roll'}{#each odoChars as ch}{#if ch.d}<span class="od"><span class="odz">0</span><span class="ods">{#each STRIP as dd}<i>{dd}</i>{/each}</span></span>{:else}<span class="oc">{ch.c}</span>{/if}{/each}{:else}{#each odoChars as ch}<span class="oc" class:tg={tabular && ch.d}>{ch.d && odoMode !== 'done' ? '0' : ch.c}</span>{/each}{/if}</span>
 </button>

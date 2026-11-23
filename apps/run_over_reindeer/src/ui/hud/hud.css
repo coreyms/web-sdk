@@ -511,6 +511,14 @@
 	overflow: hidden;
 	vertical-align: top;
 }
+/* a face with no tabular figures (the sign bar's Overpass; ui/hud/HudReadout.svelte `tabular`): each digit of the number
+   in a cell one 0 wide (1ch is the 0's advance in the cell's own face and size, the same as an odometer window's hidden
+   0), the digit centered in it. So the number is one width whatever its digits are, in every state of the readout. */
+.hudp .value .tg {
+	display: inline-block;
+	width: 1ch;
+	text-align: center;
+}
 .hudp .value.odo .odz {
 	display: block;
 	height: 1em;
