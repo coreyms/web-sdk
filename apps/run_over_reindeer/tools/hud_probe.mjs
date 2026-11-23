@@ -1959,19 +1959,24 @@ async function tailSection(browser) {
 //   - the Win box is hidden at rest, shows on a win, goes at the next spin, and stays through free spins
 //   - the Play says SPIN at rest and STOP while a round's stop is available
 //   - the free spins ring holds one LED per free spin, the lit count is the spin in play, and a retrigger adds three
+//   - (2026-11-22, the probe host's eye) every frame from a round's press to the next round's rest: the Play's face
+//     color and its word agree (SPIN outside a run on green, STOP on red, the two tints never part way); the Win box
+//     is gone, not painted, a quarter second after its win clears and never shows without an amount, through rounds
+//     pressed back to back and through an Autoplay run; in free spins at every sideways size the Win box (its glass,
+//     its header plate and its number) is the size it is for WIN and clear of the LED strip
 // Popout S (400 x 225) is the least important size: what fails there is listed, and only "everything can be pressed"
 // is asked of it.
 const SIGN_SIZES = [
 	{ name: '425x812', vp: { width: 425, height: 812 }, touch: true, phone: true, family: 'portrait', his: true },
 	{ name: '375x667', vp: { width: 375, height: 667 }, touch: true, phone: true, family: 'portrait', his: true },
 	{ name: '320x568', vp: { width: 320, height: 568 }, touch: true, phone: true, family: 'portrait', his: true, cur: true },
-	{ name: '390x844', vp: { width: 390, height: 844 }, touch: true, phone: true, family: 'portrait', his: true, cur: true, fs: true },
+	{ name: '390x844', vp: { width: 390, height: 844 }, touch: true, phone: true, family: 'portrait', his: true, cur: true, fs: 'retrigger', auto: true },
 	{ name: '390x620', vp: { width: 390, height: 620 }, touch: true, phone: true, family: 'portrait', his: true },
-	{ name: '812x425', vp: { width: 812, height: 425 }, touch: true, phone: true, family: 'landscape', his: true },
-	{ name: '667x375', vp: { width: 667, height: 375 }, touch: true, phone: true, family: 'landscape', his: true },
-	{ name: '568x320', vp: { width: 568, height: 320 }, touch: true, phone: true, family: 'landscape', his: true, cur: true },
-	{ name: '844x390', vp: { width: 844, height: 390 }, touch: true, phone: true, family: 'landscape', his: true, fs: true },
-	{ name: '1920x1080', vp: { width: 1920, height: 1080 }, touch: false, phone: false, family: 'desktop', his: true, fs: true },
+	{ name: '812x425', vp: { width: 812, height: 425 }, touch: true, phone: true, family: 'landscape', his: true, fs: 'natural_free_spins' },
+	{ name: '667x375', vp: { width: 667, height: 375 }, touch: true, phone: true, family: 'landscape', his: true, fs: 'natural_free_spins' },
+	{ name: '568x320', vp: { width: 568, height: 320 }, touch: true, phone: true, family: 'landscape', his: true, cur: true, fs: 'natural_free_spins' },
+	{ name: '844x390', vp: { width: 844, height: 390 }, touch: true, phone: true, family: 'landscape', his: true, fs: 'retrigger' },
+	{ name: '1920x1080', vp: { width: 1920, height: 1080 }, touch: false, phone: false, family: 'desktop', his: true, fs: 'retrigger', auto: true },
 	{ name: '1200x675', vp: { width: 1200, height: 675 }, touch: false, phone: false, family: 'desktop' },
 	{ name: '1024x576', vp: { width: 1024, height: 576 }, touch: false, phone: false, family: 'desktop', cur: true },
 	{ name: '800x450', vp: { width: 800, height: 450 }, touch: false, phone: false, family: 'desktop' },
@@ -2029,13 +2034,65 @@ const signRead = (p) =>
 			hitOk,
 			widestPx,
 			value: val ? { x0: val.left, x1: val.right, text: document.querySelector('.hudp [data-hud="amount"] .value').textContent } : null,
-			win: { on: S.winOn(), opacity: box ? Number(getComputedStyle(box).opacity) : null, shape: box?.dataset.shape ?? null, text: document.querySelector('.hudp [data-hud="win"] .value')?.textContent ?? '' },
+			win: { on: S.winOn(), opacity: box ? Number(getComputedStyle(box).opacity) : null, shape: box?.dataset.shape ?? null, text: document.querySelector('.hudp [data-hud="win"] .value')?.textContent ?? '', rects: Object.fromEntries([['glass', '.hudp .sgw .s-glass'], ['plate', '.hudp [data-hud="win"] .lbw'], ['value', '.hudp [data-hud="win"] .value']].map(([k, sel]) => { const q = document.querySelector(sel)?.getBoundingClientRect(); return [k, q ? { x: q.left, y: q.top, w: q.width, h: q.height } : null]; })) },
 			play: { words, label: document.querySelector('.hudp button.spin')?.getAttribute('aria-label'), st: document.querySelector('.hudp button.spin')?.getAttribute('data-st'), red: document.querySelector('.hudp button.spin')?.classList.contains('is-red') },
 			ring: ring ? { total: Number(ring.dataset.total), leds: ring.querySelectorAll('.ib').length, lit: ring.querySelectorAll('.ib.lit').length } : null,
 			gameType: window.__reindeer.gameType?.(),
 			mode: window.__reindeer.hud.mode(),
 		};
 	}, SIGN_PIECES);
+/** every frame: the Play's word, its mode and its face's two tints, and the Win box (on, its opacity, whether it is
+ *  painted, its amount) */
+const signRecStart = (p) =>
+	p.evaluate(() => {
+		const rec = (window.__signRec = { on: true, rows: [] });
+		const f = () => {
+			if (!rec.on) return;
+			const b = document.querySelector('.hudp button.spin');
+			const box = document.querySelector('.hudp .sgw');
+			const op = (sel) => {
+				const e = b?.querySelector(sel);
+				return e ? Number(getComputedStyle(e).opacity) : null;
+			};
+			const cs = box ? getComputedStyle(box) : null;
+			rec.rows.push({ t: performance.now(), w: [...(b?.querySelectorAll('.s-words text') ?? [])].map((x) => x.textContent).join(' '), m: (b?.className.match(/\bm-([a-z]+)/) ?? [])[1] ?? '', red: !!b?.classList.contains('is-red'), tr: op('.t-red'), tg: op('.t-green'), on: window.__reindeer.sign.winOn(), wo: cs ? Number(cs.opacity) : null, wv: cs ? cs.visibility : null, wt: document.querySelector('.hudp [data-hud="win"] .value')?.textContent ?? '' });
+			requestAnimationFrame(f);
+		};
+		requestAnimationFrame(f);
+	});
+const signRecStop = (p) =>
+	p.evaluate(() => {
+		const r = window.__signRec;
+		if (r) r.on = false;
+		return r ? r.rows : [];
+	});
+/** the two rules on a record: the face and the word agree on every frame; the Win box is gone a quarter second after
+ *  its win clears and never shows without an amount */
+const signRecJudge = (tag, rows, { stop = true } = {}) => {
+	const part = rows.filter((r) => !((r.tr === 0 && r.tg === 1) || (r.tr === 1 && r.tg === 0)));
+	const redSpin = rows.filter((r) => r.w === 'SPIN' && (r.red || r.tr !== 0));
+	const greenStop = rows.filter((r) => (r.w === 'STOP' || r.m === 'auto' || r.m === 'spinning') && (!r.red || r.tr !== 1));
+	const words = [...new Set(rows.map((r) => r.w))];
+	check(rows.length >= 60 && words.includes('SPIN') && (!stop || words.includes('STOP')) && part.length === 0 && redSpin.length === 0 && greenStop.length === 0, `${tag}: on every frame the Play's face and its word agree (SPIN on green, STOP and a run on red, never part way; ${rows.length} frames, words ${words.filter((w) => !/\d/.test(w)).join(', ')})`, { partWay: part.length, redSpin: redSpin.slice(0, 2), greenStop: greenStop.slice(0, 2) });
+	let offAt = null;
+	const late = [];
+	const empty = [];
+	let shown = 0;
+	let off = 0;
+	for (let i = 0; i < rows.length; i++) {
+		const r = rows[i];
+		if (r.on) offAt = null;
+		else if (offAt === null) offAt = i > 0 && rows[i - 1].on ? r.t : -1e9;
+		if (r.on && r.wo > 0.9) shown++;
+		if (!r.on) {
+			off++;
+			if (r.t - offAt > 250 && (r.wo !== 0 || r.wv !== 'hidden')) late.push({ ms: Math.round(r.t - offAt), opacity: r.wo, painted: r.wv });
+		}
+		// (a win's count starts from zero, so its first frames read 0.00: an amount all the same; empty is no number at all)
+		if (r.wo > 0.05 && r.wv === 'visible' && !/\d/.test(r.wt)) empty.push({ on: r.on, opacity: r.wo, text: r.wt });
+	}
+	check(shown > 5 && off > 30 && late.length === 0 && empty.length === 0, `${tag}: the Win box is gone (opacity 0, not painted) a quarter second after its win clears, and never shows without an amount (${shown} frames up, ${off} frames away)`, { late: late.slice(0, 3), empty: empty.slice(0, 3) });
+};
 const amountFits = (tag, d) => {
 	const s = d.seat;
 	const room = s.up.x - (s.down.x + s.down.w);
@@ -2128,6 +2185,7 @@ async function signHud(browser) {
 			check(d.play.words.join(' ') === 'SPIN' && d.play.label === 'Spin' && !d.play.red, `${tag}: at rest the Play says SPIN on its green face`, d.play);
 			check(d.win.on === false && d.win.opacity === 0, `${tag}: the Win box is hidden at rest`, d.win);
 			await p.evaluate(() => window.__reindeer.fixtures.next('plain_line_win'));
+			await signRecStart(p);
 			await spinOnce(p);
 			let stop = null;
 			for (let i = 0; i < 30 && !stop; i++) {
@@ -2137,6 +2195,7 @@ async function signHud(browser) {
 			}
 			check(!!stop && stop.label === 'Stop' && stop.red, `${tag}: while the round's stop is available the Play says STOP on its red face`, stop);
 			let shown = null;
+			let shownGlass = null;
 			for (let i = 0; i < 160 && !shown; i++) {
 				const e = await signRead(p);
 				if (e.win.on && e.win.opacity > 0.9) shown = e.win;
@@ -2147,6 +2206,7 @@ async function signHud(browser) {
 				// its place, risen: his box (the header plate and the amount inside it)
 				await sleep(600);
 				const e = await signRead(p);
+				shownGlass = e.win.rects.glass;
 				const a = e.dom.win;
 				const b = want('win');
 				const dd = a ? Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.w - b.w), Math.abs(a.h - b.h)) : 99;
@@ -2163,9 +2223,39 @@ async function signHud(browser) {
 			}
 			check(!!gone, `${tag}: the next spin takes the Win box away`, gone);
 			await settle(p, S);
+			await sleep(700);
+			signRecJudge(`${tag} two rounds, one press each`, await signRecStop(p));
+			// ---- an Autoplay run: a win, then rounds with none (the box must not linger between them) ----
+			if (S.auto) {
+				const plays = () => p.evaluate(() => window.__reindeer.fixtures.log().plays.length);
+				const n0 = await plays();
+				await p.evaluate(() => window.__reindeer.fixtures.next('plain_line_win'));
+				await p.click('.hudp button[aria-label="Autoplay"]');
+				await sleep(700);
+				await p.click('.am-ui.layer.modals .go');
+				await sleep(600);
+				await signRecStart(p);
+				await p.click('.hudp button.spin');
+				for (let i = 0; i < 200 && (await plays()) < n0 + 1; i++) await sleep(50);
+				await p.evaluate(() => window.__reindeer.fixtures.next('no_win_1', true));
+				for (let i = 0; i < 600 && (await plays()) < n0 + 4; i++) await sleep(100);
+				const ran = (await plays()) - n0;
+				// (the Auto key's press stops a live run)
+				await p.click('.hudp button[aria-label="Autoplay"]', { timeout: 2000 }).catch(() => {});
+				await settle(p, S);
+				await sleep(500);
+				const rows = await signRecStop(p);
+				await p.evaluate(() => window.__reindeer.fixtures.clear());
+				check(ran >= 4 && rows.some((r) => r.m === 'auto'), `${tag}: an Autoplay run played ${ran} rounds (a win, then rounds with none)`);
+				signRecJudge(`${tag} Autoplay`, rows, { stop: false });
+				await settle(p, S);
+			}
 			// ---- free spins: the Win box stays, the ring counts, a retrigger adds three ----
 			if (S.fs && !process.env.SKIPFS) {
-				await p.evaluate(() => window.__reindeer.fixtures.next('retrigger'));
+				// (his place for WIN, risen, read above: the glass must be the same box all through free spins)
+				const glass0 = shownGlass;
+				const strip = d.inputs.zones.strip;
+				await p.evaluate((f) => window.__reindeer.fixtures.next(f), S.fs);
 				await spinOnce(p);
 				const seen = [];
 				let inFs = false;
@@ -2175,7 +2265,7 @@ async function signHud(browser) {
 					const e = await signRead(p).catch(() => null);
 					if (e && e.gameType === 'freegame' && e.ring) {
 						inFs = true;
-						seen.push({ total: e.ring.total, leds: e.ring.leds, lit: e.ring.lit, words: e.play.words.join(' '), win: e.win.on, box: e.win.opacity, red: e.play.red });
+						seen.push({ total: e.ring.total, leds: e.ring.leds, lit: e.ring.lit, words: e.play.words.join(' '), win: e.win.on, box: e.win.opacity, red: e.play.red, rects: e.win.rects });
 					}
 					if (st && st.g > 0) await p.mouse.click(S.vp.width / 2, S.vp.height * 0.4).catch(() => {});
 					else if (st && st.idle && st.rest && (inFs || Date.now() - t0 > 20000)) break;
@@ -2183,11 +2273,24 @@ async function signHud(browser) {
 					await sleep(200);
 				}
 				const totals = [...new Set(seen.map((x) => x.total))];
-				check(seen.length > 10 && totals[0] === 10 && totals.includes(13) && totals.every((t, i) => i === 0 || t === totals[i - 1] + 3), `${tag}: the ring starts at 10 LEDs and a retrigger adds three (totals seen ${totals.join(', ')})`, seen.length);
+				if (S.fs === 'retrigger') check(seen.length > 10 && totals[0] === 10 && totals.includes(13) && totals.every((t, i) => i === 0 || t === totals[i - 1] + 3), `${tag}: the ring starts at 10 LEDs and a retrigger adds three (totals seen ${totals.join(', ')})`, seen.length);
+				else check(seen.length > 10 && totals[0] === 10, `${tag}: the ring starts at 10 LEDs (totals seen ${totals.join(', ')})`, seen.length);
 				check(seen.every((x) => x.leds === x.total), `${tag}: one LED per free spin of the round's total`, seen.find((x) => x.leds !== x.total));
 				check(seen.every((x) => x.words === `SPIN ${x.lit} OF ${x.total}` && x.red), `${tag}: the lit LEDs are the spin in play, as the Play's words say (SPIN n OF total, red face)`, seen.find((x) => x.words !== `SPIN ${x.lit} OF ${x.total}`));
 				check(seen.every((x, i) => i === 0 || x.lit >= seen[i - 1].lit), `${tag}: a lit LED never goes dark in the round`);
 				check(seen.every((x) => x.win) && seen.slice(5).every((x) => x.box > 0.9), `${tag}: the Win box stays all through free spins`, seen.find((x) => !x.win));
+				{
+					// THE FREE SPINS WIN BOX: the same glass as WIN's, its header plate inside the glass's width, and the whole of it
+					// (glass, plate, number) clear of the LED strip, on every sample once it has risen
+					const up = seen.slice(5).filter((x) => x.rects?.glass && x.rects.plate && x.rects.value);
+					const same = up.filter((x) => !glass0 || ['x', 'y', 'w', 'h'].some((k) => Math.abs(x.rects.glass[k] - glass0[k]) > 0.6));
+					const wide = up.filter((x) => x.rects.plate.x < x.rects.glass.x - 0.6 || x.rects.plate.x + x.rects.plate.w > x.rects.glass.x + x.rects.glass.w + 0.6);
+					const gapTo = (q) => Math.max(strip.x - (q.x + q.w), q.x - (strip.x + strip.w), strip.y - (q.y + q.h), q.y - (strip.y + strip.h));
+					const gaps = up.map((x) => Math.min(gapTo(x.rects.glass), gapTo(x.rects.plate), gapTo(x.rects.value)));
+					const least = gaps.length ? Math.min(...gaps) : -1;
+					check(up.length > 5 && same.length === 0 && wide.length === 0, `${tag}: in free spins the Win box is the box it is for WIN, its FREE SPINS WIN plate inside the glass (${up.length} samples)`, { glassForWin: glass0, moved: same[0]?.rects.glass, plateOut: wide[0]?.rects });
+					check(least >= 0, `${tag}: in free spins the Win box (glass, plate and number) is clear of the LED strip (${r1(least)} px at the nearest)`, { strip, least: r1(least) });
+				}
 			}
 			if (SHOTS) await p.screenshot({ path: join(SHOTS, `signhud_${S.name}.png`) });
 			check(errs.length === 0, `${tag}: no page errors`, errs.slice(0, 3));

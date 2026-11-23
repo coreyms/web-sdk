@@ -85,6 +85,17 @@
 	});
 	const winValue = $derived(winOn ? controls.winText() : winHeld || controls.winText());
 	const WG = $derived(winGlass(geo));
+	/** THE WIN BOX IS ONE SIZE (2026-11-22): its header is WIN, and FREE SPINS WIN all through free spins. The plate's
+	 *  letters are the readout's (never under 10 CSS px), but never so large that the longer plate would pass the glass:
+	 *  then the letters come down until the plate is the glass's width less 2 bar px a side */
+	const winHead = $derived.by(() => {
+		void faceReady;
+		const fs = headFs(geo.rs.win);
+		const word = `${hs.winPre() ? hs.winPre() + ' ' : ''}WIN`;
+		const room = WG.w / u - 4;
+		const w = headWidth(em(word, HEAD_LS), fs);
+		return w > room ? Math.max(4, (fs * room) / w) : fs;
+	});
 
 	// ---- THE PRESS PADS: a key whose drawn shape holds less than a 44 CSS px circle gets a 44 px round pad on its
 	// center, drawn first so it lies under every control: where a pad meets a neighbour, the neighbour's own shape takes
@@ -154,7 +165,7 @@
 		<span class="sgpad" data-pad={pd.id} style:left="{pd.x}px" style:top="{pd.y}px" style:width="{pd.d}px" style:height="{pd.d}px" onclick={pd.press}></span>
 	{/each}
 	<!-- the Win box (kept through a presentation, as the dock's WIN readout was) -->
-	<div class="sgw keep" class:on={winOn} data-hud="win-box" data-shape={geo.winShape} style:--rs={geo.rs.win} style:--hf="{headFs(geo.rs.win)}px">
+	<div class="sgw keep" class:on={winOn} data-hud="win-box" data-shape={geo.winShape} style:--rs={geo.rs.win} style:--hf="{winHead}px">
 		<i class="s-glass" style:left="{WG.x / u}px" style:top="{WG.y / u}px" style:width="{WG.w / u}px" style:height="{WG.h / u}px" style:border-radius="{WG.r / u}px"></i>
 		<HudReadout
 			label="WIN"
