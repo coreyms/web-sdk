@@ -1937,7 +1937,18 @@ async function tailSection(browser) {
 }
 
 // ---- THE SIGN BAR (ONLY=signhud; 2026-11-22, wip/signhud; ui/sign/, ui/hudTheme.ts HUD_BAR 'sign') ----
-// At each of Corey's own windows, three more desktop sizes and the two popouts:
+// ROUND 3 (2026-11-23, wip/phonefit): his windows on a phone are now the seven he laid out at the real sizes a phone
+// browser gives the game (signLayout.ts PHONE_R3 and LAND_R3; marked r3 below: 440x742, 413x586, 375x530, 626x816
+// upright, 832x376 and 667x311 sideways, 890x552 on the desktop bar). The sizes round 2 was set at (Stake's 425x812,
+// 375x667, 320x568 and the full screen ones) stay in the list as windows the RULE answers: they take round 3's
+// arrangement (Auto and Turbo beside the Spin upright, the amount under them). Added with it:
+//   - ONE NUMBER SIZE (Corey: "The text sizes were different in the mock up for the Balance, Spin amount, and WIN,
+//     Ideally those all stay about the same size"): the three numbers' nominal sizes within 1 px of each other
+//     (__reindeer.sign.type), each number drawn at its nominal size times its own fit, on every phone window and r3
+//   - sideways touch phones, his 832x376: nothing pressed or read in the bottom 20 px (the home indicator); at his
+//     667x311 the drawn amount, its symbols, the keys and Balance clear it, and what does not is listed (his placing)
+//   - SKIP TO RESULT at his windows is his box (__reindeer.sign.scene: his box and its share here)
+// At each of Corey's own windows, the sizes the rule answers, three more desktop sizes and the two popouts:
 //   - every piece is drawn within 1 CSS px of his place (his own table, read through __reindeer.sign.his(), never a
 //     copy; at a window he did not set, of the place the rule answers: tools/sign_layout_test.mjs proves the rule)
 //   - every press region holds a 44 CSS px circle (2026-11-23: his own Auto and Turbo stand closer than 44 at
@@ -1976,15 +1987,25 @@ async function tailSection(browser) {
 // Popout S (400 x 225) is the least important size: what fails there is listed, and only "everything can be pressed"
 // is asked of it.
 const SIGN_SIZES = [
-	{ name: '425x812', vp: { width: 425, height: 812 }, touch: true, phone: true, family: 'portrait', his: true },
-	{ name: '375x667', vp: { width: 375, height: 667 }, touch: true, phone: true, family: 'portrait', his: true },
-	{ name: '320x568', vp: { width: 320, height: 568 }, touch: true, phone: true, family: 'portrait', his: true, cur: true },
-	{ walk: true, name: '390x844', vp: { width: 390, height: 844 }, touch: true, phone: true, family: 'portrait', his: true, cur: true, fs: 'retrigger', auto: true },
-	{ name: '390x620', vp: { width: 390, height: 620 }, touch: true, phone: true, family: 'portrait', his: true },
-	{ name: '812x425', vp: { width: 812, height: 425 }, touch: true, phone: true, family: 'landscape', his: true, fs: 'natural_free_spins' },
-	{ walk: true, name: '667x375', vp: { width: 667, height: 375 }, touch: true, phone: true, family: 'landscape', his: true, fs: 'natural_free_spins' },
-	{ walk: true, name: '568x320', vp: { width: 568, height: 320 }, touch: true, phone: true, family: 'landscape', his: true, cur: true, fs: 'natural_free_spins' },
-	{ walk: true, name: '844x390', vp: { width: 844, height: 390 }, touch: true, phone: true, family: 'landscape', his: true, fs: 'retrigger' },
+	// his round 3 windows (r3: one of the layout file's own; `his` is then the table's row)
+	{ walk: true, name: '440x742', vp: { width: 440, height: 742 }, touch: true, phone: true, family: 'portrait', his: true, r3: true, cur: true, fs: 'retrigger', auto: true },
+	{ name: '413x586', vp: { width: 413, height: 586 }, touch: true, phone: true, family: 'portrait', his: true, r3: true, fs: 'natural_free_spins' },
+	{ name: '375x530', vp: { width: 375, height: 530 }, touch: true, phone: true, family: 'portrait', his: true, r3: true },
+	// (the phablet is not a phone by the game's device tier: its short side is over 500 CSS px)
+	{ name: '626x816', vp: { width: 626, height: 816 }, touch: true, phone: false, family: 'portrait', his: true, r3: true },
+	{ walk: true, name: '832x376', vp: { width: 832, height: 376 }, touch: true, phone: true, family: 'landscape', his: true, r3: true, fs: 'retrigger', low: 'strict' },
+	{ name: '667x311', vp: { width: 667, height: 311 }, touch: true, phone: true, family: 'landscape', his: true, r3: true, cur: true, fs: 'natural_free_spins', low: 'listed' },
+	{ name: '890x552', vp: { width: 890, height: 552 }, touch: true, phone: false, family: 'landscape', his: true, r3: true, fs: 'natural_free_spins' },
+	// the sizes round 2 was set at: the rule's places now
+	{ name: '425x812', vp: { width: 425, height: 812 }, touch: true, phone: true, family: 'portrait' },
+	{ name: '375x667', vp: { width: 375, height: 667 }, touch: true, phone: true, family: 'portrait' },
+	{ name: '320x568', vp: { width: 320, height: 568 }, touch: true, phone: true, family: 'portrait', cur: true },
+	{ walk: true, name: '390x844', vp: { width: 390, height: 844 }, touch: true, phone: true, family: 'portrait', cur: true, fs: 'retrigger', auto: true },
+	{ name: '390x620', vp: { width: 390, height: 620 }, touch: true, phone: true, family: 'portrait' },
+	{ name: '812x425', vp: { width: 812, height: 425 }, touch: true, phone: true, family: 'landscape', fs: 'natural_free_spins' },
+	{ walk: true, name: '667x375', vp: { width: 667, height: 375 }, touch: true, phone: true, family: 'landscape', fs: 'natural_free_spins' },
+	{ walk: true, name: '568x320', vp: { width: 568, height: 320 }, touch: true, phone: true, family: 'landscape', cur: true, fs: 'natural_free_spins' },
+	{ walk: true, name: '844x390', vp: { width: 844, height: 390 }, touch: true, phone: true, family: 'landscape', fs: 'retrigger' },
 	{ name: '1920x1080', vp: { width: 1920, height: 1080 }, touch: false, phone: false, family: 'desktop', his: true, fs: 'retrigger', auto: true },
 	{ walk: true, name: '1200x675', vp: { width: 1200, height: 675 }, touch: false, phone: false, family: 'desktop' },
 	{ name: '1024x576', vp: { width: 1024, height: 576 }, touch: false, phone: false, family: 'desktop', cur: true },
@@ -2132,6 +2153,21 @@ const signRead = (p) =>
 			gameType: window.__reindeer.gameType?.(),
 			mode: window.__reindeer.hud.mode(),
 			readouts: S.readouts(),
+			// round 3: his scene here and the type sizes the layout answers; each number's drawn size (its own font size at
+			// the bar's scale) and every pressed or read thing's lowest edge
+			scene: S.scene?.() ?? null,
+			type: S.type?.() ?? null,
+			fonts: Object.fromEntries(
+				[['bal', 'balance'], ['amt', 'amount'], ['win', 'win']].map(([id, name]) => {
+					const e = document.querySelector(`.hudp [data-hud="${name}"] .value`);
+					if (!e) return [id, null];
+					const k = e.offsetHeight ? e.getBoundingClientRect().height / e.offsetHeight : 1;
+					return [id, parseFloat(getComputedStyle(e).fontSize) * k];
+				}),
+			),
+			lows: Object.fromEntries(
+				[['Balance (its plate and number)', '.hudp [data-hud="balance"] .lbw, .hudp [data-hud="balance"] .value'], ['the amount (its plate and number)', '.hudp [data-hud="amount"] .lbw, .hudp [data-hud="amount"] .value'], ['Menu', '.hudp [data-hud="menu-key"]'], ['the Fast Lane', '.hudp .fb'], ['the Spin', '.hudp button.spin'], ['Auto', '.hudp [data-hud="auto-box"]'], ['Turbo', '.hudp [data-hud="turbo-box"]']].map(([n, sel]) => [n, Math.max(-1, ...[...document.querySelectorAll(sel)].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0).map((r) => r.bottom))]),
+			),
 			balValue: (() => {
 				const q = document.querySelector('.hudp [data-hud="balance"] .value');
 				const r = q?.getBoundingClientRect();
@@ -2234,8 +2270,9 @@ async function signHud(browser) {
 			const kind = d.inputs.kind;
 			console.log(`     ${tag}: layout ${kind}, u ${d.geo.u.toFixed(3)}, weights ${d.geo.weights.map((w) => w.toFixed(2)).join(' ') || '-'}${d.geo.moved.length ? ', guards: ' + d.geo.moved.join('; ') : ''}`);
 			// ---- places ----
-			const ref = S.his && kind !== 'landscape' ? d.his.phone[kind].find((r) => r.vw === S.vp.width && r.vh === S.vp.height) : null;
-			if (S.his && kind !== 'landscape') check(!!ref, `${tag}: this is one of his windows in the layout file`);
+			// (round 3: his phablet held sideways, 890 x 552, is laid out with the desktop bar and has its own row, `land`)
+			const ref = !S.r3 ? null : kind !== 'landscape' ? d.his.phone[kind].find((r) => r.vw === S.vp.width && r.vh === S.vp.height) : d.his.land.vw === S.vp.width && d.his.land.vh === S.vp.height ? d.his.land : null;
+			if (S.r3) check(!!ref, `${tag}: this is one of his round 3 windows in the layout file`);
 			const want = (id) => (ref ? { x: ref.p[id][0], y: ref.p[id][1], w: ref.p[id][2], h: ref.p[id][3] } : d.geo.box[id]);
 			const off = [];
 			// (the Win box is hidden at rest 12 bar px under its place, the start of its short rise: its place is read below,
@@ -2260,7 +2297,7 @@ async function signHud(browser) {
 				const anchored = left ? Math.abs(rm.x - Math.max(hb.x, 2 * d.geo.u)) <= 1 : Math.abs(rm.x + rm.w / 2 - (hb.x + hb.w / 2)) <= 1;
 				check(anchored && rm.w <= hb.w + 0.5 && rm.x >= 0 && rm.x + rm.w <= S.vp.width, `${tag}: Balance's room keeps his ${left ? 'left edge' : 'center'}, inside his box and the window (${r1(rm.x)} to ${r1(rm.x + rm.w)}; his box ${r1(hb.x)} to ${r1(hb.x + hb.w)})`, { room: rm, his: hb });
 			}
-			if (S.his && kind === 'landscape') {
+			if (S.his && !S.r3 && kind === 'landscape') {
 				const D = d.his.desktop;
 				const u = d.geo.u;
 				// (each piece named with what is off: its drawn width against his, its distance up from the bottom edge against his;
@@ -2272,6 +2309,27 @@ async function signHud(browser) {
 				check(Math.abs(u - S.vp.width / D.plane.w) < 0.001 && bad.length === 0, `${tag}: his 1440 x 810 plane at this window's scale, every piece his distance from the bottom edge`, bad);
 			}
 			check(d.win.shape === (kind === 'landscape' ? 'pill' : 'rect'), `${tag}: the Win box is a ${kind === 'landscape' ? 'pill' : 'rectangle'}`, d.win.shape);
+			// ---- ONE NUMBER SIZE (round 3; Corey 2026-11-23) on every phone window and his seven: the three nominal sizes
+			// within 1 px of each other, each number drawn at its nominal size times its own fit, 9 px or more at his seven
+			if (d.type && d.fonts && (kind !== 'landscape' || S.r3)) {
+				const n = d.type.num;
+				const spread = Math.max(n.amt, n.bal, n.win) - Math.min(n.amt, n.bal, n.win);
+				const fit = { amt: d.seat.k, bal: d.readouts.bal.k, win: d.readouts.win.k };
+				const offs = ['amt', 'bal', 'win'].filter((id) => d.fonts[id] !== null && Math.abs(d.fonts[id] - n[id] * fit[id]) > 0.6).map((id) => `${id} drawn ${r1(d.fonts[id])} for ${r1(n[id] * fit[id])}`);
+				const tags = d.type.head;
+				check(spread <= 1 && offs.length === 0 && (!S.r3 || Math.min(n.amt, n.bal, n.win) >= 9) && Math.max(tags.amt, tags.bal, tags.win) - Math.min(tags.amt, tags.bal, tags.win) <= 0.6, `${tag}: Balance, the amount and Win are one number size (${r1(n.bal)} px; the amount's fit ${Math.round(fit.amt * 100)} %, Balance's ${Math.round(fit.bal * 100)} %, Win's ${Math.round(fit.win * 100)} %) and one tag size (${r1(tags.bal)} px)`, { nominal: n, drawn: d.fonts, fit, tags, offs });
+			}
+			// ---- THE HOME INDICATOR'S 20 px on a sideways touch phone (round 3): nothing pressed or read in it at his
+			// 832 x 376; at his 667 x 311 what is drawn clears it and what does not is listed (his own placing)
+			if (S.low && d.lows) {
+				const floor = S.vp.height - 20;
+				// (the bet symbols as drawn: the layout's symbol height about each one's middle)
+				const lows = { ...d.lows, 'the bet symbols drawn': Math.max(d.seat.downC[1], d.seat.upC[1]) + (d.geo.step * d.geo.u) / 2 };
+				const drawn = Object.entries(lows).filter(([, y]) => y > floor + 0.5).map(([n, y]) => `${n} ends at ${r1(y)}`);
+				const also = [["the bet symbols' press boxes", Math.max(d.seat.down.y + d.seat.down.h, d.seat.up.y + d.seat.up.h)], ['the Win box', d.geo.winGlass.y + d.geo.winGlass.h]].filter(([, y]) => y > floor + 0.5).map(([n, y]) => `${n} ends at ${r1(y)}`);
+				check(drawn.length === 0 && (S.low !== 'strict' || also.length === 0), `${tag}: nothing a player presses or reads in the bottom 20 px (under ${floor})${S.low === 'strict' ? '' : ', of what is drawn'}`, [...drawn, ...also]);
+				if (S.low !== 'strict' && also.length) console.log(`     ${tag}, listed (his own placing): ${also.join('; ')} of ${S.vp.height}`);
+			}
 			// ---- press regions ----
 			// (2026-11-23: 44 at every window, his 568 x 320 and 667 x 375 too: there Auto's and Turbo's pads stand apart)
 			const small = Object.entries(d.press).filter(([, v]) => v < 44 - 0.06).map(([id, v]) => `${id} ${r1(v)}`);
@@ -2675,7 +2733,13 @@ async function signHud(browser) {
 						if (kind === 'portrait') {
 							const m = d.dom.menu;
 							const topLine = await p.evaluate(() => Math.max(0, ...[...document.querySelectorAll('[data-top-line]')].map((e) => e.getBoundingClientRect().bottom)));
-							check(Math.abs(sk.y - m.y) <= 1 && Math.abs(sk.h - m.h) <= 1 && sk.x + sk.w <= m.x - 2 && sk.x >= 0 && Math.min(sk.w, sk.h) >= 43.9 && !meets(d.inputs.zones.logo) && !meets(d.inputs.zones.board) && sk.y >= topLine - 0.5, `${tag}: upright, SKIP TO RESULT is on Menu's row to Menu's left (${r1(sk.x)}, ${r1(sk.y)}, ${r1(sk.w)} x ${r1(sk.h)}; Menu from ${r1(m.x)}), off the logo, the board and the top line, 44 px to press`, { skip: sk, menu: m, logo: d.inputs.zones.logo, topLine });
+							// (round 3: at and near his windows the button is his own box by its share there, __reindeer.sign.scene; his
+							// box at 413 x 586 and 375 x 530 is under 44 px tall, and the button's unseen pad, SkipButton .skip::after,
+							// makes its press area up to 44: the rule's own box is asked for 44 only where his has no share)
+							const share = d.scene?.skip ? d.scene.share : 0;
+							const hisBox = share > 0 ? d.scene.skip : null;
+							const onHis = !hisBox || ['x', 'y', 'w', 'h'].every((k) => Math.min(Math.abs(sk[k] - hisBox[k]), share >= 1 ? Infinity : 0) <= 1);
+							check((share > 0 ? onHis && Math.abs(sk.y - m.y) <= 6 : Math.abs(sk.y - m.y) <= 1 && Math.abs(sk.h - m.h) <= 1 && Math.min(sk.w, sk.h) >= 43.9) && sk.x + sk.w <= m.x - 2 && sk.x >= 0 && !meets(d.inputs.zones.logo) && !meets(d.inputs.zones.board) && sk.y >= topLine - 0.5, `${tag}: upright, SKIP TO RESULT is on Menu's row to Menu's left (${r1(sk.x)}, ${r1(sk.y)}, ${r1(sk.w)} x ${r1(sk.h)}; Menu from ${r1(m.x)}), off the logo, the board and the top line, 44 px to press`, { skip: sk, menu: m, logo: d.inputs.zones.logo, topLine });
 						}
 					}
 				}

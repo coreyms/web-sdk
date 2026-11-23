@@ -95,7 +95,11 @@ export const DESKTOP = {
 } as const;
 
 // ---- HIS PHONE WINDOWS (corey_phone_r2_2026-11-22.json): each piece's box, CSS px of that window ----
-type Ref = { vw: number; vh: number; step: number; p: Record<PieceId, [number, number, number, number]>; just: Record<'amt' | 'bal' | 'win', Just> };
+type Four = [number, number, number, number];
+/** a window of his: each piece's box. ROUND 3 (2026-11-23) adds, per window: the gap between a symbol's press box and the
+ *  amount (bar px), the amount group as he left it (symbol to symbol, CSS px), SKIP's box, and the scene: how far he
+ *  moved the board with its LED strip and the tree line (CSS px down), whether a tree line is drawn, the logo's box */
+type Ref = { vw: number; vh: number; step: number; p: Record<PieceId, Four>; just: Record<'amt' | 'bal' | 'win', Just>; gap?: number; group?: Four; skip?: Four; scene?: { boardDy: number; treeDy: number; tree: boolean; logo: Four } };
 const UP: Record<'amt' | 'bal' | 'win', Just> = { amt: 'center', bal: 'left', win: 'center' };
 const SIDE: Record<'amt' | 'bal' | 'win', Just> = { amt: 'center', bal: 'center', win: 'center' };
 export const PHONE_REFS: Record<'portrait' | 'phone', Ref[]> = {
@@ -133,17 +137,47 @@ const boostRef = (o: 'portrait' | 'phone', r: Ref): Ref => {
 	if (o === 'portrait' || (READOUT_TYPE.amt * aw) / READOUT_BASE.amt.w < BOOST.under) p.amt = [ax + aw / 2 - (aw * k) / 2, ay + ah / 2 - (ah * k) / 2, aw * k, ah * k];
 	return { ...r, p };
 };
-/** the places the bar is laid out from: his, with Balance and the amount enlarged (above) */
-export const PHONE_PLACES: Record<'portrait' | 'phone', Ref[]> = {
-	portrait: PHONE_REFS.portrait.map((r) => boostRef('portrait', r)),
-	phone: PHONE_REFS.phone.map((r) => boostRef('phone', r)),
+// ---- HIS PHONE WINDOWS, ROUND 3 (corey_phone_r3_2026-11-23.json; Corey laid these out himself in a drag mock at the
+// REAL sizes a phone browser gives the game, and a picked mock is his word to build): 440 x 742 (his phone upright,
+// Stake full screen, measured), 413 x 586 (Stake's framed page, measured), 375 x 530 (a small iPhone upright), 626 x 816
+// (a phablet upright, estimated); 832 x 376 (his phone sideways, measured) and 667 x 311 (a small iPhone sideways); and
+// 890 x 552 (the phablet sideways, estimated), which the game lays out with the DESKTOP bar (LAND_R3 below).
+// Every box is his own as exported, CSS px of that window: Balance and the amount are already the size he wants (no
+// BOOST on these). `p.amt` is the amount's box written so that the bar's own arithmetic gives his numbers back: its
+// center and height are his, its width is 124 / 21 of his number's size (READOUT_BASE over READOUT_TYPE), `step` his
+// symbol's height and `gap` his gap (bar px), `group` the whole group symbol to symbol as he left it. ----
+export const PHONE_R3: Record<'portrait' | 'phone', Ref[]> = {
+	portrait: [
+		{ vw: 440, vh: 742, step: 19.9, just: UP, p: { play: [142.4, 567.7, 170, 170], auto: [291, 575.2, 68.8, 68.8], turbo: [357.8, 572.9, 68.8, 68.8], menu: [310.8, 32.5, 105.3, 49.5], bonus: [305.6, 89.2, 115.4, 77.9], amt: [304.35, 690.8, 104.51, 39.7], bal: [19.8, 687.1, 206, 44.3], win: [24.7, 588.1, 140.9, 26.9] }, gap: 3.972, group: [273.1, 688.7, 166.9, 44], skip: [218.3, 32.5, 85.7, 49.5], scene: { boardDy: -14.5, treeDy: -23.7, tree: true, logo: [7.3, 47.1, 141.5, 148.6] } },
+		{ vw: 413, vh: 586, step: 19.8, just: UP, p: { play: [142.9, 449.8, 136.2, 136.2], auto: [263.4, 453.3, 60, 60], turbo: [327.6, 452.5, 60, 60], menu: [298.9, 26.8, 100.8, 47.7], bonus: [300.7, 78.2, 96.7, 65.2], amt: [288.35, 542.6, 92.7, 33.1], bal: [23.1, 535.8, 183, 39.3], win: [23.5, 457.2, 108, 20.6] }, gap: 3.6056, group: [256.4, 537.1, 156.6, 44], skip: [211.2, 29.5, 71.8, 42.5], scene: { boardDy: 0, treeDy: 0, tree: true, logo: [10.6, 24.7, 132.8, 139.4] } },
+		{ vw: 375, vh: 530, step: 22, just: UP, p: { play: [126.8, 403.7, 121.3, 121.3], auto: [246.7, 413.6, 55.7, 55.7], turbo: [299, 412.4, 57, 57], menu: [270.1, 19.8, 95, 45], bonus: [273.2, 67.3, 87.5, 59], amt: [263.07, 487.1, 77.35, 33.2], bal: [24, 483.9, 171.3, 36.8], win: [26, 415.8, 116, 22.2] }, gap: 4, group: [228.5, 481.7, 146.5, 44], skip: [195, 22.6, 65, 38.5], scene: { boardDy: 0, treeDy: 0, tree: true, logo: [9.6, 20.8, 120.6, 126.6] } },
+		{ vw: 626, vh: 816, step: 21, just: UP, p: { play: [237.5, 646.7, 151, 151], auto: [438.9, 657.7, 67.5, 67.5], turbo: [510.1, 658.2, 63.9, 63.9], menu: [473.5, 38.4, 121.7, 57], bonus: [466.5, 102.8, 134.7, 90.8], amt: [432.12, 737.2, 151.16, 48.9], bal: [33.6, 738.2, 224, 48.2], win: [37.3, 661.4, 153.3, 29.3] }, gap: 5.2788, group: [405.4, 737.2, 204.6, 48.9], skip: [365.5, 38.4, 100, 57], scene: { boardDy: 0, treeDy: 0, tree: true, logo: [5.2, 23.1, 193.4, 203] } },
+	],
+	phone: [
+		{ vw: 832, vh: 376, step: 26, just: SIDE, p: { play: [654.4, 155.7, 151.4, 151.4], auto: [712.5, 99.2, 57.9, 57.9], turbo: [749.3, 134.2, 57.9, 57.9], menu: [43.8, 154.3, 95, 45], bonus: [48.1, 203.9, 83, 56], amt: [692.96, 315.3, 87.98, 28.3], bal: [18.4, 267.3, 144.5, 31.1], win: [26.4, 311.8, 132, 25.2] }, gap: 4, group: [659.7, 307.5, 154.4, 44], skip: [703.4, 27.4, 94.5, 28.9], scene: { boardDy: 0, treeDy: 0, tree: false, logo: [31.9, 8.7, 123.4, 129.6] } },
+		{ vw: 667, vh: 311, step: 32.4, just: SIDE, p: { play: [532.7, 116.6, 126.5, 126.5], auto: [575.4, 65, 48.3, 48.3], turbo: [604.1, 91.9, 48.3, 48.3], menu: [26.1, 127.2, 93, 44], bonus: [35.6, 175.8, 70.4, 47.5], amt: [556.61, 258.7, 62.59, 26.8], bal: [0, 232.4, 140.8, 30.3], win: [15.6, 273.2, 120, 22.9] }, gap: 4.992, group: [518, 250.1, 139.8, 44], skip: [565, 19.5, 92.8, 28.4], scene: { boardDy: 0, treeDy: 0, tree: false, logo: [22.5, 16, 102.1, 107.2] } },
+	],
 };
-/** the triangles his windows make in the (short side, long over short) plane, by index into PHONE_REFS. Upright: the
- *  375 x 667 window is inside the other four, so they fan round it. Sideways: the four are the outline's corners. */
+/** HIS PHABLET SIDEWAYS, 890 x 552 (round 3, estimated): the game's layout class there is the desktop's (the short side is
+ *  over a phone's 480), so this window stands beside the desktop rule, not among the phone windows (landLayout below) */
+export const LAND_R3: Ref = { vw: 890, vh: 552, step: 51.1, just: { amt: 'center', bal: 'left', win: 'center' }, p: { play: [741.7, 247.9, 148.3, 148.3], auto: [792.4, 182.2, 60.3, 60.3], turbo: [828.2, 214.2, 61.8, 61.8], menu: [4, 320.6, 98.9, 46.4], bonus: [6.5, 379, 100.7, 68], amt: [759.5, 477.2, 93.3, 37.6], bal: [14.3, 486.5, 155.2, 33.4], win: [383.8, 493.2, 122.4, 23.4] }, gap: 4.868, group: [728, 473.2, 156.4, 45.7], skip: [786, 26.7, 91.9, 36.8], scene: { boardDy: -12.1, treeDy: 0, tree: false, logo: [5.3, 20.9, 148.6, 156] } };
+/** round 2's places with BOOST (what the bar was laid out from until round 3): his record, read by the node test */
+export const PHONE_R2: Record<'portrait' | 'phone', Ref[]> = { portrait: PHONE_REFS.portrait.map((r) => boostRef('portrait', r)), phone: PHONE_REFS.phone.map((r) => boostRef('phone', r)) };
+/** THE PLACES THE BAR IS LAID OUT FROM: ROUND 3's, as they are. Round 2's windows (PHONE_REFS above, with BOOST) are
+ *  kept as his record only: in round 3 he put Auto and Turbo beside the Spin and the amount under it, where round 2 had
+ *  the amount over Auto and Turbo, so a window between a round 2 place and a round 3 place would have drawn the two
+ *  rows through each other (tried: 335 x 563 put < on the Spin and Auto's and Turbo's press pads on each other). The
+ *  sizes round 2 was set at (390 x 844, 844 x 390, Stake's 425 x 812, 375 x 667, 320 x 568) now take round 3's
+ *  arrangement, from his nearest round 3 windows. */
+export const PHONE_PLACES: Record<'portrait' | 'phone', Ref[]> = PHONE_R3;
+/** the triangles his windows make in the (short side, long over short) plane, by index into PHONE_PLACES, and the
+ *  lone edges (two windows only: sideways). Upright: 375x530, 413x586, 440x742 | 413x586, 626x816, 440x742. Sideways: the
+ *  line from 832x376 to 667x311. A window outside them takes the nearest point of their outline. */
 export const TRI: Record<'portrait' | 'phone', [number, number, number][]> = {
-	portrait: [[2, 4, 1], [4, 0, 1], [0, 3, 1], [3, 2, 1]],
-	phone: [[2, 1, 3], [1, 0, 3]],
+	portrait: [[2, 1, 0], [1, 3, 0]],
+	phone: [],
 };
+export const SEG: Record<'portrait' | 'phone', [number, number][]> = { portrait: [], phone: [[0, 1]] };
 
 // ---- the scale ----
 /** CSS px per bar px. Desktop: the game's own fit (the 1280 x 720 master) over DESKTOP.k. Upright: the window's width
@@ -504,10 +538,19 @@ export type SignGeo = {
 	box: Record<PieceId, Box>;
 	/** the readouts' scales (their type is READOUT_TYPE times these, bar px) and where their text stands in the box */
 	rs: Record<'amt' | 'bal' | 'win', number>;
+	/** THE READOUTS' TYPE, bar px: each number's nominal size and each tag's letters (before the 10 CSS px floor). On
+	 *  the desktop each follows its own box (READOUT_TYPE times rs). On his round 3 windows the three numbers are ONE
+	 *  size and the three tags one size (Corey 2026-11-23: "The text sizes were different in the mock up for the
+	 *  Balance, Spin amount, and WIN, Ideally those all stay about the same size"): commonType. */
+	num: Record<'amt' | 'bal' | 'win', number>;
+	head: Record<'amt' | 'bal' | 'win', number>;
 	just: Record<'amt' | 'bal' | 'win', Just>;
 	/** the bet symbol's height and the gap between a symbol's press box and the amount, bar px */
 	step: number;
 	gap: number;
+	/** ROUND 3: half the amount group's width as he left it (symbol to symbol), bar px; 0 where no window of round 3
+	 *  has a say. The seat never stands the group in less room than he gave it (seatAmount). */
+	amtHalf: number;
 	/** the Win box: a pill on the desktop, a rectangle on a phone */
 	winShape: 'pill' | 'rect';
 	/** Turbo shows its word (false: bolt and pips only, where the word would be under about 10 CSS px) */
@@ -523,6 +566,30 @@ const ZERO: Insets = { t: 0, r: 0, b: 0, l: 0 };
 const toBox = (a: readonly number[], k = 1): Box => ({ x: a[0] * k, y: a[1] * k, w: a[2] * k, h: a[3] * k });
 /** Turbo's word on screen (0.18 of the key's content, CSS px) is 9.5 px or more; `turbo` is its box in CSS px */
 const turboWordOk = (turbo: Box) => 0.18 * 0.8 * (turbo.w / KEY_BOX) >= 9.5;
+
+/** each readout's type by its own box (the desktop rule, and the mock's): the number and the tag, bar px */
+const ownType = (rs: Record<'amt' | 'bal' | 'win', number>) => ({
+	num: { amt: READOUT_TYPE.amt * rs.amt, bal: READOUT_TYPE.bal * rs.bal, win: READOUT_TYPE.win * rs.win },
+	head: { amt: READOUT_TYPE.head * rs.amt, bal: READOUT_TYPE.head * rs.bal, win: READOUT_TYPE.head * rs.win },
+});
+/** the widest everyday amount between the symbols, em of the bar's face: "$100.00" (tools/sign_layout_test.mjs USD_EM
+ *  4.198, from the face's own widths; a little air over it) */
+export const AMOUNT_EM = 4.25;
+/** ONE NUMBER SIZE AND ONE TAG SIZE FOR A ROUND 3 WINDOW (Corey 2026-11-23, above), CSS px at that window: the largest
+ *  number all three of his boxes hold. A box holds the size its own rule gives it (READOUT_TYPE for a box READOUT_BASE
+ *  wide: Balance 21 px in 186, Win 26 px in 220), and the amount also no more than the widest everyday amount takes
+ *  between his two symbols (his group's width less the two press boxes and gaps, over AMOUNT_EM). The smallest of
+ *  those is the size; the tags take the smallest tag the same way (on a phone every tag then stands at its 10 CSS px
+ *  floor). His boxes and symbols stay where he put them. */
+export const commonType = (kind: SignKind, r: Ref) => {
+	const ru = signScale(kind, r.vw, r.vh);
+	const key = stepBox(r.step, ru).w * ru;
+	const between = r.group ? r.group[2] - 2 * (key + (r.gap ?? DESKTOP.gap) * ru) : Infinity;
+	const own = { amt: (READOUT_TYPE.amt * r.p.amt[2]) / READOUT_BASE.amt.w, bal: (READOUT_TYPE.bal * r.p.bal[2]) / READOUT_BASE.bal.w, win: (READOUT_TYPE.win * r.p.win[2]) / READOUT_BASE.win.w };
+	const num = Math.min(own.amt, between / AMOUNT_EM, own.bal, own.win);
+	const head = READOUT_TYPE.head * Math.min(r.p.amt[2] / READOUT_BASE.amt.w, r.p.bal[2] / READOUT_BASE.bal.w, r.p.win[2] / READOUT_BASE.win.w);
+	return { num, head, own, between };
+};
 
 /** THE DESKTOP RULE: his bar px sizes; each piece the same distance from the nearer side of the 16:9 game area (the
  *  window up to 16:9, the centered 16:9 area on a wider one) and from the bottom edge (a taller window's bottom row
@@ -546,9 +613,11 @@ export const desktopLayout = (v: SignView): SignGeo => {
 		vh: v.vh,
 		box,
 		rs: { amt: D.p.amt[2] / READOUT_BASE.amt.w, bal: D.p.bal[2] / READOUT_BASE.bal.w, win: D.p.win[2] / READOUT_BASE.win.w },
+		...ownType({ amt: D.p.amt[2] / READOUT_BASE.amt.w, bal: D.p.bal[2] / READOUT_BASE.bal.w, win: D.p.win[2] / READOUT_BASE.win.w }),
 		just: { ...D.just },
 		step: D.step,
 		gap: D.gap,
+		amtHalf: 0,
 		winShape: 'pill',
 		turboWord: turboWordOk(box.turbo),
 		weights: [],
@@ -558,14 +627,39 @@ export const desktopLayout = (v: SignView): SignGeo => {
 };
 
 // ---- the blend between his phone windows ----
-const param = (vw: number, vh: number): Pt => [Math.min(vw, vh) / 100, Math.max(vw, vh) / Math.min(vw, vh) / 0.5];
+/** a window in the blend's plane. Inside his windows' triangles the weights do not depend on the two axes' units. Outside
+ *  them the nearest point of the outline is taken, and there (round 3) the SHAPE counts first: the bar is laid out in bar
+ *  px, which follow the window's size by themselves, so a narrow tall phone (320 x 568) belongs with his tall window
+ *  (440 x 742), not with his small squat one (375 x 530), which is nearer in CSS px. One unit is 400 CSS px of the short
+ *  side, or 0.5 of long over short. */
+const param = (vw: number, vh: number): Pt => [Math.min(vw, vh) / 400, Math.max(vw, vh) / Math.min(vw, vh) / 0.5];
+/** (the same plane in 100 CSS px of the short side: how far outside his windows a window is, for the scene's fall off) */
+const paramOut = (vw: number, vh: number): Pt => [Math.min(vw, vh) / 100, Math.max(vw, vh) / Math.min(vw, vh) / 0.5];
 /** the weights of his windows for a window: barycentric in the triangle that holds it, or at the nearest point of the
  *  triangles' outline */
-export const blendWeights = (o: 'portrait' | 'phone', vw: number, vh: number): number[] => {
-	const refs = PHONE_REFS[o];
+export const blendWeights = (o: 'portrait' | 'phone', vw: number, vh: number): number[] => blendAt(o, vw, vh).w;
+/** the weights, and how far outside the triangles the window is (1 = 100 CSS px of the short side, or 0.5 of long
+ *  over short): 0 inside them */
+export const blendAt = (o: 'portrait' | 'phone', vw: number, vh: number): { w: number[]; out: number } => {
+	const refs = PHONE_PLACES[o];
 	const P = refs.map((r) => param(r.vw, r.vh));
 	const q = param(vw, vh);
-	let best: { d: number; w: number[] } | null = null;
+	const best: { d: number; w: number[] } = { d: Infinity, w: refs.map((_, i) => (i === 0 ? 1 : 0)) };
+	const edge = (m: number, n: number) => {
+		const A = P[m];
+		const B = P[n];
+		const dx = B[0] - A[0];
+		const dy = B[1] - A[1];
+		const t = Math.max(0, Math.min(1, ((q[0] - A[0]) * dx + (q[1] - A[1]) * dy) / (dx * dx + dy * dy)));
+		const d = Math.hypot(q[0] - A[0] - dx * t, q[1] - A[1] - dy * t);
+		if (d < best.d - 1e-12) {
+			const ww = refs.map(() => 0);
+			ww[m] = 1 - t;
+			ww[n] = t;
+			best.d = d;
+			best.w = ww;
+		}
+	};
 	for (const [i, j, k] of TRI[o]) {
 		const a = P[i];
 		const b = P[j];
@@ -579,24 +673,22 @@ export const blendWeights = (o: 'portrait' | 'phone', vw: number, vh: number): n
 			w[i] = Math.max(0, wa);
 			w[j] = Math.max(0, wb);
 			w[k] = Math.max(0, wc);
-			return w;
+			return { w, out: 0 };
 		}
-		for (const [m, n] of [[i, j], [j, k], [k, i]]) {
-			const A = P[m];
-			const B = P[n];
-			const dx = B[0] - A[0];
-			const dy = B[1] - A[1];
-			const t = Math.max(0, Math.min(1, ((q[0] - A[0]) * dx + (q[1] - A[1]) * dy) / (dx * dx + dy * dy)));
-			const d = Math.hypot(q[0] - A[0] - dx * t, q[1] - A[1] - dy * t);
-			if (!best || d < best.d - 1e-12) {
-				const ww = refs.map(() => 0);
-				ww[m] = 1 - t;
-				ww[n] = t;
-				best = { d, w: ww };
-			}
-		}
+		for (const [m, n] of [[i, j], [j, k], [k, i]]) edge(m, n);
 	}
-	return (best as { d: number; w: number[] }).w;
+	for (const [m, n] of SEG[o]) edge(m, n);
+	const B = best;
+	// how far outside, in 100 CSS px of the short side and 0.5 of long over short: from the window to the place it took
+	const o0 = paramOut(vw, vh);
+	let px = 0;
+	let py = 0;
+	refs.forEach((r, i) => {
+		const a = paramOut(r.vw, r.vh);
+		px += B.w[i] * a[0];
+		py += B.w[i] * a[1];
+	});
+	return { w: B.w, out: Math.hypot(o0[0] - px, o0[1] - py) };
 };
 
 type Anchor = { ax: 'L' | 'R' | 'C'; ay: 'T' | 'B' | 'M' };
@@ -666,7 +758,20 @@ export const phoneLayout = (v: SignView): SignGeo => {
 	const w = blendWeights(o, v.vw, v.vh);
 	const box = {} as Record<PieceId, Box>;
 	let step = 0;
-	for (let i = 0; i < refs.length; i++) step += w[i] * refs[i].step;
+	let gap = 0;
+	let amtHalf = 0;
+	let num = 0;
+	let head = 0;
+	for (let i = 0; i < refs.length; i++) {
+		if (!w[i]) continue;
+		const ru = signScale(o, refs[i].vw, refs[i].vh);
+		step += w[i] * refs[i].step;
+		gap += w[i] * (refs[i].gap ?? DESKTOP.gap);
+		amtHalf += (w[i] * (refs[i].group?.[2] ?? 0)) / 2 / ru;
+		const T = commonType(o, refs[i]);
+		num += (w[i] * T.num) / ru;
+		head += (w[i] * T.head) / ru;
+	}
 	for (const id of PIECES) {
 		let ox = 0;
 		let oy = 0;
@@ -687,22 +792,33 @@ export const phoneLayout = (v: SignView): SignGeo => {
 	const moved: string[] = [];
 	const safe = v.safe ?? ZERO;
 	const Z = v.zones ?? null;
+	// THE TOUCH FLOOR (round 3: outside his windows the bar's scale can take Menu's height or the Fast Lane's hexagon a
+	// px under 44 CSS px; 390 x 844 gave Menu 43.9): each grows about its own middle, its shape kept, to hold 44
+	for (const [id, held] of [['menu', Math.min(box.menu.w, box.menu.h)], ['bonus', inCircle([box.bonus.x + box.bonus.w / 2, box.bonus.y + box.bonus.h / 2], shapeOf('bonus', box.bonus))]] as [PieceId, number][]) {
+		if (held >= TOUCH_MIN - 0.005 || held <= 0) continue;
+		const f = (TOUCH_MIN + 0.01) / held;
+		const b = box[id];
+		box[id] = { x: b.x + b.w / 2 - (b.w * f) / 2, y: b.y + b.h / 2 - (b.h * f) / 2, w: b.w * f, h: b.h * f };
+	}
 	if (o === 'portrait') {
 		const bottom: PieceId[] = ['play', 'auto', 'turbo', 'amt', 'bal', 'win'];
 		const top: PieceId[] = ['menu', 'bonus'];
-		// the home indicator: the bottom pieces stand above it
+		// the home indicator: the bottom pieces stand above it (round 3: the bet symbols' 44 px press boxes too, which
+		// reach a little under his amount's box)
 		let e = extent(box, bottom);
+		const keyLow = () => box.amt.y + box.amt.h / 2 + (stepBox(step, u).h * u) / 2;
 		const floor = v.vh - safe.b;
-		if (safe.b > 0 && e.y1 > floor + 0.01) {
-			shift(box, bottom, 0, floor - e.y1);
-			moved.push(`bottom pieces ${r1(e.y1 - floor)} px up (safe area)`);
+		if (safe.b > 0 && Math.max(e.y1, keyLow()) > floor + 0.01) {
+			const low = Math.max(e.y1, keyLow());
+			shift(box, bottom, 0, floor - low);
+			moved.push(`bottom pieces ${r1(low - floor)} px up (safe area)`);
 		}
 		// the LED strip: the bottom pieces close up toward the bottom edge, sizes too, until the highest clears it
 		if (Z) {
 			e = extent(box, bottom);
 			const sb = Z.strip.y + Z.strip.h;
 			if (e.y0 < sb - ZONE_TOL && e.x1 > Z.strip.x && e.x0 < Z.strip.x + Z.strip.w) {
-				const base = extent(box, bottom).y1;
+				const base = Math.max(extent(box, bottom).y1, safe.b > 0 ? keyLow() : -Infinity);
 				const f = Math.max(0.5, (base - sb) / (base - e.y0));
 				for (const id of bottom) {
 					const b = box[id];
@@ -713,6 +829,9 @@ export const phoneLayout = (v: SignView): SignGeo => {
 				step *= f;
 				moved.push(`bottom pieces drawn in to ${Math.round(f * 100)} % (the LED strip)`);
 			}
+			// (the symbols' press boxes keep their 44 px while the pieces are drawn in: the amount rises by what they
+			// would then reach into the home indicator's strip)
+			if (safe.b > 0 && keyLow() > floor + 0.01) box.amt = { ...box.amt, y: box.amt.y - (keyLow() - floor) };
 			// Menu and Fast Lane: off the board (up), never above the top line
 			e = extent(box, top);
 			if (e.y1 > Z.board.y + ZONE_TOL && onZone(shapeOf('bonus', box.bonus), Z.board)) {
@@ -772,6 +891,33 @@ export const phoneLayout = (v: SignView): SignGeo => {
 			}
 		}
 	}
+	// THE PLAY GIVES WAY TO THE BET SYMBOLS (round 3; Corey: the arrows never touch the Spin's press region). On a window
+	// narrower or flatter than his, a symbol's 44 CSS px press box is larger against the bar than at his windows, and the
+	// amount group at its least (both boxes, the gaps, the least reserved width), as far from the Play as the window
+	// lets it go (upright: against the right edge), could still stand on the Play's diamond. There the Play is drawn in
+	// from its top point (which stays where it is, clear of the LED strip), 2 % at a time, until the group stands
+	// clear: its lower edges rise off the symbols' boxes. Nothing at his own windows.
+	{
+		const sb = stepBox(step, u);
+		const keyW = sb.w * u;
+		const keyH = sb.h * u;
+		const Wm = AMOUNT_FIT.minW * u;
+		const half = Wm / 2 + gap * u + keyW;
+		const acx = o === 'portrait' ? v.vw - half : Math.max(half, Math.min(box.amt.x + box.amt.w / 2, v.vw - half));
+		const acy = box.amt.y + box.amt.h / 2;
+		const clearOf = AMOUNT_FIT.playClear * u;
+		const ky = Math.max(0, Math.min(acy - keyH / 2, v.vh - keyH));
+		const keys = [boxPts({ x: acx - half - clearOf, y: ky, w: keyW + clearOf, h: keyH }), boxPts({ x: acx + half - keyW, y: ky, w: keyW + clearOf, h: keyH })];
+		const p0 = box.play;
+		let f = 1;
+		const top = p0.y + (p0.h * (1 - PLAY_V)) / 2;
+		const at = (k: number): Box => ({ x: p0.x + p0.w / 2 - (p0.w * k) / 2, y: top - (p0.h * k * (1 - PLAY_V)) / 2, w: p0.w * k, h: p0.h * k });
+		while (f > 0.6 && keys.some((q) => shapeGap(q, shapeOf('play', at(f))) === 0)) f -= 0.02;
+		if (f < 1) {
+			box.play = at(f);
+			moved.push(`the Play drawn in to ${Math.round(f * 100)} % (the bet symbols' press boxes)`);
+		}
+	}
 	const just = refs[w.indexOf(Math.max(...w))].just;
 	return {
 		kind: v.kind,
@@ -780,9 +926,12 @@ export const phoneLayout = (v: SignView): SignGeo => {
 		vh: v.vh,
 		box,
 		rs: { amt: box.amt.w / u / READOUT_BASE.amt.w, bal: box.bal.w / u / READOUT_BASE.bal.w, win: box.win.w / u / READOUT_BASE.win.w },
+		num: { amt: num, bal: num, win: num },
+		head: { amt: head, bal: head, win: head },
 		just: { ...just },
 		step,
-		gap: DESKTOP.gap,
+		gap,
+		amtHalf,
 		winShape: 'rect',
 		turboWord: turboWordOk(box.turbo),
 		weights: w,
@@ -791,10 +940,159 @@ export const phoneLayout = (v: SignView): SignGeo => {
 	};
 };
 
+// ---- HIS PHABLET SIDEWAYS BESIDE THE DESKTOP RULE (round 3, 890 x 552) ----
+/** how much of his 890 x 552 window a desktop class window takes, BY ITS WIDTH: all of it up to his window's 890 CSS px
+ *  (a phablet held sideways is that wide whatever its browser's bars leave of the height: 890 x 512, 890 x 626), none
+ *  from LAND_FROM (1024: the narrowest desktop size the bar was set at, and every size Stake reviews on a desktop is
+ *  wider), a straight line between. */
+export const LAND_FROM = 1024;
+/** his Win box's glass under the LED strip at 890 x 552, bar px (488.7 less 483.3 CSS px, at 0.618 CSS px a bar px) */
+const LAND_WIN_CLEAR = 8.7;
+export const landShare = (vw: number, vh: number) => Math.max(0, Math.min(1, (LAND_FROM - vw) / (LAND_FROM - LAND_R3.vw)));
+/** his 890 x 552 places at a window: each piece its distance from the nearer side and from the bottom edge, at the
+ *  window's bar scale */
+const landR3Box = (id: PieceId, vw: number, vh: number, u: number): Box => {
+	const R = LAND_R3;
+	const ru = signScale('landscape', R.vw, R.vh);
+	const [x, y, w, h] = R.p[id];
+	const cx = x + w / 2;
+	const k = u / ru;
+	const ncx = cx < R.vw * 0.4 ? cx * k : cx > R.vw * 0.6 ? vw - (R.vw - cx) * k : vw / 2 + (cx - R.vw / 2) * k;
+	const ncy = vh - (R.vh - (y + h / 2)) * k;
+	return { x: ncx - (w * k) / 2, y: ncy - (h * k) / 2, w: w * k, h: h * k };
+};
+/** the desktop class: his desktop rule, drawn toward his 890 x 552 window by landShare */
+export const landLayout = (v: SignView): SignGeo => {
+	const D = desktopLayout(v);
+	const t = landShare(v.vw, v.vh);
+	if (t <= 0) return D;
+	const mix = (a: number, b: number) => a + (b - a) * t;
+	const box = {} as Record<PieceId, Box>;
+	for (const id of PIECES) {
+		const b = landR3Box(id, v.vw, v.vh, D.u);
+		box[id] = { x: mix(D.box[id].x, b.x), y: mix(D.box[id].y, b.y), w: mix(D.box[id].w, b.w), h: mix(D.box[id].h, b.h) };
+	}
+	// (the touch floor, as on the phones: a smaller phablet's Menu holds 44 CSS px, grown from its left edge and its middle line)
+	if (Math.min(box.menu.w, box.menu.h) < TOUCH_MIN) {
+		const f = (TOUCH_MIN + 0.01) / Math.min(box.menu.w, box.menu.h);
+		box.menu = { x: box.menu.x, y: box.menu.y + box.menu.h / 2 - (box.menu.h * f) / 2, w: box.menu.w * f, h: box.menu.h * f };
+	}
+	const rs = { amt: box.amt.w / D.u / READOUT_BASE.amt.w, bal: box.bal.w / D.u / READOUT_BASE.bal.w, win: box.win.w / D.u / READOUT_BASE.win.w };
+	// THE WIN BOX STAYS UNDER THE LED STRIP. He stood it close under the strip (5.4 CSS px at his window); it is placed
+	// from the bottom edge, and on a shorter window of his width (890 x 512: the browser's bars showing) the strip
+	// stands lower against that edge, so his place would be on it. There the box keeps his distance under the strip,
+	// never lower than the desktop rule's own place for it.
+	const moved: string[] = [];
+	if (v.zones) {
+		const pad = WIN_PAD * Math.min(2, rs.win) * D.u;
+		const need = v.zones.strip.y + v.zones.strip.h + LAND_WIN_CLEAR * D.u + pad;
+		if (box.win.y < need - 0.01) {
+			const y = Math.max(box.win.y, Math.min(need, D.box.win.y));
+			if (y > box.win.y + 0.01) moved.push(`the Win box ${r1(y - box.win.y)} px down (the LED strip)`);
+			box.win = { ...box.win, y };
+		}
+	}
+	// (the type: his one size at his window, each box's own on the desktop, between by the share)
+	const ru = signScale('landscape', LAND_R3.vw, LAND_R3.vh);
+	const T = commonType('landscape', LAND_R3);
+	const own = ownType(rs);
+	const type = (a: Record<'amt' | 'bal' | 'win', number>, b: number) => ({ amt: mix(a.amt, b), bal: mix(a.bal, b), win: mix(a.win, b) });
+	return {
+		...D,
+		box,
+		rs,
+		num: type(own.num, T.num / ru),
+		head: type(own.head, T.head / ru),
+		amtHalf: (t * (LAND_R3.group?.[2] ?? 0)) / 2 / ru,
+		moved,
+		just: t >= 0.5 ? { ...LAND_R3.just } : D.just,
+		step: mix(D.step, LAND_R3.step),
+		gap: mix(D.gap, LAND_R3.gap ?? D.gap),
+		turboWord: turboWordOk(box.turbo),
+		weights: [t],
+	};
+};
+
 /** the bar's layout for a window */
 export const signLayout = (v: SignView): SignGeo => {
-	return v.kind === 'landscape' ? desktopLayout(v) : phoneLayout(v);
+	return v.kind === 'landscape' ? landLayout(v) : phoneLayout(v);
 };
+
+// ---- THE SCENE AT HIS ROUND 3 WINDOWS (the board with its LED strip, the tree line, the logo; SKIP) ----
+// He moved the board with its LED strip (one piece) and the tree line up and down, and placed the logo and SKIP, per
+// window. The scene's own rules (game/layoutSpec.ts roadPlacement, logoBox; game/scene/sceneLayers.ts forestBox;
+// ui/hud/hudLayout.ts hudSkipRect) still give every window its place; these are his changes to them, blended over his
+// windows as the pieces are.
+//   boardDy, treeDy  CSS px down, a share of the window's height at his window, so of the height here
+//   logo, skip       his box as shares of the window (logo) or from the top right corner at the bar's scale (SKIP), and
+//                    `share`: how much of it stands in for the rule's own box here: 1 at and between his windows, falling
+//                    to 0 at SCENE_REACH outside them (in the blend's own units: 100 CSS px of the short side, or 0.5 of
+//                    long over short), so a tall phone and a tablet keep the scene's own rules; his moves of the board
+//                    and the tree line fall off the same way
+//   forest           a tree line is drawn (upright): the game's own phones, and since round 3 up to his phablet's width
+export const SCENE_REACH = 1;
+export const FOREST_MAX_SHORT = 640;
+export type SceneFit = { boardDy: number; treeDy: number; share: number; logo: Box | null; skip: Box | null };
+const NO_FIT: SceneFit = { boardDy: 0, treeDy: 0, share: 0, logo: null, skip: null };
+const fitMemo = new Map<string, SceneFit>();
+export const sceneFit = (kind: SignKind, vw: number, vh: number): SceneFit => {
+	if (!(vw > 0 && vh > 0)) return NO_FIT;
+	const key = `${kind}|${vw}|${vh}`;
+	const hit = fitMemo.get(key);
+	if (hit) return hit;
+	let out: SceneFit = NO_FIT;
+	const u = signScale(kind, vw, vh);
+	const skipAt = (r: Ref, top: number, rtop: number): Box => {
+		const ru = signScale(kind, r.vw, r.vh);
+		const [x, y, w, h] = r.skip as Four;
+		const k = u / ru;
+		return { x: vw - (r.vw - x) * k, y: top + (y - rtop) * k, w: w * k, h: h * k };
+	};
+	if (kind === 'landscape') {
+		const t = landShare(vw, vh);
+		const S = LAND_R3.scene;
+		if (t > 0 && S) out = { boardDy: (t * S.boardDy * vh) / LAND_R3.vh, treeDy: 0, share: t, logo: { x: (S.logo[0] / LAND_R3.vw) * vw, y: (S.logo[1] / LAND_R3.vh) * vh, w: (S.logo[2] / LAND_R3.vw) * vw, h: (S.logo[3] / LAND_R3.vw) * vw }, skip: skipAt(LAND_R3, 0, 0) };
+	} else {
+		const refs = PHONE_PLACES[kind];
+		const { w, out: far } = blendAt(kind, vw, vh);
+		const s3 = 1;
+		const share = Math.max(0, Math.min(1, 1 - far / SCENE_REACH));
+		if (share > 0) {
+			let boardDy = 0;
+			let treeDy = 0;
+			const logo = { x: 0, y: 0, w: 0, h: 0 };
+			const skip = { x: 0, y: 0, w: 0, h: 0 };
+			const top = kind === 'portrait' ? topLine(vw, vh) : 0;
+			for (let i = 0; i < refs.length; i++) {
+				const r = refs[i];
+				const S = r.scene;
+				if (!w[i] || !S) continue;
+				const f = w[i] / s3;
+				boardDy += (w[i] * S.boardDy * vh) / r.vh;
+				treeDy += (w[i] * S.treeDy * vh) / r.vh;
+				logo.x += (f * S.logo[0] * vw) / r.vw;
+				logo.y += (f * S.logo[1] * vh) / r.vh;
+				logo.w += (f * S.logo[2] * vw) / r.vw;
+				logo.h += (f * S.logo[3] * vw) / r.vw;
+				const k = skipAt(r, top, kind === 'portrait' ? topLine(r.vw, r.vh) : 0);
+				skip.x += f * k.x;
+				skip.y += f * k.y;
+				skip.w += f * k.w;
+				skip.h += f * k.h;
+			}
+			const fade = share / s3;
+			out = { boardDy: boardDy * fade, treeDy: treeDy * fade, share, logo, skip };
+		}
+	}
+	if (fitMemo.size > 400) fitMemo.clear();
+	fitMemo.set(key, out);
+	return out;
+};
+/** a box between the rule's own and his, by the share his has here */
+export const fitBox = (rule: Box, his: Box | null, share: number): Box => (!his || share <= 0 ? rule : { x: rule.x + (his.x - rule.x) * share, y: rule.y + (his.y - rule.y) * share, w: rule.w + (his.w - rule.w) * share, h: rule.h + (his.h - rule.h) * share });
+/** is a tree line drawn: upright, on the game's own phones (`phoneSize`: a short side of 480 CSS px or under) and, since
+ *  round 3 (he placed one at 626 x 816, where the game drew none), up to FOREST_MAX_SHORT wide */
+export const forestOn = (kind: SignKind, vw: number, vh: number, phoneSize: boolean) => kind === 'portrait' && (phoneSize || Math.min(vw, vh) <= FOREST_MAX_SHORT);
 
 // ---- THE WIDEST AMOUNT RULE (the mock's calcFit and place; the game's ui/betStep.ts betSlotWidth is its ancestor) ----
 // The game knows the bet ladder and each mode's cost at load. The widest amount the current mode can show is measured
@@ -833,9 +1131,11 @@ export type Seat = {
 export const amountLimits = (g: SignGeo, zones: Zones | null, safe: Insets = ZERO): [number, number] => {
 	const b = g.box.amt;
 	const cx = b.x + b.w / 2;
-	const cy = b.y + b.h / 2;
 	const sb = stepBox(g.step, g.u);
 	const h = sb.h * g.u;
+	// (the rows the symbols' press boxes really take: a box is kept inside the window, seatAmount, so near the bottom
+	// edge it stands higher than the amount's own middle; round 3, 320 x 568)
+	const cy = Math.max(h / 2, Math.min(b.y + b.h / 2, g.vh - h / 2));
 	if (g.kind === 'landscape') return [Math.max(g.area.x0, zones ? zones.strip.x + zones.strip.w : g.area.x0) + AMOUNT_FIT.margin * g.u, g.area.x1 - AMOUNT_FIT.margin * g.u];
 	let L = g.u;
 	let R = g.vw - g.u;
@@ -879,16 +1179,33 @@ export const seatAmount = (g: SignGeo, widestEm: number, headW: number, limits: 
 	const sb = stepBox(g.step, u);
 	const keyW = sb.w * u;
 	const gap = g.gap * u;
-	const nominal = READOUT_TYPE.amt * g.rs.amt * u;
+	const nominal = g.num.amt * u;
 	const full = widestEm * nominal;
 	const minW = AMOUNT_FIT.minW * u;
 	// THE ROOM. Desktop: twice the nearer side's, about his center (as the mock). Phones (2026-11-22, the larger amount):
 	// all the row has between its two limits, shared evenly; the group then stands as near his center as that width
 	// allows (the smallest move: none where his center already has the room on both sides).
 	const phone = g.kind !== 'landscape';
+	// ROUND 3: THE GROUP STANDS WHERE HE LEFT IT. His two symbols' press boxes end at cx -/+ amtHalf: the row's limits
+	// reach at least that far each way where a box there is inside the window and clear of the Play's diamond (it is, at
+	// each of his windows: he placed them with no warning showing), and the width kept between the symbols is never
+	// less than his (`hisW`), so an everyday amount at the common number size leaves both symbols exactly where he put
+	// them. A longer currency's amount takes more room where the row has it, and comes down a step where it does not.
+	const keyH0 = sb.h * u;
+	const ky0 = Math.max(0, Math.min(cy - keyH0 / 2, g.vh - keyH0));
+	let hisW = 0;
+	if (g.amtHalf > 0) {
+		const playS = shapeOf('play', g.box.play);
+		// (half a px of leave at the window's edge: his export is rounded to 0.1 px, and at 440 x 742 his > box ends on the edge)
+		const free = (x: number) => x >= -0.5 && x + keyW <= g.vw + 0.5 && shapeGap(boxPts({ x, y: ky0, w: keyW, h: keyH0 }), playS) > 0;
+		const lo = cx - g.amtHalf * u;
+		const hi = cx + g.amtHalf * u;
+		limits = [lo < limits[0] && free(lo) ? Math.max(0, lo) : limits[0], hi > limits[1] && free(hi - keyW) ? Math.min(g.vw, hi) : limits[1]];
+		if (lo >= limits[0] - 0.5 && hi <= limits[1] + 0.5) hisW = Math.max(0, 2 * (g.amtHalf * u - keyW - gap));
+	}
 	const room = Math.max(minW, phone ? limits[1] - limits[0] - 2 * (keyW + gap) : 2 * (Math.min(cx - limits[0], limits[1] - cx) - keyW - gap));
-	const { k, under } = fitSteps(full, room);
-	const W = Math.max(minW, Math.min(room, Math.max(full * k, headW)));
+	const { k, under } = fitSteps(full, room + 1e-6);
+	const W = Math.max(minW, Math.min(room, Math.max(full * k, headW, hisW)));
 	const his = cx;
 	if (phone) {
 		const lo = limits[0] + keyW + gap + W / 2;
@@ -992,7 +1309,7 @@ export const readoutRoom = (g: SignGeo, id: 'bal' | 'win', zones: Zones | null, 
  *  em of its face, every digit a 0 wide. */
 export const readoutFit = (g: SignGeo, id: 'bal' | 'win', zones: Zones | null, safe: Insets, textEm: number) => {
 	const b = g.box[id];
-	const nominal = READOUT_TYPE[id] * g.rs[id] * g.u;
+	const nominal = g.num[id] * g.u;
 	const room = readoutRoom(g, id, zones, safe);
 	const span = g.just[id] === 'left' ? room.x + room.w - b.x : room.w;
 	const limit = Math.max(1, Math.min(b.w - 8 * g.u, span - 2 * READOUT_FIT.pad * g.u));

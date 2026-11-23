@@ -62,8 +62,24 @@ events (`game/bookEventHandlerMap.ts`). Every decision taken is one line in `doc
   `tools/sign_layout_test.mjs`), its colors and drawing numbers `SIGN` in `ui/hudTheme.ts`, its lights one 2D canvas
   per key (`ui/sign/ledBand.ts`: capped at 30 frames a second, paused in a hidden tab). The board and the LED strip
   are still placed by the dock's rules (`hudLayout.ts`): they did not move with the bar. With the sign bar the
-  desktop strip is taller at 16:9 (`DESKTOP.stripH`) and the upright SKIP button stands on Menu's row, to Menu's left (`skipBox`). On phones Balance and the amount are
-  1.35 of the size he set (`BOOST`, Corey 2026-11-22: "very small"); the bar is laid out from `PHONE_PLACES`.
+  desktop strip is taller at 16:9 (`DESKTOP.stripH`) and the upright SKIP button stands on Menu's row, to Menu's left (`skipBox`). 
+  PHONES ARE COREY'S ROUND 3 LAYOUT (2026-11-23): seven windows he laid out at the real sizes a phone browser gives the
+  game (`PHONE_R3`: 440x742, 413x586, 375x530, 626x816 upright; 832x376, 667x311 sideways; `LAND_R3`: 890x552, the
+  phablet held sideways, on the desktop bar by its width, `landShare`). The bar is laid out from `PHONE_PLACES` (round
+  3 only; round 2's tables stay in the file as his record, `PHONE_R2`, and are not blended in: round 3 swaps the rows,
+  Auto and Turbo beside the Spin, and a blend of the two drew them through each other). Exact at his windows, blended
+  between them, and outside them the nearest window by SHAPE first (a tall phone takes 440x742's places at its own
+  scale). His scene moves ride the same blend (`sceneFit`): the board with its LED strip as one piece (`boardDy`,
+  through `layoutSpec.ts` `roadPlacement`; the strip keeps its size), the tree line (`treeDy`), his logo box and his
+  SKIP box, which fade out with distance from his windows (`SCENE_REACH`), so a tall full screen phone and a tablet
+  keep the scene's own rules. A tree line is drawn on upright windows up to his phablet's width (`forestOn`).
+  ONE NUMBER SIZE: Balance, the amount and Win are the same size at a window, the largest all three of his boxes
+  hold, and their tags one size (`commonType`, Corey: "Ideally those all stay about the same size"); a longer amount
+  steps down on its own. His bet symbols stay where he put them (`amtHalf`).
+  THE ROAMING REINDEER'S GROUND follows by construction and is written down in `game/roamGround.ts`: his area is in
+  road px (it rides with the board), the tree line is the drawn forest's (`game/scene/forestPlace.ts`), every key
+  is a keep-out. On the short framed pages (413x586, 375x530, 626x816) the Fast Lane key closes his side and no
+  level walk in is clear: open question for Corey.
   A sign key takes presses as its drawn diamond; where that holds under 44 px an unseen press pad lies under every
   control, an exact outline 2 px from every other press region (`padPlaces`, `padShapes`). EVERY click a control
   of the sign bar gets is judged by where the pointer went down, by the drawn shapes (`pressOwner`, `pressVerdict`,

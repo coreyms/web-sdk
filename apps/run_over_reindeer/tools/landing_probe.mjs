@@ -1,6 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // (2026-11-17: with constants LED_SIGN.onBoard the press screen is the game's own expanded LED board; boardPress() below
 // checks it at every size and the billboard's checks are skipped. They still run with LED_SIGN.onBoard false.)
+// WATCHES: apps/run_over_reindeer/src/ui/sign/signLayout.ts; sceneFit, PHONE_R3, __reindeer.sign.scene, scene().logo.home
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/assets.ts,game/config.ts,game/constants.ts,game/landing/ledScreens.ts,game/landing/ledSign.ts};
 // WATCHES: apps/run_over_reindeer/src/{game/landingBoard.ts,game/scene/logoSign.ts,game/sceneArtSpec.ts,game/gpuWarm.ts,game/road/roadFeatures.ts,game/scoreboard/ledGrid.ts,game/scoreboard/scoreboard.ts,game/scoreboard/ambient.ts};
 // WATCHES: apps/run_over_reindeer/{static/assets/audio/music.json,static/assets/audio/sounds.json,static/assets/symbols/symbols-phone.json,static/assets/symbols/symbols.json};
@@ -472,8 +473,12 @@ async function crop4x(file, box, dpr, out) {
 				// the sign is back at its in-game place once the press screen has gone (an upright phone's rests on the cap
 				// only on the press screen): its box's foot on the rule's (tune.logoSign.place.<class>.foot, road px)
 				if (S.upright) {
-					const back = await p.evaluate(() => ({ box: window.__reindeer.scene?.()?.logo?.road ?? null, foot: window.__reindeer.tune.logoSign.place.portrait.foot }));
-					check(!!back.box && Math.abs(back.box.y + back.box.height - back.foot) < 0.01, `${tag}: in the game the sign is back at its own place (foot ${back.box ? (back.box.y + back.box.height).toFixed(2) : 'none'} road px, the rule's ${back.foot})`, back);
+					const back = await p.evaluate(() => ({ box: window.__reindeer.scene?.()?.logo?.road ?? null, home: window.__reindeer.scene?.()?.logo?.home ?? null, foot: window.__reindeer.tune.logoSign.place.portrait.foot, share: window.__reindeer.sign?.scene?.()?.share ?? 0 }));
+					// (round 3, 2026-11-23: at and near Corey's own phone windows the sign's in-game place is his box by its share
+					// there, ui/sign/signLayout.ts sceneFit, not the rule's foot: there the sign must be back at the game's own
+					// in-game box, scene().logo.home; where his box has no share the rule's foot is asked as before)
+					if (back.share > 0) check(!!back.box && !!back.home && ['x', 'y', 'width', 'height'].every((k) => Math.abs(back.box[k] - back.home[k]) < 0.01), `${tag}: in the game the sign is back at its own place (his round 3 box has a ${Math.round(back.share * 100)} % share here: the game's in-game box, foot ${back.box ? (back.box.y + back.box.height).toFixed(2) : 'none'} road px)`, back);
+					else check(!!back.box && Math.abs(back.box.y + back.box.height - back.foot) < 0.01, `${tag}: in the game the sign is back at its own place (foot ${back.box ? (back.box.y + back.box.height).toFixed(2) : 'none'} road px, the rule's ${back.foot})`, back);
 				}
 				if (S.hudColumns) {
 					const hud = await p.evaluate(() => {

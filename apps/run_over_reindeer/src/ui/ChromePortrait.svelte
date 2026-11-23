@@ -26,6 +26,7 @@
 	import HudMenuPanel from './hud/HudMenuPanel.svelte';
 	import { HUD_BAR } from './hudTheme';
 	import SignHud from './sign/SignHud.svelte';
+	import { forestOn } from './sign/signLayout';
 
 	// THE GAME BAR IN USE (ui/hudTheme.ts HUD_BAR, 2026-11-22): the sign bar (ui/sign/SignHud.svelte), or the glass dock below
 	type Props = { controls: Controls; hud: HudFrame; vw: number; vh: number };
@@ -36,7 +37,8 @@
 	const title = TITLE.portrait; // the round counter's box (layoutSpec TITLE), from the screen's right edge
 	// an upright phone (not a tablet): the top line sits over the forest (game/scenePresets.ts topText.forest)
 	const context = getContext();
-	const uprightPhone = $derived(isPhoneSizeType(context.stateLayoutDerived.canvasSizeType()));
+	// (2026-11-23, his round 3 layout: a tree line is drawn on wider upright windows too, up to his phablet's, signLayout.ts forestOn)
+	const uprightPhone = $derived(forestOn('portrait', vw, vh, isPhoneSizeType(context.stateLayoutDerived.canvasSizeType())));
 
 	const G = $derived(portraitGeo(hud, 0));
 	const outline = $derived(outlineBead(G.bar, G.n));

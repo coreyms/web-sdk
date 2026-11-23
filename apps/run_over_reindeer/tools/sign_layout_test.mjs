@@ -52,6 +52,8 @@ register(
 }`),
 );
 const L = await import(pathToFileURL(join(APP, 'src', 'ui', 'sign', 'signLayout.ts')).href);
+const S0 = await import(pathToFileURL(join(APP, 'src', 'game', 'layoutSpec.ts')).href);
+const RG = await import(pathToFileURL(join(APP, 'src', 'game', 'roamGround.ts')).href);
 const Z = await import(pathToFileURL(join(APP, 'src', 'ui', 'sign', 'signZones.ts')).href);
 
 let fail = 0;
@@ -71,7 +73,7 @@ const HEAD_EM = 3.2;
 const at = (kind, vw, vh, safe) => {
 	const zones = Z.signZones(kind, vw, vh, kind !== 'landscape');
 	const g = L.signLayout({ kind, vw, vh, safe, zones });
-	const headW = (HEAD_EM * 10.5 * g.rs.amt + 12) * g.u;
+	const headW = (HEAD_EM * Math.max(g.head.amt, 10 / g.u) + 12) * g.u;
 	const seat = L.seatAmount(g, WIDEST_EM, headW, L.amountLimits(g, zones, safe));
 	return { zones, g, seat, problems: L.signProblems(g, zones, seat) };
 };
@@ -86,7 +88,8 @@ for (const o of ['portrait', 'phone']) {
 			const p = r.p[id];
 			d = Math.max(d, Math.abs(b.x - p[0]), Math.abs(b.y - p[1]), Math.abs(b.w - p[2]), Math.abs(b.h - p[3]));
 		}
-		const raw = L.PHONE_REFS[o].find((q) => q.vw === r.vw && q.vh === r.vh);
+		// (a round 3 window, PHONE_R3, is its own copy: nothing enlarged)
+		const raw = L.PHONE_REFS[o].find((q) => q.vw === r.vw && q.vh === r.vh) ?? r;
 		for (const id of L.PIECES) if (id !== 'bal' && id !== 'amt') d = Math.max(d, ...r.p[id].map((v, i) => Math.abs(v - raw.p[id][i])));
 		line(d <= 0.05 && g.moved.length === 0, `${r.vw}x${r.vh} his places (Balance and the amount enlarged), no guard acting`, `worst ${d.toFixed(3)} px${g.moved.length ? '; moved: ' + g.moved.join('; ') : ''}`);
 		// (his own Auto and Turbo stand 37 px apart at 568 x 320 and 43.4 at 667 x 375: their press pads stand apart there,
@@ -113,10 +116,11 @@ for (const o of ['portrait', 'phone']) {
 for (const o of ['portrait', 'phone']) {
 	for (const r of L.PHONE_PLACES[o]) {
 		const raw = L.PHONE_REFS[o].find((q) => q.vw === r.vw && q.vh === r.vh);
+		if (!raw) continue;
 		const zones = Z.signZones(o, r.vw, r.vh, true);
 		const g = L.signLayout({ kind: o, vw: r.vw, vh: r.vh, zones });
 		const head = (fs) => (2.42 * fs + 2 * (0.42 * fs + L.TEXT_MIN * 0.25)) * 1;
-		const seat = L.seatAmount(g, USD_EM, head(Math.max(10.5 * g.rs.amt * g.u, 10)), L.amountLimits(g, zones));
+		const seat = L.seatAmount(g, USD_EM, head(Math.max(g.head.amt * g.u, 10)), L.amountLimits(g, zones));
 		// before: his own box, seated by the mock's rule (the Play as its box, twice the nearer side about his center)
 		const u = g.u;
 		const sb = L.stepBox(g.step, u);
@@ -149,9 +153,10 @@ for (const o of ['portrait', 'phone']) {
 
 // ---- 2. a straight line between his windows (the blend alone) ----
 for (const o of ['portrait', 'phone']) {
-	const refs = L.PHONE_REFS[o];
+	const refs = L.PHONE_PLACES[o];
 	const edges = new Set();
 	for (const [i, j, k] of L.TRI[o]) for (const [a, b] of [[i, j], [j, k], [k, i]]) edges.add(a < b ? `${a},${b}` : `${b},${a}`);
+	for (const [a, b] of L.SEG[o]) edges.add(a < b ? `${a},${b}` : `${b},${a}`);
 	let bad = [];
 	for (const e of edges) {
 		const [i, j] = e.split(',').map(Number);
@@ -188,7 +193,7 @@ for (const o of ['portrait', 'phone']) {
 
 // ---- 3. nothing on the scene, nothing on the Play ----
 const sweep = (o, shorts, aspects) => {
-	const refs = L.PHONE_REFS[o];
+	const refs = L.PHONE_PLACES[o];
 	const out = { n: 0, inside: 0, known: 0, badInside: [], badOutside: [] };
 	for (const s of shorts)
 		for (const a of aspects) {
@@ -360,7 +365,9 @@ for (const [vw, vh, name, must] of [[800, 450, 'Popout L', true], [400, 225, 'Po
 		const pads = L.padShapes(boxes, vw, vh);
 		const mid = (b) => [b.x + b.w / 2, b.y + b.h / 2];
 		const own = (p) => L.pressOwner(boxes, pads, p);
-		const gap = L.shapeGap(L.shapeOf('auto', boxes.auto), L.shapeOf('turbo', boxes.turbo));
+		// (by the keys' real shapes, round cornered, pressShape: at his 375 x 530 the two sharp diamonds' side points
+		// reach 0.9 px into each other, the round corners stand apart)
+		const gap = L.shapeGap(L.pressShape('auto', boxes.auto), L.pressShape('turbo', boxes.turbo));
 		const boxesMeet = boxes.auto.x < boxes.turbo.x + boxes.turbo.w && boxes.turbo.x < boxes.auto.x + boxes.auto.w && boxes.auto.y < boxes.turbo.y + boxes.turbo.h && boxes.turbo.y < boxes.auto.y + boxes.auto.h;
 		// the line through the two pads' middles, every 0.5 px from 24 px before Auto's to 24 px past Turbo's
 		const a = pads.auto.c;
@@ -499,10 +506,25 @@ for (const [vw, vh, name, must] of [[800, 450, 'Popout L', true], [400, 225, 'Po
 	}
 	// d. the probe host's places
 	{
-		const A = setup('phone', 844, 390).own([755.8, 196.9]);
-		const B = setup('phone', 667, 375).own([623.7, 194.9]);
+		// (round 3 moved the keys at the two phone sizes: the place 2 px inside Turbo's edge nearest the Play is worked out
+		// on today's layout there; the desktop place is the probe host's own)
+		const edgeOf = (kind, vw, vh) => {
+			const R = setup(kind, vw, vh);
+			const a = [R.boxes.turbo.x + R.boxes.turbo.w / 2, R.boxes.turbo.y + R.boxes.turbo.h / 2];
+			const b = [R.boxes.play.x + R.boxes.play.w / 2, R.boxes.play.y + R.boxes.play.h / 2];
+			const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+			let last = 0;
+			for (let v = 0; v <= len; v += 0.25) {
+				if (R.own([a[0] + ((b[0] - a[0]) * v) / len, a[1] + ((b[1] - a[1]) * v) / len]) !== 'turbo') break;
+				last = v;
+			}
+			const q = [a[0] + ((b[0] - a[0]) * (last - 2)) / len, a[1] + ((b[1] - a[1]) * (last - 2)) / len];
+			return { q, own: R.own(q), inBox: inBox(q, R.boxes.play) };
+		};
+		const A = edgeOf('phone', 844, 390);
+		const B = edgeOf('phone', 667, 375);
 		const C = setup('landscape', 1200, 675).own([1145.4, 428.2]);
-		line(A === 'turbo' && B === 'turbo' && C === 'turbo', "the probe host's three places 2 px inside Turbo's edge nearest the Play are Turbo's (so the Play passes the press on, and no round starts)", `844x390 (755.8, 196.9): ${A}; 667x375 (623.7, 194.9): ${B}; 1200x675 (1145.4, 428.2): ${C}; in the Play's upright box: ${inBox([755.8, 196.9], setup('phone', 844, 390).boxes.play)}, ${inBox([623.7, 194.9], setup('phone', 667, 375).boxes.play)}, ${inBox([1145.4, 428.2], setup('landscape', 1200, 675).boxes.play)}`);
+		line(A.own === 'turbo' && B.own === 'turbo' && C === 'turbo', "the places 2 px inside Turbo's edge nearest the Play are Turbo's (so the Play passes the press on, and no round starts)", `844x390 (${A.q.map(r1).join(', ')}): ${A.own}; 667x375 (${B.q.map(r1).join(', ')}): ${B.own}; 1200x675 (1145.4, 428.2, the probe host's): ${C}; in the Play's upright box: ${A.inBox}, ${B.inBox}`);
 	}
 }
 // ---- 7. WHAT THE RULE NAMES A CONTROL'S GROUND IS COVERED BY SOMETHING THAT TAKES THE PRESS (2026-11-23; the probe
@@ -598,8 +620,6 @@ for (const [vw, vh, name, must] of [[800, 450, 'Popout L', true], [400, 225, 'Po
 	// c. the probe host's places
 	{
 		const d = setup('landscape', 1200, 675);
-		const a = setup('phone', 568, 320);
-		const m = setup('portrait', 390, 844);
 		const pc = [d.boxes.play.x + d.boxes.play.w / 2, d.boxes.play.y + d.boxes.play.h / 2];
 		const q = [1112.1, 420.4];
 		const len = Math.hypot(q[0] - pc[0], q[1] - pc[1]);
@@ -607,10 +627,8 @@ for (const [vw, vh, name, must] of [[800, 450, 'Popout L', true], [400, 225, 'Po
 		let reach = 0;
 		for (let v = 0; v < 120; v += 0.05) if (d.own([pc[0] + u[0] * v, pc[1] + u[1] * v]) === 'play') reach = v;
 		const sharp = ((d.boxes.play.w / 2) * L.PLAY_V) / (Math.abs(u[0]) + Math.abs(u[1]));
-		const oa = a.own([513.1, 146.1]);
-		const om = m.own([324.8, 139.5]);
 		const od = d.own(q);
-		line(od === null && reach < len && om === 'menu', "the probe host's places: 1200x675 (1112.1, 420.4) is past the Play's round corner (nobody's: the drawn Play ends before it); 390x844 (324.8, 139.5) is Menu's and Menu's catch outline covers it", `1200x675: owner ${od}; the place is ${len.toFixed(1)} px from the Play's middle, the Play's ground on that line ends at ${reach.toFixed(1)} px (its round corner; the sharp diamond's would at ${sharp.toFixed(1)}) | 568x320 (513.1, 146.1): owner ${oa} (Auto's round bottom corner and its moved pad) | 390x844: owner ${om}, Menu's box ends at y ${(m.boxes.menu.y + m.boxes.menu.h).toFixed(1)}`);
+		line(od === null && reach < len, "the probe host's place 1200x675 (1112.1, 420.4) is past the Play's round corner (nobody's: the drawn Play ends before it)", `owner ${od}; the place is ${len.toFixed(1)} px from the Play's middle, the Play's ground on that line ends at ${reach.toFixed(1)} px (its round corner; the sharp diamond's would at ${sharp.toFixed(1)})`);
 	}
 }
 for (const [vw, vh] of [[1920, 1080], [1200, 675], [1024, 576], [1280, 720], [1366, 768], [1440, 900], [2560, 1440], [2560, 1080], [3440, 1440], [1280, 800], [1024, 768]]) {
@@ -668,7 +686,7 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 			if (room.w < 40 * g.u) bad.push(`${vw}x${vh} ${id}: a room of ${r1(room.w)} px`);
 			for (const z of [zones.board, zones.strip, zones.logo]) if (z && L.onZone(s, z)) bad.push(`${vw}x${vh} ${id}: its room is on a zone`);
 			for (const o of ['play', 'auto', 'turbo']) if (L.shapeGap(s, L.shapeOf(o, g.box[o])) === 0) bad.push(`${vw}x${vh} ${id}: its room meets ${o}`);
-			const nominal = (id === 'bal' ? 21 : 26) * g.rs[id] * g.u;
+			const nominal = g.num[id] * g.u;
 			for (const code of CODES) {
 				state.stateBet.currency = code;
 				for (const a of amounts(code)) {
@@ -683,14 +701,14 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 				}
 			}
 		}
-		rows.push(`     ${vw}x${vh}: Balance from ${r1(21 * g.rs.bal * g.u)} px down to ${r1(least.bal[0])} (${least.bal[1]}) | Win from ${r1(26 * g.rs.win * g.u)} down to ${r1(least.win[0])} (${least.win[1]})${under.length ? ` | past the floor: ${under.length} (${under[0]})` : ''}`);
+		rows.push(`     ${vw}x${vh}: Balance from ${r1(g.num.bal * g.u)} px down to ${r1(least.bal[0])} (${least.bal[1]}) | Win from ${r1(g.num.win * g.u)} down to ${r1(least.win[0])} (${least.win[1]})${under.length ? ` | past the floor: ${under.length} (${under[0]})` : ''}`);
 		if (vw === 568 && vh === 320) {
 			state.stateBet.currency = 'BTC';
 			const room = L.readoutRoom(g, 'bal', zones);
 			for (const a of [1000, 10000, 1e7]) {
 				const t = cur.numberToCurrencyString(a, { fixed: true });
 				const f = L.readoutFit(g, 'bal', zones, undefined, emOf(t));
-				rows.push(`       568x320 BTC, ${t}: ${r1(21 * g.rs.bal * g.u * f.k)} px (${Math.round(f.k * 100)} %), room ${r1(room.x)} to ${r1(room.x + room.w)} of 568`);
+				rows.push(`       568x320 BTC, ${t}: ${r1(g.num.bal * g.u * f.k)} px (${Math.round(f.k * 100)} %), room ${r1(room.x)} to ${r1(room.x + room.w)} of 568`);
 			}
 		}
 	}
@@ -707,7 +725,7 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 				for (const a of amounts) {
 					const t = cur.numberToCurrencyString(a, { fixed: true });
 					const f = L.readoutFit(g, id, zones, undefined, emOf(t));
-					if (f.box !== g.box[id] || f.k !== 1 || f.under || Math.abs(f.px - (id === 'bal' ? 21 : 26) * g.rs[id] * g.u) > 1e-9) moved.push(`${vw}x${vh} ${id} ${t}: ${Math.round(f.k * 100)} %`);
+					if (f.box !== g.box[id] || f.k !== 1 || f.under || Math.abs(f.px - g.num[id] * g.u) > 1e-9) moved.push(`${vw}x${vh} ${id} ${t}: ${Math.round(f.k * 100)} %`);
 				}
 		}
 		line(moved.length === 0, `an ordinary balance and win (USD) change nothing: his box, the nominal size, at ${windows.length} windows`, moved.slice(0, 5).join(' | '));
@@ -723,22 +741,166 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 		if (old) {
 			const off = [];
 			for (const [kind, vw, vh] of windows) {
+				if (kind !== 'landscape') continue;
 				const zones = Z.signZones(kind, vw, vh, kind !== 'landscape');
 				const a = L.signLayout({ kind, vw, vh, zones });
 				const b = old.signLayout({ kind, vw, vh, zones });
 				for (const id of L.PIECES) for (const k of ['x', 'y', 'w', 'h']) if (a.box[id][k] !== b.box[id][k]) off.push(`${vw}x${vh} ${id}.${k}: ${b.box[id][k]} to ${a.box[id][k]}`);
 			}
-			line(off.length === 0, `every piece's box is 0d30b1b8's, to the last digit, at ${windows.length} windows`, off.slice(0, 5).join(' | '));
+			line(off.length === 0, `every piece's box is 0d30b1b8's, to the last digit, at the ${windows.filter((q) => q[0] === 'landscape').length} desktop windows (the phones are round 3's now)`, off.slice(0, 5).join(' | '));
 		}
 	}
 	line(bad.length === 0, `Balance and Win fit their rooms: ${windows.length} windows x 9 currencies x an everyday and a very long amount (10,000,000.000000 BTC, 1,000,000,000.00 GC), every room inside the window and clear of the scene and the diamonds`, bad.slice(0, 5).join(' | '));
 	for (const r of rows) console.log(r);
 }
+// ---- 8. HIS ROUND 3 PHONE LAYOUT (2026-11-23, corey_phone_r3_2026-11-23.json: seven windows at the real sizes a phone
+// browser gives the game; ui/sign/signLayout.ts PHONE_R3, LAND_R3, sceneFit). The tables are his export, value for
+// value; what is held here is that the game's own arithmetic gives every one of his numbers back, within 0.5 CSS px:
+//   a. the eight pieces (section 1 above, the six phone windows; here the phablet sideways, 890 x 552, which the game
+//      lays out with the desktop bar), no guard acting, nothing wrong by shape
+//   b. the amount group: its box, the width kept between the symbols and both symbols' press boxes, with the game's own
+//      widest everyday amount ("$100.00", USD_EM); SKIP's box
+//   b2. ONE NUMBER SIZE (Corey 2026-11-23: "The text sizes were different in the mock up for the Balance, Spin amount,
+//      and WIN, Ideally those all stay about the same size"): the amount's, Balance's and Win's numbers within 1 px of
+//      each other at every window, 9 CSS px or more at his seven, no fit step at his seven for "$100.00"; the size is
+//      the largest his three boxes hold (commonType), listed against the mock's own three
+//   c. the scene: his move of the board with its LED strip (the strip's box and the columns' top from his export, as
+//      numbers here), the strip the same size as at the road's own place, the logo's box, the tree line's move
+//   c2. THE ROAMING REINDEER'S GROUND (Corey 2026-11-23: "remap the reindeers walking area so it's below the tree lines,
+//      and above the board area for phones, where the baord and treeline where moved"; game/roamGround.ts): the tree
+//      line is his export's to 0.5 px; at every upright window with a tree line the ground is a strip under the tree
+//      line and above the asphalt, the asphalt above the columns
+//   d. sideways touch phones: nothing a player presses or reads in the bottom 20 px (the home indicator) at 832 x 376;
+//      at 667 x 311 the drawn amount, symbols and Balance clear it, and what does not is listed (his own placing)
+//   e. every frame of the phone browser survey (the list below is a copy of sizes.json's captures, 2026-11-23): no
+//      problem by shape, every press region 44 CSS px, everything inside the window; a frame that fails is named
+//   f. the sizes round 2 was set at and Stake's phone sizes: what each gets, nothing wrong
+{
+	const EXPORT = {
+		'440x742': { stripY: 489.8, stripH: 82.1, colsY: 278.9, tree: 184.7, down: [273.1, 688.7, 44, 44], up: [396, 688.7, 44, 44], px: 17.7, W: 70 },
+		'413x586': { stripY: 399.7, stripH: 50, colsY: 200.1, tree: 159.5, down: [256.4, 537.1, 44, 44], up: [369, 537.1, 44, 44], px: 15.7, W: 61.8 },
+		'375x530': { stripY: 360.1, stripH: 46.1, colsY: 179.8, tree: 143, down: [228.5, 481.7, 44, 44], up: [331, 481.7, 44, 44], px: 13.1, W: 51.7 },
+		'626x816': { stripY: 570, stripH: 80, colsY: 276.8, tree: 217, down: [405.4, 739.2, 44.7, 44.7], up: [565.3, 739.2, 44.7, 44.7], px: 25.6, W: 101.2 },
+		'832x376': { stripY: 295.3, stripH: 59.8, colsY: 74.8, tree: null, down: [659.7, 307.5, 44, 44], up: [770.1, 307.5, 44, 44], px: 14.9, W: 58.7 },
+		'667x311': { stripY: 242.6, stripH: 51.5, colsY: 61.9, tree: null, down: [518, 250.1, 44, 44], up: [613.7, 250.1, 44, 44], px: 10.6, W: 43.8 },
+		'890x552': { stripY: 426, stripH: 57.3, colsY: 124, tree: null, down: [728, 473.2, 44, 45.7], up: [840.4, 473.2, 44, 45.7], px: 15.8, W: 62.3 },
+	};
+	const frames = [...L.PHONE_R3.portrait.map((r) => ['portrait', r]), ...L.PHONE_R3.phone.map((r) => ['phone', r]), ['landscape', L.LAND_R3]];
+	const far = (a, b) => Math.max(...a.map((v, i) => Math.abs(v - b[i])));
+	const arr = (q) => [q.x, q.y, q.w, q.h];
+	for (const [kind, r] of frames) {
+		const tag = `${r.vw}x${r.vh}`;
+		const E = EXPORT[tag];
+		const phoneSize = Math.min(r.vw, r.vh) <= 480;
+		const zones = Z.signZones(kind, r.vw, r.vh, phoneSize);
+		const g = L.signLayout({ kind, vw: r.vw, vh: r.vh, zones });
+		// a. the pieces
+		const dPieces = Math.max(...L.PIECES.map((id) => far(arr(g.box[id]), r.p[id])));
+		// b. the amount group with the game's widest everyday amount, and SKIP
+		const seat = L.seatAmount(g, USD_EM, (HEAD_EM * Math.max(g.head.amt, 10 / g.u) + 12) * g.u, L.amountLimits(g, zones));
+		const dSeat = Math.max(far(arr(seat.down), E.down), far(arr(seat.up), E.up), Math.abs(seat.W - E.W), Math.abs(seat.amt.y - r.p.amt[1]), Math.abs(seat.amt.h - r.p.amt[3]), Math.abs(seat.amt.x + seat.W / 2 - (r.p.amt[0] + r.p.amt[2] / 2)));
+		const fit = L.sceneFit(kind, r.vw, r.vh);
+		const dSkip = fit.skip ? far(arr(fit.skip), r.skip) : 99;
+		const problems = L.signProblems(g, zones, seat);
+		line(dPieces <= 0.5 && dSeat <= 0.5 && dSkip <= 0.5 && fit.share === 1 && g.moved.length === 0 && problems.length === 0, `${tag} round 3: his pieces, his amount group (the width between the symbols, both symbols' press boxes) and SKIP within 0.5 px, no guard acting, nothing wrong`, `pieces ${dPieces.toFixed(2)}, amount group ${dSeat.toFixed(2)}, SKIP ${dSkip.toFixed(2)} px${g.moved.length ? '; ' + g.moved.join('; ') : ''}${problems.length ? '; ' + problems.join('; ') : ''}`);
+		// b2. one number size
+		const T = L.commonType(kind, r);
+		const px = { amt: seat.px, bal: g.num.bal * g.u, win: g.num.win * g.u };
+		const spread = Math.max(px.amt, px.bal, px.win) - Math.min(px.amt, px.bal, px.win);
+		const tags = ['amt', 'bal', 'win'].map((id) => Math.max(g.head[id] * g.u, 10));
+		line(spread <= 1 && Math.min(px.amt, px.bal, px.win) >= 9 && seat.k === 1 && !seat.under && Math.max(...tags) - Math.min(...tags) <= 0.01, `${tag} round 3: one number size, ${r1(px.bal)} px (the amount ${r1(px.amt)}, Balance ${r1(px.bal)}, Win ${r1(px.win)}), 9 px or more, "$100.00" at full size between his symbols; one tag size, ${r1(tags[0])} px`, `the mock's own: amount ${r1(T.own.amt)}, Balance ${r1(T.own.bal)}, Win ${r1(T.own.win)} px; what set the size: ${T.num === T.own.win ? "the Win box's own size" : T.num === T.own.amt ? "the amount's own size" : T.num === T.own.bal ? "the Balance box's own size" : `"$100.00" in the ${r1(T.between)} px between his symbols`}${seat.k !== 1 ? `; the amount at ${Math.round(seat.k * 100)} %` : ''}`);
+		// c. the scene
+		const own = (() => {
+			// the strip at the road's own place: the same window with his move taken out (the rule's own box)
+			const M = S0.MASTER[kind];
+			const scale = Math.min(r.vw / M.width, r.vh / M.height);
+			const main = { x: r.vw / 2, y: r.vh / 2, width: M.width, height: M.height, scale };
+			const view = { masterWidth: r.vw / scale, masterHeight: r.vh / scale, vw: r.vw, vh: r.vh };
+			const top = r.vh / 2 - (M.height * scale) / 2;
+			return { cols: top + S0.boardRect(kind, view, false, true).y * scale, moved: top + S0.boardRect(kind, view).y * scale, main };
+		})();
+		const dScene = Math.max(Math.abs(zones.strip.y - E.stripY), Math.abs(zones.strip.h - E.stripH), Math.abs(zones.board.y - E.colsY), Math.abs(own.moved - own.cols - r.scene.boardDy), far(arr(zones.logo), r.scene.logo), Math.abs(fit.boardDy - r.scene.boardDy), Math.abs(fit.treeDy - r.scene.treeDy));
+		// c2. the tree line and the roamer's ground
+		const G = RG.roamGround(kind, r.vw, r.vh, phoneSize);
+		if (E.tree !== null) line(G.treeY !== null && Math.abs(G.treeY - E.tree) <= 0.5 && G.top < G.bottom && G.bottom < G.roadY && G.roadY <= zones.board.y, `${tag} round 3, the roaming reindeer's ground: the tree line at his ${E.tree} (within 0.5 px), his feet under it and above the asphalt, the asphalt above the columns`, `tree line ${G.treeY === null ? 'none' : r1(G.treeY)}, feet ${r1(G.top)} to ${r1(G.bottom)} (${r1(G.bottom - G.top)} px), asphalt ${r1(G.roadY)}, columns ${r1(zones.board.y)}`);
+		else line(G.treeY === null && G.forest === null && G.bottom <= G.roadY && G.roadY <= zones.board.y, `${tag} round 3, the roaming reindeer's ground: no tree line (his ground runs from the window's top edge down the snow rim to the asphalt), the asphalt above the columns`, `feet down to ${r1(G.bottom)}, asphalt ${r1(G.roadY)}, columns ${r1(zones.board.y)}`);
+		line(dScene <= 0.5 && L.forestOn(kind, r.vw, r.vh, phoneSize) === r.scene.tree, `${tag} round 3, the scene: the board with its LED strip ${r.scene.boardDy} px down (strip ${E.stripY}, ${E.stripH} tall as at the road's own place; columns ${E.colsY}), the logo his box, the tree line ${r.scene.tree ? `${r.scene.treeDy} px down` : 'none'}, within 0.5 px`, `worst ${dScene.toFixed(2)} px; strip ${r1(zones.strip.y)} x ${r1(zones.strip.h)}, columns ${r1(zones.board.y)}, logo ${arr(zones.logo).map(r1).join(', ')}`);
+	}
+	// d. the home indicator's 20 px, sideways
+	for (const [vw, vh, strict] of [[832, 376, true], [667, 311, false]]) {
+		const zones = Z.signZones('phone', vw, vh, true);
+		const g = L.signLayout({ kind: 'phone', vw, vh, zones });
+		const E = EXPORT[`${vw}x${vh}`];
+		const seat = L.seatAmount(g, USD_EM, (HEAD_EM * Math.max(g.head.amt, 10 / g.u) + 12) * g.u, L.amountLimits(g, zones));
+		const floor = vh - 20;
+		const glass = L.winGlass(g);
+		const drawn = { play: Math.max(...L.pressShape('play', g.box.play).map((q) => q[1])), menu: g.box.menu.y + g.box.menu.h, 'the Fast Lane': g.box.bonus.y + g.box.bonus.h, Balance: g.box.bal.y + g.box.bal.h, 'the amount': seat.amt.y + seat.amt.h, 'the symbols drawn': seat.downC[1] + (L.stepDraw(g.step).h * g.u) / 2 };
+		const also = { "the symbols' press boxes": seat.down.y + seat.down.h, 'the Win box': glass.y + glass.h };
+		const low = Object.entries(drawn).filter(([, y]) => y > floor + 0.05);
+		const lowAlso = Object.entries(also).filter(([, y]) => y > floor + 0.05);
+		line(low.length === 0 && (!strict || lowAlso.length === 0), `${vw}x${vh}: nothing a player presses or reads in the bottom 20 px${strict ? '' : ' of what is drawn (the keys, Balance, the amount and its symbols)'}`, `${[...low, ...(strict ? lowAlso : [])].map(([n, y]) => `${n} ends at ${r1(y)} of ${vh}`).join('; ')}${!strict && lowAlso.length ? `HIS OWN PLACING, listed: ${lowAlso.map(([n, y]) => `${n} ends at ${r1(y)}, ${r1(y - floor)} px into the strip`).join('; ')}` : ''}`);
+	}
+	// e. the phone browser survey's frames (sizes.json captures, 2026-11-23: w x h)
+	const SURVEY = '413x586 440x742 440x655 440x701 440x868 956x376 440x679 440x725 375x504 402x661 402x573 402x619 375x717 402x874 402x786 402x832 874x338 874x402 375x528 402x685 402x597 402x643 375x635 402x792 402x704 402x750 874x352 874x382 348x373 375x442 375x488 348x490 375x647 375x559 375x605 667x311 667x375 348x397 375x554 375x466 375x512 348x470 375x627 375x539 375x585 667x325 667x355 440x956 956x440 439x308 466x678 678x402 678x466 626x688 626x890 890x512 890x626 333x547 360x840 808x256 840x360 750x568 750x832 832x574 832x750 385x598 412x891 859x308 891x412 333x487 360x780 748x256 780x360'.split(' ').map((q) => q.split('x').map(Number));
+	// (the game's own layout class for a window: packages/utils-layout createLayout's ratio and size breaks)
+	const kindOf = (vw, vh) => (vw / vh < 1.25 ? 'portrait' : Math.min(vw, vh) <= 480 ? 'phone' : 'landscape');
+	const bad = [];
+	const guarded = [];
+	const spreadBad = [];
+	const groundBad = [];
+	// (the least strip his feet have under the trees: 5 CSS px; the short framed pages have about 8)
+	const GROUND_MIN = 5;
+	let grounds = 0;
+	let leastGround = Infinity;
+	for (const [vw, vh] of SURVEY) {
+		const kind = kindOf(vw, vh);
+		const { g, problems, seat } = at(kind, vw, vh);
+		// (inside the window by what is drawn and pressed: a diamond by its round cornered shape, the rest by their boxes)
+		const ext = (pts) => ({ x0: Math.min(...pts.map((q) => q[0])), y0: Math.min(...pts.map((q) => q[1])), x1: Math.max(...pts.map((q) => q[0])), y1: Math.max(...pts.map((q) => q[1])) });
+		const spans = [...['play', 'auto', 'turbo'].map((id) => ext(L.pressShape(id, g.box[id]))), ...[g.box.menu, g.box.bonus, g.box.bal, L.winGlass(g), seat.down, seat.up].map((b) => ({ x0: b.x, y0: b.y, x1: b.x + b.w, y1: b.y + b.h }))];
+		const outside = spans.some((b) => b.x0 < -0.5 || b.y0 < -0.5 || b.x1 > vw + 0.5 || b.y1 > vh + 0.5);
+		if (problems.length || outside) bad.push(`${vw}x${vh}: ${[...problems, ...(outside ? ['a piece off the window'] : [])].join(', ')}`);
+		else if (g.moved.length) guarded.push(`${vw}x${vh} (${g.moved.join('; ')})`);
+		// one number size: the amount's nominal, Balance's and Win's within 1 px of each other
+		const sizes = [g.num.amt, g.num.bal, g.num.win].map((v) => v * g.u);
+		if (L.landShare(vw, vh) >= 1 || kind !== 'landscape') if (Math.max(...sizes) - Math.min(...sizes) > 1) spreadBad.push(`${vw}x${vh}: ${sizes.map(r1).join(' / ')}`);
+		// the roamer's ground
+		const G = RG.roamGround(kind, vw, vh, Math.min(vw, vh) <= 480);
+		const zs = Z.signZones(kind, vw, vh, Math.min(vw, vh) <= 480);
+		// (a tree line is drawn on upright windows up to his phablet's width, forestOn; a wider upright window is a
+		// tablet's scene, with no tree line: his area's own outline bounds his ground there, as before round 3)
+		if (kind === 'portrait' && L.forestOn(kind, vw, vh, Math.min(vw, vh) <= 480)) {
+			grounds++;
+			if (G.treeY === null || !(G.treeY > 0 && G.top < G.bottom - GROUND_MIN && G.bottom < G.roadY && G.roadY <= zs.board.y)) groundBad.push(`${vw}x${vh}: tree line ${G.treeY === null ? 'none' : r1(G.treeY)}, feet ${r1(G.top)} to ${r1(G.bottom)}, asphalt ${r1(G.roadY)}, columns ${r1(zs.board.y)}`);
+			else leastGround = Math.min(leastGround, G.bottom - G.top);
+		} else if (!(G.treeY === null && G.bottom <= G.roadY && G.roadY <= zs.board.y)) groundBad.push(`${vw}x${vh} (sideways): feet down to ${r1(G.bottom)}, asphalt ${r1(G.roadY)}, columns ${r1(zs.board.y)}`);
+	}
+	// (named: the frames no bar of this size can serve: a 348 px near square Stake frame, a 439 x 308 folded cover in
+	// Stake's frame, two 256 px tall folded covers sideways)
+	const KNOWN = ['348x373', '348x397', '439x308', '808x256', '748x256'];
+	// (the upright ones of those have a ground strip all the same: the rule above holds there too)
+	const fresh = bad.filter((x) => !KNOWN.some((k) => x.startsWith(k + ':')));
+	line(fresh.length === 0, `the phone browser survey's ${SURVEY.length} frames: nothing wrong by shape, every press region 44 px, everything inside, at ${SURVEY.length - bad.length} of them`, `${fresh.join(' | ')}${fresh.length ? ' | ' : ''}NOT SERVED, listed: ${bad.filter((x) => !fresh.includes(x)).join(' | ') || 'none'}`);
+	line(spreadBad.length === 0, `the survey's frames: the amount's, Balance's and Win's numbers are one size (within 1 px) at every phone frame and at his phablet's width sideways`, spreadBad.slice(0, 6).join(' | '));
+	line(groundBad.length === 0, `the survey's frames, the roaming reindeer's ground: at all ${grounds} upright frames with a tree line a strip under it (${GROUND_MIN} px or more) and above the asphalt, the asphalt above the columns; sideways no tree line, the snow rim down to the asphalt`, `${groundBad.slice(0, 6).join(' | ')}${groundBad.length ? ' | ' : ''}the least strip ${r1(leastGround)} px`);
+	console.log(`     a guard acted at ${guarded.length} survey frames: ${guarded.slice(0, 8).join(' | ')}${guarded.length > 8 ? ' ...' : ''}`);
+	// f. the sizes round 2 was set at, and Stake's phone sizes
+	for (const [vw, vh, what] of [[425, 812, "Stake's Mobile L"], [375, 667, "Stake's Mobile M"], [320, 568, "Stake's Mobile S"], [390, 844, 'a full screen phone'], [402, 874, 'a full screen phone'], [844, 390, 'a full screen phone sideways'], [874, 402, 'a full screen phone sideways']]) {
+		const kind = vw > vh ? 'phone' : 'portrait';
+		const { g, problems, seat } = at(kind, vw, vh);
+		const fit = L.sceneFit(kind, vw, vh);
+		const w = L.blendWeights(kind, vw, vh);
+		const from = L.PHONE_PLACES[kind].map((r, i) => (w[i] > 0.005 ? `${Math.round(w[i] * 100)} % ${r.vw}x${r.vh}` : '')).filter(Boolean).join(', ');
+		line(problems.length === 0, `${vw}x${vh} (${what}): nothing wrong by shape`, `${problems.join('; ')}${problems.length ? ' | ' : ''}from ${from}${g.moved.length ? '; ' + g.moved.join('; ') : ''}; the amount ${r1(seat.px)} px${seat.under ? ' (under the floor)' : ''}; the scene's share of his ${Math.round(fit.share * 100)} % (board ${r1(fit.boardDy)} px, tree line ${r1(fit.treeDy)} px)`);
+	}
+}
 // the safe areas (a real iPhone): nothing under the home indicator, nothing in a notch side, his places kept where clear
 {
 	const a = at('portrait', 390, 844, { t: 47, r: 0, b: 34, l: 0 });
 	const b = at('phone', 844, 390, { t: 0, r: 44, b: 21, l: 44 });
-	line(a.g.moved.length === 0 && a.problems.length === 0, '390x844 with a 34 px home indicator: his places already clear it', a.g.moved.join('; ') + a.problems.join('; '));
+	// (by what is drawn and pressed: the diamonds by their round cornered shapes, the readouts and the symbols' press boxes by their boxes)
+	const lowA = Math.max(...['play', 'auto', 'turbo'].flatMap((id) => L.pressShape(id, a.g.box[id]).map((q) => q[1])), ...[a.g.box.bal, a.g.box.win, a.seat.amt, a.seat.down, a.seat.up].map((q) => q.y + q.h));
+	line(a.problems.length === 0 && lowA <= 844 - 34 + 1, '390x844 with a 34 px home indicator: the bottom pieces stand above it, nothing wrong', `${a.g.moved.join('; ') || 'nothing moved'} | ${a.problems.join('; ') || 'clear'} | lowest edge ${r1(lowA)} of 844`);
 	const lows = [...L.PIECES.map((id) => b.g.box[id]), b.seat.down, b.seat.up].map((q) => q.y + q.h);
 	line(b.problems.length === 0, '844x390 with 44 px notch sides and a 21 px home indicator', `${b.g.moved.join('; ') || 'nothing moved'} | ${b.problems.join('; ') || 'clear'} | lowest edge ${r1(Math.max(...lows))} of 390`);
 }

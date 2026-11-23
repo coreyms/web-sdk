@@ -94,6 +94,12 @@ const WINDOWS = [
 	[440, 742, 'under', 'portrait'],
 	[413, 586, 'under', 'portrait'],
 	[832, 376, 'beside', 'wide'],
+	// the rest of Corey's round 3 phone windows (2026-11-23, signLayout.ts PHONE_R3 and LAND_R3): the small iPhone
+	// upright and sideways, the phablet upright and sideways (890 x 552: the desktop bar family, Menu at the left edge)
+	[375, 530, 'under', 'portrait'],
+	[626, 816, 'under', 'portrait'],
+	[667, 311, 'beside', 'wide'],
+	[890, 552, 'over', 'wide'],
 	// the small sideways phones, the other working sizes, a tablet, full screens
 	[568, 320, 'beside', 'wide'],
 	[667, 375, 'beside', 'wide'],

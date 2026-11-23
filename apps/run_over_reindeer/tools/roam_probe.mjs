@@ -13,6 +13,8 @@
 // WATCHES: ; __reindeer.crosshairStrike, __reindeer.hurry, roam().windup, roam().box, snapshot().charge, lockSnort, snortAt
 // WATCHES: ; charge.round1, charge.look, REINDEER_ROAM.fx.grounds, __reindeer.sceneWant, __reindeer.sceneSwap
 // WATCHES: apps/run_over_reindeer/src/ui/sign/{signLayout.ts,SignHud.svelte}; PHONE_REFS, PHONE_PLACES, HUD_BAR, __reindeer.hud.bar, roam zone hud
+// WATCHES: apps/run_over_reindeer/src/game/{roamGround.ts,scene/forestPlace.ts}; roamGround, ROAM_ROAD, ROAM_TREE_PAD, sceneFit, PHONE_R3, LAND_R3
+// WATCHES: ; __reindeer.roamGround, __reindeer.sign.scene, __reindeer.sign.inputs, boardDy, treeDy
 // THE ROAM PROBE (the roaming reindeer, 2026-11-17; game/road/roam.ts, constants STRIKE.roam and ROAM, game/roamPaths.ts).
 // Since round 3 (Corey: "an allowed to walk area where it randomly chooses where to go") he roams an AREA. Per size
 // (1440x900 desktop, 844x390 phone held sideways, 390x844 upright phone; 1920x1080 desktop for the area checks only):
@@ -61,6 +63,17 @@
 //      inside his keep-out reach. ONLY=timing TIMING=<file> [SPOTS=<file>] writes the strike timing rows of any build.
 //      ROUND 2 of the effects (contrastSize below): on all six grounds at 1440x900, 390x844 and 360x560, the puff and a
 //      speck measured on screenshots against the ground around them, 3 to 1 at least (ONLY=contrast alone, CROPS, BEFORE).
+//   HIS GROUND AT COREY'S ROUND 3 PHONE WINDOWS (2026-11-23, section `ground`; Corey: "remap the reindeers walking
+//      area so it's below the tree lines, and above the board area for phones, where the baord and treeline where
+//      moved"; game/roamGround.ts): at each of the seven windows the scene as drawn agrees with the layout's own rule
+//      to 1 CSS px (the tree line he stands under, the asphalt's top, the logo's keep-out against the sign bar's own
+//      copy of it), his move of the board and of the tree line is printed, every seeded pick and walk in has its feet
+//      under the tree line and above the asphalt and his body off every key, the logo, the LED strip and the board,
+//      and A WALK IN IS FOUND at 440x742, 413x586 and 832x376 (the three sizes measured on Corey's phone); at the
+//      other four the count is printed. The node model (the builder's, 2026-11-23) found a level way in at 440x742
+//      and 832x376 and NONE at 413x586, 375x530 and 626x816: there the Fast Lane key's column closes his side from
+//      above the tree line down to within his own height of the snow rim (he would walk in under the key). That is
+//      a question for Corey, not a probe fault: the line stays as asked until he rules.
 //   a hidden tab: nothing moves; no page errors anywhere
 //
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3015 [ONLY=desktop|sideways|upright]
@@ -102,6 +115,21 @@ const SWEEP = ['2000x945', '1920x1080', '1440x900', '1280x720', '1366x768', '256
 	return { name: `sweep:${wh}`, vp: { width, height }, dpr: 1, q: phone ? '&tier=phone' : '', touch: phone, sweep: true };
 });
 const PRESETS = ['snowDay', 'snowNight', 'snowSuper', 'grassDay', 'grassNight', 'grassSuper'];
+// HIS GROUND AT COREY'S ROUND 3 PHONE WINDOWS (ONLY=ground, ground:<size>): `walkIn`: a walk in must be found there (the
+// three sizes measured on his phone); `tier`: a phone by the game's device tier (the phablet is not: its short side is
+// over 500 CSS px)
+const GROUND_SIZES = [
+	['440x742', true, true],
+	['413x586', true, true],
+	['375x530', false, true],
+	['626x816', false, false],
+	['832x376', true, true],
+	['667x311', false, true],
+	['890x552', false, false],
+].map(([wh, walkIn, tier]) => {
+	const [width, height] = wh.split('x').map(Number);
+	return { name: `ground:${wh}`, vp: { width, height }, dpr: 1, q: tier ? '&tier=phone' : '', touch: true, walkIn };
+});
 
 let pass = 0;
 let fail = 0;
@@ -2082,6 +2110,64 @@ async function contrastSize(browser, S) {
 	await ctx.close();
 }
 
+async function groundSize(browser, S) {
+	const name = `${S.name}`;
+	const { ctx, p, errs, ready } = await boot(browser, S);
+	check(ready, `${name}: the game and the roaming reindeer's frames are ready`);
+	if (!ready) {
+		await ctx.close();
+		return;
+	}
+	const d = await p.evaluate(() => {
+		const h = window.__reindeer;
+		return { G: h.roamGround(), view: h.roamView(), roam: h.roam(), zones: h.roamZones(), scene: h.sign?.scene?.() ?? null, signZones: h.sign?.inputs?.().zones ?? null, board: h.boardLayout().css, vp: { width: innerWidth, height: innerHeight } };
+	});
+	const out = { name: S.name };
+	report.sizes[S.name] = out;
+	const v = d.view;
+	const css = (y) => v.oy + y * v.k;
+	// the tree line as drawn: the lowest of the forest's columns the window shows (roam().trees: road px, with the 6 road px pad)
+	let live = null;
+	if (d.roam.trees) {
+		const T = d.roam.trees;
+		let low = -Infinity;
+		for (let i = 0; i < T.y.length; i++) if (T.x[i + 1] > v.rect.left && T.x[i] < v.rect.right) low = Math.max(low, T.y[i]);
+		live = { feet: css(low), line: css(low - 6) };
+	}
+	const road = d.zones.find((z) => z.name === 'road');
+	const logo = d.zones.find((z) => z.name === 'logo');
+	out.ground = { kind: v.kind, rule: { treeY: d.G?.treeY ?? null, top: d.G?.top, bottom: d.G?.bottom, roadY: d.G?.roadY }, live, road: road ? road.y0 : null, his: d.scene ? { boardDy: d.scene.boardDy, treeDy: d.scene.treeDy, share: d.scene.share, tree: d.scene.tree } : null, columns: d.board.y };
+	console.log(`  INFO ${name}: ${JSON.stringify(out.ground, (k, x) => (typeof x === 'number' ? r1(x) : x))}`);
+	check(!!d.G && (d.G.treeY === null) === (live === null) && (live === null || Math.abs(live.line - d.G.treeY) <= 1) && !!road && Math.abs(road.y0 - d.G.roadY) <= 1, `${name}: the scene as drawn is the layout's own rule to 1 px: ${live ? `the tree line at ${r1(live.line)} (rule ${r1(d.G?.treeY)})` : 'no tree line (the rule: none)'}, the asphalt's top at ${road ? r1(road.y0) : '?'} (rule ${r1(d.G?.roadY)})`, out.ground);
+	if (live) check(live.feet < d.G.bottom && d.G.bottom < d.G.roadY && d.G.roadY <= d.board.y + 1, `${name}: his ground is a strip under the tree line and above the board: feet from ${r1(live.feet)} to ${r1(d.G.bottom)} (${r1(d.G.bottom - live.feet)} px), the asphalt at ${r1(d.G.roadY)}, the columns at ${r1(d.board.y)}`, out.ground);
+	else check(d.G.bottom <= d.G.roadY && d.G.roadY <= d.board.y + 1, `${name}: no tree line here: his ground runs from the window's top edge (his whole body on the screen, under the top line) down the snow rim to the asphalt at ${r1(d.G.roadY)}, above the columns at ${r1(d.board.y)}`, out.ground);
+	if (logo && d.signZones?.logo) {
+		const L = d.signZones.logo;
+		check(Math.abs(logo.x0 - L.x) <= 1.5 && Math.abs(logo.y0 - L.y) <= 1.5 && Math.abs(logo.x1 - L.x - L.w) <= 1.5 && Math.abs(logo.y1 - L.y - L.h) <= 1.5, `${name}: the logo's keep-out is the sign where it is drawn (his own box here), the same box the sign bar keeps off`, { roam: [logo.x0, logo.y0, logo.x1, logo.y1].map(r1), bar: [L.x, L.y, L.x + L.w, L.y + L.h].map(r1) });
+	}
+	// the seeded picks and walk ins: feet under the trees and off the road, his body off every keep-out
+	const geo = { view: d.view, roam: d.roam, vp: d.vp };
+	const picks = await p.evaluate(() => window.__reindeer.roamPicks(120, 40, 2323));
+	const bad = [];
+	let found = 0;
+	let ins = 0;
+	for (const q of picks) {
+		if (q.pass < 0) continue;
+		if (q.walkIn) ins++;
+		else found++;
+		if (onTrees(d.roam.trees, q.x, q.y)) bad.push(`${q.walkIn ? 'walk in' : 'pick'} (${r1(q.x)}, ${r1(q.y)}) on the trees`);
+		const h0 = hitsAt(geo, d.zones, q.x, q.y);
+		if (h0.length) bad.push(`${q.walkIn ? 'walk in' : 'pick'} (${r1(q.x)}, ${r1(q.y)}) covers ${h0.join(', ')}`);
+		if (css(q.y) > d.G.roadY + 0.5 && q.x > 0 && q.x < 1536 && v.kind === 'portrait') bad.push(`${q.walkIn ? 'walk in' : 'pick'} (${r1(q.x)}, ${r1(q.y)}) on or under the asphalt's top`);
+	}
+	out.ground.picks = { found, of: 120, walkIns: ins, ofWalkIns: 40, capacity: d.roam.capacity };
+	check(bad.length === 0, `${name}: ${found} of 120 seeded picks and ${ins} of 40 walk ins: every one's feet under the tree line and above the asphalt, his body off every key, the logo, the LED strip and the top line (the area holds ${d.roam.capacity} spots 12 % of the width apart)`, bad.slice(0, 6));
+	if (S.walkIn) check(ins > 0, `${name}: he can walk in here (${ins} of 40 seeded walk ins found a spot with a clear way in from past the edge)`, out.ground);
+	else console.log(`  INFO ${name}: walk ins found ${ins} of 40 (listed: not asked at this size)`);
+	check(errs.length === 0, `${name}: no page errors`, errs.slice(0, 5));
+	await ctx.close();
+}
+
 const ROAM_BACK_WAIT = 7000;
 
 const main = async () => {
@@ -2092,6 +2178,7 @@ const main = async () => {
 			if (!pick) continue;
 			await runSize(browser, S);
 		}
+		for (const S of GROUND_SIZES) if (!ONLY.length || ONLY.includes('ground') || ONLY.includes(S.name)) await groundSize(browser, S);
 		for (const S of SIZES.filter((s) => WHEEL_SIZES.includes(s.name))) {
 			if (ONLY.length && !ONLY.includes('wheel') && !ONLY.includes(`wheel:${S.name}`)) continue;
 			await wheelSize(browser, S);
