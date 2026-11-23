@@ -148,6 +148,8 @@
 				playScale: L.playScale,
 				coverPx: L.coverPx,
 				how: L.how,
+				/** the clear px from the foot of Win's number down to Balance's box */
+				winToBal: L.winToBal,
 				/** every piece's drawn box and its press box (the arrows': 44 px round the drawn arrow), CSS px */
 				box: copy(L.box),
 				press: copy(L.press),

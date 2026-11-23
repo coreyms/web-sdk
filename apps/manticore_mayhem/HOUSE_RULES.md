@@ -73,6 +73,10 @@ loop, every move book driven).
   `layoutSpec` `frameFor` / `portraitSceneNow` (the source is registered by `ui/gear/uprightSceneSource.ts`); the dock
   (`?bar=dock`, a tablet, a phone under 360 wide) draws the shipped scene. The train does not mesh with the frame's
   wheels on an upright phone: it stands free under the plaque, with the board's own tooth.
+  Readout boxes stand 4 px inside the sides and 6 px over the bottom edge (`UPRIGHT.readEdge`); a long label (FREE
+  SPINS WIN, BASE AMOUNT) is tracked as tight as its row needs (`UPRIGHT.label`, `--lab-track`). THE ARMOURY on a
+  short upright window is drawn smaller as a whole so its plate ends above the bar's lit amount row
+  (`ui/armoury/menuFrame.ts` `fitPortrait`, floor `ARMOURY.layout.portrait.fitMin`).
 - THE SIDEWAYS PHONE'S GEAR CHAIN (2026-11-22, `ui/gear/GearBarSideways.svelte`): a chain from the board frame's own
   top right wheel: Auto on the wheel, Turbo on Auto, the Play on Turbo at the right; Menu and the Armoury as standards
   under the logo; Win over Balance bottom left; the amount with `<` `>` bottom right. `gearLayout.ts` `SIDEWAYS` is
@@ -82,7 +86,9 @@ loop, every move book driven).
   this bar the studio name of the top line is drawn under the clock line at the left (`ui/ChromePhone.svelte`): the
   Play gear stands where it was. Under 640 x 320, and where no chain fits, the dock stays. On a touch phone the bottom
   row is drawn 20 px up (`SIDEWAYS.homeStrip`: the phone's home indicator line lies over the frame's bottom edge and
-  the safe area reads 0 inside an iframe). Every text of the bar is at least 9 px (`TEXT_FLOOR`). Stake's Popout L (800 x 450)
+  the safe area reads 0 inside an iframe), the amount and its arrows always in one row there. The chain reads Auto,
+  Turbo, Play from the left on every frame; Turbo stands under Auto except where the chain must fold (667 wide).
+  Every text of the bar is at least 9 px (`TEXT_FLOOR`). Stake's Popout L (800 x 450)
   has a short side under 480, so the game lays it out as a sideways phone and it draws the chain; Popout S (400 x 225)
   keeps the dock.
 - GEAR BAR CLASS NAMES: `ui/hud/hud.css` is global under `.hudp`. A gear element never carries a dock class it does not

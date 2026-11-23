@@ -25,7 +25,7 @@ export type ArmouryLayout = 'desktop' | 'portrait' | 'tablet' | 'sideways';
 
 export type FrameRules = {
 	desktop: { w: number; h: number; master: number; scaledUnderRatio: number };
-	portrait: { w: number; gapToHud: number; underClock: number; nameBandMin: number; minHitCss: number; nameGap: number };
+	portrait: { w: number; gapToHud: number; underClock: number; nameBandMin: number; minHitCss: number; nameGap: number; fitMin: number };
 	tablet: { w: number; minFrame: number; maxContent: number; nameTop: number; contentTop: number };
 	sideways: { w: number; h: number; minLeft: number; hudGap: number; nameAbove: number };
 };
@@ -101,6 +101,35 @@ export const menuFrame = (inp: FrameInput, rules: FrameRules): MenuFrame => {
 	if (layout === 'sideways') return { ...whole(Math.min(vh / rules.sideways.h, vw / rules.sideways.w)), layout };
 	if (layout === 'tablet') return whole(inp.scale * Math.min(1, inp.fitWidth / rules.tablet.w), 'tablet');
 	return whole(vw / rules.portrait.w, 'portrait');
+};
+
+/** THE UPRIGHT PHONE'S MENU ON A SHORT WINDOW (2026-11-23). The portrait layout is one column between the clock line
+ *  and the HUD's top; its tray and plate have their own heights (`need`, design px, as measured: the hero has already
+ *  given). The gear bar's band is taller than the dock's row, so on a phone browser's real frames (413 x 586, 375 x
+ *  504) the room is under what they need and the plate ran on over the bar's lit amount row. Then the whole menu is
+ *  drawn smaller: the same column (its own width) centred in a wider frame, at the largest scale that ends the plate
+ *  above the HUD's top, never under rules.portrait.fitMin of the frame's own. A window with the room keeps the frame
+ *  exactly. Pure (ui/armoury/Armoury.svelte measures `need` and the anchors; tools/gear_layout_test.mjs sweeps it). */
+export const fitPortrait = (f: MenuFrame, a: Anchors, need: number, rules: FrameRules): MenuFrame => {
+	if (f.layout !== 'portrait' || !(need > 0) || a.hudTop == null) return f;
+	const room = (g: MenuFrame) => {
+		const d = designAnchors(g, a, rules);
+		return d.contentBottom - d.contentTop;
+	};
+	if (room(f) >= need) return f;
+	const at = (k: number): MenuFrame => {
+		const width = f.width / k;
+		return { ...f, u: f.u * k, width, height: f.height / k, contentWidth: f.contentWidth, contentLeft: (width - f.contentWidth) / 2 };
+	};
+	let lo = rules.portrait.fitMin;
+	let hi = 1;
+	if (room(at(lo)) < need) return at(lo);
+	for (let i = 0; i < 30; i++) {
+		const mid = (lo + hi) / 2;
+		if (room(at(mid)) >= need) lo = mid;
+		else hi = mid;
+	}
+	return at(lo);
 };
 
 /** what the game measures when the menu opens and on every resize (never per frame), CSS px in the viewport */

@@ -458,7 +458,8 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 		check('sideways 874 x 402: his Play gear stands on the top right studio name (so that line is drawn at the left instead)', toBox(H.gears.play, strip) < -5, `${f1(-toBox(H.gears.play, strip))} px in`);
 	}
 	// the sizes: his proportion wherever his own cover of the tail allows, no jump between near phones
-	const WANT = { '874x402': [106.7, 1], '852x393': [104.4, 1], '844x390': [103.6, 1], '812x425': [107.8, 1], '667x375': [86.4, 0.98] };
+	const WANT = { '874x402': [106.7, 1], '852x393': [104.4, 1], '844x390': [103.6, 1], '812x425': [100.1, 0.94], '667x375': [86.4, 0.98] };
+	// (2026-11-23, 812 x 425: 107.8 until Turbo was kept under Auto wherever that costs the Play 0.06 of its size or less)
 	for (const [key, [across, scale]] of Object.entries(WANT)) {
 		const [vw, vh] = key.split('x').map(Number);
 		const G = side(vw, vh);
@@ -613,6 +614,8 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	];
 	const LS = await import('../src/game/layoutSpec.ts');
 	const US = await import('../src/ui/gear/uprightScene.ts');
+	const MF = await import('../src/ui/armoury/menuFrame.ts');
+	const ARM = (await import('../src/game/constants.ts')).ARMOURY.layout;
 	const toBox = (c, b) => {
 		const nx = Math.max(b.x, Math.min(c.cx, b.x + b.w));
 		const ny = Math.max(b.y, Math.min(c.cy, b.y + b.h));
@@ -620,6 +623,9 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	};
 	const meet = (a, b) => a.x < b.x + b.w - 0.01 && b.x < a.x + a.w - 0.01 && a.y < b.y + b.h - 0.01 && b.y < a.y + a.h - 0.01;
 	const pad = (v, n) => String(v).padEnd(n);
+	const armFit = [];
+	const armMin = [];
+	const folded = [];
 	const table = [];
 	const dock = [];
 	const bad = [];
@@ -638,7 +644,9 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 				dock.push([key, why]);
 				table.push(`${pad(key, 9)} ${pad(mark, 5)} dock  ${pad(barWas === 'gear' ? `gear ${playWas}` : `dock ${playWas}`, 11)}  ${why}`);
 				// the brief's floor: every phone frame from 360 wide draws the train
-				if (isPhone && vw >= L.UPRIGHT_MIN_VW) fail(`a phone frame from ${L.UPRIGHT_MIN_VW} wide keeps the dock (${why})`);
+				// the brief's floor: every phone frame from 360 wide and 480 tall draws the train (375 x 442 and 375 x 466, an
+				// iPhone SE under both staging bars: a 97 to 103 px band has no row for Win beside the train with its long label)
+				if (isPhone && vw >= L.UPRIGHT_MIN_VW && vh >= 480) fail(`a phone frame from ${L.UPRIGHT_MIN_VW} wide keeps the dock (${why})`);
 				continue;
 			}
 			gearN += 1;
@@ -667,6 +675,42 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 			if (!(G.where.win !== 'under the logo' && G.where.bal !== 'under the logo')) fail('a readout under the logo');
 			// the text floor: 9 px words; each number's fit holds its longest US amount at 9 px or more; SPIN and the hub's count
 			if (G.text.label < L.TEXT_FLOOR || G.fitW.win < 6.83 * L.TEXT_FLOOR - 0.5 || G.fitW.bal < 6.83 * L.TEXT_FLOOR - 0.5 || G.fitW.amt < 4.77 * L.TEXT_FLOOR || G.text.spin < L.TEXT_FLOOR || G.text.count < L.TEXT_FLOOR || G.text.sub < L.TEXT_FLOOR) fail(`text under ${L.TEXT_FLOOR} px (${JSON.stringify(G.fitW)}, SPIN ${f1(G.text.spin)})`);
+			// (1) every readout's box inside the frame by UPRIGHT.readEdge: its number's ink 4 px clear of the bottom edge
+			for (const id of ['win', 'bal', 'amt']) {
+				const b = G.box[id];
+				if (b.y + b.h > vh - L.UPRIGHT.readEdge.bottom + 0.01 || b.x < L.UPRIGHT.readEdge.side - 0.01 || b.x + b.w > vw - L.UPRIGHT.readEdge.side + 0.01) fail(`${id}'s box ${f1(vh - b.y - b.h)} px from the bottom edge, ${f1(Math.min(b.x, vw - b.x - b.w))} from a side`);
+			}
+			// (3) the longest labels (FREE SPINS WIN in a feature, BASE AMOUNT in a replay), as tracked here: under no gear,
+			// inside the frame, on no arrow's press box and not on the other readout
+			for (const id of ['win', 'bal']) {
+				const lb = G.label[id];
+				if (lb.track < L.UPRIGHT.label.trackMin - 1e-9 || lb.track > L.UPRIGHT.label.track + 1e-9) fail(`${id}'s long label tracked ${lb.track.toFixed(3)} em`);
+				if (lb.box.x < 2 || lb.box.x + lb.box.w > vw - 2) fail(`${id}'s long label outside the frame`);
+				for (const k of GEARS) if (toBox(g[k], lb.box) < 0.49) fail(`${id}'s long label under ${k} (${f1(toBox(g[k], lb.box))} px)`);
+				for (const o of ['down', 'up']) if (meet(lb.box, G.press[o])) fail(`${id}'s long label on ${o}'s press box`);
+				if (meet(lb.box, G.box[id === 'win' ? 'bal' : 'win'])) fail(`${id}'s long label on the other readout`);
+			}
+			// (2) THE ARMOURY open: whatever its tray and plate need between 380 and 470 design px (the room at 440 x 742,
+			// where it fits, is 458), the menu ends above the bar's top (ui/armoury/menuFrame.ts fitPortrait), every lit
+			// piece (the amount, its two arrows, Balance) is at or under that top, and the menu is never under fitMin
+			{
+				const anchors = { hudTop: G.hudTop, clockTop: S.top0 + 10 * S.fit, clockBottom: S.top0 + 25 * S.fit, safe: { top: 0, right: 0, bottom: 0, left: 0 } };
+				const F0 = MF.menuFrame({ kind: 'portrait', phone: true, vw, vh, scale: S.fit, master: { width: 412, height: 760 }, fitWidth: Math.max(412, vw / S.fit) }, ARM);
+				let k460 = 1;
+				for (const need of [380, 420, 460, 470]) {
+					const F = MF.fitPortrait(F0, anchors, need, ARM);
+					const d = MF.designAnchors(F, anchors, ARM);
+					const k = F.u / F0.u;
+					if (need === 460) k460 = k;
+					if (k > ARM.portrait.fitMin + 1e-6 && d.contentBottom - d.contentTop < need - 0.5) fail(`the Armoury's ${need} px of tray and plate do not fit over the bar (room ${f1(d.contentBottom - d.contentTop)} at ${k.toFixed(2)})`);
+					if (d.contentBottom * F.u > G.hudTop - ARM.portrait.gapToHud * F.u + 0.01) fail('the Armoury ends under the bar\'s top');
+					if (Math.abs(F.contentLeft * 2 + F.contentWidth - F.width) > 0.01 || Math.abs(F.contentWidth - F0.contentWidth) > 0.01) fail('the Armoury\'s column is not centered at its own width');
+				}
+				for (const id of ['amt', 'bal']) if (G.box[id].y < G.hudTop - 0.01) fail(`the lit ${id} is over the bar's top`);
+				for (const id of ['down', 'up']) if (G.press[id].y < G.hudTop - 0.01) fail(`the lit ${id} is over the bar's top`);
+				armFit.push(`${key} ${k460.toFixed(2)}`);
+				if (k460 <= ARM.portrait.fitMin + 1e-6) armMin.push(key);
+			}
 			// the scene: the board's plaque over the band, the logo over the frame art, the tail barely past the top edge
 			if (S.creature.tailOver > US.UPRIGHT_SCENE.tailOver + 0.01) fail(`the idle tail tip ${f1(S.creature.tailOver)} px past the top edge`);
 			if (S.logo.bottom > S.artTop - US.UPRIGHT_SCENE.logoGap + 0.01 && S.lift > 0.5) fail('the logo on the frame art');
@@ -693,6 +737,15 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 			if (Math.hypot(g.play.cx - g.auto.cx, g.play.cy - g.auto.cy) < g.play.R + g.auto.R + 0.99) fail('the Play crosses Auto');
 			for (const id of ['auto', 'turbo', 'play']) for (const r of ['down', 'up', 'amt', 'win', 'bal', 'menu', 'arm']) if (toBox(g[id], G.press[r]) < 0.99) fail(`${r} on ${id}`);
 			for (const [a, b] of [['menu', 'arm'], ['win', 'bal'], ['win', 'menu'], ['win', 'arm'], ['bal', 'menu'], ['down', 'win'], ['down', 'bal'], ['amt', 'win'], ['amt', 'bal']]) if (meet(G.press[a], G.press[b])) fail(`${a} on ${b}`);
+			// (4) the amount and its arrows in one row on the home indicator strip's edge: over his feet, never his body
+			if (G.how !== 'row' || Math.min(G.box.amt.y, G.press.down.y, G.press.up.y) < vh - strip - L.MIN_PRESS - 0.01) fail(`the amount ${G.how}, reaching ${f1(vh - Math.min(G.box.amt.y, G.press.down.y, G.press.up.y))} px up from the bottom edge`);
+			// (5) Win's number keeps SIDEWAYS.readGap to Balance's box, and both hold a seven-figure amount (6.83 em) and a
+			// long coin amount (0.00012345 BTC, 8.2 em) at the text floor or more
+			if (G.winToBal < L.SIDEWAYS.readGap - 0.01) fail(`Win's number ${f1(G.winToBal)} px over Balance's box`);
+			if (Math.min(G.fitW.win, G.fitW.bal) < 8.2 * L.TEXT_FLOOR) fail(`a long amount would be under ${L.TEXT_FLOOR} px (${f1(Math.min(G.fitW.win, G.fitW.bal))} px of room)`);
+			// (6) Auto left of Turbo left of the Play on every frame; Turbo under Auto wherever the chain is not folded
+			if (!(g.auto.cx <= g.turbo.cx + 0.5 && g.turbo.cx < g.play.cx)) fail('the chain is not Auto, Turbo, Play from the left');
+			if (g.turbo.cy < g.auto.cy - 0.5) folded.push(`${key} (Play ${f1(2 * g.play.R)})`);
 			// the text floor: 9 px words on the gears, the readouts and the hub; numbers their own sizes, the longest amounts fitting at 9 px or more
 			if (G.text.word < L.TEXT_FLOOR || G.text.label < L.TEXT_FLOOR || G.text.sub < L.TEXT_FLOOR || G.text.spin < L.TEXT_FLOOR || G.text.bal < L.TEXT_FLOOR || G.text.win < L.TEXT_FLOOR || G.fitW.bal < 6.83 * L.TEXT_FLOOR - 0.5 || G.fitW.win < 6.83 * L.TEXT_FLOOR - 0.5 || G.fitW.amt < 4.77 * L.TEXT_FLOOR) fail(`text under ${L.TEXT_FLOOR} px (${JSON.stringify(G.text)}, ${JSON.stringify(G.fitW)})`);
 			table.push(`${pad(key, 9)} ${pad(mark, 5)} chain ${pad(barWas === 'gear' ? `gear ${playWas}` : barWas ? `dock ${playWas}` : 'not taken', 11)} Play ${pad(f1(2 * g.play.R), 6)} small ${pad(f1(2 * g.auto.R), 5)} (was ${pad(smallWas, 5)}) the amount ${G.how}; standards ${f1(G.box.menu.w)} px (their word ${f1(Math.max(9, (G.box.menu.w / 113.6) * 12.58))} px); the bottom row ${strip} px up; Play ${f1(G.coverPx)} px over the tail`);
@@ -707,8 +760,11 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	LS.setPortraitViewportSource(() => ({ masterHeight: 760, cssPerMaster: 1, phone: true }));
 	console.log('     THE SURVEY, frame by frame (CSS px; "was" = web-sdk d5cb3dad, measured in the survey):');
 	for (const row of table) console.log(`       ${row}`);
+	console.log(`     THE ARMOURY on each upright frame, were its tray and plate 460 design px: the menu's scale against the chrome's: ${armFit.join(', ')}`);
+	check(`survey: the open Armoury ends above the bar's lit amount row on every upright frame (drawn smaller where the room is short, never under ${ARM.portrait.fitMin})`, armMin.length === 0, armMin.length ? `at the floor (a 460 px menu would still run on): ${armMin.join(', ')}` : '');
+	check('survey: sideways, Turbo stands under Auto except where the chain must fold (667 and 678 wide: the room right of the board is 131 to 134 px, and an ordered chain leaves a 52 to 60 px Play)', folded.every((s) => /^(667|678)x/.test(s)), folded.join(', '));
 	check(`survey: ${FRAMES.length} frames, ${gearN} draw the gear bar; in every one the pieces are in the frame, press boxes are 44 px, < and > are clear of the Play and of every gear, the readouts are in the bottom section, texts hold ${L.TEXT_FLOOR} px, and sideways nothing is in the bottom ${L.SIDEWAYS.homeStrip} px`, bad.length === 0, bad.slice(0, 6).join('; '));
-	check(`survey: the dock stays only on frames under ${L.UPRIGHT_MIN_VW} wide upright, under ${L.SIDEWAYS_MIN.vh} tall sideways, the mini player and unfolded folding screens (${dock.length} frames)`, dock.every(([key]) => { const [w, h] = key.split('x').map(Number); return w < L.UPRIGHT_MIN_VW || (w > h && h < L.SIDEWAYS_MIN.vh) || Math.min(w, h) > 480 || (w > h && w < L.SIDEWAYS_MIN.vw); }), dock.map(([k, w]) => `${k}: ${w}`).join(' | '));
+	check(`survey: the dock stays only on frames under ${L.UPRIGHT_MIN_VW} wide or 480 tall upright, under ${L.SIDEWAYS_MIN.vh} tall sideways, the mini player and unfolded folding screens (${dock.length} frames)`, dock.every(([key]) => { const [w, h] = key.split('x').map(Number); return w < L.UPRIGHT_MIN_VW || (w > h && h < L.SIDEWAYS_MIN.vh) || Math.min(w, h) > 480 || (w > h && w < L.SIDEWAYS_MIN.vw) || (w < h && h < 480); }), dock.map(([k, w]) => `${k}: ${w}`).join(' | '));
 	// the named frames of the brief
 	for (const [vw, vh] of [[413, 586], [440, 742], [402, 661], [375, 504], [375, 554], [375, 627]]) {
 		const scale = Math.min(vw / 412, vh / 760);

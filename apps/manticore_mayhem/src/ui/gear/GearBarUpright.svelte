@@ -159,6 +159,7 @@
 				gears: { ...copy(L.gears), hubR: L.hubR },
 				tooth: { ...L.tooth },
 				where: { ...L.where },
+				label: { win: { track: L.label.win.track, box: { ...L.label.win.box } }, bal: { track: L.label.bal.track, box: { ...L.label.bal.box } } },
 				fitW: { ...L.fitW },
 				gapSpin: L.gapSpin,
 				text: { ...L.text },
@@ -175,8 +176,9 @@
 <div bind:this={host} class="hudp hud-group v-gear v-up" class:menu-open={stateUi.menuOpen} data-plane="base" data-bar="gear" style={plane}>
 	<!-- THE ARMOURY reads the bar's top here (ui/armoury/Armoury.svelte measure): the band under the plaque -->
 	<i class="gband" data-hud-band style:top="{L.hudTop}px"></i>
-	<div class="gsc keep" data-piece="win" style={at('win')}>
-		<HudReadout label="WIN" pre={hs.winPre()} value={controls.winText()} odo={controls.winOdoText()} x={0} y={0} w={B.win.w} h={B.win.h} nominal={L.text.number} pad={B.win.w - L.fitW.win} cls="pt win {lit ? 'is-lit' : ''} {hs.winBig() ? 'is-big' : ''}" hud="win" keep />
+	<!-- (FREE SPINS WIN, the long label of a feature: tracked as tight as its row needs, ui/gear/gearLayout.ts label) -->
+	<div class="gsc keep" data-piece="win" style="{at('win')};--lab-track:{L.label.win.track.toFixed(3)}em">
+		<HudReadout label="WIN" pre={hs.winPre()} value={controls.winText()} odo={controls.winOdoText()} x={0} y={0} w={B.win.w} h={B.win.h} nominal={L.text.number} pad={B.win.w - L.fitW.win} cls="pt win {hs.winPre() ? 'lab-long' : ''} {lit ? 'is-lit' : ''} {hs.winBig() ? 'is-big' : ''}" hud="win" keep />
 	</div>
 	<HudSpin {controls} x={B.play.x} y={B.play.y} d={B.play.w} hubD={2 * L.hubR} ringArt={ARROW} onwin={win}>
 		{#snippet art()}
@@ -207,7 +209,7 @@
 	{#if !replay}
 		<div class="gsc" data-piece="bal" style={at('bal')}><HudReadout label="BALANCE" value={controls.balanceText()} x={0} y={0} w={B.bal.w} h={B.bal.h} nominal={L.text.number} pad={B.bal.w - L.fitW.bal} cls="pt bal" hud="balance" lit /></div>
 	{:else if rh && !rh.isBase}
-		<div class="gsc" data-piece="bal" style={at('bal')}><HudReadout label="BASE AMOUNT" value={rh.base} x={0} y={0} w={B.bal.w} h={B.bal.h} nominal={L.text.number} pad={B.bal.w - L.fitW.bal} cls="pt bal" hud="balance" lit /></div>
+		<div class="gsc" data-piece="bal" style="{at('bal')};--lab-track:{L.label.bal.track.toFixed(3)}em"><HudReadout label="BASE AMOUNT" value={rh.base} x={0} y={0} w={B.bal.w} h={B.bal.h} nominal={L.text.number} pad={B.bal.w - L.fitW.bal} cls="pt bal lab-long" hud="balance" lit /></div>
 	{/if}
 	{#if !replay || rh}
 		<div class="gsc" data-piece="amt" style={at('amt')}>

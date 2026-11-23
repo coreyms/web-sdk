@@ -46,7 +46,7 @@
 	import { numberToCurrencyString } from '../../game/amount';
 
 	import type { Controls } from '../controls.svelte';
-	import { designAnchors, type Anchors, type MenuFrame } from './menuFrame';
+	import { designAnchors, fitPortrait, type Anchors, type MenuFrame } from './menuFrame';
 	import { armouryView } from './armouryView.svelte';
 	import HeroView from './HeroView.svelte';
 	import { fitConfirmAmount, fitPrice } from './fit';
@@ -65,7 +65,12 @@
 	import { armouryDecoded, whenArmouryCore, heroGridReady, heroGridsInfo, loadArmouryCore, onHeroGrids, pauseHeroGrids, selectHeroGrid, startHeroGrids } from '../../game/armouryLoad';
 
 	type Props = { controls: Controls; frame: MenuFrame };
-	const { controls, frame }: Props = $props();
+	const { controls, frame: chromeFrame }: Props = $props();
+	// THE FRAME THE MENU IS DRAWN IN: the chrome's (ui/Chrome.svelte, menuFrame), or, on an upright phone too short for
+	// the tray and the plate between the clock line and the HUD's top, that frame drawn smaller (menuFrame.ts
+	// fitPortrait, set by the effect under the measured anchors below). null: the chrome's own.
+	let fitted = $state<MenuFrame | null>(null);
+	const frame = $derived(fitted ?? chromeFrame);
 
 	const M = ARMOURY.motion;
 	const SW = ARMOURY.swipe;
@@ -964,6 +969,22 @@
 		anchors = a;
 	};
 	const da = $derived(designAnchors(frame, anchors, LAY));
+	// THE SHORT UPRIGHT PHONE (2026-11-23; menuFrame.ts fitPortrait): the gear bar's band stands higher than the dock's
+	// row, so on a phone browser's real frames the tray and the plate are taller than the room over the HUD's top, and
+	// the plate ran on over the bar's lit amount row (413 x 586: it read as covered, not lit and live). The menu is then
+	// drawn smaller as a whole, so the plate ends above the lit row and + and - stay live. From the tray's and the
+	// plate's own heights in design px (a transform does not change them) and the measured anchors, never from the
+	// fitted frame itself, so it cannot chase its own tail.
+	$effect(() => {
+		const f = chromeFrame;
+		const a = anchors;
+		const need = trayH + panelH + PANEL_MARGIN_TOP;
+		untrack(() => {
+			const g = f.layout === 'portrait' && phase !== 'closed' ? fitPortrait(f, a, need, LAY) : f;
+			const next = g === f ? null : g;
+			if ((next?.u ?? 0) !== (fitted?.u ?? 0)) fitted = next;
+		});
+	});
 
 	// ---- the hero gives (spec 4.4, 4.5): it takes what the tray and the plate leave, and is dropped under its minimum
 	// (portrait and tablet minHero, sideways heroDropUnder). From the tray's and the plate's own heights, so dropping it

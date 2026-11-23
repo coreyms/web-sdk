@@ -677,6 +677,15 @@
 	letter-spacing: 0.2em;
 	margin-right: -0.2em;
 }
+/* A LONG LABEL on an upright phone (FREE SPINS WIN in a feature, BASE AMOUNT in a replay): tracked as tight as its
+   row needs, never under the layout's trackMin (ui/gear/gearLayout.ts UPRIGHT.label; --lab-track on the readout's
+   holder). At 375 x 504 the feature's label was longer than its room and its left end ran under Turbo. */
+.hudp.v-gear.v-up .stat.lab-long .lbw,
+.hudp.v-gear.v-up .stat.win.lab-long .lbw {
+	letter-spacing: var(--lab-track, 0.2em);
+	margin-right: calc(var(--lab-track, 0.2em) * -1);
+	white-space: nowrap;
+}
 /* THE ARROWS' PRESS BOX on a phone: the 44 px square the layout places and keeps clear (ui/gear/gearLayout.ts press),
    an unseen pad under the drawn arrow. (The dock's pad, .hit::after, is a 44 px circle: its corners took no press.) */
 .hudp.v-gear.v-up .sk.bare.hit::after {

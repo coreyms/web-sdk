@@ -102,6 +102,16 @@ export type UprightTable = {
 	 *  the band's scale */
 	shrink: number;
 	shrinkMin: number;
+	/** a readout's box stands this far inside the window: its number's ink (a 1.6 px line under the glyphs) is then 4 px
+	 *  inside the bottom edge (2026-11-23: Balance's number sat on the frame's last row at 413 x 586 and read as cut) */
+	readEdge: { side: number; bottom: number };
+	/** THE LONGEST LABELS (2026-11-23: at 375 x 504, in a feature, "FREE SPINS WIN" was longer than its room and its
+	 *  left end ran under Turbo). Win's "FREE SPINS WIN" while a feature plays (ui/hud/hudState.ts winPre: the same
+	 *  words in every mode and on the social site) and Balance's "BASE AMOUNT" in a replay. `em`: the words' own width in
+	 *  ems of the 9 px word (Outfit 900, the half em between FREE SPINS and WIN included), `n`: its tracked letters.
+	 *  The readouts' words are tracked `track` em; a long label is tracked tighter, down to `trackMin`, to fit the room
+	 *  its row has (`pad` px each side), and a place where it would not fit even then is not taken. */
+	label: { track: number; trackMin: number; pad: number; win: { em: number; n: number }; bal: { em: number; n: number } };
 	chain: Record<Exclude<TrainGear, 'play'>, { parent: TrainGear; deg: number }>;
 	/** the readouts' and the arrows' centers as he placed them */
 	centers: Record<'win' | 'amt' | 'down' | 'up' | 'bal', readonly [number, number]>;
@@ -147,6 +157,8 @@ export const UPRIGHT: UprightTable = {
 	smallShare: 0.5,
 	shrink: 0.02,
 	shrinkMin: 0.8,
+	readEdge: { side: 4, bottom: 6 },
+	label: { track: 0.2, trackMin: 0.04, pad: 2, win: { em: 8.54, n: 12 }, bal: { em: 7.65, n: 10 } },
 	chain: { turbo: { parent: 'play', deg: 98.9 }, auto: { parent: 'play', deg: 260 }, menu: { parent: 'auto', deg: 257.5 }, arm: { parent: 'menu', deg: 352.4 } },
 	centers: { win: [103.55, 731.33], amt: [336.77, 739.17], down: [286.83, 740.83], up: [385.33, 739.83], bal: [341.8, 837.97] },
 	arrow: 26.67,
@@ -178,6 +190,10 @@ export type SidewaysTable = {
 	 *  screen 832 x 376; inside the iframe the safe area reads 0). Nothing pressed or read stands in it: the bottom row
 	 *  (Win over Balance, the amount with < and >) is drawn this far up, as if it were a bottom safe area. */
 	homeStrip: number;
+	/** the clear gap between Win's box and Balance's under it, CSS px */
+	readGap: number;
+	/** how much of the Play's size (share of his proportion) the chain may give to keep Turbo under Auto */
+	orderCost: number;
 };
 /** COREY'S SIDEWAYS PHONE, 874 x 402 (corey_phone_sideways_r3_2026-11-22.json, his own placing on an iPhone 17 Pro: the
  *  frame's top right wheel, then Auto on it at 90.4 degrees, Turbo on Auto at 120.3, the Play on Turbo at 94.4; the
@@ -200,6 +216,8 @@ export const SIDEWAYS: SidewaysTable = {
 	readout: 0.553,
 	text: { spin: 13.6, spinInk: 0.8, word: 8.2, label: 9 },
 	homeStrip: 20,
+	readGap: 6,
+	orderCost: 0.06,
 };
 /** a sideways phone smaller than this keeps the dock (Stake's 568 x 320 and smaller, its Popout S 400 x 225). Its
  *  Popout L, 800 x 450, has a short side under 480 px, so the game lays it out as a phone held sideways (the phone
@@ -504,8 +522,10 @@ export const sidewaysLayout = (vw: number, vh: number, safe: Safe = { t: 0, r: 0
 	const inWin = (c: C) => c.cx - c.R >= 2 && c.cx + c.R <= right && c.cy - c.R >= 2 && c.cy + c.R <= vh - 2;
 	const apart = (a: C, b: C) => Math.hypot(a.cx - b.cx, a.cy - b.cy) >= a.R + b.R + 1;
 	const smallOk = (c: C) => inWin(c) && circleToBox(c, cells) >= 1 && under(c) <= -1.5 / boardK;
-	let found: { auto: C; turbo: C; play: C; a: [number, number, number]; f: number; cover: number } | null = null;
-	search: for (let f = 1; f >= 0.6 - 1e-9; f -= 0.02) {
+	type Found = { auto: C; turbo: C; play: C; a: [number, number, number]; f: number; cover: number };
+	/** the first chain that fits, the largest Play first. `ordered`: Turbo never above Auto (see below) */
+	const find = (ordered: boolean): Found | null => {
+	for (let f = 1; f >= 0.6 - 1e-9; f -= 0.02) {
 		const P = gearOf(T.play.across * s * f);
 		for (const b1 of A1) {
 			const a1 = b1 || T.chain.auto;
@@ -515,18 +535,29 @@ export const sidewaysLayout = (vw: number, vh: number, safe: Safe = { t: 0, r: 0
 				const a2 = b2 || T.chain.turbo;
 				const turbo = on(auto, S, a2);
 				if (!smallOk(turbo) || !apart(turbo, wheel)) continue;
+				// AUTO LEFT OF TURBO on every window, and Turbo never above Auto where that costs little (2026-11-23: Corey's
+				// chain is Auto to Turbo to Play, his Turbo 22 px lower and 38 px right of Auto; a thumb should find the
+				// same key in the same place)
+				if (turbo.cx < auto.cx - 0.5 || (ordered && turbo.cy < auto.cy - 0.5)) continue;
 				for (const b3 of A3) {
 					const a3 = b3 || T.chain.play;
 					const play = on(turbo, P, a3);
 					if (!inWin(play) || play.cx - play.R < plate.x1 + 2 || play.cx <= turbo.cx || !apart(play, wheel) || !apart(play, auto) || circleToBox(play, cells) < 1) continue;
 					const cover = under(play);
 					if (cover > T.cover + 0.5) continue;
-					found = { auto, turbo, play, a: [a1, a2, a3], f, cover };
-					break search;
+					return { auto, turbo, play, a: [a1, a2, a3], f, cover };
 				}
 			}
 		}
 	}
+	return null;
+	};
+	// Turbo under Auto wherever the Play then keeps its size within T.orderCost of the best chain; a window where the
+	// room right of the board is too narrow for that (667 wide: 131 px, the ordered chain leaves a 52 px Play against
+	// 82) folds the chain with Turbo up and to the right of Auto instead: still left to right Auto, Turbo, Play
+	const inOrder = find(true);
+	const anyOrder = inOrder && inOrder.f >= 1 - 1e-9 ? inOrder : find(false);
+	const found = inOrder && anyOrder && inOrder.f >= anyOrder.f - T.orderCost ? inOrder : anyOrder;
 	if (!found) return noSide('no chain Auto, Turbo, Play fits from the frame wheel to the right edge');
 	const gears = {
 		play: { ...found.play, parent: 'turbo' as const, deg: found.a[2] },
@@ -556,7 +587,12 @@ export const sidewaysLayout = (vw: number, vh: number, safe: Safe = { t: 0, r: 0
 	const balH = Math.max(D.bal.h * kRo, T.text.label + 1 + num.bal + 2);
 	const winH = Math.max(D.win.h * kRo, T.text.label + 1 + num.win + 2);
 	box.bal = { x: edge, y: floor - balH, w: D.bal.w * kRo, h: balH };
-	box.win = { x: edge, y: floor - balH - 2 - winH, w: D.win.w * kRo, h: winH };
+	// (2026-11-23: at 667 x 331 Win's number sat on Balance's word: there the box is no taller than its two lines. The
+	// number's foot now keeps T.readGap to Balance's box; his own 874 x 402, where the box has 5 px of air under the
+	// number, keeps his 2 px between the boxes)
+	const winAir = winH - (T.text.label + 1 + num.win + 2);
+	const readGap = Math.max(2, T.readGap - winAir);
+	box.win = { x: edge, y: floor - balH - readGap - winH, w: D.win.w * kRo, h: winH };
 	if (box.win.y < box.menu.y + box.menu.h + 2) return noSide('Win and Balance do not fit under the standards');
 	// ---- the amount with < and >, bottom right: a row, else the amount over the arrows side by side, else over the
 	// arrows one above the other; the arrows' press boxes whole, inside the window and the safe areas, never overlapping ----
@@ -568,10 +604,14 @@ export const sidewaysLayout = (vw: number, vh: number, safe: Safe = { t: 0, r: 0
 	let dn: { x: number; y: number };
 	let up: { x: number; y: number };
 	let amt: Box;
-	if (room >= T.arrowGap * Math.min(1, s) + MIN_PRESS) {
+	// (2026-11-23: a row wherever the two press boxes and the number at the text floor fit, the arrows closer together
+	// than his where the room is short. At 667 wide the amount stood over its two arrows, 78 px tall over the home
+	// indicator strip: on the Manticore's chest and forelegs, and Corey accepted his feet only)
+	const rowGap = Math.min(T.arrowGap * Math.min(1, s), room - MIN_PRESS);
+	if (rowGap >= 4.77 * TEXT_FLOOR + 0.32 * T.arrow + 2 + 4) {
 		how = 'row';
 		up = { x: x1 - h2, y: yb - h2 };
-		dn = { x: up.x - T.arrowGap * Math.min(1, s), y: up.y };
+		dn = { x: up.x - rowGap, y: up.y };
 		amt = { x: (dn.x + up.x) / 2 - T.amt.w / 2, y: up.y - T.amt.h / 2, w: T.amt.w, h: T.amt.h };
 	} else if (room >= 2 * MIN_PRESS + 4) {
 		how = 'side by side';
@@ -615,6 +655,8 @@ export const sidewaysLayout = (vw: number, vh: number, safe: Safe = { t: 0, r: 0
 		press,
 		how,
 		scale: { std: kStd, readout: kRo },
+		/** the clear px from the foot of Win's number down to Balance's box */
+		winToBal: readGap + winAir,
 		fitW: { win: box.win.w - 6, bal: box.bal.w - 6, amt: how === 'row' ? Math.min(amt.w - 4, up.x - dn.x - 0.32 * T.arrow - 2) : amt.w - 4 },
 		text: { label: T.text.label, number: T.amt.number, bal: num.bal, win: num.win, word, spin: (T.text.spin * hubR) / hub0, spinInk: spinLine(T.text.spinInk, hubR / hub0), count: Math.max(13, (14.4 * hubR) / hub0), sub: Math.max(TEXT_FLOOR, (6.5 * hubR) / hub0), hub0 },
 		scene: { boardK, plate, logo, cells },
@@ -736,13 +778,21 @@ const uprightSolve = (vw: number, vh: number, safeBottom: number, T: UprightTabl
 	};
 	const clear = T.small.clear;
 	const tb = (c: { x: number; y: number }): Box => ({ x: c.x - MIN_PRESS / 2, y: c.y - MIN_PRESS / 2, w: MIN_PRESS, h: MIN_PRESS });
+	// the readouts: their boxes' floor (T.readEdge), their longest labels' widths, and so the least each box is drawn
+	const readFloor = vh - Math.max(0, safeBottom) - T.readEdge.bottom;
+	type Label = { em: number; n: number };
+	/** a long label's width at a tracking, the tracking that fits it into `avail` px (null: not even the tightest) */
+	const labelW = (l: Label, track: number) => (l.em + l.n * track) * T.text.label;
+	const trackFor = (l: Label, avail: number): number | null => (labelW(l, T.label.trackMin) > avail + 1e-6 ? null : Math.min(T.label.track, (avail / T.text.label - l.em) / l.n));
+	const winMin = Math.max(READ_MIN, labelW(T.label.win, T.label.trackMin) + 2 * T.label.pad);
+	const balMin = Math.max(READ_MIN, labelW(T.label.bal, T.label.trackMin) + 2 * T.label.pad);
 	const steps = (from: number, to: number, step = 1) => {
 		const out: number[] = [];
 		for (let v = from; step > 0 ? v <= to + 1e-9 : v >= to - 1e-9; v += step) out.push(v);
 		return out;
 	};
 	type Row = { down: Box; up: Box; amt: Box; fit: number; where: string };
-	type Placed = { k: number; gears: Record<TrainGear, TrainCircle>; row: Row; win: Box; bal: Box; winFit: number; balFit: number; winAt: string; balAt: string };
+	type Placed = { k: number; gears: Record<TrainGear, TrainCircle>; row: Row; win: Box; bal: Box; winFit: number; balFit: number; winAt: string; balAt: string; winTrack: number; balTrack: number };
 	/** how far an arrangement got before it failed (the furthest one's reason is the one reported) */
 	const STAGE = ['the Play gear does not fit between the plaque and the bottom edge', 'Turbo does not fit beside the Play gear', 'the chain Auto, Menu, Armoury does not fit left of the Play gear', 'the amount with its two 44 px arrows does not fit right of the Play gear', 'Balance has no free place in the band', 'Win has no free place in the band'] as const;
 
@@ -790,8 +840,8 @@ const uprightSolve = (vw: number, vh: number, safeBottom: number, T: UprightTabl
 		/** THE FREE SPAN for a box `h` tall with its top at `y`, round the point x = `near`: the x range clear of every
 		 *  gear (1 px) and of the boxes already placed (2 px), inside the window. null: `near` itself is not free there. */
 		const span = (y: number, h: number, near: number, taken: Box[]): [number, number] | null => {
-			let x0 = 2;
-			let x1 = vw - 2;
+			let x0 = T.readEdge.side;
+			let x1 = vw - T.readEdge.side;
 			for (const g of all) {
 				const dy = g.cy < y ? y - g.cy : g.cy > y + h ? g.cy - (y + h) : 0;
 				const rr = g.R + 1;
@@ -809,15 +859,15 @@ const uprightSolve = (vw: number, vh: number, safeBottom: number, T: UprightTabl
 			}
 			return x1 - x0 > 0 ? [x0, x1] : null;
 		};
-		/** a readout's box `w` x `h` in the band: the first row of `ys` (tops) with a free span of at least READ_MIN round
+		/** a readout's box `w` x `h` in the band: the first row of `ys` (tops) with a free span of at least `min` round
 		 *  one of `nears`; as wide as the span lets it be (never over w), as near to x = `want` as it can stand
 		 *  (`mid`: in the middle of the span) */
-		const put = (w: number, h: number, ys: number[], nears: number[], want: number | 'mid', taken: Box[]): { box: Box; fit: number } | null => {
+		const put = (w: number, h: number, min: number, ys: number[], nears: number[], want: number | 'mid', taken: Box[]): { box: Box; fit: number } | null => {
 			for (const y of ys) {
-				if (y < plate + 1 || y + h > floor + 0.01) continue;
+				if (y < plate + 1 || y + h > readFloor + 0.01) continue;
 				for (const near of nears) {
 					const sp = span(y, h, near, taken);
-					if (!sp || sp[1] - sp[0] < READ_MIN) continue;
+					if (!sp || sp[1] - sp[0] < min) continue;
 					const bw = Math.min(w, sp[1] - sp[0]);
 					const x = want === 'mid' ? (sp[0] + sp[1] - bw) / 2 : Math.max(sp[0], Math.min(want - bw / 2, sp[1] - bw));
 					return { box: { x, y, w: bw, h }, fit: bw - 6 };
@@ -873,14 +923,14 @@ const uprightSolve = (vw: number, vh: number, safeBottom: number, T: UprightTabl
 		// AMount and Balance on the bottom section of the screen"). ----
 		const hb = his(T.centers.bal);
 		let balAt = 'under Turbo';
-		let balPut = put(T.box.bal.w, bh, [turbo.cy + turbo.R + 2], [Math.max(turbo.cx, Math.min(hb.x, vw - 8))], hb.x, taken);
+		let balPut = put(T.box.bal.w, bh, balMin, [turbo.cy + turbo.R + 2], [Math.max(turbo.cx, Math.min(hb.x, vw - 8))], hb.x, taken);
 		if (!balPut) {
 			balAt = 'lower right';
-			balPut = put(T.box.bal.w, bh, steps(floor - bh, plate + 1, -2), [vw - 8], vw, taken);
+			balPut = put(T.box.bal.w, bh, balMin, steps(readFloor - bh, plate + 1, -2), [vw - 8], vw, taken);
 		}
 		if (!balPut) {
 			balAt = 'lower left';
-			balPut = put(T.box.bal.w, bh, steps(floor - bh, lowLeft, -2), [8], 0, taken);
+			balPut = put(T.box.bal.w, bh, balMin, steps(readFloor - bh, lowLeft, -2), [8], 0, taken);
 		}
 		if (!balPut) return 4;
 		taken.push(balPut.box);
@@ -892,9 +942,9 @@ const uprightSolve = (vw: number, vh: number, safeBottom: number, T: UprightTabl
 		/** his Win, its center line at `y`: the box his size, centered in the span the gears' circles leave along the
 		 *  number's rows (the number is fitted to that span, never abbreviated); null where the span is under the floor */
 		const hisWin = (y: number): { box: Box; fit: number } | null => {
-			if (y - wh / 2 < plate + 1 || y + wh / 2 > floor) return null;
-			let x0 = 2;
-			let x1 = vw - 2;
+			if (y - wh / 2 < plate + 1 || y + wh / 2 > readFloor) return null;
+			let x0 = T.readEdge.side;
+			let x1 = vw - T.readEdge.side;
 			for (const row of [y - wh / 2 + T.text.label + 1, y + 2, y + wh / 2 - 1]) {
 				for (const g of all) {
 					const dy = Math.abs(row - g.cy);
@@ -906,6 +956,11 @@ const uprightSolve = (vw: number, vh: number, safeBottom: number, T: UprightTabl
 			}
 			if (x1 - x0 - 2 < READ_MIN - 6) return null;
 			const box = { x: (x0 + x1) / 2 - T.box.win.w / 2, y: y - wh / 2, w: T.box.win.w, h: wh };
+			// its longest label ("FREE SPINS WIN") is centered on the box in the word's own row: the room that row has
+			// round the box's middle, clear of every gear and of what is placed, must hold it (tracked tighter if need be)
+			const cx = (x0 + x1) / 2;
+			const row = span(box.y, T.text.label + 2, cx, taken);
+			if (!row || trackFor(T.label.win, 2 * Math.min(cx - row[0], row[1] - cx) - 2 * T.label.pad) === null) return null;
 			return taken.some((t) => boxesMeet(t, { x: x0, y: box.y, w: x1 - x0, h: wh })) ? null : { box, fit: Math.min(T.box.win.w - 6, x1 - x0 - 2) };
 		};
 		let winAt = 'between the Armoury and the Play gear';
@@ -916,18 +971,28 @@ const uprightSolve = (vw: number, vh: number, safeBottom: number, T: UprightTabl
 		}
 		if (!winPut) {
 			winAt = 'lower left';
-			winPut = put(T.box.win.w, T.box.win.h, steps(floor - T.box.win.h, lowLeft, -2), [8], 0, taken);
+			winPut = put(T.box.win.w, T.box.win.h, winMin, steps(readFloor - T.box.win.h, lowLeft, -2), [8], 0, taken);
 		}
 		if (!winPut) {
 			winAt = 'upper left';
-			winPut = put(T.box.win.w, T.box.win.h, steps(plate + 1, plate + 25, 2), [8], 0, taken);
+			winPut = put(T.box.win.w, T.box.win.h, winMin, steps(plate + 1, plate + 25, 2), [8], 0, taken);
 		}
 		if (!winPut) {
 			winAt = 'lower right';
-			winPut = put(T.box.win.w, T.box.win.h, steps(floor - T.box.win.h, plate + 1, -2), [vw - 8], vw, taken);
+			winPut = put(T.box.win.w, T.box.win.h, winMin, steps(readFloor - T.box.win.h, plate + 1, -2), [vw - 8], vw, taken);
 		}
 		if (!winPut) return 5;
-		return { k: kk, gears, row, win: winPut.box, bal: balPut.box, winFit: winPut.fit, balFit: balPut.fit, winAt, balAt };
+		// each long label's tracking: the room its row has round the box's middle (a box the free-row search placed is
+		// clear of every gear all over; his own Win box is not, its word's row is)
+		const roomOf = (b: Box) => {
+			const cx = b.x + b.w / 2;
+			const r = span(b.y, T.text.label + 2, cx, taken.filter((t) => t !== b));
+			return r ? 2 * Math.min(cx - r[0], r[1] - cx) - 2 * T.label.pad : 0;
+		};
+		const winTrack = trackFor(T.label.win, winAt.startsWith('between') ? roomOf(winPut.box) : winPut.box.w - 2 * T.label.pad);
+		const balTrack = trackFor(T.label.bal, balPut.box.w - 2 * T.label.pad);
+		if (winTrack === null || balTrack === null) return 5;
+		return { k: kk, gears, row, win: winPut.box, bal: balPut.box, winFit: winPut.fit, balFit: balPut.fit, winAt, balAt, winTrack, balTrack };
 	};
 	// THE SEARCH. The train at the band's own scale first; where the readouts then have no free place in the band, the
 	// train alone a little smaller (`shrink` a step, down to `shrinkMin` of the band's scale: it keeps its place under the
@@ -990,6 +1055,12 @@ const uprightSolve = (vw: number, vh: number, safeBottom: number, T: UprightTabl
 		press,
 		/** the fit width of each readout's number; where each readout went ('band' places are his arrangement) */
 		fitW: { win: winFit, bal: balPut.fit, amt: row.fit },
+		/** THE LONG LABELS: the tracking (em) "FREE SPINS WIN" and "BASE AMOUNT" are drawn at here, and the box each then
+		 *  takes, centered on its readout in the word's row (clear of every gear: tools/gear_layout_test.mjs) */
+		label: {
+			win: { track: placed.winTrack, box: { x: win.x + win.w / 2 - labelW(T.label.win, placed.winTrack) / 2, y: win.y, w: labelW(T.label.win, placed.winTrack), h: T.text.label + 2 } },
+			bal: { track: placed.balTrack, box: { x: bal.x + bal.w / 2 - labelW(T.label.bal, placed.balTrack) / 2, y: bal.y, w: labelW(T.label.bal, placed.balTrack), h: T.text.label + 2 } },
+		},
 		where: { win: winAt, bal: balAt, amt: row.where },
 		gapSpin: Math.min(circleToBox(play, row.down), circleToBox(play, row.up)),
 		text: { label: T.text.label, number: T.text.number, spin: (T.text.spin * hubR) / hub0, spinInk: spinLine(T.text.spinInk, hubR / hub0), count: Math.max(15, (T.text.count * hubR) / hub0), sub: T.text.sub, hub0 },
