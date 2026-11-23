@@ -196,9 +196,7 @@ async function startAuto(p, { stopFree = false } = {}) {
 	await sleep(300);
 	const t = p.locator('.am-ui.layer.modals button.toggle:has-text("Stop on Free Games")');
 	if (((await t.getAttribute('aria-checked')) === 'true') !== stopFree) await t.click();
-	await p.click('.am-ui.layer.modals .go');
-	await sleep(600);
-	await p.click('.hudp button.spin');
+	await p.click('.am-ui.layer.modals .go'); // START: the run begins at once (2026-11-23, no Spin press)
 }
 
 async function sectionAuto(browser) {

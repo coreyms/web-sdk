@@ -66,10 +66,10 @@ const PAUSE_WORDS = ((s) => `${s} second${s === 1 ? '' : 's'}`)(Math.round(AUTOP
 /** THE SPACE BAR as this game has it (ui/SpinHotkey.svelte, 2026-11-18, Manticore Mayhem's rule): one press, one round;
  *  a press during a round is the Spin press (STOP); holding the key plays nothing more. Until 2026-11-18 a held key
  *  played round after round (the kit's EnableSpaceHold, no longer mounted). */
-/** AUTOPLAY NEVER PLAYS A LOADED FEATURE (ui/controls.svelte.ts loadAutoplay and buyMode, 2026-11-19): one sentence in the
+/** AUTOPLAY NEVER PLAYS A LOADED FEATURE (ui/controls.svelte.ts startAutoplay and buyMode, 2026-11-19): one sentence in the
  *  Autoplay row (where the feature menu is drawn) and one in the feature menu's row (where Autoplay is drawn) */
-const AUTO_PLAYS_BASE = 'Autoplay plays base game spins (Ante spins while Ante is on) and never a loaded Free Spins or Super Free Spins round: loading a run unloads one.';
-const FEATURE_NOT_IN_AUTO = 'Autoplay never plays a loaded round: loading an Autoplay run unloads it, and a round cannot be loaded while a run waits on the Spin button.';
+const AUTO_PLAYS_BASE = 'Autoplay plays base game spins (Ante spins while Ante is on) and never a loaded Free Spins or Super Free Spins round: starting a run unloads one.';
+const FEATURE_NOT_IN_AUTO = 'Autoplay never plays a loaded round: starting an Autoplay run unloads it, and a round cannot be loaded while a run is playing.';
 const SPACE_BAR = 'Space bar plays one round, or is **STOP** while one plays. Holding it down plays nothing more: each round needs its own press.';
 /** the Ante levels, from the mode list (ante_2 -> 2x): "2x, 4x and 10x" */
 const ANTE_LEVELS = ((xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : (xs[0] ?? '')))(config.anteModes.map((k: string) => `${k.split('_')[1]}x`));
@@ -107,7 +107,7 @@ export const gameInfoText = (j: RulesFlags = {}) => ({
 				text: [
 					soc('Plays one round at the amount shown beside it.', 'Plays one round at the play amount shown beside it.'),
 					!j.disabledSlamstop ? 'While the traffic drives in it turns into **STOP**: a press lands the traffic and plays the rest of that spin at top speed.' : '',
-					((x) => (x ? `With ${x} loaded, it shows what the next press starts.` : ''))([!j.disabledAutoplay ? 'Autoplay' : '', !j.disabledBuyFeature ? 'a feature' : ''].filter(Boolean).join(' or ')),
+					!j.disabledBuyFeature ? 'With a feature loaded, it shows what the next press starts.' : '',
 					'During a bonus round it shows the spin in play and the round\'s total spins.',
 				]
 					.filter(Boolean)
@@ -131,7 +131,7 @@ export const gameInfoText = (j: RulesFlags = {}) => ({
 			},
 			autoplay: {
 				name: 'Autoplay',
-				text: `Opens the Autoplay menu: the number of spins (10 to 1,000, or until stopped) and **Stop options**: a stop-on-loss limit, a stop-on-single-win limit, **Stop on Free Games** (the run ends when a bonus round starts, and the round still plays out) and **Autoplay Bonuses** (the bonus round's screens continue on their own). **LOAD** puts the run on the Spin button, and Spin starts it.${j.disabledBuyFeature ? '' : ' ' + AUTO_PLAYS_BASE} While it runs, **AUTO** is lit and its arrow turns. To stop the run at any time, press **AUTO** (or Spin, which also speeds up the spin in play): the round in play finishes and no further spin starts. This works during free spins too, and the bonus round still plays to its end. When a bonus round ends with Autoplay still running, the game waits ${PAUSE_WORDS} after its total win screen is cleared before the next spin starts, at every speed, so you can stop the run.`,
+				text: `Opens the Autoplay menu: the number of spins (10 to 1,000, or until stopped) and **Stop options**: a stop-on-loss limit, a stop-on-single-win limit, **Stop on Free Games** (the run ends when a bonus round starts, and the round still plays out) and **Autoplay Bonuses** (the bonus round's screens continue on their own). Its **START** key names the number of spins and their total, and pressing it starts the run right away.${j.disabledBuyFeature ? '' : ' ' + AUTO_PLAYS_BASE} While it runs, **AUTO** is lit and its arrow turns. To stop the run at any time, press **AUTO** (or Spin, which also speeds up the spin in play): the round in play finishes and no further spin starts. This works during free spins too, and the bonus round still plays to its end. When a bonus round ends with Autoplay still running, the game waits ${PAUSE_WORDS} after its total win screen is cleared before the next spin starts, at every speed, so you can stop the run.`,
 			},
 			turbo: {
 				name: 'Turbo',

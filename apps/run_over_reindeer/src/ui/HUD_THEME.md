@@ -26,7 +26,7 @@ win, icy blue words, white numbers, deep ice blue menus.
 | `key-rgb` | a key's own glass (round keys, steppers, chips) |
 | `key-a`, `key-rim-rgb`, `key-rim-a` | NEW (bet bar fix): that glass's strength; a key's one even 1 px rim and its strength |
 | `menu-key-1/2-rgb`, `menu-key-a`, `menu-key-rim-rgb` | NEW (bet bar fix): the Menu key's own near opaque dark glass and rim |
-| `key-on-1/2-rgb`, `key-on-a`, `key-on-ink-rgb` | NEW (bet bar fix): a lit key's fill and ink (Auto loaded, Turbo on, Menu open, the picked scene) |
+| `key-on-1/2-rgb`, `key-on-a`, `key-on-ink-rgb` | NEW (bet bar fix): a lit key's fill and ink (Auto running, Turbo on, Menu open, the picked scene) |
 | `key-hot-1/2-rgb`, `key-hot-ink-rgb` | NEW (bet bar fix): the hotter lit key (a run playing, Turbo at instant) |
 | `mark-g1..g4-rgb`, `mark-accent-rgb`, `mark-scrim-a` | NEW (the engraved mark, 2026-11-19): the inlay's gold, the hub's accent, the dark under the mode's word |
 | `mark-steel-1..4-rgb` | NEW (the disabled key, 2026-11-20): the steel the mark is inlaid in while the key cannot be pressed |

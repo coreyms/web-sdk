@@ -1,13 +1,16 @@
 <script lang="ts">
 	import { soc } from '../game/social';
-	// Autoplay Loadout (design approved 2026-08-26): configure a run, preview its TRUE total, then LOAD
-	// it onto the spin button — pressing Spin is what starts it. Loss/win stops are multiples of one
+	// Autoplay menu (design approved 2026-08-26): configure a run, preview its TRUE total, then START it. Since 2026-11-23
+	// (Corey: "What would it take to make that the Start Auto-play button and not have the load to button state?") the
+	// key begins the run at once (ui/controls.svelte.ts startAutoplay); until then it loaded the run onto the Spin key and
+	// the Spin press started it. The key names the count and the total, and pressing it in this menu is the player's
+	// confirmation. Loss/win stops are multiples of one
 	// spin's play amount. AUTOPLAY NEVER PLAYS A LOADED FEATURE (2026-11-19, ui/controls.svelte.ts autoSpinCost): with
-	// Free Spins or Super Free Spins loaded the sheet prices the base game the run will play, says LOAD unloads the
+	// Free Spins or Super Free Spins loaded the sheet prices the base game the run will play, says START unloads the
 	// feature, and Stop on Free Games is available as always (until 2026-11-19 the sheet priced the loaded feature and
 	// switched that toggle off, though the run has always played base spins).
 	// Black glass (Corey's "Black Glass Panels" pick, 2026-09-09): the sheet opens on the spin count,
-	// the true total and one gold LOAD; the loss stop, single-win stop and the two toggles live behind
+	// the true total and one gold START; the loss stop, single-win stop and the two toggles live behind
 	// a STOP OPTIONS fold whose closed row summarises what is set, and the sheet opens unfolded
 	// whenever something non-default is set — a stop is never hidden. Gold = the chosen count, white
 	// = a chosen limit, red = OFF. Fonts stay the chrome's own (Outfit labels, Sora numbers).
@@ -65,7 +68,7 @@
 	let stopFree = $state(false);
 	let autoBonuses = $state(false);
 
-	/** the loaded feature LOAD will unload ("SUPER FREE SPINS"), or null */
+	/** the loaded feature START will unload ("SUPER FREE SPINS"), or null */
 	const unloads = $derived(controls.armedBuy() !== null ? (modeChipData()?.label ?? controls.armedBuy()) : null);
 	// autoplay bonuses only exists while stop-on-free-games is off
 	const stopFreeOn = $derived(stopFree);
@@ -124,7 +127,7 @@
 	);
 	// LOW's LOAD: the words on one line, the amount under them, each fitted to the button's inside (its 1 px border and
 	// 8 px padding a side), never clipped
-	const goWords = $derived(count === Infinity ? 'LOAD AUTO SPINS' : `LOAD ${countText(count)} AUTO SPINS`);
+	const goWords = $derived(count === Infinity ? 'START AUTO SPINS' : `START ${countText(count)} AUTO SPINS`);
 	const goInner = $derived(lowRight - 2 - 16);
 	const goFont = $derived(fitFont({ text: goWords, nominal: 10.5, box: goInner, floor: 8.5, weight: 900, letterSpacing: 0.63, face: UI_TEXT_FACE }) ?? 8.5);
 	const goAmtFont = $derived(fitFont({ text: totalText, nominal: 12, box: goInner, floor: 8.5, weight: 900, letterSpacing: 0.48, face: UI_TEXT_FACE }) ?? 8.5);
@@ -155,11 +158,9 @@
 	});
 	const headFits = $derived(headW === 0 || headNeedW <= headW);
 
-	const load = () => {
-		controls.loadAutoplay({ count, lossMult, winMult, stopFree: stopFreeOn, autoBonuses: stopFreeOn ? false : autoBonuses });
+	const start = () => {
+		controls.startAutoplay({ count, lossMult, winMult, stopFree: stopFreeOn, autoBonuses: stopFreeOn ? false : autoBonuses });
 	};
-	// reopening while a loadout waits: allow clearing it
-	const hasLoadout = $derived(controls.autoLoadout() !== null);
 </script>
 
 {#snippet totalRow()}
@@ -178,7 +179,7 @@
 				<button class="slot-btn hg x" bind:this={xEl} onclick={() => (controls.sound('soundPressSub'), close())} aria-label="Close"><Icon name="close" s={16} /></button>
 			</div>
 			{#if unloads !== null}
-				<div class="drop" data-auto-drop>LOAD unloads <b>{unloads}</b>. Autoplay plays base game spins, never a loaded feature.</div>
+				<div class="drop" data-auto-drop>START unloads <b>{unloads}</b>. Autoplay plays base game spins, never a loaded feature.</div>
 			{/if}
 
 			<div class="cols"><div class="c1">
@@ -249,21 +250,17 @@
 				{/if}
 			</div>
 
-			<!-- LOW: the total sits over LOAD in the right column (the left one is the spin counts' whole height) -->
+			<!-- LOW: the total sits over START in the right column (the left one is the spin counts' whole height) -->
 			{#if low}{@render totalRow()}{/if}
 
-			<button class="slot-btn hg go" onclick={load}>
+			<button class="slot-btn hg go" onclick={start}>
 				{#if low}
 					<!-- LOW: the same words and amount, the words over the amount, each fitted to the button -->
-					<span class="gl" style:font-size="{goFont}px">{#if count === Infinity}LOAD AUTO SPINS{:else}LOAD <span class="slot-num n">{countText(count)}</span> AUTO SPINS{/if}</span>
+					<span class="gl" style:font-size="{goFont}px">{#if count === Infinity}START AUTO SPINS{:else}START <span class="slot-num n">{countText(count)}</span> AUTO SPINS{/if}</span>
 					{#if count !== Infinity}<span class="slot-num n mv" style:font-size="{goAmtFont}px">{totalText}</span>{/if}
-				{:else if count === Infinity}LOAD AUTO SPINS{:else}LOAD <span class="slot-num n">{countText(count)}</span> AUTO SPINS<i class="dot"></i><span class="slot-num n mv">{totalText}</span>{/if}
+				{:else if count === Infinity}START AUTO SPINS{:else}START <span class="slot-num n">{countText(count)}</span> AUTO SPINS<i class="dot"></i><span class="slot-num n mv">{totalText}</span>{/if}
 			</button>
-			<div class="cap">Loads to the Spin button. Pressing Spin starts the run; pressing again stops it.</div>
-			{#if hasLoadout}
-				<!-- a run already parked on the Spin button: LOAD above replaces it, this clears it -->
-				<button class="slot-btn hg unload" onclick={() => { controls.sound('soundPressSub'); controls.clearAutoplay(); close(); }}>UNLOAD CURRENT AUTO SPINS</button>
-			{/if}
+			<div class="cap">Starts the run right away. Pressing Spin stops it.</div>
 			</div></div>
 		</div>
 		<div class="stepper" onclick={(e) => e.stopPropagation()} role="presentation">
@@ -275,7 +272,7 @@
 <style>
 	/* THE AUTOPLAY MENU in the HUD's glass (HUD round 5, "Drop 6", 2026-11-12): the panel frame is ChromeStyles .am-glass
 	   (the HUD's obsidian glass); every part inside wears the HUD's own pieces: glass chips with the 1 px white-top /
-	   gold-bottom edge, a gold rim on the chosen one, the Spin's gold-edged glass for LOAD, glass toggles. Every colour is
+	   gold-bottom edge, a gold rim on the chosen one, the Spin's gold-edged glass for START, glass toggles. Every colour is
 	   a ui/hudTheme.ts token. Content and behaviour as before. Desktop and tablet: a panel over the board; portrait: a sheet
 	   from the bottom (the bet stepper over it); phone sideways: a wide, low panel in two columns. */
 	.center {
@@ -702,7 +699,7 @@
 	.toggle.on .knob::after {
 		transform: translateX(20px);
 	}
-	/* LOAD: the Spin's gold-edged glass, wide; UNLOAD a small ember capsule */
+	/* START: the Spin's gold-edged glass, wide */
 	.go {
 		display: flex;
 		align-items: center;
@@ -737,26 +734,11 @@
 		width: 5px;
 		height: 5px;
 	}
-	.unload {
-		align-self: center;
-		height: 34px;
-		border-radius: 999px;
-		padding: 0 16px;
-		border: 1px solid;
-		border-color: rgba(var(--hud-feature-rim-rgb), 0.46);
-		background: linear-gradient(180deg, rgba(var(--hud-feature-deep-1-rgb), 0.8), rgba(var(--hud-feature-deep-2-rgb), 0.86));
-		box-shadow: inset 0 0 12px rgba(var(--hud-feature-rgb), 0.45);
-		font-size: 10.5px;
-		font-weight: 900;
-		letter-spacing: 0.14em;
-		color: rgb(var(--hud-ink-rgb));
-		margin-top: -2px;
-	}
 	/* the footer line steps aside while the fold is open: the 720-tall landscape master has no room for both */
 	.fold.open ~ .cap {
 		display: none;
 	}
-	/* the loaded feature LOAD unloads: shown at every size (the cap below steps aside on phones, this line never does) */
+	/* the loaded feature START unloads: shown at every size (the cap below steps aside on phones, this line never does) */
 	.drop {
 		margin: -4px 2px 0;
 		text-align: center;

@@ -500,9 +500,7 @@ async function sectionCadence(browser) {
 			await p.evaluate(() => window.__reindeer.fixtures.next('plain_line_win', true));
 			await p.click('.hudp button[aria-label="Autoplay"]');
 			await sleep(600);
-			await p.click('.am-ui.layer.modals .go');
-			await sleep(600);
-			await p.click('.hudp button.spin');
+			await p.click('.am-ui.layer.modals .go'); // START: the run begins at once
 			const t0 = Date.now();
 			while (Date.now() - t0 < 90000 && (await p.evaluate(() => window.__rgsCalls.filter((c) => c.path === 'wallet/play').length)) < 7) await sleep(200);
 			const plays = await p.evaluate(() => window.__rgsCalls.filter((c) => c.path === 'wallet/play').map((c) => c.at));

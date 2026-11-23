@@ -1,7 +1,7 @@
 <script lang="ts">
 	// THE PLAY (the sign bar; Corey's approved mocks play_button_r6 and desktop_hud_r10): a road sign diamond, one size
 	// in every state, every count inside it. What it does is ui/controls.svelte.ts's, unchanged (spin, stop, slam stop,
-	// start a loaded run, stop a run, the balance notice); this is only its face, in place of ui/hud/HudSpin.svelte.
+	// stop a run, the balance notice); this is only its face, in place of ui/hud/HudSpin.svelte.
 	//   ready          green glass, SPIN, the LED border's soft twinkle
 	//   a round        red glass, STOP while the stop is available (dimmed once it is pressed), two lights chasing round
 	//                  the border, faster at Turbo and Super Turbo
@@ -9,8 +9,8 @@
 	//   free spins     red, SPIN n OF total inside a ring of LEDs, one per free spin, lit as played (a retrigger adds 3;
 	//                  the ring is laid out again only then, and a spin changes only its own LED)
 	// The faces the mock did not draw keep the same grammar (green = a press starts something):
-	//   autoplay loaded  green, AUTO over the loaded count        armed buy   green, the mode's name over its price
-	//   replay           green, REPLAY                            busy        (no slam stop allowed) red, no word
+	//   armed buy        green, the mode's name over its price    replay      green, REPLAY
+	//   busy             (no slam stop allowed) red, no word
 	//   the Super Wheel waiting for the key: green, SPIN, every LED breathing together
 	// Its press region is the drawn diamond, not its square box: the button itself is that diamond (a square turned 45
 	// degrees with the diamond's rounded corners, its contents turned back), 0.669 of the box across its faces.
@@ -36,17 +36,16 @@
 	const showStop = $derived(controls.showStop());
 	const fs = $derived(controls.freeSpin());
 	const showFreeSpins = $derived(!replay || replayState.phase === 'playing');
-	const loaded = $derived(controls.autoLoadout());
 	const armed = $derived(controls.armedBuy() !== null);
 	const idle = $derived(controls.keyIdle());
 	const disabled = $derived(replay ? !replayAgain : controls.spinDisabled());
 	const wheelWait = $derived(controls.wheelWaits() && !replay);
 	const mode = $derived(
-		wheelWait ? 'idle' : fs && showFreeSpins ? 'feature' : replay ? 'replay' : showStop ? 'spinning' : autoActive ? 'auto' : !idle ? 'busy' : loaded ? 'loaded' : armed ? 'armed' : 'idle',
+		wheelWait ? 'idle' : fs && showFreeSpins ? 'feature' : replay ? 'replay' : showStop ? 'spinning' : autoActive ? 'auto' : !idle ? 'busy' : armed ? 'armed' : 'idle',
 	);
 	const flip = $derived(mode === 'idle' || mode === 'spinning' || mode === 'busy');
 	const st = $derived(mode === 'spinning' ? (disabled ? 'halt' : 'run') : 'idle');
-	const count = $derived(mode === 'auto' ? controls.autoCount() : mode === 'loaded' && loaded ? loaded.count : 0);
+	const count = $derived(mode === 'auto' ? controls.autoCount() : 0);
 	const action = $derived(replay ? 'Replay' : wheelWait ? 'Spin' : showStop ? 'Stop' : autoActive ? 'Stop autoplay' : 'Spin');
 	const label = $derived(
 		mode === 'feature' && fs ? `${action}. Free spins: ${fs.current} of ${fs.total}` : mode === 'auto' && count !== Infinity && count > 0 ? `${action}: ${count} left` : action,
@@ -56,7 +55,7 @@
 	// ---- the face ----
 	const red = $derived(mode === 'spinning' || mode === 'busy' || mode === 'auto' || mode === 'feature');
 	/** dimmed: a resting face that cannot be pressed (a held round, nothing to play) */
-	const dim = $derived(disabled && (mode === 'idle' || mode === 'loaded' || mode === 'armed' || mode === 'replay') && !wheelWait);
+	const dim = $derived(disabled && (mode === 'idle' || mode === 'armed' || mode === 'replay') && !wheelWait);
 	/** a round is playing on the board (the chase runs): a spin, and each round of a run or of the free spins */
 	const live = $derived(mode === 'spinning' || mode === 'busy' || ((mode === 'auto' || mode === 'feature') && !idle));
 	const lights = $derived<LightMode>(wheelWait ? 'wait' : live ? 'chase' : red || dim ? 'off' : 'idle');
@@ -70,7 +69,7 @@
 		const dark = PLAY_TEXT_DARK;
 		if (mode === 'feature' && fs)
 			return { rows: [{ t: 'SPIN', size: T.fs.label, font: OVER, ls: T.fs.ls, ol: T.fs.ol }, { t: String(fs.current), size: T.fs.num, font: OUTFIT, ls: T.fs.ls, ol: T.fs.ol }, { t: `OF ${fs.total}`, size: T.fs.sub, font: OVER, ls: T.fs.ls, ol: T.fs.ol }], x: 0, oc: '#0b0f15', faint: false };
-		if (mode === 'auto' || mode === 'loaded')
+		if (mode === 'auto')
 			return { rows: [{ t: 'AUTO', size: T.auto.label, font: OVER, ls: T.auto.ls, ol: T.auto.ol }, { t: count === Infinity ? '' : String(count), size: T.auto.num, font: OUTFIT, ls: T.auto.ls, ol: T.auto.ol, inf: count === Infinity }], x: 0, oc: dark, faint: false };
 		if (mode === 'armed') return { rows: [{ t: controls.armedLabel() ?? '', size: 24, font: OVER, ls: T.spin.ls, ol: 2 }, { t: controls.playCostText() ?? '', size: 30, font: OVER, ls: 0, ol: 2.2 }], x: 0, oc: dark, faint: false };
 		if (mode === 'replay') return { rows: [{ t: 'REPLAY', size: 32, font: OVER, ls: T.spin.ls, ol: 2.2 }], x: 0, oc: dark, faint: false };

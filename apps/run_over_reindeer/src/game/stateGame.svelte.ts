@@ -24,8 +24,9 @@ export type RoundCard =
 // (board: the card plays on the LED back board, game/scoreboard/; the HTML card keeps its press and draws nothing;
 // presents: the scatters the round triggered with, the book's freeSpinTrigger cells, for the LED entry)
 
-/** a configured autoplay run waiting on the spin button (built in AutoplayModal, consumed on start) */
-export type AutoLoadout = {
+/** a configured autoplay run (built in AutoplayModal; its START key hands it to ui/controls.svelte.ts startAutoplay, which
+ *  begins the run at once: since 2026-11-23 nothing waits on the Spin key) */
+export type AutoRun = {
 	count: number; // Infinity allowed
 	lossMult: number | null;
 	winMult: number | null;
@@ -63,7 +64,6 @@ export const stateGame = $state({
 	hurryLevel: 0 as 0 | 1 | 2,
 	/** an open round is waiting to be resumed after a reload: nothing may start a round until it is handed over */
 	resumeHold: true,
-	autoLoadout: null as AutoLoadout | null,
 	autoStopOnFreeGames: true,
 	autoPlayBonuses: false,
 	/** how many press-to-continue screens are up (Space belongs to them): the bonus round's cards */

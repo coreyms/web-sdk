@@ -466,16 +466,12 @@ try {
 			await queueOne(20);
 			await p.click('.hudp button[aria-label="Autoplay"]');
 			await sleep(700);
+			// the menu's START begins the run at once (2026-11-23: no Spin press; a Spin press now would stop the run)
 			await p.click('.am-ui.layer.modals .go').catch(() => {});
-			await sleep(400);
 			let started = false;
 			for (let i = 0; i < 20 && !started; i++) {
 				started = await R(p, () => document.querySelector('.hudp button.spin')?.getAttribute('aria-label')?.startsWith('Stop autoplay') === true);
-				if (!started) {
-					// the run starts from the loaded Spin (the HUD probe's way)
-					if (i === 0) await p.click('.hudp button.spin').catch(() => {});
-					await sleep(150);
-				}
+				if (!started) await sleep(150);
 			}
 			let played = 0;
 			const t0 = Date.now();

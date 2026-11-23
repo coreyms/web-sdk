@@ -286,7 +286,7 @@
 	}
 	/* THE CHOSEN AMOUNT (Corey 2026-10-17 20:27, "update this to the theme of the game"): Angry Mantis's lime chip is
 	   gone. It wears the HUD's gold plate: the gold bezel lit from the top left (the .plate-gold metals) round a
-	   gold to amber fill, dark gold ink on it, the same pairing as the PER SPIN pill and Autoplay's LOAD */
+	   gold to amber fill, dark gold ink on it, the same pairing as the PER SPIN pill and Autoplay's START */
 	.opt.selected {
 		border-color: var(--plate-gold-1) var(--plate-gold-2) var(--plate-gold-3) var(--plate-gold-4);
 		background: linear-gradient(180deg, var(--ui-gold), var(--ui-amber));

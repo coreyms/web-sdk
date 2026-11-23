@@ -1,6 +1,6 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/{ui/FeatureMenu.svelte,ui/AutoplayModal.svelte,game/fastLaneMemory.ts};
-// WATCHES: ; loadAutoplay, buyMode, autoSpinCost, unloadedByAutoplay, autoFirst, data-fl-auto, data-auto-drop, autoLimits, __reindeer.fixtures
+// WATCHES: ; startAutoplay, buyMode, autoSpinCost, data-auto-drop, autoLimits, __reindeer.fixtures
 // WATCHES: apps/run_over_reindeer/src/{ui/fitAmount.ts,game/currency.ts};
 // WATCHES: apps/run_over_reindeer/src/{ui/DenomModal.svelte};
 // WATCHES: ; gridRows, gridMaxH, .more, .opt, .grid, .low, lowInner, chipW, goFont, goAmtFont, totalRow, .gl, .sub
@@ -26,15 +26,15 @@
 //     session (?social=true, desktop 1440 only)
 //   · desktop 1440 only: the level stops move with the arrow keys; the feature button cannot open the menu during a
 //     round
-//   · AUTOPLAY NEVER PLAYS A LOADED FEATURE (2026-11-19, ui/controls.svelte.ts loadAutoplay / buyMode / autoSpinCost),
+//   · AUTOPLAY NEVER PLAYS A LOADED FEATURE (2026-11-19, ui/controls.svelte.ts startAutoplay / buyMode / autoSpinCost),
 //     desktop 1440, standard and social (ONLY=autofeature): Super Free Spins loaded, then the Autoplay menu shows the
-//     base game (its pill, its count rows, its LOAD total), names the feature LOAD unloads, keeps Stop on Free Games
-//     available; LOAD unloads it at once (the mode BASE, the HUD's amount the base amount), the Fast Lane opens on its
-//     tile saying it is unloaded, and no feature tile can be activated while the run waits (the Ante can); the run's
-//     first play request carries BASE and the amount the screen showed, and the loss stop counts in base amounts.
-//     Then a run loaded first: the feature tiles refuse, and the Autoplay menu's UNLOAD frees them. Then the Ante 4x
-//     on: the menu and the HUD show its full price and the play request carries ANTE_4 at that price. With SHOTS the
-//     menu, the HUD and the requests are saved (autofeature_<tag>_*.png, autofeature_<tag>.json).
+//     base game (its pill, its count rows, its START total), names the feature START unloads, keeps Stop on Free Games
+//     available; START (2026-11-23: the run begins at once, nothing waits on Spin) unloads it as the run begins (the
+//     mode BASE, the HUD's amount the base amount, no feature on the Spin key); the run's first play request carries
+//     BASE and the amount the menu showed, and the loss stop counts in base amounts. After the run the feature stays
+//     unloaded, Super Free Spins can be activated again, and the Autoplay menu has no UNLOAD key (no run is ever parked).
+//     Then the Ante 4x on: the menu and the HUD show its full price and the play request carries ANTE_4 at that price.
+//     With SHOTS the menu, the HUD and the requests are saved (autofeature_<tag>_*.png, autofeature_<tag>.json).
 //   · EVERY AMOUNT FITS (2026-11-21, ui/fitAmount.ts; ONLY=currency): at 1440 x 900, 844 x 390 and 390 x 844 in USD, EUR,
 //     CAD, MXN, JPY, USDT, BTC, XSC, XGC, TRUMP, KWD and IDR, at the default and the top of the ladder, on every tile and
 //     level and on the confirm card: no amount box (the price plate, BALANCE, PLAY AMOUNT, the card's amount and total)
@@ -471,15 +471,14 @@ async function lossStop(p, label) {
 	await p.locator('.am-ui.layer.modals .fold-body .sec').first().locator('button.lim', { hasText: label }).click();
 	await sleep(200);
 }
-async function loadRun(p) {
-	await p.click('.am-ui.layer.modals button.go');
-	await sleep(600);
-}
-/** press Spin, wait for the run's first play request, stop the run and wait for rest; the request and the stops */
+/** press the Autoplay menu's START (the run begins at once), wait for the run's first play request, stop the run and
+ *  wait for rest; the request, the stops and the HUD as the run began */
 async function runOnce(p) {
 	const before = await p.evaluate(() => window.__reindeer.fixtures.log().plays.length);
-	await p.click('.hudp button.spin');
+	await p.click('.am-ui.layer.modals button.go');
 	for (let i = 0; i < 60 && (await p.evaluate(() => window.__reindeer.fixtures.log().plays.length)) <= before; i++) await sleep(150);
+	const hud = await hudNow(p);
+	const menuGone = await p.evaluate(() => !document.querySelector('.am-ui.layer.modals button.go'));
 	const limits = await p.evaluate(() => window.__reindeer.hud.autoLimits());
 	const play = await p.evaluate((n) => window.__reindeer.fixtures.log().plays[n] ?? null, before);
 	await p.click('.hudp button[aria-label="Autoplay"]').catch(() => {});
@@ -488,7 +487,7 @@ async function runOnce(p) {
 		await sleep(250);
 	}
 	await sleep(600);
-	return { play, limits };
+	return { play, limits, hud, menuGone };
 }
 async function autoFeature(browser, isSocial) {
 	const S = SIZES[0];
@@ -517,63 +516,37 @@ async function autoFeature(browser, isSocial) {
 	await snap('1_menu_super_loaded');
 	check(/BASE/.test(menu.pill ?? '') && near(amountIn(menu.pill), base), `${tag}: with a feature loaded the Autoplay pill shows the base game at the base amount (${base})`, menu.pill);
 	check(menu.rows.length >= 4 && near(amountIn(menu.rows[0]), 10 * base) && near(amountIn(menu.rows[1]), 25 * base), `${tag}: the count rows price base spins (10 and 25 x the base amount)`, menu.rows.slice(0, 2));
-	check(near(amountIn(menu.total), 10 * base) && near(amountIn(menu.go), 10 * base), `${tag}: the total and the LOAD button price 10 base spins`, { total: menu.total, go: menu.go });
+	check(near(amountIn(menu.total), 10 * base) && near(amountIn(menu.go), 10 * base), `${tag}: the total and the START key price 10 base spins`, { total: menu.total, go: menu.go });
 	check(near(amountIn(menu.step), base) && !/SUPER/.test(menu.step ?? ''), `${tag}: the menu's amount stepper shows the base amount, not the feature`, menu.step);
-	check(/LOAD unloads SUPER FREE SPINS/.test(menu.drop ?? '') && /plays base game spins/.test(menu.drop ?? ''), `${tag}: the menu says LOAD unloads Super Free Spins and the run plays base spins`, menu.drop);
+	check(/START unloads SUPER FREE SPINS/.test(menu.drop ?? '') && /plays base game spins/.test(menu.drop ?? ''), `${tag}: the menu says START unloads Super Free Spins and the run plays base spins`, menu.drop);
+	check(/^START /.test(menu.go ?? '') && !/LOAD/.test(menu.go ?? ''), `${tag}: the menu's key reads START (no LOAD)`, menu.go);
 	await lossStop(p, '10x');
 	const menuOpen = await autoMenu(p);
 	check(menuOpen.stopFree && !menuOpen.stopFree.disabled && !/Unavailable/.test(menuOpen.stopFree.sub ?? ''), `${tag}: Stop on Free Games is available with a feature loaded`, menuOpen.stopFree);
 	await snap('2_menu_stop_options');
-	await loadRun(p);
-	const loadedHud = await hudNow(p);
-	await snap('3_hud_run_loaded');
-	check(loadedHud.mode === 'BASE', `${tag}: LOAD unloads the feature at once (the mode is BASE before Spin)`, loadedHud);
-	check(near(amountIn(loadedHud.amount), base) && !/SUPER/.test(loadedHud.amount ?? '') && !/SUPER/.test(loadedHud.spin ?? ''), `${tag}: the HUD shows the base amount beside the loaded run, no feature`, loadedHud);
-	// the Fast Lane with the run waiting: Super's tile says it was unloaded, no feature tile activates, the Ante does
-	await openMenu(p);
-	const pl = await plate(p);
-	await snap('4_fast_lane_run_loaded');
-	check(pl.key === 'SUPER' && /is unloaded/.test(pl.status ?? ''), `${tag}: the Fast Lane opens on Super Free Spins saying it is unloaded`, pl);
-	const parked = await p.evaluate(() => document.querySelector('[data-fl-auto]')?.textContent.trim() ?? null);
-	check(pl.act === 'activate' && pl.actDisabled === true && /unload it in the Autoplay menu first/.test(parked ?? ''), `${tag}: ACTIVATE is unavailable on a feature while a run is loaded, and says so`, { pl, parked });
-	await layout(p, S, `${tag} run loaded`);
-	await words(p, S, `${tag} run loaded`);
-	await p.click('[data-card="BONUS"]');
-	await sleep(500);
-	const plB = await plate(p);
-	check(plB.actDisabled === true, `${tag}: Free Spins cannot be activated while a run is loaded`, plB);
-	await p.click('[data-card="ANTE"]');
-	await sleep(500);
-	const plA = await plate(p);
-	check(plA.actDisabled === false, `${tag}: the Ante can still be switched on while a run is loaded`, plA);
-	await p.keyboard.press('Escape');
-	await waitClosed(p);
 	const r1 = await runOnce(p);
-	record.cases.push({ case: 'SUPER loaded then autoplay 10', menu, hudLoaded: loadedHud, play: r1.play, limits: r1.limits });
-	check(r1.play?.mode === 'BASE' && near(r1.play.amount * (await costOf('BASE')), amountIn(loadedHud.amount)), `${tag}: the run's first play request is BASE at the amount the HUD showed`, { play: r1.play, shown: loadedHud.amount });
+	record.cases.push({ case: 'SUPER loaded then autoplay 10', menu, hudRun: r1.hud, play: r1.play, limits: r1.limits });
+	check(r1.menuGone, `${tag}: START closes the Autoplay menu`, r1);
+	check(r1.hud.mode === 'BASE', `${tag}: START unloads the feature as the run begins (the mode is BASE)`, r1.hud);
+	check(near(amountIn(r1.hud.amount), base) && !/SUPER/.test(r1.hud.amount ?? '') && !/SUPER/.test(r1.hud.spin ?? ''), `${tag}: the HUD shows the base amount during the run, no feature`, r1.hud);
+	check(r1.play?.mode === 'BASE' && near(r1.play.amount * (await costOf('BASE')), base), `${tag}: the run's first play request is BASE at the amount the menu showed (${base})`, { play: r1.play });
 	check(near(r1.limits.loss, 10 * base), `${tag}: the 10x loss stop counts in base amounts (${10 * base})`, r1.limits);
+	check((await hudNow(p)).mode === 'BASE', `${tag}: after the run the feature stays unloaded (BASE)`);
 
-	// 2. a run loaded first, then the Fast Lane: the feature tiles refuse until the run is unloaded
-	await openAuto(p);
-	await loadRun(p);
-	await openMenu(p);
-	await p.click('[data-card="SUPER"]');
-	await sleep(500);
-	const plS = await plate(p);
-	check(plS.actDisabled === true && (await p.evaluate(() => !!document.querySelector('[data-fl-auto]'))), `${tag}: with a run loaded first, Super Free Spins cannot be activated`, plS);
-	await p.keyboard.press('Escape');
-	await waitClosed(p);
+	// 2. after a run: nothing is parked. The Autoplay menu has no UNLOAD key and Super Free Spins can be activated
 	await openAuto(p);
 	const m2 = await autoMenu(p);
-	check(m2.unload && m2.drop === null, `${tag}: a run loaded in the base game: no unload line, UNLOAD CURRENT AUTO SPINS shown`, m2);
-	await p.click('.am-ui.layer.modals button.unload');
+	check(!m2.unload && m2.drop === null, `${tag}: after a run the Autoplay menu has no UNLOAD key and no unload line`, m2);
+	await p.click('.am-ui.layer.modals button.x');
 	await sleep(600);
 	await openMenu(p);
 	await p.click('[data-card="SUPER"]');
 	await sleep(500);
 	const plS2 = await plate(p);
-	check(plS2.actDisabled === false, `${tag}: after the run is unloaded Super Free Spins can be activated again`, plS2);
-	record.cases.push({ case: 'autoplay loaded then feature', refused: plS.actDisabled, afterUnload: plS2.actDisabled });
+	await layout(p, S, `${tag} after a run`);
+	await words(p, S, `${tag} after a run`);
+	check(plS2.actDisabled === false, `${tag}: after a run Super Free Spins can be activated`, plS2);
+	record.cases.push({ case: 'after a run, feature', activatable: !plS2.actDisabled });
 
 	// 3. Ante 4x on, then autoplay: its full price everywhere, ANTE_4 in the request
 	await p.click('[data-card="ANTE"]');
@@ -589,10 +562,9 @@ async function autoFeature(browser, isSocial) {
 	const m3 = await autoMenu(p);
 	await snap('5_menu_ante4');
 	check(/ANTE/.test(m3.pill ?? '') && near(amountIn(m3.pill), ante) && near(amountIn(m3.rows[0]), 10 * ante) && near(amountIn(m3.step), ante) && m3.drop === null, `${tag}: with Ante 4x on the menu prices Ante spins (${ante}) and says nothing is unloaded`, m3);
-	await loadRun(p);
-	const anteHud = await hudNow(p);
 	const r3 = await runOnce(p);
-	record.cases.push({ case: 'Ante 4x then autoplay', menu: m3, hudLoaded: anteHud, play: r3.play, limits: r3.limits });
+	const anteHud = r3.hud;
+	record.cases.push({ case: 'Ante 4x then autoplay', menu: m3, hudRun: anteHud, play: r3.play, limits: r3.limits });
 	check(r3.play?.mode === 'ANTE_4' && near(r3.play.amount * (await costOf('ANTE_4')), ante) && anteHud.mode === 'ANTE_4', `${tag}: the Ante run's play request is ANTE_4 at the price the menu showed`, { play: r3.play, hud: anteHud });
 	await p.evaluate(() => {
 		window.__reindeer.fixtures.clear();
@@ -879,8 +851,8 @@ async function smallSizes(browser) {
 			const inWin = (b) => b.x0 >= -0.5 && b.y0 >= -0.5 && b.x1 <= w + 0.5 && b.y1 <= h + 0.5;
 			check(inWin(a.panel) && inWin(a.adj), `small ${tag}: the Autoplay menu and its stepper inside the window`, { panel: a.panel, adj: a.adj });
 			check(ov(a.panel, a.adj) < 1, `small ${tag}: the Autoplay menu clear of its stepper`, { panel: a.panel, adj: a.adj });
-			check(a.scroll.sh <= a.scroll.ch + 1 && a.cut.length === 0, `small ${tag}: every count, STOP OPTIONS, the total and LOAD whole in the menu, nothing scrolled`, { scroll: a.scroll, cut: a.cut.slice(0, 4) });
-			check(a.goOut.length === 0, `small ${tag}: LOAD's words and amount inside the button`, a.goOut);
+			check(a.scroll.sh <= a.scroll.ch + 1 && a.cut.length === 0, `small ${tag}: every count, STOP OPTIONS, the total and START whole in the menu, nothing scrolled`, { scroll: a.scroll, cut: a.cut.slice(0, 4) });
+			check(a.goOut.length === 0, `small ${tag}: START's words and amount inside the button`, a.goOut);
 			check(a.subs.length === 8 && a.subs.every(Boolean), `small ${tag}: every spin count with its price line`, a.subs);
 		}
 		if (SHOTS) await p.screenshot({ path: join(SHOTS, `small_${tag}_auto.png`) });

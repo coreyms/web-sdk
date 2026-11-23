@@ -239,7 +239,7 @@ const BOXES = [
 	// column is (392 less 2 border, 20 padding and the 10 gap) / 2.25 = 160. A long total takes that column's own line
 	// (less 4), LOAD's amount the button's inside (less 2 border and 16 padding; letter-spacing 0.04 em, here as none)
 	{ id: 'auto.total.low', el: 'Autoplay TOTAL, 400 x 225 (LOW: its own line, 156)', kind: 'autoTotal', f: OUT, nominal: 14, box: 156, floor: 11, how: 'fitFont floor 11' },
-	{ id: 'auto.go.low', el: "Autoplay LOAD's amount, 400 x 225 (LOW: under the words, 142)", kind: 'autoTotal', f: OUT, nominal: 12, box: 142 - 20 * 0.48, floor: 8.5, how: 'fitFont floor 8.5' },
+	{ id: 'auto.go.low', el: "Autoplay START's amount, 400 x 225 (LOW: under the words, 142)", kind: 'autoTotal', f: OUT, nominal: 12, box: 142 - 20 * 0.48, floor: 8.5, how: 'fitFont floor 8.5' },
 ];
 // the confirm card's value column is the inside less its label's own width (computed here from the face)
 const CARD_WORDS = Math.max(measure('SUPER FREE SPINS', 15, 700, 0, 'Overpass'), measure('PLAY AMOUNT', 15, 700, 0, 'Overpass'), measure('EVERY SPIN', 20, 900, 0, 'Overpass'));

@@ -1337,10 +1337,8 @@ async function flows(p, S, errs) {
 		});
 		await p.click('.hudp button[aria-label="Autoplay"]');
 		await sleep(700);
-		await p.click('.am-ui.layer.modals .go');
-		await sleep(700);
 		const plays0 = await R(p, () => window.__reindeer.fixtures.log().plays.length);
-		await p.click('.hudp button.spin');
+		await p.click('.am-ui.layer.modals .go'); // START: the run begins at once
 		const t0 = Date.now();
 		const shows = new Map();
 		let stopped = false;
@@ -1615,10 +1613,8 @@ async function gagModes(p, S) {
 	await R(p, () => window.__reindeer.fixtures.next('base_grandma_strike', true));
 	await p.click('.hudp button[aria-label="Autoplay"]');
 	await sleep(700);
-	await p.click('.am-ui.layer.modals .go');
-	await sleep(700);
 	const plays0 = await R(p, () => window.__reindeer.fixtures.log().plays.length);
-	await p.click('.hudp button.spin');
+	await p.click('.am-ui.layer.modals .go'); // START: the run begins at once
 	const t0 = Date.now();
 	let stopped = false;
 	while (Date.now() - t0 < 120000) {
