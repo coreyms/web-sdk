@@ -3,13 +3,18 @@
 	// shows this in place of the landing screen's PRESS ANYWHERE, once the game is loaded. Two choices, the same words as
 	// Manticore Mayhem's card: Play Round (the default, focused) and Skip to Result. One press, one action: the first choice
 	// takes it and the card goes; nothing sounds before that press (the landing screen's own press voice follows it).
-	// The look is THE FAST LANE's confirm card (ui/FeatureMenu.svelte): the white road sign with its black rim, the red GO
-	// button, the white second button. HTML over the canvas; the HUD is not up behind it (the landing screen's time).
+	// The look is THE FAST LANE's confirm card (ui/FeatureMenu.svelte): since 2026-11-23 the green guide sign with the sign
+	// bar's white band (Corey, on the mock menus_r1_2026-11-23: "Just green everywhere", and "yes" to this card; a plain
+	// restyle, its size, rows and words unchanged), the red GO button, the second button a dark plate with a white
+	// line. Until then the white road sign with its black rim. HTML over the canvas; the HUD is not up behind it (the
+	// landing screen's time).
 	import { onMount, tick } from 'svelte';
 	import { innerWidth, innerHeight } from 'svelte/reactivity/window';
 	import { stateBet } from 'state-shared';
 
 	import { MODE_NAMES } from '../game/gameInfoText';
+	// (the sign panels' tokens, --sp-*: this card can be up before the HUD is)
+	import './hudTheme';
 	import { RESUME_TEXT, type ResumeChoice } from '../game/resumeRound.svelte';
 
 	type Props = { onchoose: (choice: ResumeChoice) => void };
@@ -47,7 +52,7 @@
 
 <div class="rwrap" data-resume-card>
 	<div class="dim"></div>
-	<div class="card" class:compact bind:offsetHeight={cardH} style:width="{baseW}px" style:transform="scale({s})" role="dialog" aria-modal="true" aria-labelledby="resume-title" aria-describedby="resume-line">
+	<div class="card" class:compact bind:offsetHeight={cardH} style:width="{baseW}px" style:transform="scale({s})" style:--s={s} role="dialog" aria-modal="true" aria-labelledby="resume-title" aria-describedby="resume-line">
 		<h3 id="resume-title">{RESUME_TEXT.title}</h3>
 		<div class="rows"><div>{RESUME_TEXT.mode}</div><div data-resume-mode>{roundName}</div></div>
 		<p id="resume-line">{RESUME_TEXT.line}</p>
@@ -59,7 +64,8 @@
 </div>
 
 <style>
-	/* THE FAST LANE's confirm card (ui/FeatureMenu.svelte), its palette and buttons */
+	/* THE FAST LANE's confirm card (ui/FeatureMenu.svelte), its buttons, and the sign panels' green card (the --sp-*
+	   tokens, ui/hudTheme.ts SIGN_PANEL): sign green, the white band, the navy line outside it and the black line inside */
 	.rwrap {
 		--green-deep: #064a31;
 		--sign-white: #f7f8f3;
@@ -85,11 +91,14 @@
 		position: relative;
 		box-sizing: border-box;
 		flex: none;
-		background: var(--sign-white);
-		color: var(--sign-black);
-		border: 5px solid var(--sign-black);
-		outline: 4px solid var(--sign-white);
-		border-radius: 16px;
+		background: var(--sp-field);
+		color: var(--sp-ink);
+		border: var(--sp-cbw) solid var(--sp-band);
+		border-radius: var(--sp-crad);
+		box-shadow:
+			0 0 0 calc(var(--sp-cbw) * 0.36) var(--sp-ko-c),
+			inset 0 0 0 calc(var(--sp-cbw) * 0.28) var(--sp-ki-c),
+			0 14px 30px rgba(0, 0, 0, 0.5);
 		padding: 22px 24px 20px;
 		display: flex;
 		flex-direction: column;
@@ -115,8 +124,8 @@
 	}
 	.rows div {
 		padding: 7px 0 5px;
-		border-top: 2px solid #c9cbc4;
-		border-bottom: 2px solid #c9cbc4;
+		border-top: 2px solid rgba(255, 255, 255, 0.34);
+		border-bottom: 2px solid rgba(255, 255, 255, 0.34);
 		font-weight: 700;
 		white-space: nowrap;
 		overflow: hidden;
@@ -132,7 +141,7 @@
 		margin: 0;
 		font-size: 14.5px;
 		line-height: 1.35;
-		color: #2b2f36;
+		color: #e6f3ec;
 	}
 	.btns {
 		display: flex;
@@ -166,8 +175,8 @@
 		font-weight: 900;
 		letter-spacing: 0.06em;
 		box-shadow:
-			0 0 0 3px var(--sign-black),
-			0 5px 0 3px #6d0a12;
+			0 0 0 1.5px var(--sp-ki-c),
+			0 5px 0 1.5px #6d0a12;
 		white-space: nowrap;
 		transition:
 			transform 90ms ease,
@@ -181,17 +190,41 @@
 		min-width: 0;
 		height: 52px;
 		font-size: 16px;
-		border: 3px solid var(--sign-black);
+		border: 3px solid var(--sp-ink);
 		border-radius: 10px;
 		font-family: var(--disp);
 		font-weight: 800;
-		color: var(--sign-black);
-		background: #fff;
+		color: var(--sp-ink);
+		background: rgba(4, 22, 13, 0.3);
 		white-space: nowrap;
+		transition:
+			transform 90ms ease,
+			background-color 90ms ease;
+	}
+	.no:active:not(:disabled) {
+		transform: translateY(2px);
+		background: rgba(255, 255, 255, 0.24);
 	}
 	button:disabled {
 		cursor: default;
 		opacity: 0.6;
+	}
+	/* THE KEYS' PRESS HEIGHT (2026-11-23, as the Fast Lane's confirm card got it): where the card is scaled under 1 (a
+	   window under 364 px wide: 42 px keys at 320) each key keeps its drawn size and gets an unseen press area as wide
+	   as itself and at least 44 CSS px tall round its middle. The two stand side by side, 12 px apart. */
+	.go,
+	.no {
+		position: relative;
+	}
+	.go::after,
+	.no::after {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 50%;
+		width: 100%;
+		height: max(100%, calc(44px / var(--s, 1)));
+		transform: translateY(-50%);
 	}
 	.card.compact {
 		padding: 16px 16px 14px;

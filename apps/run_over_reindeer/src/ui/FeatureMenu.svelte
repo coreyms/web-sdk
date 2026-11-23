@@ -41,9 +41,14 @@
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';
 	import Icon from './Icon.svelte';
-	import HudIcon from './hud/HudIcon.svelte';
 	import { betStepTarget } from './betStep';
 	import { FL_BOX, flLay, flScale, type FlLay } from './fastLaneBox';
+	// THE AMOUNT'S KEYS are the sign bar's own bet symbols (2026-11-23, as the Autoplay card's stepper took them from
+	// the approved mock menus_r1_2026-11-23: a bare red < and a bare green >, ui/sign/signDraw.ts stepSvg), in the same
+	// press boxes; until then round grey keys with a minus and a plus
+	import { stepDraw } from './sign/signLayout';
+	import { stepSvg } from './sign/signDraw';
+	const STEP_BOX = 46;
 	import { ANTE_KEYS, modeCost } from '../game/betModeMeta';
 	import { stamp } from '../game/assets';
 	import { PHONE_TIER } from '../game/deviceTier';
@@ -405,14 +410,14 @@
 							if (v === undefined) return;
 							controls.sound('soundPressGeneral');
 							controls.setBet(v, { silent: true });
-						}} data-fl-step="minus"><HudIcon name="minus" /></button>
+						}} data-fl-step="minus"><svg viewBox="0 0 {STEP_BOX} {STEP_BOX}" aria-hidden="true">{@html stepSvg(-1, stepDraw(24), STEP_BOX, STEP_BOX)}</svg></button>
 						<div class="val slot-num" use:fitAmount={{ text: money(stateBet.betAmount), floor: FLOOR.hud }} data-fl-amount>{money(stateBet.betAmount)}</div>
 						<button class="step" disabled={betStepTarget(1) === undefined || busy} aria-label={X.raise} onclick={() => {
 							const v = betStepTarget(1);
 							if (v === undefined) return;
 							controls.sound('soundPressGeneral');
 							controls.setBet(v, { silent: true });
-						}} data-fl-step="plus"><HudIcon name="plus" /></button>
+						}} data-fl-step="plus"><svg viewBox="0 0 {STEP_BOX} {STEP_BOX}" aria-hidden="true">{@html stepSvg(1, stepDraw(24), STEP_BOX, STEP_BOX)}</svg></button>
 					</div>
 				</div>
 			</div>
@@ -630,30 +635,44 @@
 		min-width: 0;
 		text-align: center;
 	}
+	/* the bar's own bet symbol in the key's box (no plate of its own, as on the bar) */
 	.step {
 		flex: none;
 		display: grid;
 		place-items: center;
-		border-radius: 50%;
-		background: #262b35 !important;
-		border: 2px solid #5b6577 !important;
-		color: #fff !important;
+		transition: transform 0.1s ease;
 	}
-	.step :global(.ic) {
-		width: 55%;
-		height: 55%;
+	.step svg {
+		display: block;
+		width: 100%;
+		height: 100%;
+		overflow: visible;
+	}
+	.step svg :global(.hv) {
+		opacity: 0;
+		transition: opacity 0.2s ease;
+	}
+	@media (hover: hover) and (pointer: fine) {
+		.step:hover:not(:disabled) svg :global(.hv) {
+			opacity: 1;
+		}
+	}
+	.step:active:not(:disabled) {
+		transform: scale(0.9);
 	}
 	.step:disabled {
-		opacity: 0.35;
+		opacity: 0.4;
 		cursor: default;
 	}
+	/* the close key: a black sign with the sign panels' white band (ui/hudTheme.ts SIGN_PANEL's tokens; it looked this
+	   way already, in the menu's own near black and white) */
 	.close {
 		display: grid;
 		place-items: center;
 		border-radius: 12px;
-		background: var(--sign-black) !important;
-		border: 3px solid var(--sign-white) !important;
-		color: #fff !important;
+		background: var(--sp-ki-c) !important;
+		border: 3px solid var(--sp-band) !important;
+		color: var(--sp-ink) !important;
 	}
 
 	/* ── the hero ── */
