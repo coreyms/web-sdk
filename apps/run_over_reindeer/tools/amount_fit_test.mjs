@@ -234,7 +234,12 @@ const BOXES = [
 	{ id: 'gi.pay', el: 'Game Info paytable pay, 360 wide, stacked (.row.stack .pay-v 13 px)', kind: 'pay', f: SORA, nominal: 13, box: 270, floor: 9, how: 'stacked when long + fitAmount (was three across, nowrap, no fit)' },
 	{ id: 'popup.pay', el: 'Symbol popup 5 IN A ROW pay (236 x 0.86 wide, pad 12, border 3; less "5" and 0.8 em: 152)', kind: 'pay', f: OV(900), nominal: 14, box: 152, floor: null, how: 'fixed width, nowrap (checked: fits at nominal)' },
 	{ id: 'menu.net', el: 'Menu panel NET, tablet (narrow panel 178 less 22 padding and 8; 9 px, 0.14 em tracking)', kind: 'net', f: { face: 'Outfit', weight: 900, trackPx: 1.26 }, nominal: 9, box: 156 - measure('NET', 9, 900, 1.26 * 3, 'Outfit') - 5, floor: null, how: 'fitFont to the panel line (HudMenuPanel netFont; was no fit)' },
-	{ id: 'auto.total', el: 'Autoplay TOTAL, upright (fitFont floor 12 into 0.58 of 384)', kind: 'autoTotal', f: OUT, nominal: 18, box: 0.58 * 384, floor: 12, how: 'fitFont floor 12' },
+	// (2026-11-23, the sign panels: the Autoplay card's total is Overpass 900 at 22 px in every layout; its box is 0.58 of
+	// the tiles' column less 4: 412 less 2 x 14 padding and the 2 x 4 band upright, half of 760 less the same and the 18
+	// gap on the wide card. The sign bar's Menu pop-out fits its NET like the dock's panel: 296 less 2 x 15, 10 px type)
+	{ id: 'auto.total', el: 'Autoplay TOTAL, upright (fitFont floor 12 into 0.58 of 372)', kind: 'autoTotal', f: OV(900), nominal: 22, box: 0.58 * 372, floor: 12, how: 'fitFont floor 12' },
+	{ id: 'auto.total.wide', el: 'Autoplay TOTAL, the wide card (fitFont floor 12 into 0.58 of 349)', kind: 'autoTotal', f: OV(900), nominal: 22, box: 0.58 * 349, floor: 12, how: 'fitFont floor 12' },
+	{ id: 'menu.net.sign', el: 'Sign bar Menu pop-out NET alone on its line (296 less 30; 10 px, 0.1 em tracking)', kind: 'net', f: { face: 'Overpass', weight: 900, trackPx: 1 }, nominal: 10, box: 266 - measure('NET', 10, 900, 1 * 3, 'Overpass') - 5, floor: null, how: 'fitFont to the panel line (SignMenuPanel netFont)' },
 ];
 // the confirm card's value column is the inside less its label's own width (computed here from the face)
 const CARD_WORDS = Math.max(measure('SUPER FREE SPINS', 15, 700, 0, 'Overpass'), measure('PLAY AMOUNT', 15, 700, 0, 'Overpass'), measure('EVERY SPIN', 20, 900, 0, 'Overpass'));

@@ -2,24 +2,33 @@
 	import { soc } from '../game/social';
 	import { betStepTarget } from './betStep';
 	import type { Controls } from './controls.svelte';
-	import HudIcon from './hud/HudIcon.svelte';
 	import { numberToCurrencyString } from '../game/currency';
+	import { stepDraw } from './sign/signLayout';
+	import { stepSvg } from './sign/signDraw';
+	import './hudTheme';
+	import './sign/signPanel.css';
 
-	// pressSound: the autoplay card voices its own buttons with the sub click; elsewhere the arrows
-	// keep the general click (setBet's own)
-	// glass: the HUD's round glass minus and plus keys (HUD round 6: the Autoplay menu's stepper matches the HUD's own);
-	// the denomination card keeps its square paper keys
+	// THE AUTOPLAY CARD'S AMOUNT STEPPER, in the sign bar's style (2026-11-23; Corey's pick from the mock
+	// menus_r1_2026-11-23, style A): a small green sign plate under the card with the bar's own bet symbols (a red < and
+	// a green >, ui/sign/signDraw.ts stepSvg) either side of a header plate and the amount. Until then it was a dark box
+	// with the glass dock's round minus and plus keys. The stepping rules, the sub click and the press on the amount
+	// (it opens the amount list) are unchanged.
+	// pressSound: the autoplay card voices its own buttons with the sub click; elsewhere the arrows keep the general
+	// click (setBet's own)
 	// autoRun: the Autoplay menu's stepper shows what one spin of the run will use (ui/controls.svelte.ts autoSpinCost,
 	// 2026-11-19): with a feature loaded, the base amount under SPIN / PLAY, since START unloads the feature
-	type Props = { controls: Controls; compact?: boolean; pressSound?: 'soundPressGeneral' | 'soundPressSub'; glass?: boolean; autoRun?: boolean };
-	const { controls, compact = false, pressSound = 'soundPressGeneral', glass = false, autoRun = false }: Props = $props();
-	const btn = $derived(compact ? 38 : 46);
+	// row: the header plate and the amount side by side (a phone held sideways, where height is short)
+	// bare: no plate of its own: the stepper rides in the card's head row (the mock's departure for the sideways phone:
+	// under the card the open STOP OPTIONS pushed the main key off the window once every press box is 44 px)
+	// touch: the keys at 44 px (46 with a mouse)
+	type Props = { controls: Controls; pressSound?: 'soundPressGeneral' | 'soundPressSub'; autoRun?: boolean; row?: boolean; bare?: boolean; touch?: boolean };
+	const { controls, pressSound = 'soundPressGeneral', autoRun = false, row = false, bare = false, touch = false }: Props = $props();
 	// Same label rule as the HUD readout (controls.betLabel): a bought feature names the mode, everything
-	// else reads SPIN / PLAY. Ante is announced by this component's own tag above the number.
+	// else reads SPIN / PLAY. Ante is announced by this component's own tag beside the header.
 	const label = $derived(autoRun && controls.armedBuy() !== null ? soc('SPIN', 'PLAY') : controls.betLabel());
 	const value = $derived(autoRun ? numberToCurrencyString(controls.autoSpinCost()) : controls.betText());
 
-	// stepping rules (affordability clamp) live in betStep.ts, shared with the HUD's inline −/+
+	// stepping rules (affordability clamp) live in betStep.ts, shared with the bar's own symbols
 	const stepTarget = betStepTarget;
 	const step = (dir: 1 | -1) => {
 		const next = stepTarget(dir);
@@ -27,116 +36,86 @@
 		controls.sound(pressSound);
 		controls.setBet(next, { silent: true });
 	};
+	// the bar's own symbol at 24 bar px, in a 46 px box (the mock's numbers); the box scales with the key
+	const KEY = 46;
+	const sym = (dir: 1 | -1) => stepSvg(dir, stepDraw(24), KEY, KEY);
 </script>
 
-<div class="adj" style:padding={compact ? '8px 14px' : '10px 18px'}>
-	{#if glass}
-		<button class="slot-btn sk" disabled={stepTarget(-1) === undefined} onclick={() => step(-1)} style:width="{btn}px" style:height="{btn}px" aria-label={soc('Decrease bet', 'Decrease play amount')}><HudIcon name="minus" /></button>
-	{:else}
-		<button class="slot-btn arrow" disabled={stepTarget(-1) === undefined} onclick={() => step(-1)} style:width="{btn}px" style:height="{btn}px" style:font-size="{compact ? 18 : 22}px" aria-label={soc('Decrease bet', 'Decrease play amount')}>−</button>
-	{/if}
-	<button class="slot-btn mid" onclick={() => controls.openDenom()} style:min-width="{compact ? 120 : 150}px">
-		{#if controls.anteActive()}<span class="ante" style:font-size="{compact ? 9 : 10}px">{soc('ANTE BET', 'ANTE MODE')}</span>{/if}
-		<span class="lbl" style:font-size="{compact ? 10 : 11}px">{label}</span>
-		<span class="slot-num val" style:font-size="{compact ? 18 : 22}px">{value}</span>
+<div class="adj sp" class:sp-plate={!bare} class:bare class:row={row || bare} class:touch data-auto-stepper={bare ? 'head' : 'plate'}>
+	<button type="button" class="sp-sk" disabled={stepTarget(-1) === undefined} onclick={() => step(-1)} aria-label={soc('Decrease bet', 'Decrease play amount')}>
+		<svg viewBox="0 0 {KEY} {KEY}" aria-hidden="true">{@html sym(-1)}</svg>
 	</button>
-	{#if glass}
-		<button class="slot-btn sk" disabled={stepTarget(1) === undefined} onclick={() => step(1)} style:width="{btn}px" style:height="{btn}px" aria-label={soc('Increase bet', 'Increase play amount')}><HudIcon name="plus" /></button>
-	{:else}
-		<button class="slot-btn arrow" disabled={stepTarget(1) === undefined} onclick={() => step(1)} style:width="{btn}px" style:height="{btn}px" style:font-size="{compact ? 18 : 22}px" aria-label={soc('Increase bet', 'Increase play amount')}>+</button>
-	{/if}
+	<button type="button" class="mid" onclick={() => controls.openDenom()}>
+		{#if controls.anteActive()}<span class="ante">{soc('ANTE BET', 'ANTE MODE')}</span>{/if}
+		<span class="sp-tag lbl"><span>{label}</span></span>
+		<span class="val">{value}</span>
+	</button>
+	<button type="button" class="sp-sk" disabled={stepTarget(1) === undefined} onclick={() => step(1)} aria-label={soc('Increase bet', 'Increase play amount')}>
+		<svg viewBox="0 0 {KEY} {KEY}" aria-hidden="true">{@html sym(1)}</svg>
+	</button>
 </div>
 
 <style>
+	/* the mock's .stp: a small plate, the bar's bet symbols either side of the header plate and the amount */
 	.adj {
+		flex: none;
 		display: inline-flex;
 		align-items: center;
-		gap: 12px;
-		background: rgba(0, 0, 0, 0.7);
-		border: 1px solid rgba(255, 255, 255, 0.12);
-		border-radius: 14px;
-	}
-	.arrow {
-		border-radius: 10px;
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.04) 100%);
-		box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.35), 0 3px 0 rgba(0, 0, 0, 0.4);
-		color: #fff;
+		gap: 6px;
+		padding: 5px 10px;
+		pointer-events: auto;
+		font-family: 'Overpass', 'Outfit', sans-serif;
 		font-weight: 900;
-		display: flex;
-		align-items: center;
-		justify-content: center;
+		color: var(--sp-ink);
+		-webkit-font-smoothing: antialiased;
 	}
-	.arrow:disabled {
-		background: rgba(255, 255, 255, 0.04);
-		box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-		color: rgba(255, 255, 255, 0.25);
-		opacity: 1;
+	.adj.touch :global(.sp-sk) {
+		width: 44px;
+		height: 44px;
 	}
-	/* the HUD's round glass key (ui/hud/hud.css .gl.sk, the same tokens): painted fill, white top / gold bottom edge */
-	.sk {
-		display: grid;
-		place-items: center;
-		padding: 0;
-		border-radius: 50%;
-		border: 1px solid;
-		border-color: rgba(var(--hud-key-rim-rgb), var(--hud-key-rim-a));
-		background: radial-gradient(ellipse 90% 80% at 50% 0%, rgba(var(--hud-ink-rgb), 0.17), rgba(var(--hud-ink-rgb), 0.04) 72%), rgba(var(--hud-key-rgb), 0.38);
-		color: rgba(var(--hud-ink-rgb), 0.94);
-		box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.1), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
-		transition: border-color 0.16s, transform 0.12s, box-shadow 0.16s, opacity 0.2s, color 0.16s;
-		cursor: pointer;
-		-webkit-tap-highlight-color: transparent;
-	}
-	.sk :global(.ic) {
-		display: block;
-		width: 47%;
-		height: 47%;
-	}
-	@media (hover: hover) and (pointer: fine) {
-		.sk:hover:not(:disabled) {
-			border-color: rgba(var(--hud-key-rim-rgb), 0.55);
-			color: rgb(var(--hud-ink-rgb));
-			box-shadow: inset 0 1px 0 rgba(var(--hud-ink-rgb), 0.18), 0 0 14px rgba(var(--hud-accent-rgb), 0.18), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.4);
-		}
-	}
-	.sk:active:not(:disabled) {
-		transform: scale(0.94);
-		box-shadow: inset 0 2px 6px rgba(var(--hud-shadow-rgb), 0.7);
-	}
-	.sk:focus-visible {
-		outline: 1.5px solid rgb(var(--hud-accent-hi-rgb));
-		outline-offset: 3px;
-	}
-	.sk:disabled {
-		opacity: var(--hud-disabled-a);
-		cursor: default;
-	}
-	.mid {
-		background: transparent;
+	.adj .mid {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
+		gap: 4px;
+		min-width: 132px;
+		white-space: nowrap;
+	}
+	.adj .lbl {
+		font-size: 11.5px;
+	}
+	.adj .val {
+		font-size: 23px;
+		line-height: 1;
+		font-variant-numeric: tabular-nums;
+		transform: translateY(0.06em);
+	}
+	/* an Ante level on: a small yellow sign chip over the header (beside it in a row) */
+	.adj .ante {
+		padding: 2px 5px 0;
+		font-size: 9.5px;
+		line-height: 1.2;
+		letter-spacing: 0.08em;
+		color: var(--sp-acc-ink);
+		background: var(--sp-acc);
+		border: 1.5px solid var(--sp-ki-c);
+		border-radius: 4px;
+	}
+	/* side by side: the sideways phone's plate, and the stepper in the card's head row */
+	.adj.row {
+		padding: 2px 10px;
+	}
+	.adj.row .mid {
+		flex-direction: row;
+		gap: 9px;
+	}
+	.adj.bare {
+		padding: 0;
 		gap: 2px;
 	}
-	.ante {
-		font-weight: 900;
-		letter-spacing: 2px;
-		color: #e8b04a;
-		background: rgba(232, 176, 74, 0.15);
-		padding: 2px 6px;
-		border-radius: 4px;
-		text-shadow: 0 0 8px rgba(232, 176, 74, 0.6);
-		margin-bottom: 2px;
-	}
-	.lbl {
-		font-weight: 900;
-		letter-spacing: 2.5px;
-		color: #ffdc4a;
-		text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
-	}
-	.val {
-		font-weight: 700;
-		color: #fff;
-		text-shadow: 0 2px 3px rgba(0, 0, 0, 0.6);
+	.adj.bare .mid {
+		min-width: 0;
+		gap: 8px;
+		padding: 0 4px;
 	}
 </style>

@@ -1,0 +1,318 @@
+/* THE SIGN PANELS' SHARED PIECES (2026-11-23; Corey's pick from the mock menus_r1_2026-11-23, style A "Guide sign":
+   "I like the green menus ... Just green everywhere."). The pop-up panels in the sign bar's own language: the bar's
+   green field, its white band with the navy line outside it and the black line inside it, small dark plates set into
+   the field, the chosen one a white plate, the main key the Turbo yellow. The mock's mock.css is the spec; every color
+   and line width is a --sp-* token (ui/hudTheme.ts SIGN_PANEL, signPanelTokens). A panel's root carries `sp`; the
+   pieces are sp-* classes inside it. No backdrop-filter, no CSS filter, no mask, no blend mode; motion is transform,
+   opacity and color only. Type is Overpass 900, as on the bar. */
+.sp,
+.sp *,
+.sp *::before,
+.sp *::after {
+	box-sizing: border-box;
+}
+.sp button {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+	pointer-events: auto;
+	touch-action: manipulation;
+	user-select: none;
+	-webkit-user-select: none;
+	-webkit-tap-highlight-color: transparent;
+}
+.sp button:disabled {
+	cursor: default;
+}
+.sp button:focus-visible {
+	outline: 2px solid var(--sp-ink);
+	outline-offset: 2px;
+}
+/* the plate: a panel's own sign */
+.sp.sp-plate,
+.sp .sp-plate {
+	background: linear-gradient(180deg, var(--sp-f-top), var(--sp-f-bot));
+	border: var(--sp-bw) solid var(--sp-band);
+	border-radius: var(--sp-rad);
+	box-shadow:
+		0 0 0 var(--sp-ko) var(--sp-ko-c),
+		inset 0 0 0 var(--sp-ki) var(--sp-ki-c),
+		0 12px 28px rgba(2, 8, 18, 0.42);
+	color: var(--sp-ink);
+	font-family: 'Overpass', 'Outfit', sans-serif;
+	font-weight: 900;
+	-webkit-font-smoothing: antialiased;
+}
+/* Overpass sits high in its line: the bar nudges its words down by 0.06 em (ui/sign/sign.css) */
+.sp .sp-cap {
+	display: inline-block;
+	transform: translateY(0.06em);
+}
+/* a small spaced word over a row */
+.sp .sp-lab {
+	display: block;
+	margin: 0;
+	padding: 0;
+	font-size: 10px;
+	font-weight: 900;
+	line-height: 1;
+	letter-spacing: 0.16em;
+	color: var(--sp-ink2);
+	white-space: nowrap;
+	text-transform: uppercase;
+}
+/* the HUD's own line icons (ui/hud/HudIcon.svelte), in the words' color */
+.sp .ic {
+	display: block;
+	flex: none;
+}
+/* a small sign plate set into the panel: tiles, pills, rows, keys */
+.sp .sp-well {
+	position: relative;
+	background: var(--sp-well);
+	border: var(--sp-wl) solid var(--sp-band);
+	border-radius: var(--sp-wrad);
+	color: var(--sp-ink);
+	transition:
+		transform 0.1s ease,
+		background-color 0.14s ease,
+		color 0.14s ease,
+		box-shadow 0.14s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+	.sp .sp-well:hover:not(.on):not(:disabled) {
+		box-shadow: inset 0 0 0 99px var(--sp-hov);
+	}
+}
+.sp .sp-well:active:not(:disabled) {
+	transform: scale(0.95);
+}
+.sp .sp-well.on {
+	background: var(--sp-ch-bg);
+	color: var(--sp-ch-ink);
+	border-color: var(--sp-ch-bg);
+	box-shadow: 0 0 0 1.5px var(--sp-ch-out);
+}
+.sp .sp-dot {
+	flex: none;
+	display: inline-block;
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: currentColor;
+}
+/* the main key: the bar's key recipe (a face, the white band, the dark outline) with a drop it presses into */
+.sp .sp-kgo {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 11px;
+	width: 100%;
+	min-height: 52px;
+	padding: 0 16px;
+	border-radius: var(--sp-krad);
+	background: linear-gradient(180deg, var(--sp-acc-top), var(--sp-acc-bot));
+	color: var(--sp-acc-ink);
+	border: 3px solid var(--sp-band);
+	box-shadow:
+		0 0 0 2px var(--sp-ki-c),
+		0 5px 0 2px var(--sp-acc-deep);
+	font-size: 14px;
+	letter-spacing: 0.1em;
+	white-space: nowrap;
+	transition:
+		transform 90ms ease,
+		box-shadow 90ms ease;
+}
+.sp .sp-kgo:active:not(:disabled) {
+	transform: translateY(3px);
+	box-shadow:
+		0 0 0 2px var(--sp-ki-c),
+		0 2px 0 2px var(--sp-acc-deep);
+}
+/* a header plate, as the bar's BALANCE and SPIN (ui/sign/sign.css .lbw) */
+.sp .sp-tag {
+	--tb: max(1.3px, 0.11em);
+	--to: max(0.7px, 0.05em);
+	--ti: max(0.5px, 0.04em);
+	display: inline-flex;
+	align-items: center;
+	height: calc(1.1em + 2 * var(--ti) + 2 * var(--tb));
+	margin: var(--to);
+	padding: 0 calc(0.42em + var(--ti));
+	font-weight: 900;
+	line-height: 1;
+	letter-spacing: 0.06em;
+	color: #fff;
+	background: linear-gradient(180deg, #288a58, #09673a);
+	border: var(--tb) solid #fff;
+	border-radius: calc(0.24em + var(--tb) / 2);
+	box-shadow:
+		0 0 0 var(--to) var(--sp-ko-c),
+		inset 0 0 0 var(--ti) var(--sp-ki-c);
+}
+.sp .sp-tag > span {
+	margin-right: -0.06em;
+	transform: translateY(0.06em);
+}
+/* the slider: a line with the bar's diamond on it (ui/sign/SignSlider.svelte: the whole row takes the press and the
+   drag; the drawn fill and the diamond follow --p, 0 to 1; the diamond's travel stops 9 px short of each end) */
+.sp .sp-sl {
+	position: relative;
+	display: block;
+	flex: none;
+	width: 100%;
+	height: 22px;
+	touch-action: none;
+	cursor: pointer;
+	outline: none;
+	pointer-events: auto;
+}
+.sp .sp-sl-t {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 50%;
+	height: 9px;
+	margin-top: -4.5px;
+	border-radius: 5px;
+	background: var(--sp-trk);
+	border: 1.5px solid var(--sp-band);
+	overflow: hidden;
+	pointer-events: none;
+}
+.sp .sp-sl-f {
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: calc(9px + (100% - 18px) * var(--p));
+	background: var(--sp-acc);
+}
+.sp .sp-sl-k {
+	position: absolute;
+	top: 50%;
+	left: calc(9px + (100% - 18px) * var(--p));
+	width: 15px;
+	height: 15px;
+	margin: -7.5px 0 0 -7.5px;
+	transform: rotate(45deg);
+	border-radius: 3.5px;
+	background: var(--sp-acc);
+	border: 2px solid var(--sp-band);
+	box-shadow: 0 0 0 1.5px var(--sp-ki-c);
+	transition: transform 0.1s ease;
+	pointer-events: none;
+}
+.sp .sp-sl:active .sp-sl-k,
+.sp .sp-sl.drag .sp-sl-k {
+	transform: rotate(45deg) scale(1.16);
+}
+.sp .sp-sl:focus-visible .sp-sl-t {
+	outline: 2px solid var(--sp-ink);
+	outline-offset: 2px;
+}
+.sp .sp-sl.off .sp-sl-f {
+	opacity: 0.35;
+}
+/* a switch: the track, the white knob with its black line; yellow when on */
+.sp .sp-knob {
+	flex: none;
+	position: relative;
+	width: 48px;
+	height: 26px;
+	border-radius: 999px;
+	background: var(--sp-trk);
+	border: 1.5px solid var(--sp-band);
+	transition: background-color 0.2s;
+}
+.sp .sp-knob::after {
+	content: '';
+	position: absolute;
+	top: 2.5px;
+	left: 3px;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	background: var(--sp-band);
+	box-shadow: 0 0 0 1.5px var(--sp-ki-c);
+	transition: transform 0.2s;
+}
+.sp .on > .sp-knob {
+	background: var(--sp-acc);
+}
+.sp .on > .sp-knob::after {
+	transform: translateX(21px);
+}
+/* THE AMOUNT STEPPER'S KEYS: the bar's own bet symbols (ui/sign/signDraw.ts stepSvg), a red < and a green > */
+.sp .sp-sk {
+	flex: none;
+	width: 46px;
+	height: 46px;
+	display: grid;
+	place-items: center;
+	transition: transform 0.1s ease;
+}
+.sp .sp-sk svg {
+	display: block;
+	width: 100%;
+	height: 100%;
+	overflow: visible;
+}
+.sp .sp-sk:active:not(:disabled) {
+	transform: scale(0.9);
+}
+.sp .sp-sk svg .hv {
+	opacity: 0;
+	transition: opacity 0.2s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+	.sp .sp-sk:hover:not(:disabled) svg .hv {
+		opacity: 1;
+	}
+}
+.sp .sp-sk:disabled {
+	opacity: 0.4;
+}
+@media (prefers-reduced-motion: reduce) {
+	.sp .sp-well,
+	.sp .sp-kgo,
+	.sp .sp-sk,
+	.sp .sp-sl-k,
+	.sp .sp-knob,
+	.sp .sp-knob::after {
+		transition: none;
+	}
+}
+/* THE SCENE ROW (ui/hud/SceneSwitch.svelte, its sign variant): the small word over three pills, the picked one a white
+   plate. (.vt is the dock's name for the small word, kept for the probes; named here so the dock's rule for it gives way.) */
+.sp .sp-msec {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	flex: none;
+}
+.sp .sp-msec .sp-lab.vt {
+	padding: 0;
+	font-size: 10px;
+	letter-spacing: 0.16em;
+	color: var(--sp-ink2);
+}
+.sp .sp-pills {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 7px;
+}
+.sp .sp-pill {
+	height: 34px;
+	font-size: 12.5px;
+	line-height: 1;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
