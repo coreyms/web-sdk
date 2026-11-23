@@ -93,7 +93,7 @@ export const gameInfoText = (j: RulesFlags = {}) => ({
 	// Every sentence that names a control the operator can switch off is said only where it is on (RulesFlags). The turbo
 	// and autoplay sentences state the stock rules (game/bonusStockRules.ts).
 	guide: {
-		intro: 'On a computer or a tablet the controls sit in the glass bar along the bottom of the screen. On an upright phone they sit in one row under the road, and on a phone held sideways in the two columns beside it.',
+		intro: 'The controls are drawn as road signs around the road, placed to suit the screen. On a large wide screen they stand in the two lower corners. On an upright screen **MENU** and **FAST LANE** stand at the top right and the others under the road. On a smaller wide screen, such as a phone held sideways, they stand in the two columns either side of the road.',
 		rows: {
 			feature: {
 				name: FEATURE_MENU_TEXT.name,
@@ -105,7 +105,7 @@ export const gameInfoText = (j: RulesFlags = {}) => ({
 			spin: {
 				name: 'Spin',
 				text: [
-					soc('Plays one round at the amount shown beside it.', 'Plays one round at the play amount shown beside it.'),
+					soc('Plays one round at the amount shown between the two arrows.', 'Plays one round at the play amount shown between the two arrows.'),
 					!j.disabledSlamstop ? 'While the traffic drives in it turns into **STOP**: a press lands the traffic and plays the rest of that spin at top speed.' : '',
 					!j.disabledBuyFeature ? 'With a feature loaded, it shows what the next press starts.' : '',
 					'During a bonus round it shows the spin in play and the round\'s total spins.',
@@ -131,7 +131,7 @@ export const gameInfoText = (j: RulesFlags = {}) => ({
 			},
 			autoplay: {
 				name: 'Autoplay',
-				text: `Opens the Autoplay menu: the number of spins (10 to 1,000, or until stopped) and **Stop options**: a stop-on-loss limit, a stop-on-single-win limit, **Stop on Free Games** (the run ends when a bonus round starts, and the round still plays out) and **Autoplay Bonuses** (the bonus round's screens continue on their own). Its **START** key names the number of spins and their total, and pressing it starts the run right away.${j.disabledBuyFeature ? '' : ' ' + AUTO_PLAYS_BASE} While it runs, **AUTO** is lit and its arrow turns. To stop the run at any time, press **AUTO** (or Spin, which also speeds up the spin in play): the round in play finishes and no further spin starts. This works during free spins too, and the bonus round still plays to its end. When a bonus round ends with Autoplay still running, the game waits ${PAUSE_WORDS} after its total win screen is cleared before the next spin starts, at every speed, so you can stop the run.`,
+				text: `Opens the Autoplay menu: the number of spins (10 to 1,000, or until stopped) and **Stop options**: a stop-on-loss limit, a stop-on-single-win limit, **Stop on Free Games** (the run ends when a bonus round starts, and the round still plays out) and **Autoplay Bonuses** (the bonus round's screens continue on their own). Its **START** key names the number of spins and their total, and pressing it starts the run right away.${j.disabledBuyFeature ? '' : ' ' + AUTO_PLAYS_BASE} While it runs, the Autoplay key turns red and its circling arrow turns. To stop the run at any time, press the Autoplay key (or Spin, which also speeds up the spin in play): the round in play finishes and no further spin starts. This works during free spins too, and the bonus round still plays to its end. When a bonus round ends with Autoplay still running, the game waits ${PAUSE_WORDS} after its total win screen is cleared before the next spin starts, at every speed, so you can stop the run.`,
 			},
 			turbo: {
 				name: 'Turbo',
@@ -143,11 +143,11 @@ export const gameInfoText = (j: RulesFlags = {}) => ({
 					'The base game speed is remembered on this device. Speed never changes the result.',
 				].join(' '),
 			},
-			menu: { name: 'Menu', text: 'Opens the menu: **GAME INFO** (this screen) and the sound controls. Press it again to close the menu.' },
+			menu: { name: 'Menu', text: 'Opens the menu: **GAME INFO** (this screen), **SCENE** and the sound controls. Press it again, or anywhere else, to close the menu. **SCENE** (also on the start screen) sets the look of the road: **Snow** is the snowy road, **Dark** a darker road on grass, and **Auto** follows the device\'s light or dark setting. A new choice shows between rounds, is remembered on this device and never changes the result.' },
 			sound: { name: 'Sound', text: 'In the menu, **MUSIC** and **EFFECTS** each have a volume slider and a mute button. All sound can be turned off. The settings are remembered on this device.' },
 			amount: soc(
-				{ name: 'Bet Amount', text: 'The amount over the minus and plus buttons is the full cost of one press in the active mode (with Ante on, the Ante level\'s name shows over it). Minus and plus step through the bet levels, and a tap on the amount opens the full list. Between rounds only.' },
-				{ name: 'Play Amount', text: 'The amount over the minus and plus buttons is the full play amount of one press in the active mode (with Ante on, the Ante level\'s name shows over it). Minus and plus step through the levels, and a tap on the amount opens the full list. Between rounds only.' },
+				{ name: 'Bet Amount', text: 'The amount between the two arrows is the full cost of one press in the active mode (with Ante on, the Ante level\'s name shows over it). The left arrow steps down through the bet levels and the right arrow up, and a tap on the amount opens the full list. Between rounds only.' },
+				{ name: 'Play Amount', text: 'The amount between the two arrows is the full play amount of one press in the active mode (with Ante on, the Ante level\'s name shows over it). The left arrow steps down through the levels and the right arrow up, and a tap on the amount opens the full list. Between rounds only.' },
 			),
 			readouts: { name: 'Readouts', text: '**BALANCE** is your current balance. **WIN** is the round\'s total so far: in a bonus round it reads **FREE SPINS WIN**, the running total of the round.' },
 			symbols: {
@@ -175,8 +175,8 @@ export const gameInfoText = (j: RulesFlags = {}) => ({
 	},
 	howTo: [
 		soc(
-			'Choose a bet with the minus and plus buttons, then press **Spin**. Traffic drives in from the tunnels: the top two lanes run left to right and the bottom two run right to left. When it stops, every line is checked.',
-			'Choose a play amount with the minus and plus buttons, then press **Play**. Traffic drives in from the tunnels: the top two lanes run left to right and the bottom two run right to left. When it stops, every line is checked.',
+			'Choose a bet with the arrows either side of the amount, then press **SPIN**. Traffic drives in from the tunnels: the top two lanes run left to right and the bottom two run right to left. When it stops, every line is checked.',
+			'Choose a play amount with the arrows either side of it, then press **SPIN**. Traffic drives in from the tunnels: the top two lanes run left to right and the bottom two run right to left. When it stops, every line is checked.',
 		),
 		`**Reindeer strikes.** After the traffic stops a reindeer can run along the snow above the road, turn and charge down into a symbol. If it hits **Grandma's Car**, that one cell becomes a Wild with a multiplier (${G.base[0]}x to ${G.base[1]}x in the base game, up to ${G.freeSpins[1]}x in a bonus round) for that spin only. If it hits **Santa's Sleigh**, the whole column becomes a Wild with a multiplier of its own.`,
 		`**Column Wilds.** Who steps out of the smoke tells you the size of the multiplier: the Reindeer is the lowest (${C.base.reindeer[0]}x to ${C.base.reindeer[1]}x in the base game), Santa is in the middle (${C.base.santa[0]}x to ${C.base.santa[1]}x) and Grandma is the highest (${C.base.grandma[0]}x to ${C.base.grandma[1]}x). In the base game a column Wild lasts for that spin.`,
@@ -192,7 +192,7 @@ export const gameInfoText = (j: RulesFlags = {}) => ({
 		[
 			'**Speed and Autoplay in bonus rounds.**',
 			j.disabledTurbo ? '' : 'Every bonus round starts at regular speed, whatever Turbo was set to. Turbo can be changed during the round, and that choice lasts for that round only: when it ends, the speed set in the base game comes back.',
-			j.disabledAutoplay ? '' : `A running Autoplay can be stopped at any time during a bonus round with **AUTO** (or Spin): the round plays to its end and no further spin starts. When a bonus round ends with Autoplay still running, the next spin starts ${PAUSE_WORDS} after the total win screen is cleared, at every speed, so there is time to stop it.`,
+			j.disabledAutoplay ? '' : `A running Autoplay can be stopped at any time during a bonus round with the Autoplay key (or Spin): the round plays to its end and no further spin starts. When a bonus round ends with Autoplay still running, the next spin starts ${PAUSE_WORDS} after the total win screen is cleared, at every speed, so there is time to stop it.`,
 		]
 			.filter(Boolean)
 			// (both off: nothing to say, the paragraph goes; ui/GameInfoModal.svelte skips an empty one)
