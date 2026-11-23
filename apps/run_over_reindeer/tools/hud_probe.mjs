@@ -1382,7 +1382,11 @@ async function cardsHud(browser) {
 		const ws = sized.map((x) => x.w);
 		const ows = [...new Set(sized.map((x) => x.ow))];
 		const spread = ws.length ? Math.max(...ws) - Math.min(...ws) : Infinity;
-		check(ws.length >= 5 && spread <= 0.25 && ows.length === 1, `${tag}: the readout's width does not move through the roll and the landing (${ws.length} frames, ${spread.toFixed(2)} px apart; layout widths ${ows.join(', ')})`, { min: Math.min(...ws), max: Math.max(...ws), ows });
+		// (the layout width, offsetWidth, is the drawn width rounded to a whole px: a readout steady to 0.25 px whose width
+		// stands near a half px reads two neighboring whole numbers. The probe host at 390 x 844 on 930a7748: 51.48 to 51.55
+		// px drawn, layout widths 52 and 51. So the layout widths may differ by that one rounding step, no more)
+		const owSpread = ows.length ? Math.max(...ows) - Math.min(...ows) : Infinity;
+		check(ws.length >= 5 && spread <= 0.25 && owSpread <= 1, `${tag}: the readout's width does not move through the roll and the landing (${ws.length} frames, ${spread.toFixed(2)} px apart; layout widths ${ows.join(', ')})`, { min: Math.min(...ws), max: Math.max(...ws), ows });
 		check(X.every((x) => x.mode === 'off' || (x.aria ?? '').includes(text)), `${tag}: the readout's aria name carries the total throughout (${X.find((x) => x.aria)?.aria})`, X.filter((x) => x.mode !== 'off' && !(x.aria ?? '').includes(text)).slice(0, 2));
 		if (S.reduced) {
 			const moved = X.filter((x) => x.mode === 'roll' || x.windows > 0);

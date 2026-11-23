@@ -1091,11 +1091,17 @@ export const signLayout = (v: SignView): SignGeo => {
 //                    to 0 at SCENE_REACH outside them (in the blend's own units: 100 CSS px of the short side, or 0.5 of
 //                    long over short), so a tall phone and a tablet keep the scene's own rules; his moves of the board
 //                    and the tree line fall off the same way
+//   skipShare        how much of his SKIP box stands in for the rule's: `share` upright and on the desktop; SIDEWAYS
+//                    ALWAYS 1 (2026-11-25, the probe host on 930a7748: at 812 x 425, 667 x 375 and 568 x 320 the button
+//                    stood on Auto. Off his sideways line his share fell off and the rule's own box took over, the glass
+//                    dock's place under its Auto and Turbo capsule, which is where the sign bar's Auto stands. Sideways the
+//                    bar's pieces are his at every window, by the blend, so SKIP is too: his box from the top right corner
+//                    at the bar's scale, from his nearest windows. Unchanged at his own windows, where the share was 1.)
 //   forest           a tree line is drawn (upright): the game's own phones, and since round 3 up to his phablet's width
 export const SCENE_REACH = 1;
 export const FOREST_MAX_SHORT = 640;
-export type SceneFit = { boardDy: number; treeDy: number; share: number; logo: Box | null; skip: Box | null };
-const NO_FIT: SceneFit = { boardDy: 0, treeDy: 0, share: 0, logo: null, skip: null };
+export type SceneFit = { boardDy: number; treeDy: number; share: number; logo: Box | null; skip: Box | null; skipShare: number };
+const NO_FIT: SceneFit = { boardDy: 0, treeDy: 0, share: 0, logo: null, skip: null, skipShare: 0 };
 const fitMemo = new Map<string, SceneFit>();
 export const sceneFit = (kind: SignKind, vw: number, vh: number): SceneFit => {
 	if (!(vw > 0 && vh > 0)) return NO_FIT;
@@ -1113,13 +1119,15 @@ export const sceneFit = (kind: SignKind, vw: number, vh: number): SceneFit => {
 	if (kind === 'landscape') {
 		const t = landShare(vw, vh);
 		const S = LAND_R3.scene;
-		if (t > 0 && S) out = { boardDy: (t * S.boardDy * vh) / LAND_R3.vh, treeDy: 0, share: t, logo: { x: (S.logo[0] / LAND_R3.vw) * vw, y: (S.logo[1] / LAND_R3.vh) * vh, w: (S.logo[2] / LAND_R3.vw) * vw, h: (S.logo[3] / LAND_R3.vw) * vw }, skip: skipAt(LAND_R3, 0, 0) };
+		if (t > 0 && S) out = { boardDy: (t * S.boardDy * vh) / LAND_R3.vh, treeDy: 0, share: t, logo: { x: (S.logo[0] / LAND_R3.vw) * vw, y: (S.logo[1] / LAND_R3.vh) * vh, w: (S.logo[2] / LAND_R3.vw) * vw, h: (S.logo[3] / LAND_R3.vw) * vw }, skip: skipAt(LAND_R3, 0, 0), skipShare: t };
 	} else {
 		const refs = PHONE_PLACES[kind];
 		const { w, out: far } = blendAt(kind, vw, vh);
 		const s3 = 1;
 		const share = Math.max(0, Math.min(1, 1 - far / SCENE_REACH));
-		if (share > 0) {
+		// (sideways his SKIP box holds at every window: skipShare above)
+		const skipShare = kind === 'phone' ? 1 : share;
+		if (share > 0 || skipShare > 0) {
 			let boardDy = 0;
 			let treeDy = 0;
 			const logo = { x: 0, y: 0, w: 0, h: 0 };
@@ -1143,7 +1151,7 @@ export const sceneFit = (kind: SignKind, vw: number, vh: number): SceneFit => {
 				skip.h += f * k.h;
 			}
 			const fade = share / s3;
-			out = { boardDy: boardDy * fade, treeDy: treeDy * fade, share, logo, skip };
+			out = { boardDy: boardDy * fade, treeDy: treeDy * fade, share, logo: share > 0 ? logo : null, skip, skipShare };
 		}
 	}
 	if (fitMemo.size > 400) fitMemo.clear();

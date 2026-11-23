@@ -665,6 +665,78 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 	if (his && Math.min(b.w, b.h) < 43.95) bad.push(`press area ${r1(Math.min(b.w, b.h))}`);
 	line(bad.length === 0, `${vw}x${vh} SKIP TO RESULT left of Menu`, `${bad.join('; ') || 'clear'} | box ${r1(b.x)}, ${r1(b.y)}, ${r1(b.w)} x ${r1(b.h)} | Menu from ${r1(m.x)} | logo to ${zones.logo ? r1(zones.logo.x + zones.logo.w) : '-'}, ${zones.logo ? r1(zones.logo.y) : '-'} down | top line ${r1(topLine)}`);
 }
+// ---- 9. SKIP TO RESULT SIDEWAYS: HIS PLACE FROM THE TOP RIGHT CORNER, ON NO PIECE OF THE BAR (2026-11-25) ----
+// The probe host on 930a7748 (hud_probe ONLY=signhud): at 812 x 425, 667 x 375 and 568 x 320 the button stood on Auto.
+// Off his sideways line (832 x 376 to 667 x 311) his box's share fell off and the rule's own box took over: the glass
+// dock's place under its Auto and Turbo capsule, which is where the sign bar's Auto stands. Sideways the button now keeps
+// his box at every window (ui/sign/signLayout.ts sceneFit skipShare). Checked over the sideways sweep and the named
+// windows, bare and (from 812 wide) with notch insets: the button's press area (its width, its height or 44 px if more,
+// components/SkipButton.svelte .skip::after) stands 2 px or more clear of every piece's drawn shape (the Win box's glass,
+// Balance's and the amount's layout boxes, which are wider than what they draw), the bet symbols' press boxes and
+// Auto's and Turbo's 44 px press pads, inside the window and its safe area, its drawn box off the board, the LED strip
+// and the logo (the scene's keep-outs, ui/sign/signZones.ts); with no insets it is his box from the top
+// right corner. At his own windows and at the desktop it is what it was before (0.5 px).
+{
+	const H = await import(pathToFileURL(join(APP, 'src', 'ui', 'hud', 'hudLayout.ts')).href);
+	const NAMED = [[568, 320], [667, 375], [736, 414], [812, 375], [812, 425], [844, 390], [896, 414], [926, 428], [932, 430], [832, 376], [667, 311]];
+	const NOTCH = { t: 0, r: 47, b: 21, l: 47 };
+	const bad = [];
+	const rows = [];
+	let n = 0;
+	let least = { v: Infinity, at: '' };
+	const each = (vw, vh, safe, show) => {
+		n++;
+		const sk = H.hudSkipRect({ kind: 'phone', phone: true, vw, vh, safe });
+		const { g, seat, zones } = at('phone', vw, vh, safe);
+		const ph = Math.max(sk.height, L.TOUCH_MIN);
+		const press = { x: sk.x, y: sk.y + sk.height / 2 - ph / 2, w: sk.width, h: ph };
+		const P = L.shapeOf('menu', press);
+		const boxes = { play: g.box.play, auto: g.box.auto, turbo: g.box.turbo, menu: g.box.menu, bonus: g.box.bonus, down: seat.down, up: seat.up };
+		const pads = L.padShapes(boxes, vw, vh);
+		const others = [
+			...['play', 'auto', 'turbo', 'menu', 'bonus', 'amt', 'bal'].map((id) => [id, L.shapeOf(id, g.box[id])]),
+			['win', L.shapeOf('win', L.winGlass(g))],
+			['<', L.shapeOf('down', seat.down)],
+			['>', L.shapeOf('up', seat.up)],
+			...Object.entries(pads).map(([id, s]) => [`${id} pad`, s.poly]),
+		];
+		const tag = `${vw}x${vh}${safe ? ' notch' : ''}`;
+		const gaps = others.map(([id, s]) => [id, L.shapeGap(P, s)]);
+		const near = gaps.reduce((a, b) => (b[1] < a[1] ? b : a));
+		if (near[1] < least.v) least = { v: near[1], at: `${tag} ${near[0]}` };
+		const why = gaps.filter(([, d]) => d < 2).map(([id, d]) => `${id} ${r1(d)} px`);
+		const drawn = L.shapeOf('menu', { x: sk.x, y: sk.y, w: sk.width, h: sk.height });
+		for (const [id, z] of [['board', zones.board], ['LED strip', zones.strip], ['logo', zones.logo]]) if (z && L.onZone(drawn, z)) why.push(`on the ${id}`);
+		const S = safe ?? { t: 0, r: 0, b: 0, l: 0 };
+		if (press.x < S.l - 0.05 || press.y < S.t - 0.05 || press.x + press.w > vw - S.r + 0.05 || press.y + press.h > vh - S.b + 0.05) why.push('outside the window or its safe area');
+		if (!safe) {
+			const his = L.sceneFit('phone', vw, vh).skip;
+			if (!his || Math.max(Math.abs(sk.x - his.x), Math.abs(sk.y - his.y), Math.abs(sk.width - his.w), Math.abs(sk.height - his.h)) > 0.01) why.push('not his box from the top right corner');
+		}
+		if (why.length) bad.push(`${tag}: ${why.join(', ')}`);
+		const auto = g.box.auto;
+		const pa = pads.auto?.poly;
+		if (show) rows.push(`       ${tag.padEnd(16)} SKIP ${r1(sk.x)}, ${r1(sk.y)}, ${r1(sk.width)} x ${r1(sk.height)} (press ${r1(press.h)} tall) | Auto's box from ${r1(auto.y)}: ${r1(auto.y - (sk.y + sk.height))} px under the button; Auto's pad ${pa ? r1(L.shapeGap(P, pa)) : '-'} px from its press area | nearest ${near[0]} ${r1(near[1])} px`);
+	};
+	for (let vh = 320; vh <= 430; vh += 10) for (let vw = 568; vw <= 932; vw += 4) if (vw / vh >= 1.5 && vw / vh <= 2.34) each(vw, vh, undefined, false);
+	for (const [vw, vh] of NAMED) {
+		each(vw, vh, undefined, true);
+		if (vw >= 812) each(vw, vh, NOTCH, true);
+	}
+	line(bad.length === 0, `sideways SKIP TO RESULT at ${n} windows (the sweep from 568 x 320 to 932 x 430, the named ones bare and with notch insets): his box from the top right corner, its press area 2 px or more clear of every piece, the bet symbols' press boxes and Auto's and Turbo's pads, inside the window, off the board, the strip and the logo`, `${bad.slice(0, 6).join(' | ')}${bad.length ? ` (${bad.length} windows) | ` : ''}least clearance ${r1(least.v)} px (${least.at})`);
+	for (const r of rows) console.log(r);
+	// unchanged at his own windows and at the desktop (hudSkipRect on 930a7748, before this fix)
+	const BEFORE = { 'portrait|440x742': [218.3, 32.5, 85.7, 49.5], 'portrait|413x586': [211.2, 29.5, 71.8, 42.5], 'portrait|375x530': [195, 22.6, 65, 38.5], 'portrait|626x816': [365.5, 38.4, 100, 57], 'portrait|390x844': [193.34, 93.31, 76, 44.01], 'portrait|425x812': [210.85, 47.88, 82.8, 47.81], 'portrait|375x667': [184.73, 28.36, 73.06, 43.42], 'portrait|320x568': [150.23, 20.68, 62.36, 44.01], 'portrait|390x620': [188.61, 26.72, 75.99, 45.06], 'portrait|430x932': [213.33, 103.67, 83.79, 48.38], 'phone|832x376': [703.4, 27.4, 94.5, 28.9], 'phone|667x311': [565, 19.5, 92.8, 28.4], 'landscape|890x552': [786, 26.7, 91.9, 36.8], 'landscape|1920x1080': [1803.33, 48, 106.67, 42.67], 'landscape|1440x900': [1350, 37.5, 80, 32], 'landscape|1280x720': [1198.89, 34, 71.11, 28.44], 'landscape|1180x820': [1090, 31.81, 80, 32], 'landscape|1024x768': [944.58, 28.4, 69.42, 27.77], 'landscape|2560x1080': [2443.33, 48, 106.67, 42.67] };
+	let worst = { d: 0, at: '' };
+	for (const [key, was] of Object.entries(BEFORE)) {
+		const [kind, size] = key.split('|');
+		const [vw, vh] = size.split('x').map(Number);
+		const s = H.hudSkipRect({ kind, phone: kind !== 'landscape', vw, vh });
+		const d = Math.max(...[s.x, s.y, s.width, s.height].map((v, i) => Math.abs(v - was[i])));
+		if (d > worst.d) worst = { d, at: key };
+	}
+	line(worst.d <= 0.5, `SKIP TO RESULT at his own windows (upright, sideways, 890 x 552) and the desktop sizes: as before, within 0.5 px (${Object.keys(BEFORE).length} windows)`, `worst ${worst.d.toFixed(3)} px${worst.at ? ` (${worst.at})` : ''}`);
+}
 // ---- BALANCE AND WIN ALWAYS FIT: every window, the nine currencies, an everyday and a very long amount ----
 // The game's own formatter writes each amount; its width is the bundled Overpass 900's advances with every digit a 0
 // wide (tools/amount_fit_metrics.json), as the page measures it. For each readout: its room is inside the window and

@@ -405,10 +405,18 @@ export const hudSkipRect = (v: HudView) => {
 	// and on the desktop its own place is clear of the bar.
 	// ROUND 3 (2026-11-23): at his own round 3 windows the button stands where he put it (signLayout.ts sceneFit: his box,
 	// and how much of it stands in for the rule's here)
+	// SIDEWAYS (2026-11-25): his box at every window, skipShare 1 there (off his line the rule's own box, the glass dock's
+	// place under its Auto and Turbo capsule, stood on the sign bar's Auto: the probe host at 812 x 425, 667 x 375 and
+	// 568 x 320). A notch side or a top inset moves it in, as the bar's right pieces move in (signLayout's side insets).
 	const fit = HUD_BAR === 'sign' ? sceneFit(v.kind, v.vw, v.vh) : null;
 	let rule = { x: s.x * f.u, y: s.y * f.u, w: s.w * f.u, h: s.h * f.u };
 	if (HUD_BAR === 'sign' && f.variant === 'portrait') rule = skipBox(signLayout({ kind: 'portrait', vw: v.vw, vh: v.vh, safe: f.safe }));
-	const b = fit ? fitBox(rule, fit.skip, fit.share) : rule;
+	let b = fit ? fitBox(rule, fit.skip, fit.skipShare) : rule;
+	if (HUD_BAR === 'sign' && f.variant === 'landscape') {
+		const dx = f.safe.r > 0 ? Math.min(0, v.vw - f.safe.r - (b.x + b.w)) : 0;
+		const dy = f.safe.t > 0 ? Math.max(0, f.safe.t - b.y) : 0;
+		if (dx || dy) b = { ...b, x: b.x + dx, y: b.y + dy };
+	}
 	return { x: b.x, y: b.y, width: b.w, height: b.h, u: f.u, variant: f.variant };
 };
 
