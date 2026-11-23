@@ -97,7 +97,9 @@ export const ARMOURY = {
 		price: { floor: 18, floorTouch: 15, floorStacked: 13, pad: 64, padTouch: 50 },
 		/** tile multiple: room is the tile less `pad` (desktop), `padTouch`, or `padTwoWide` (the phone's two wide tiles) */
 		tile: { floor: 14, floorTouch: 11, pad: 22, padTouch: 12, padTwoWide: 70 },
-		confirm: { total: 16, row: 13, totalTouch: 13, rowTouch: 11, gap: 14 },
+		/** `xMinCss` (2026-11-24): the card's Cancel disc is 9.29 % of the card's width and never drawn under this many
+		 *  CSS px (the desktop box on the 400 x 225 mini player drew it 12.9) */
+		confirm: { total: 16, row: 13, totalTouch: 13, rowTouch: 11, gap: 14, xMinCss: 20 },
 	},
 	layout: {
 		/** the desktop menu is the 1440 x 810 box over the 1280 x 720 master. `scaledUnderRatio` (owner 2026-10-13

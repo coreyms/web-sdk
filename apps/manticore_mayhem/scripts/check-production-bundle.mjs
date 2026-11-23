@@ -18,6 +18,7 @@
 // Armoury's `?armoury=` switch and its regex marker went with the old menu at the switch-over (2026-10-14).
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, relative, extname } from 'node:path';
+import { scanBuiltAddresses, scanSourceAddresses, report as addressReport } from './check-asset-paths.mjs';
 
 export const STAGING_MARKERS = [
 	'MM_STAGING_BUILD', // game/staging.ts: window.__mmBuild
@@ -91,10 +92,29 @@ export const scan = (build) => {
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop())) {
 	const args = process.argv.slice(2);
 	const expectStaging = args.includes('--expect-staging');
+	const srcAt = args.indexOf('--src');
+	const src = srcAt >= 0 ? args[srcAt + 1] : new URL('../src/', import.meta.url).pathname;
+	if (srcAt >= 0) args.splice(srcAt, 2);
 	const build = args.find((a) => !a.startsWith('--')) ?? new URL('../build/', import.meta.url).pathname;
 	if (!existsSync(join(build, 'index.html'))) {
 		console.error(`[check-production-bundle] no build at ${build} (index.html missing)`);
 		process.exit(2);
+	}
+	// THE ASSET ADDRESSES (2026-11-24, scripts/check-asset-paths.mjs): first, for every build, production or staging. An
+	// address that leaves the game's folder works from a server's root and 404s in the subfolder Stake serves from.
+	// --src <folder>: the sources the build was made from (default: this app's src)
+	{
+		const haveSrc = existsSync(src);
+		const S = haveSrc ? scanSourceAddresses(src) : { problems: [{ file: src, what: 'the sources', why: 'not found: the build\'s /assets tables cannot be told from a stray path (give --src)' }], count: {} };
+		const B = scanBuiltAddresses(build, haveSrc ? src : null);
+		if (S.problems.length || B.problems.length) {
+			console.error(`[check-production-bundle] FAIL: asset addresses that are wrong in a game served from a subfolder (Stake serves it from one). ${B.problems.length} in the build ${build}, ${S.problems.length} in the sources ${src}.`);
+			if (B.problems.length) console.error(`THE BUILD:\n${addressReport(B.problems)}`);
+			if (S.problems.length) console.error(`THE SOURCES:\n${addressReport(S.problems)}`);
+			process.exit(1);
+		}
+		const c = B.count;
+		console.log(`[check-production-bundle] asset addresses PASS: ${c.metaUrl} written from ${c.scripts} script${c.scripts === 1 ? '' : 's'} (${c.climbsTwo} two folders up into assets/, ${c.bundler} the bundler's, ${c.data} inlined), ${c.absolute} /assets strings (${c.stamped} handed to stamp(), ${c.table} in stamped tables), ${c.css} stylesheet and ${c.shell} shell addresses, ${c.atlases} atlases, ${c.sound} sound files: all inside the game's folder and in the build; sources: ${S.count.twoUp} ../../assets/ literals in files two folders deep.`);
 	}
 	const { hits, files, bytes } = scan(build);
 	const found = [...new Set(hits.map((h) => h.marker))];

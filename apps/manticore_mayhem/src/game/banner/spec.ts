@@ -8,6 +8,7 @@
 // one design px is BANNER.renderPerDesign render px, and the pole's centre line is at render (poleX, poleY).
 import type { StingerMode } from '../stinger/types';
 import { stamp } from '../assets';
+import { BANNER_FILES } from '../bannerFiles';
 
 export type BannerTier = 'fs' | 'super' | 'epic';
 export type BannerContent = 'intro' | 'total';
@@ -75,17 +76,16 @@ export const BANNER = {
 	glyphTint: { fs: 0xfffcf9, super: 0xf2ede6, epic: 0xefebef } as Record<BannerTier, number>,
 } as const;
 
-// the files (literal URLs: Vite rewrites only `new URL('...', import.meta.url)` written out)
-const D = {
-	fs: { intro: stamp(new URL('../../../assets/ui/banner/banner-D-fs-intro.webp', import.meta.url).href), total: stamp(new URL('../../../assets/ui/banner/banner-D-fs-total.webp', import.meta.url).href) },
-	super: { intro: stamp(new URL('../../../assets/ui/banner/banner-D-super-intro.webp', import.meta.url).href), total: stamp(new URL('../../../assets/ui/banner/banner-D-super-total.webp', import.meta.url).href) },
-	epic: { intro: stamp(new URL('../../../assets/ui/banner/banner-D-epic-intro.webp', import.meta.url).href), total: stamp(new URL('../../../assets/ui/banner/banner-D-epic-total.webp', import.meta.url).href) },
-};
-const P = {
-	fs: { intro: stamp(new URL('../../../assets/ui/banner/banner-P-fs-intro.webp', import.meta.url).href), total: stamp(new URL('../../../assets/ui/banner/banner-P-fs-total.webp', import.meta.url).href) },
-	super: { intro: stamp(new URL('../../../assets/ui/banner/banner-P-super-intro.webp', import.meta.url).href), total: stamp(new URL('../../../assets/ui/banner/banner-P-super-total.webp', import.meta.url).href) },
-	epic: { intro: stamp(new URL('../../../assets/ui/banner/banner-P-epic-intro.webp', import.meta.url).href), total: stamp(new URL('../../../assets/ui/banner/banner-P-epic-total.webp', import.meta.url).href) },
-};
+// the files: their addresses are written out in game/bannerFiles.ts (a file two folders deep in src: the only depth
+// at which an address is the same on the dev server and in a build; read its header), stamped here
+const F = BANNER_FILES;
+const cloths = (c: BannerClass): Record<BannerTier, Record<BannerContent, string>> => ({
+	fs: { intro: stamp(F.cloth[c].fs.intro), total: stamp(F.cloth[c].fs.total) },
+	super: { intro: stamp(F.cloth[c].super.intro), total: stamp(F.cloth[c].super.total) },
+	epic: { intro: stamp(F.cloth[c].epic.intro), total: stamp(F.cloth[c].epic.total) },
+});
+const D = cloths('D');
+const P = cloths('P');
 export const BANNER_TEXTURES: Record<BannerClass, Record<BannerTier, Record<BannerContent, string>>> = { D, P };
 /** THE BANNER'S OWN COUNT AND AMOUNT GLYPHS (Fix 2, 2026-11-15; tools/war_banner/build_banner_glyphs.py): the plaque's
  *  glyphs under their own frame names at the density of the banner's largest draw, per texture class (D digits cap 280,
@@ -94,10 +94,10 @@ export const BANNER_TEXTURES: Record<BannerClass, Record<BannerTier, Record<Bann
  *  each screen's cloth and unloaded with it. Mipmaps on D (a tablet draws it at 0.7 and a long amount shrinks to 0.67);
  *  none on P (a mip blend would soften the count at 0.76, its 390 portrait draw). */
 export const BANNER_GLYPHS: Record<BannerClass, { url: string; mips: boolean }> = {
-	D: { url: stamp(new URL('../../../assets/ui/banner/banner-glyphs-D.json', import.meta.url).href), mips: true },
-	P: { url: stamp(new URL('../../../assets/ui/banner/banner-glyphs-P.json', import.meta.url).href), mips: false },
+	D: { url: stamp(F.glyphs.D), mips: true },
+	P: { url: stamp(F.glyphs.P), mips: false },
 };
 export const BANNER_MOTION_URLS = {
-	json: stamp(new URL('../../../assets/ui/banner/banner-motion.json', import.meta.url).href),
-	bin: stamp(new URL('../../../assets/ui/banner/banner-motion.bin', import.meta.url).href),
+	json: stamp(F.motion.json),
+	bin: stamp(F.motion.bin),
 };

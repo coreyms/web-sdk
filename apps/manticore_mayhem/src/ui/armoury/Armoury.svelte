@@ -1072,7 +1072,7 @@
 		const C = LAY.portrait.card;
 		const { top, k } = cardPlace;
 		// a scaled card scales its hit boxes too: CONFIRM's and Cancel's minimum grows to stay 44 CSS px
-		return `left:${((frame.width - C.w) / 2).toFixed(1)}px;top:${top.toFixed(1)}px;width:${C.w}px;height:${C.h}px${k < 1 ? `;transform:scale(${k.toFixed(4)});transform-origin:50% 0;--hit:${hitPx(da.minHit / k)}px` : ''}`;
+		return `left:${((frame.width - C.w) / 2).toFixed(1)}px;top:${top.toFixed(1)}px;width:${C.w}px;height:${C.h}px${k < 1 ? `;transform:scale(${k.toFixed(4)});transform-origin:50% 0;--hit:${hitPx(da.minHit / k)}px;--xmin:${hitPx(ARMOURY.fit.confirm.xMinCss / (frame.u * k))}px` : ''}`;
 	});
 	/** the small 16:9 frames: the menu's own BALANCE, bet readout and steppers, where the landscape HUD's trio would sit
 	 *  under the desktop box (the trio's master rectangle at the box's 1440 / 1280) */
@@ -1448,6 +1448,7 @@
 			style:--hit={touch ? `${hitPx(da.minHit)}px` : null}
 			style:--txt-min={swipeLay ? `${Math.min(LAY.portrait.textMin / frame.u, LAY.portrait.textMinCap).toFixed(2)}px` : null}
 			style:--xhit={touch ? null : `${hitPx(44 / frame.u)}px`}
+			style:--xmin="{hitPx(ARMOURY.fit.confirm.xMinCss / frame.u)}px"
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="arm-name"
@@ -2820,9 +2821,13 @@
 	   the gloss, the gold ring's dark outer line and the drop shadow are gradients and box shadows */
 	.c-x {
 		position: absolute;
-		width: 9.29%;
+		/* (2026-11-24) never drawn under ARMOURY.fit.confirm.xMinCss CSS px (--xmin: that in the card's own px): the desktop
+		   box on the 400 x 225 mini player drew it 12.9. It grows about the diamond's centre, over the frame's corner and
+		   the card's own 76 px side inset, never onto the text column */
+		--xs: max(9.29%, var(--xmin, 0px));
+		width: var(--xs);
 		aspect-ratio: 1;
-		margin: -4.645% 0 0 -4.645%;
+		margin: calc(var(--xs) / -2) 0 0 calc(var(--xs) / -2);
 		padding: 0;
 		border: 0;
 		border-radius: 50%;

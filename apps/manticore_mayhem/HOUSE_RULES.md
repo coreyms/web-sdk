@@ -36,6 +36,13 @@ loop, every move book driven).
   module load. It picks the half-resolution phone sheets; it never changes the renderer cap.
 - `?rescap=<n>` (DEV or `PUBLIC_STAGING=1` builds) and `?perf=1` (`staging/perfMeter.ts`) never reach Stake
   (`scripts/check-production-bundle.mjs`).
+- ASSET ADDRESSES (2026-11-24): Stake serves the game from a subfolder, so every address must stay inside the game's
+  own folder. Write `new URL('../../assets/...', import.meta.url)` only in a file of `src/<folder>/` (two folders
+  deep, as `game/assets.ts` and `game/bannerFiles.ts`): the built bundle is always two folders deep in the game, so a
+  file deeper in src has no spelling that is right both on the dev server and in a build (the War Standard's sixteen
+  files, written three deep with three `../`, 404ed in every subfolder and the game silently kept the old plaque).
+  Hand every `/assets/...` string to `stamp()` (it makes it page relative). The build check fails on anything else
+  (`scripts/check-asset-paths.mjs`, part of `check-production-bundle.mjs`; its test `tools/asset_paths_test.mjs`).
 
 ## Layout
 
