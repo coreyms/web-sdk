@@ -1263,11 +1263,16 @@
 		font-size: 11px;
 		padding: 2px 6px 1px;
 	}
+	/* THE FOOT'S SIZE (2026-11-22, the small sizes fix, Corey "AO Yes"): its design size times the box's scale drew it at
+	   7.4 CSS px on a 1024 x 576 window (scale 0.64) and 4.7 on Stake's 400 x 225 popout (the side box at 0.474). It
+	   never draws under 10 CSS px now: 10 px over the box's scale, in design px, where that is the larger. On the desk
+	   that only grows it below scale 0.87; it runs down into empty room under the tray (it ends near 700 of 900 at 1024
+	   x 576). */
 	.desk .note {
 		left: 1000px;
 		top: 640px;
 		width: 400px;
-		font-size: 11.5px;
+		font-size: max(11.5px, calc(10px / var(--fl-s, 1)));
 	}
 
 	/* ════════ up: an upright screen, one column 390 design px wide ════════ */
@@ -1552,6 +1557,7 @@
 		flex-direction: column;
 		gap: 6px;
 		min-width: 0;
+		align-self: end;
 	}
 	.side .hud .lab {
 		font-size: 10px;
@@ -1594,9 +1600,11 @@
 	.side .tile.wide .thumb {
 		height: 52px;
 	}
+	/* (the foot's size: see .desk .note. At 400 x 225 it is about 21 design px, five lines in its 252 px column; the
+	   bottom row grows to hold it and BALANCE and PLAY AMOUNT keep to the row's foot) */
 	.side .note {
 		grid-area: note;
-		font-size: 10px;
+		font-size: max(10px, calc(10px / var(--fl-s, 1)));
 		align-self: end;
 	}
 

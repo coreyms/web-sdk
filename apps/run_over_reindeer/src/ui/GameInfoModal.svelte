@@ -126,16 +126,26 @@
 		}
 		active = current;
 	};
-	// keep the active tab in view on phones, where the strip scrolls sideways
+	// keep the active tab in view where the strip scrolls sideways (a one row strip too long for its window; under 720 wide
+	// it wraps and never does)
 	$effect(() => {
-		if (!navEl) return;
-		const tab = navEl.querySelector(`[data-tab="${active}"]`) as HTMLElement | null;
+		const id = active;
+		if (!navEl || narrow) return;
+		if (navEl.scrollWidth <= navEl.clientWidth + 1) return;
+		const tab = navEl.querySelector(`[data-tab="${id}"]`) as HTMLElement | null;
 		tab?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
 	});
 
 	const pad = $derived(short ? 10 : dense ? 14 : 28);
 	const bodySize = $derived(dense ? 12.5 : 13.5);
 	const tabSize = $derived(lowHead ? 10 : dense ? 10.5 : 11);
+	// THE TAB STRIP UNDER 720 WIDE (2026-11-22, the small sizes fix, Corey "AO Yes"): the seven tabs ran 600 px in one
+	// row, so at 320 to 425 wide (and Stake's 400 x 225 popout) GAME MODES, MAX WIN & RTP and LEGAL sat off the right
+	// edge with nothing to say they were there. Under 720 the strip wraps instead: two rows at every such size (measured in
+	// the tabs' own face, Outfit Black, at 1 px tracking and 6 px side padding: 522 px of tabs, the longest first row
+	// 285 px at 10 px type against 308 px of room at 320 wide), each tab grown to fill its row so the rows read as
+	// one block and every tab is a wider target. 720 and up keeps the one underlined row.
+	const tabPad = $derived(narrow ? (lowHead ? '7px 6px 6px' : '8px 6px 7px') : lowHead ? '7px 8px 6px' : dense ? '9px 9px 8px' : '10px 12px 9px');
 	const tileSize = $derived(short ? 40 : dense ? 48 : 64);
 	const iconBox = $derived(short ? 34 : dense ? 40 : 48);
 	const statSize = $derived(dense ? 15 : 17);
@@ -174,9 +184,9 @@
 			<button class="slot-btn x" onclick={close} style:width="{lowHead ? 30 : 40}px" style:height="{lowHead ? 30 : 40}px" aria-label="Close"><Icon name="close" s={lowHead ? 14 : dense ? 16 : 18} /></button>
 		</div>
 
-		<div class="tabs" bind:this={navEl} style:padding="4px {pad - 8}px">
+		<div class="tabs" class:wrap={narrow} bind:this={navEl} style:padding="4px {pad - 8}px">
 			{#each SECTIONS as s (s.id)}
-				<button class="slot-btn tab" class:on={active === s.id} data-tab={s.id} onclick={() => jump(s.id)} style:padding={lowHead ? '7px 8px 6px' : dense ? '9px 9px 8px' : '10px 12px 9px'} style:font-size="{tabSize}px">{s.label}</button>
+				<button class="slot-btn tab" class:on={active === s.id} data-tab={s.id} onclick={() => jump(s.id)} style:padding={tabPad} style:font-size="{tabSize}px">{s.label}</button>
 			{/each}
 		</div>
 
@@ -387,7 +397,7 @@
 	.x:hover {
 		background: var(--ui-glass-well-2);
 	}
-	/* tab strip: underlined text, gold on the active one: eleven fit in one row on desktop, scroll on portrait */
+	/* tab strip: underlined text, gold on the active one: one row from 720 wide, two rows under it (.wrap) */
 	.tabs {
 		display: flex;
 		gap: 2px;
@@ -413,6 +423,15 @@
 	.tab.on {
 		color: var(--gold);
 		border-bottom-color: var(--gold);
+	}
+	/* under 720 wide: two rows, nothing scrolls sideways (see tabPad in the script) */
+	.tabs.wrap {
+		flex-wrap: wrap;
+		row-gap: 0;
+	}
+	.tabs.wrap .tab {
+		flex: 1 1 auto;
+		letter-spacing: 1px;
 	}
 	.content {
 		flex: 1;

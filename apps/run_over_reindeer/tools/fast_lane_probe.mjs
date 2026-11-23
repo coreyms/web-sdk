@@ -2,6 +2,8 @@
 // WATCHES: apps/run_over_reindeer/src/{ui/FeatureMenu.svelte,ui/AutoplayModal.svelte,game/fastLaneMemory.ts};
 // WATCHES: ; loadAutoplay, buyMode, autoSpinCost, unloadedByAutoplay, autoFirst, data-fl-auto, data-auto-drop, autoLimits, __reindeer.fixtures
 // WATCHES: apps/run_over_reindeer/src/{ui/fitAmount.ts,game/currency.ts};
+// WATCHES: apps/run_over_reindeer/src/{ui/DenomModal.svelte};
+// WATCHES: ; gridRows, gridMaxH, .more, .opt, .grid, .low, lowInner, chipW, goFont, goAmtFont, totalRow, .gl, .sub
 // WATCHES: ; data-fit, data-fl-balance, data-fl-amount, data-fl-confirm-amount, data-fl-confirm-total, AMOUNT_SPACE, fitAmount
 // WATCHES: ; __reindeer.fastLane, __reindeer.hud, __reindeer.atRest, data-feature-menu, data-fl-confirm, data-fl-price
 // WATCHES: ; --fl-s, ::after, data-fl-step, data-squeeze, flSqueezeOff, anteOnShort, loadedShort, data-fl-low, data-fl-step, data-menu-foot, .note, .act, .price, .go, data-fl-status, data-act, data-card, data-lvl, data-piece, data-plate, .tile, .miles, .chip, .landing, .hudp
@@ -38,6 +40,17 @@
 //     level and on the confirm card: no amount box (the price plate, BALANCE, PLAY AMOUNT, the card's amount and total)
 //     with scrollWidth over clientWidth, none on two lines, none under its floor in the reviewers' currencies, and the
 //     card's sentence keeps its amount on one line
+//   - THE SMALL SIZES (2026-11-22, wip/smallsizes, Corey "AO Yes"; ONLY=smallsizes, SMALLSIZES=400x225,1024x576 runs
+//     those alone): at Stake's player sizes, its full screen 1920 x 1080 and the phone browser's 390 x 620, standard:
+//       the Fast Lane's foot inside the window and over no other piece, and on a landscape window drawn at 10 CSS px or
+//       more (it drew 4.7 at 400 x 225 and 7.4 at 1024 x 576)
+//       the Autoplay menu inside the window and clear of its stepper; every spin count, STOP OPTIONS, the total and LOAD
+//       whole in the menu's visible box with nothing scrolled; LOAD's words and amount inside the button; every count
+//       with its price line (at 400 x 225 LOAD's amount ran out of the button, the last row was cut and 100 to
+//       unlimited had no price line)
+//       the price list's grid a whole number of rows (no tag cut part way) and, while tags lie below, the gold chevron
+//       on the well's foot; scrolled to the end, no chevron (at 400 x 225 a fourth row showed half cut)
+//     With SHOTS: small_<w>x<h>_<lane|auto|price>.png.
 // With SHOTS=<dir> it saves each state at each size (<size>_<n>_<state>.png).
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3016 [ONLY=a,b] [SHOTS=dir] \
 //     node tools/fast_lane_probe.mjs
@@ -797,6 +810,119 @@ async function currencyFit(browser) {
 	console.log(`  INFO currency: the smallest size each box drew: ${Object.entries(worst).map(([k, w]) => `${k} ${w.px} px "${w.text}" (${w.tag})`).join('; ')}`);
 }
 
+// ---- THE SMALL SIZES (see the header) ---------------------------------------------------------------------------------
+const SMALL = [
+	[1200, 675, false], [1024, 576, false], [400, 225, false], [800, 450, false], [1920, 1080, false],
+	[425, 812, true], [375, 667, true], [320, 568, true], [390, 620, true],
+];
+async function smallSizes(browser) {
+	const only = (process.env.SMALLSIZES || '').split(',').filter(Boolean);
+	for (const [w, h, touch] of SMALL.filter(([a, b]) => !only.length || only.includes(`${a}x${b}`))) {
+		const S = { name: `small${w}x${h}`, vp: { width: w, height: h }, touch, phone: touch };
+		const tag = `${w}x${h}`;
+		const { ctx, p, errs } = await boot(browser, S);
+		const ov = (a, b) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
+
+		// the Fast Lane's foot
+		await openMenu(p);
+		const f = await p.evaluate(() => {
+			const box = (e) => {
+				const b = e.getBoundingClientRect();
+				return { x0: b.left, y0: b.top, x1: b.right, y1: b.bottom };
+			};
+			const menu = document.querySelector('[data-feature-menu]');
+			const note = menu?.querySelector('[data-menu-foot]');
+			const stage = menu?.querySelector('.stage');
+			if (!note || !stage) return null;
+			const sc = parseFloat(stage.style.getPropertyValue('--fl-s')) || 1;
+			const others = [...menu.querySelectorAll('[data-piece]')].filter((e) => e !== note && e.getBoundingClientRect().width > 0).map((e) => ({ name: e.classList[0], ...box(e) }));
+			return { lay: menu.dataset.layout, px: parseFloat(getComputedStyle(note).fontSize) * sc, note: box(note), others };
+		});
+		check(!!f, `small ${tag}: the Fast Lane's foot is there`);
+		if (f) {
+			check(f.note.x0 >= -0.5 && f.note.y0 >= -0.5 && f.note.x1 <= w + 0.5 && f.note.y1 <= h + 0.5, `small ${tag}: the foot inside the window`, f.note);
+			const hit = f.others.filter((o) => ov(o, f.note) >= 1).map((o) => o.name);
+			check(hit.length === 0, `small ${tag}: the foot over no other piece`, hit);
+			if (f.lay !== 'up') check(f.px >= 9.95, `small ${tag}: the foot drawn at 10 CSS px or more (${f.px.toFixed(2)}, ${f.lay})`, f.px);
+		}
+		if (SHOTS) await p.screenshot({ path: join(SHOTS, `small_${tag}_lane.png`) });
+		await p.keyboard.press('Escape');
+		await waitClosed(p);
+
+		// the Autoplay menu
+		await openAuto(p);
+		const a = await p.evaluate(() => {
+			const box = (e) => {
+				const b = e.getBoundingClientRect();
+				return { x0: b.left, y0: b.top, x1: b.right, y1: b.bottom };
+			};
+			const m = document.querySelector('.am-ui.layer.modals');
+			const go = m?.querySelector('button.go');
+			const panel = go?.closest('.panel');
+			const adj = m?.querySelector('.stepper .adj');
+			if (!go || !panel || !adj) return null;
+			const P = box(panel);
+			const parts = [...panel.querySelectorAll('.chips.four button, .fold-row, .total, button.go')].map((e) => ({ el: e.className.split(' ').filter((c) => !c.startsWith('s-')).join('.'), text: e.innerText.replace(/\s+/g, ' ').trim().slice(0, 30), ...box(e) }));
+			const goIn = [go, ...go.querySelectorAll('*')].filter((e) => e.getBoundingClientRect().width > 0).map((e) => ({ el: e.className?.baseVal ?? e.className, sw: e.scrollWidth, cw: e.clientWidth, ...box(e) }));
+			const G = box(go);
+			return {
+				panel: P,
+				adj: box(adj),
+				scroll: { sh: panel.scrollHeight, ch: panel.clientHeight, top: panel.scrollTop },
+				cut: parts.filter((q) => q.x0 < P.x0 - 0.5 || q.x1 > P.x1 + 0.5 || q.y0 < P.y0 - 0.5 || q.y1 > P.y1 + 0.5),
+				goOut: goIn.filter((q) => q.sw > q.cw + 1 || q.x0 < G.x0 - 0.5 || q.x1 > G.x1 + 0.5 || q.y0 < G.y0 - 0.5 || q.y1 > G.y1 + 0.5).map((q) => `${q.el} ${q.sw}/${q.cw}`),
+				subs: [...panel.querySelectorAll('.chips.four button')].map((b) => !!b.querySelector('.sub')),
+			};
+		});
+		check(!!a, `small ${tag}: the Autoplay menu opens`);
+		if (a) {
+			const inWin = (b) => b.x0 >= -0.5 && b.y0 >= -0.5 && b.x1 <= w + 0.5 && b.y1 <= h + 0.5;
+			check(inWin(a.panel) && inWin(a.adj), `small ${tag}: the Autoplay menu and its stepper inside the window`, { panel: a.panel, adj: a.adj });
+			check(ov(a.panel, a.adj) < 1, `small ${tag}: the Autoplay menu clear of its stepper`, { panel: a.panel, adj: a.adj });
+			check(a.scroll.sh <= a.scroll.ch + 1 && a.cut.length === 0, `small ${tag}: every count, STOP OPTIONS, the total and LOAD whole in the menu, nothing scrolled`, { scroll: a.scroll, cut: a.cut.slice(0, 4) });
+			check(a.goOut.length === 0, `small ${tag}: LOAD's words and amount inside the button`, a.goOut);
+			check(a.subs.length === 8 && a.subs.every(Boolean), `small ${tag}: every spin count with its price line`, a.subs);
+		}
+		if (SHOTS) await p.screenshot({ path: join(SHOTS, `small_${tag}_auto.png`) });
+		await p.keyboard.press('Escape');
+		await sleep(500);
+
+		// the price list
+		await p.click('.hudp [data-hud="amount"]');
+		for (let i = 0; i < 20 && !(await p.evaluate(() => !!document.querySelector('.am-ui.layer.modals button.opt'))); i++) await sleep(100);
+		await sleep(500);
+		const g = await p.evaluate(() => {
+			const grid = document.querySelector('.am-ui.layer.modals button.opt')?.closest('.grid');
+			if (!grid) return null;
+			const opts = [...grid.querySelectorAll('button.opt')];
+			const gb = grid.getBoundingClientRect();
+			const rowH = opts[0].getBoundingClientRect().height;
+			const gap = parseFloat(getComputedStyle(grid).rowGap) || 0;
+			const ch = grid.clientHeight;
+			const half = opts.map((o) => o.getBoundingClientRect()).filter((b) => b.top < gb.bottom - 0.5 && b.bottom > gb.bottom + 0.5).length;
+			return { rows: (ch + gap) / (rowH + gap), ch, rowH, gap, scrollable: grid.scrollHeight > ch + 1, half, cue: !!grid.parentElement.querySelector('.more') };
+		});
+		check(!!g, `small ${tag}: the price list opens`);
+		if (g) {
+			check(g.half === 0 && Math.abs(g.rows - Math.round(g.rows)) < 0.05, `small ${tag}: the price list shows whole rows only (${g.rows.toFixed(2)} rows of ${g.rowH} px)`, g);
+			check(g.cue === g.scrollable, `small ${tag}: the chevron shows ${g.scrollable ? 'while tags lie below' : 'nothing (the list is whole)'}`, g);
+			if (SHOTS) await p.screenshot({ path: join(SHOTS, `small_${tag}_price.png`) });
+			if (g.scrollable) {
+				await p.evaluate(() => {
+					const grid = document.querySelector('.am-ui.layer.modals button.opt')?.closest('.grid');
+					grid.scrollTop = grid.scrollHeight;
+				});
+				await sleep(400);
+				const end = await p.evaluate(() => !!document.querySelector('.am-ui.layer.modals .grid')?.parentElement.querySelector('.more'));
+				check(!end, `small ${tag}: scrolled to the end, no chevron`);
+			}
+		}
+		await p.keyboard.press('Escape');
+		check(errs.length === 0, `small ${tag}: no page errors`, errs.slice(0, 3));
+		await ctx.close();
+	}
+}
+
 const browser = await chromium.launch({ args: ['--mute-audio'] });
 try {
 	for (const S of SIZES) {
@@ -835,6 +961,13 @@ try {
 			await currencyFit(browser);
 		} catch (e) {
 			check(false, 'currency: ran to the end', String(e).slice(0, 300));
+		}
+	}
+	if (!ONLY.length || ONLY.includes('smallsizes')) {
+		try {
+			await smallSizes(browser);
+		} catch (e) {
+			check(false, 'smallsizes: ran to the end', String(e).slice(0, 300));
 		}
 	}
 } finally {
