@@ -16,8 +16,14 @@
 // DOM ids and attributes, query parameter names, button copy). Add one here whenever staging code grows. A marker
 // may be a RegExp where the bare word is also in the game (match the staging code's own READ of it then). The
 // Armoury's `?armoury=` switch and its regex marker went with the old menu at the switch-over (2026-10-14).
+// THE BUILD'S ADDRESSES (2026-11-23, scripts/build-addresses.mjs): every address the built game can ask the network for
+// must stay inside the game's own folder and name a file the build has, production or staging. An address that climbs
+// out (new URL('../../../assets/...', import.meta.url) from a source file three folders deep), a root address
+// (/assets/..., not built from the page's base) or a file missing from the build FAILS this check (exit 1): such a
+// build works from a site's root and 404s from the subfolder Stake serves a game from.
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, relative, extname } from 'node:path';
+import { sweepAddresses, problemLines } from './build-addresses.mjs';
 
 export const STAGING_MARKERS = [
 	'ROR_STAGING_BUILD', // game/staging.ts: window.__rorBuild
@@ -96,6 +102,13 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
 	}
 	const { hits, files, bytes } = scan(build);
 	const found = [...new Set(hits.map((h) => h.marker))];
+	// the addresses first: wrong in a staging build and in a production build alike
+	const addresses = sweepAddresses(build);
+	if (addresses.problems.length) {
+		console.error(`[check-production-bundle] FAIL: ${addresses.problems.length} address(es) in ${build} leave the game's folder or name a file the build does not have (${addresses.checked} read). Served from a subfolder, as Stake serves a game, each is a 404.`);
+		for (const l of problemLines(addresses.problems)) console.error(l);
+		process.exit(1);
+	}
 	const shellHits = await scanShell(build);
 	if (shellHits.length) {
 		console.error(`[check-production-bundle] FAIL: the shipped index.html in ${build} carries developer comments or local paths. No build may carry them (scripts/prune-build.mjs strips them; did it warn?).`);
@@ -113,7 +126,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
 			console.error(`[check-production-bundle] --expect-staging: this is NOT a complete staging build. Missing: ${missing.join(', ')}. Was it built with PUBLIC_STAGING=1?`);
 			process.exit(1);
 		}
-		console.log(`[check-production-bundle] staging build confirmed: all ${STAGING_MARKERS.length} markers present (${files} files, ${(bytes / 1024).toFixed(0)} KB scanned). DO NOT UPLOAD THIS BUILD TO STAKE.`);
+		console.log(`[check-production-bundle] staging build confirmed: all ${STAGING_MARKERS.length} markers present (${files} files, ${(bytes / 1024).toFixed(0)} KB scanned; ${addresses.checked} addresses inside the game folder, their files in the build). DO NOT UPLOAD THIS BUILD TO STAKE.`);
 		process.exit(0);
 	}
 	if (hits.length) {
@@ -122,5 +135,5 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
 		console.error('Rebuild WITHOUT PUBLIC_STAGING (and without a turbo cache hit from a staging build: pnpm turbo run build --filter=manticore_mayhem... --force).');
 		process.exit(1);
 	}
-	console.log(`[check-production-bundle] PASS: no staging code in ${build} (${files} files, ${(bytes / 1024).toFixed(0)} KB scanned, ${STAGING_MARKERS.length + NEVER_MARKERS.length} markers; index.html has no comments).`);
+	console.log(`[check-production-bundle] PASS: no staging code in ${build} (${files} files, ${(bytes / 1024).toFixed(0)} KB scanned, ${STAGING_MARKERS.length + NEVER_MARKERS.length} markers; index.html has no comments; ${addresses.checked} addresses inside the game folder, their files in the build).`);
 }
