@@ -62,7 +62,8 @@ events (`game/bookEventHandlerMap.ts`). Every decision taken is one line in `doc
   `tools/sign_layout_test.mjs`), its colors and drawing numbers `SIGN` in `ui/hudTheme.ts`, its lights one 2D canvas
   per key (`ui/sign/ledBand.ts`: capped at 30 frames a second, paused in a hidden tab). The board and the LED strip
   are still placed by the dock's rules (`hudLayout.ts`): they did not move with the bar. With the sign bar the
-  desktop strip is taller at 16:9 (`DESKTOP.stripH`) and the upright SKIP button stands under the Fast Lane key.
+  desktop strip is taller at 16:9 (`DESKTOP.stripH`) and the upright SKIP button stands on Menu's row, to Menu's left (`skipBox`). On phones Balance and the amount are
+  1.35 of the size he set (`BOOST`, Corey 2026-11-22: "very small"); the bar is laid out from `PHONE_PLACES`.
 - Active highlights use this game's own "Frost" accent (`accent-rgb` in `ui/hudTheme.ts`), never Manticore's gold
   (rule L6).
 - CSS `filter` in the HTML chrome, allowed as shipped (rule R2): only the `.slot-btn` hover and press lift

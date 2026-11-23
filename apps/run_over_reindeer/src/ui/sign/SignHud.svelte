@@ -20,7 +20,7 @@
 	import HudReadout from '../hud/HudReadout.svelte';
 	import HudMenuPanel from '../hud/HudMenuPanel.svelte';
 	import { HEAD_LS, headWidth } from './signDraw';
-	import { DESKTOP, KEY_V, PHONE_REFS, PLAY_V, READOUT_TYPE, TEXT_MIN, amountLimits, pressRegions, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type PieceId } from './signLayout';
+	import { DESKTOP, KEY_V, PHONE_PLACES, PHONE_REFS, PLAY_V, READOUT_TYPE, TEXT_MIN, amountLimits, pressRegions, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type PieceId } from './signLayout';
 	import { signZones } from './signZones';
 	import { holdLights } from './ledBand';
 	import SignPlay from './SignPlay.svelte';
@@ -155,8 +155,9 @@
 			/** the LED borders' light: false holds every key's light on the frame it shows, true lets it run again (a probe
 			 *  that reads the pixels that differ between two captures holds it: tools/wheel_probe.mjs) */
 			lights: (on: boolean) => !holdLights(!on),
-			/** his own places, as the layout file holds them (the probe reads them here, never a copy) */
-			his: () => JSON.parse(JSON.stringify({ phone: PHONE_REFS, desktop: DESKTOP })),
+			/** the places the bar is laid out from, as the layout file holds them (the probe reads them here, never a copy):
+			 *  his own, with Balance and the amount enlarged on phones (signLayout.ts BOOST); `raw` is his copy untouched */
+			his: () => JSON.parse(JSON.stringify({ phone: PHONE_PLACES, raw: PHONE_REFS, desktop: DESKTOP })),
 			/** the drawn diamonds as shares of their boxes (the Play's button and Auto's and Turbo's are the diamonds) */
 			diamond: () => ({ play: PLAY_V, auto: KEY_V, turbo: KEY_V }),
 		};

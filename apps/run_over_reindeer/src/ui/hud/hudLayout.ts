@@ -24,7 +24,7 @@
 import { MASTER, type LayoutKind, boardRect } from '../../game/layoutSpec';
 import { HUD_BED } from '../../game/constants';
 import { HUD_BAR } from '../hudTheme';
-import { signLayout } from '../sign/signLayout';
+import { signLayout, skipBox } from '../sign/signLayout';
 
 export type HudVariant = 'desktop' | 'tablet' | 'portrait' | 'landscape';
 export type Insets = { t: number; r: number; b: number; l: number };
@@ -400,11 +400,13 @@ export const hudSkipRect = (v: HudView) => {
 		void desktopGeo;
 	}
 	// THE SIGN BAR (2026-11-22, ui/hudTheme.ts HUD_BAR): upright, Corey's Menu and Fast Lane stand in the top right corner
-	// where this button was (at every one of his windows its box met Menu). There it stands just under the Fast Lane key,
-	// its right edge on the key's, the same size. Sideways and on the desktop its own place is clear of the bar.
+	// where this button was (at every one of his windows its box met Menu). It first went under the Fast Lane key; Corey
+	// on the live bar: "what doesn't work well is the Skip Buttom moved down, I'd move it to the left of the Menu Button
+	// on Portrait". So it stands on Menu's row, to Menu's left, Menu's height (ui/sign/signLayout.ts skipBox). Sideways
+	// and on the desktop its own place is clear of the bar.
 	if (HUD_BAR === 'sign' && f.variant === 'portrait') {
-		const b = signLayout({ kind: 'portrait', vw: v.vw, vh: v.vh, safe: f.safe }).box.bonus;
-		return { x: b.x + b.w - s.w * f.u, y: b.y + b.h + 6, width: s.w * f.u, height: s.h * f.u, u: f.u, variant: f.variant };
+		const b = skipBox(signLayout({ kind: 'portrait', vw: v.vw, vh: v.vh, safe: f.safe }));
+		return { x: b.x, y: b.y, width: b.w, height: b.h, u: f.u, variant: f.variant };
 	}
 	return { x: s.x * f.u, y: s.y * f.u, width: s.w * f.u, height: s.h * f.u, u: f.u, variant: f.variant };
 };

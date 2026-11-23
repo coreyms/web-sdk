@@ -37,6 +37,8 @@ const line = (ok, what, detail = '') => {
 };
 const r1 = (v) => Math.round(v * 10) / 10;
 const WIDEST_EM = 4.4;
+/** "$100.00" in Overpass 900 with every digit a 0 wide (the bar's own measure): for the sizes printed below */
+const USD_EM = 4.198;
 /** Auto's and Turbo's press circles where his own two keys stand closer than 44 px (never under his 37) */
 const KNOWN = /^(auto|turbo) press region (3[7-9]|4[0-3])(\.\d)?$/;
 const HEAD_EM = 3.2;
@@ -51,7 +53,7 @@ const at = (kind, vw, vh, safe) => {
 
 // ---- 1. exact at his sizes ----
 for (const o of ['portrait', 'phone']) {
-	for (const r of L.PHONE_REFS[o]) {
+	for (const r of L.PHONE_PLACES[o]) {
 		const { g, problems, seat } = at(o, r.vw, r.vh);
 		let d = 0;
 		for (const id of L.PIECES) {
@@ -59,11 +61,13 @@ for (const o of ['portrait', 'phone']) {
 			const p = r.p[id];
 			d = Math.max(d, Math.abs(b.x - p[0]), Math.abs(b.y - p[1]), Math.abs(b.w - p[2]), Math.abs(b.h - p[3]));
 		}
-		line(d <= 0.05 && g.moved.length === 0, `${r.vw}x${r.vh} his places, no guard acting`, `worst ${d.toFixed(3)} px${g.moved.length ? '; moved: ' + g.moved.join('; ') : ''}`);
+		const raw = L.PHONE_REFS[o].find((q) => q.vw === r.vw && q.vh === r.vh);
+		for (const id of L.PIECES) if (id !== 'bal' && id !== 'amt') d = Math.max(d, ...r.p[id].map((v, i) => Math.abs(v - raw.p[id][i])));
+		line(d <= 0.05 && g.moved.length === 0, `${r.vw}x${r.vh} his places (Balance and the amount enlarged), no guard acting`, `worst ${d.toFixed(3)} px${g.moved.length ? '; moved: ' + g.moved.join('; ') : ''}`);
 		// (his own Auto and Turbo stand 37 px apart at 568 x 320 and 43.4 at 667 x 375, so their 44 px press circles share a
 		// strip there: his placing, kept, and listed)
 		const rest = problems.filter((x) => !KNOWN.test(x));
-		line(rest.length === 0 && seat.nudge === 0, `${r.vw}x${r.vh} clear by shape on the game's own board, strip and logo`, [...rest, ...problems.filter((x) => KNOWN.test(x)).map((x) => `${x} (his own placing)`)].join('; ') + (seat.nudge ? `; amount moved ${r1(seat.nudge)} px off the Play` : ''));
+		line(rest.length === 0, `${r.vw}x${r.vh} clear by shape on the game's own board, strip and logo`, [...rest, ...problems.filter((x) => KNOWN.test(x)).map((x) => `${x} (his own placing)`)].join('; ') + (Math.abs(seat.nudge) > 0.05 ? `; the amount stands ${r1(seat.nudge)} px from his center (the least its width needs)` : ''));
 	}
 }
 {
@@ -78,6 +82,44 @@ for (const o of ['portrait', 'phone']) {
 	line(Math.abs(a.box.play.x - g.box.play.x / 1.5) < 0.01 && Math.abs(a.box.win.y - g.box.win.y / 1.5) < 0.01, 'desktop 16:9: the same layout at the window\'s scale');
 	line(Math.abs(900 - (b.box.amt.y + b.box.amt.h) - (810 - 786) * b.u) < 0.01, 'desktop 16:10: the bottom row keeps its distance from the bottom edge');
 	line(Math.abs(c.box.bonus.x - 320) < 0.01 && Math.abs(c.box.play.x - (g.box.play.x + 320)) < 0.01, 'desktop 21:9: the controls stay with the centered 16:9 game area');
+}
+
+// ---- BALANCE AND THE AMOUNT, LARGER (Corey 2026-11-22): the numbers' heights before and after, what moved ----
+for (const o of ['portrait', 'phone']) {
+	for (const r of L.PHONE_PLACES[o]) {
+		const raw = L.PHONE_REFS[o].find((q) => q.vw === r.vw && q.vh === r.vh);
+		const zones = Z.signZones(o, r.vw, r.vh, true);
+		const g = L.signLayout({ kind: o, vw: r.vw, vh: r.vh, zones });
+		const head = (fs) => (2.42 * fs + 2 * (0.42 * fs + L.TEXT_MIN * 0.25)) * 1;
+		const seat = L.seatAmount(g, USD_EM, head(Math.max(10.5 * g.rs.amt * g.u, 10)), L.amountLimits(g, zones));
+		// before: his own box, seated by the mock's rule (the Play as its box, twice the nearer side about his center)
+		const u = g.u;
+		const sb = L.stepBox(g.step, u);
+		const cx0 = raw.p.amt[0] + raw.p.amt[2] / 2;
+		const nominal0 = (21 * raw.p.amt[2]) / 124;
+		const lim0 = (() => {
+			let Lm = u;
+			let Rm = r.vw - u;
+			const cy = raw.p.amt[1] + raw.p.amt[3] / 2;
+			const h = sb.h * u;
+			for (const q of [zones.board, zones.strip, zones.logo, ...['play', 'auto', 'turbo', 'menu', 'bonus', 'bal', 'win'].map((id) => ({ x: raw.p[id][0], y: raw.p[id][1], w: raw.p[id][2], h: raw.p[id][3] }))]) {
+				if (!q || Math.min(q.y + q.h, cy + h / 2) - Math.max(q.y, cy - h / 2) < 0.5 * u) continue;
+				if (q.x + q.w <= cx0) Lm = Math.max(Lm, q.x + q.w + u);
+				else if (q.x >= cx0) Rm = Math.min(Rm, q.x - u);
+			}
+			return [Lm, Rm];
+		})();
+		const room0 = Math.max(44 * u, 2 * (Math.min(cx0 - lim0[0], lim0[1] - cx0) - sb.w * u - 4 * u));
+		let k0 = 1;
+		if (USD_EM * nominal0 > room0) {
+			k0 = null;
+			for (let s = 95; s >= 50; s -= 5) if ((USD_EM * nominal0 * s) / 100 <= room0) { k0 = s / 100; break; }
+			if (k0 === null) k0 = room0 / (USD_EM * nominal0);
+		}
+		const bal0 = (21 * raw.p.bal[2]) / 186;
+		const bal1 = (21 * r.p.bal[2]) / 186;
+		console.log(`     ${r.vw}x${r.vh}: Balance number ${r1(bal0)} to ${r1(bal1)} px | amount number ${r1(nominal0 * k0)} to ${r1(seat.px)} px (${Math.round(seat.k * 100)} % of ${r1(seat.px / seat.k)}${seat.under ? ', under the floor' : ''}; reserved ${r1(seat.W)} px) | the amount ${Math.abs(seat.nudge) > 0.05 ? `${r1(Math.abs(seat.nudge))} px ${seat.nudge < 0 ? 'left' : 'right'} of his center` : 'on his center'} | < from ${r1(seat.down.x)}, > to ${r1(seat.up.x + seat.up.w)} of ${r.vw}`);
+	}
 }
 
 // ---- 2. a straight line between his windows (the blend alone) ----
@@ -105,7 +147,7 @@ for (const o of ['portrait', 'phone']) {
 				const b = g.box[id];
 				const A = L.ANCHORS[o][id];
 				const ax = A.ax === 'L' ? 0 : A.ax === 'R' ? W : W / 2;
-				const ay = A.ay === 'T' ? 0 : A.ay === 'B' ? H : H / 2;
+				const ay = L.anchorY(A.ay, H, L.topLine(vw, vh) / g.u);
 				row.push((b.x + b.w / 2) / g.u - ax, (b.y + b.h / 2) / g.u - ay, b.w / g.u, b.h / g.u);
 			}
 			rows.push(row);
@@ -166,6 +208,27 @@ for (const [vw, vh, name, must] of [[800, 450, 'Popout L', true], [400, 225, 'Po
 for (const [vw, vh] of [[1920, 1080], [1200, 675], [1024, 576], [1280, 720], [1366, 768], [1440, 900], [2560, 1440], [2560, 1080], [3440, 1440], [1280, 800], [1024, 768]]) {
 	const { g, problems, zones, seat } = at('landscape', vw, vh);
 	line(problems.length === 0, `desktop ${vw}x${vh}`, `${problems.join('; ') || 'clear'} | strip ${r1(zones.strip.h)} px tall, ${r1(g.box.win.y - 8 * g.rs.win * g.u - zones.strip.y - zones.strip.h)} px over the Win box | < > ${r1(seat.down.w)} px | amount ${r1(seat.px)} px`);
+}
+{
+	const S = await import(pathToFileURL(join(APP, 'src', 'game', 'layoutSpec.ts')).href);
+	line(S.MASTER.portrait.width === L.PORTRAIT_MASTER.w && S.MASTER.portrait.height === L.PORTRAIT_MASTER.h, "the layout file's upright master is the game's (layoutSpec MASTER.portrait)");
+}
+// ---- SKIP TO RESULT upright: on Menu's row, to Menu's left (Corey 2026-11-22), clear of the logo, the board and the top line ----
+for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true], [390, 844, true], [390, 620, true], [360, 640, false], [393, 852, false], [412, 915, false], [430, 932, false]]) {
+	const { g, zones } = at('portrait', vw, vh);
+	const b = L.skipBox(g);
+	const m = g.box.menu;
+	const topLine = L.topLine(vw, vh); // the clock strip's lower edge
+	const bad = [];
+	const s = L.shapeOf('menu', b);
+	if (Math.abs(b.y - m.y) > 0.01 || Math.abs(b.h - m.h) > 0.01) bad.push('not on Menu\'s row at Menu\'s height');
+	if (b.x + b.w > m.x - L.SKIP_PLACE.gap * g.u + 0.01) bad.push('not clear of Menu');
+	if (b.x < 0 || b.w < L.SKIP_PLACE.w * g.u - 0.01) bad.push('cut by the window\'s left edge');
+	if (L.onZone(s, zones.board)) bad.push('on the board');
+	if (zones.logo && L.onZone(s, zones.logo)) bad.push('on the logo');
+	if (b.y < topLine - 0.5) bad.push(`over the top line (${r1(b.y)} against ${r1(topLine)})`);
+	if (his && Math.min(b.w, b.h) < 43.95) bad.push(`press area ${r1(Math.min(b.w, b.h))}`);
+	line(bad.length === 0, `${vw}x${vh} SKIP TO RESULT left of Menu`, `${bad.join('; ') || 'clear'} | box ${r1(b.x)}, ${r1(b.y)}, ${r1(b.w)} x ${r1(b.h)} | Menu from ${r1(m.x)} | logo to ${zones.logo ? r1(zones.logo.x + zones.logo.w) : '-'}, ${zones.logo ? r1(zones.logo.y) : '-'} down | top line ${r1(topLine)}`);
 }
 // the safe areas (a real iPhone): nothing under the home indicator, nothing in a notch side, his places kept where clear
 {

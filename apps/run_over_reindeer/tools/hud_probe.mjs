@@ -2039,6 +2039,12 @@ const signRead = (p) =>
 			ring: ring ? { total: Number(ring.dataset.total), leds: ring.querySelectorAll('.ib').length, lit: ring.querySelectorAll('.ib.lit').length } : null,
 			gameType: window.__reindeer.gameType?.(),
 			mode: window.__reindeer.hud.mode(),
+			skip: (() => {
+				const e = document.querySelector('[data-skip="button"]');
+				if (!e) return null;
+				const q = e.getBoundingClientRect();
+				return { x: q.left, y: q.top, w: q.width, h: q.height, up: window.__reindeer.skipHud?.().up ?? e.classList.contains('up') };
+			})(),
 		};
 	}, SIGN_PIECES);
 /** every frame: the Play's word, its mode and its face's two tints, and the Win box (on, its opacity, whether it is
@@ -2265,7 +2271,7 @@ async function signHud(browser) {
 					const e = await signRead(p).catch(() => null);
 					if (e && e.gameType === 'freegame' && e.ring) {
 						inFs = true;
-						seen.push({ total: e.ring.total, leds: e.ring.leds, lit: e.ring.lit, words: e.play.words.join(' '), win: e.win.on, box: e.win.opacity, red: e.play.red, rects: e.win.rects });
+						seen.push({ total: e.ring.total, leds: e.ring.leds, lit: e.ring.lit, words: e.play.words.join(' '), win: e.win.on, box: e.win.opacity, red: e.play.red, rects: e.win.rects, skip: e.skip });
 					}
 					if (st && st.g > 0) await p.mouse.click(S.vp.width / 2, S.vp.height * 0.4).catch(() => {});
 					else if (st && st.idle && st.rest && (inFs || Date.now() - t0 > 20000)) break;
@@ -2276,6 +2282,23 @@ async function signHud(browser) {
 				if (S.fs === 'retrigger') check(seen.length > 10 && totals[0] === 10 && totals.includes(13) && totals.every((t, i) => i === 0 || t === totals[i - 1] + 3), `${tag}: the ring starts at 10 LEDs and a retrigger adds three (totals seen ${totals.join(', ')})`, seen.length);
 				else check(seen.length > 10 && totals[0] === 10, `${tag}: the ring starts at 10 LEDs (totals seen ${totals.join(', ')})`, seen.length);
 				check(seen.every((x) => x.leds === x.total), `${tag}: one LED per free spin of the round's total`, seen.find((x) => x.leds !== x.total));
+				{
+					// SKIP TO RESULT, up in the free spins: on no piece of the bar; upright (Corey 2026-11-22: "I'd move it to the left
+					// of the Menu Button on Portrait") on Menu's row at Menu's height, to Menu's left and clear of it, inside the
+					// window, off the logo sign and under the top line, at least 44 CSS px to press
+					const sk = seen.find((x) => x.skip?.up)?.skip ?? null;
+					check(!!sk, `${tag}: SKIP TO RESULT is up in the free spins`);
+					if (sk) {
+						const meets = (q) => !!q && Math.min(sk.x + sk.w, q.x + q.w) - Math.max(sk.x, q.x) > 0.5 && Math.min(sk.y + sk.h, q.y + q.h) - Math.max(sk.y, q.y) > 0.5;
+						const on = Object.entries(d.dom).filter(([id, q]) => id !== 'win' && meets(q)).map(([id]) => id);
+						check(on.length === 0, `${tag}: SKIP TO RESULT stands on no piece of the bar`, { skip: sk, on });
+						if (kind === 'portrait') {
+							const m = d.dom.menu;
+							const topLine = await p.evaluate(() => Math.max(0, ...[...document.querySelectorAll('[data-top-line]')].map((e) => e.getBoundingClientRect().bottom)));
+							check(Math.abs(sk.y - m.y) <= 1 && Math.abs(sk.h - m.h) <= 1 && sk.x + sk.w <= m.x - 2 && sk.x >= 0 && Math.min(sk.w, sk.h) >= 43.9 && !meets(d.inputs.zones.logo) && !meets(d.inputs.zones.board) && sk.y >= topLine - 0.5, `${tag}: upright, SKIP TO RESULT is on Menu's row to Menu's left (${r1(sk.x)}, ${r1(sk.y)}, ${r1(sk.w)} x ${r1(sk.h)}; Menu from ${r1(m.x)}), off the logo, the board and the top line, 44 px to press`, { skip: sk, menu: m, logo: d.inputs.zones.logo, topLine });
+						}
+					}
+				}
 				check(seen.every((x) => x.words === `SPIN ${x.lit} OF ${x.total}` && x.red), `${tag}: the lit LEDs are the spin in play, as the Play's words say (SPIN n OF total, red face)`, seen.find((x) => x.words !== `SPIN ${x.lit} OF ${x.total}`));
 				check(seen.every((x, i) => i === 0 || x.lit >= seen[i - 1].lit), `${tag}: a lit LED never goes dark in the round`);
 				check(seen.every((x) => x.win) && seen.slice(5).every((x) => x.box > 0.9), `${tag}: the Win box stays all through free spins`, seen.find((x) => !x.win));

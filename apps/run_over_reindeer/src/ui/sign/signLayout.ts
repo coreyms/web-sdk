@@ -18,7 +18,8 @@
 //   2. What is blended is each piece's size and its distance from what it belongs to, in bar px:
 //        upright   the Play from the screen's center line; Auto, Turbo and the amount from the right edge; Balance and
 //                  Win from the left edge; all of those from the bottom edge. Menu and Fast Lane from the right edge and
-//                  the top edge.
+//                  the top line (the clock and the names: it rides down with the game's picture on a taller phone,
+//                  and Menu stands just under it at every one of his windows).
 //        sideways  the Play, Auto, Turbo and the amount from the right edge; Menu, Fast Lane, Balance and Win from the
 //                  left edge; all of them from the screen's middle line (the board is centered on it).
 //   3. Then the guards, none of which moves anything at his own windows: a piece inside a safe area inset moves out of
@@ -106,6 +107,31 @@ export const PHONE_REFS: Record<'portrait' | 'phone', Ref[]> = {
 		{ vw: 568, vh: 320, step: 26, just: SIDE, p: { play: [451.5, 148.3, 116.5, 116.5], auto: [492, 103.9, 44.4, 44.4], turbo: [517.8, 130.4, 44.4, 44.4], menu: [16, 134.1, 95.4, 45.1], bonus: [30.8, 184.3, 65.8, 44.3], amt: [485.3, 272.3, 41.6, 13.4], bal: [9.5, 246.7, 108.4, 23.3], win: [11.7, 279, 118.6, 22.6] } },
 		{ vw: 844, vh: 390, step: 26, just: SIDE, p: { play: [637.4, 161.9, 157, 157], auto: [701.6, 114.9, 60, 60], turbo: [740, 151.4, 60, 60], menu: [77, 159.4, 95, 45], bonus: [81.5, 211.4, 86, 58], amt: [670.3, 329, 91.3, 29.4], bal: [54.2, 278.4, 148.8, 32], win: [56.3, 323.2, 136.4, 26] } },
 	],
+};
+// ---- BALANCE AND THE AMOUNT, LARGER ON PHONES (Corey on the live bar, upright, 2026-11-22: "Also the Text size for
+// Balance and Spin is very small, I think we should boost these up") ----
+// Upright, at every one of his windows, the Balance readout and the amount readout (each one's number and header
+// plate together) are BOOST.k of the size he set: Balance keeps its left edge and its bottom edge (so its number stays
+// on its line at the bottom left), the amount keeps its center. Sideways the same only where his number is as small
+// as upright's were (under BOOST.under CSS px tall: Balance centered, keeping its bottom edge, and the amount). The
+// bar is laid out from these places (PHONE_PLACES); PHONE_REFS stays his own copy. What the growth meets is resolved
+// by the amount's seat (seatAmount: the symbols stand as far apart as the row allows, the group moves the least it
+// must), never by moving the Play, Auto or Turbo.
+export const BOOST = { k: 1.35, under: 13 } as const;
+const boostRef = (o: 'portrait' | 'phone', r: Ref): Ref => {
+	const p = { ...r.p };
+	const k = BOOST.k;
+	const [bx, by, bw, bh] = r.p.bal;
+	if (o === 'portrait') p.bal = [bx, by + bh - bh * k, bw * k, bh * k];
+	else if ((READOUT_TYPE.bal * bw) / READOUT_BASE.bal.w < BOOST.under) p.bal = [bx + bw / 2 - (bw * k) / 2, by + bh - bh * k, bw * k, bh * k];
+	const [ax, ay, aw, ah] = r.p.amt;
+	if (o === 'portrait' || (READOUT_TYPE.amt * aw) / READOUT_BASE.amt.w < BOOST.under) p.amt = [ax + aw / 2 - (aw * k) / 2, ay + ah / 2 - (ah * k) / 2, aw * k, ah * k];
+	return { ...r, p };
+};
+/** the places the bar is laid out from: his, with Balance and the amount enlarged (above) */
+export const PHONE_PLACES: Record<'portrait' | 'phone', Ref[]> = {
+	portrait: PHONE_REFS.portrait.map((r) => boostRef('portrait', r)),
+	phone: PHONE_REFS.phone.map((r) => boostRef('phone', r)),
 };
 /** the triangles his windows make in the (short side, long over short) plane, by index into PHONE_REFS. Upright: the
  *  375 x 667 window is inside the other four, so they fan round it. Sideways: the four are the outline's corners. */
@@ -358,7 +384,17 @@ export const ANCHORS: Record<'portrait' | 'phone', Record<PieceId, Anchor>> = {
 	},
 };
 const anchorX = (a: Anchor['ax'], W: number) => (a === 'L' ? 0 : a === 'R' ? W : W / 2);
-const anchorY = (a: Anchor['ay'], H: number) => (a === 'T' ? 0 : a === 'B' ? H : H / 2);
+/** THE TOP LINE's lower edge upright, CSS px: the clock strip stands 28 master units under the top of the game's upright
+ *  master (412 x 760, fitted to the window and centered: game/layoutSpec.ts MASTER.portrait; the same number
+ *  ui/hud/hudLayout.ts hudSkipRect reads). On a phone taller than his tallest the master is letterboxed further and the
+ *  top line comes down with it: Menu, Fast Lane and SKIP TO RESULT keep their distance under it. */
+export const PORTRAIT_MASTER = { w: 412, h: 760, topLine: 28 } as const;
+export const topLine = (vw: number, vh: number) => {
+	const fit = Math.min(vw / PORTRAIT_MASTER.w, vh / PORTRAIT_MASTER.h);
+	return (vh - PORTRAIT_MASTER.h * fit) / 2 + PORTRAIT_MASTER.topLine * fit;
+};
+/** an anchor's line, bar px: `top` is the top line's lower edge (upright) */
+export const anchorY = (a: Anchor['ay'], H: number, top: number) => (a === 'T' ? top : a === 'B' ? H : H / 2);
 
 const shift = (box: Record<PieceId, Box>, ids: PieceId[], dx: number, dy: number) => {
 	for (const id of ids) box[id] = { ...box[id], x: box[id].x + dx, y: box[id].y + dy };
@@ -382,7 +418,7 @@ const r1 = (v: number) => Math.round(v * 10) / 10;
 /** THE PHONE RULE (upright and sideways): the blend of his windows, then the guards */
 export const phoneLayout = (v: SignView): SignGeo => {
 	const o = v.kind === 'portrait' ? 'portrait' : 'phone';
-	const refs = PHONE_REFS[o];
+	const refs = PHONE_PLACES[o];
 	const A = ANCHORS[o];
 	const u = signScale(o, v.vw, v.vh);
 	const W = v.vw / u;
@@ -402,11 +438,11 @@ export const phoneLayout = (v: SignView): SignGeo => {
 			const ru = signScale(o, r.vw, r.vh);
 			const [x, y, pw, ph] = r.p[id];
 			ox += w[i] * ((x + pw / 2) / ru - anchorX(A[id].ax, r.vw / ru));
-			oy += w[i] * ((y + ph / 2) / ru - anchorY(A[id].ay, r.vh / ru));
+			oy += w[i] * ((y + ph / 2) / ru - anchorY(A[id].ay, r.vh / ru, topLine(r.vw, r.vh) / ru));
 			bw += (w[i] * pw) / ru;
 			bh += (w[i] * ph) / ru;
 		}
-		box[id] = { x: (anchorX(A[id].ax, W) + ox - bw / 2) * u, y: (anchorY(A[id].ay, H) + oy - bh / 2) * u, w: bw * u, h: bh * u };
+		box[id] = { x: (anchorX(A[id].ax, W) + ox - bw / 2) * u, y: (anchorY(A[id].ay, H, topLine(v.vw, v.vh) / u) + oy - bh / 2) * u, w: bw * u, h: bh * u };
 	}
 	const moved: string[] = [];
 	const safe = v.safe ?? ZERO;
@@ -440,7 +476,7 @@ export const phoneLayout = (v: SignView): SignGeo => {
 			// Menu and Fast Lane: off the board (up), never above the top line
 			e = extent(box, top);
 			if (e.y1 > Z.board.y + ZONE_TOL && onZone(shapeOf('bonus', box.bonus), Z.board)) {
-				const dy = Math.max(Math.min(0, 26 * u - e.y0), Z.board.y - e.y1);
+				const dy = Math.max(Math.min(0, topLine(v.vw, v.vh) - e.y0), Z.board.y - e.y1);
 				if (dy < 0) {
 					shift(box, top, 0, dy);
 					moved.push(`Menu and Fast Lane ${r1(-dy)} px up (the board)`);
@@ -526,7 +562,7 @@ export const signLayout = (v: SignView): SignGeo => {
 // every step. Where the widest would not fit between whatever stands in the amount's row (a zone, a safe area, another
 // piece, the window's edge), the amount's type shrinks in steps of 5 % to the floor (50 %); past the floor it keeps
 // shrinking to fit (an amount is never clipped) and `under` says so.
-export const AMOUNT_FIT = { floor: 50, margin: 4, minW: 44 } as const;
+export const AMOUNT_FIT = { floor: 50, margin: 4, minW: 44, playClear: 2 } as const;
 export type Seat = {
 	/** the amount's type, CSS px, and its share of the nominal size */
 	px: number;
@@ -541,7 +577,8 @@ export type Seat = {
 	 *  window's edge (then the symbol stays and only the unseen box moves) */
 	downC: Pt;
 	upC: Pt;
-	/** what the guard against the Play moved the group by, CSS px (0 at his windows) */
+	/** how far the group stands from his center, CSS px: the least the reserved width needed, and the guard against the
+	 *  Play */
 	nudge: number;
 };
 /** the room either side of the amount's center: the row's obstacles (the mock's limits), CSS px */
@@ -562,11 +599,25 @@ export const amountLimits = (g: SignGeo, zones: Zones | null, safe: Insets = ZER
 	if (safe.b) rects.push({ x: 0, y: g.vh - safe.b, w: g.vw, h: safe.b });
 	if (safe.l) rects.push({ x: 0, y: 0, w: safe.l, h: g.vh });
 	if (safe.r) rects.push({ x: g.vw - safe.r, y: 0, w: safe.r, h: g.vh });
-	for (const id of ['play', 'auto', 'turbo', 'menu', 'bonus', 'bal', 'win'] as PieceId[]) rects.push(g.box[id]);
+	for (const id of ['menu', 'bonus', 'bal', 'win'] as PieceId[]) rects.push(g.box[id]);
 	for (const r of rects) {
 		if (Math.min(r.y + r.h, cy + h / 2) - Math.max(r.y, cy - h / 2) < 0.5 * g.u) continue;
 		if (r.x + r.w <= cx) L = Math.max(L, r.x + r.w + g.u);
 		else if (r.x >= cx) R = Math.min(R, r.x - g.u);
+	}
+	// THE DIAMONDS BY THEIR REAL SHAPE (2026-11-22, with the larger amount): the Play, Auto and Turbo stand in the row as
+	// far as their diamond reaches into it, not as their square boxes (the mock's rule took the box, which left the
+	// amount 44 px between its symbols beside the Play). A symbol's press box stays PLAY_CLEAR bar px off a diamond.
+	for (const id of ['play', 'auto', 'turbo'] as PieceId[]) {
+		const s = shapeOf(id, g.box[id]);
+		const dcx = (s[1][0] + s[3][0]) / 2;
+		const dcy = (s[0][1] + s[2][1]) / 2;
+		const v = s[1][0] - dcx;
+		const dy = Math.max(0, cy - h / 2 - dcy, dcy - (cy + h / 2));
+		if (dy >= v) continue;
+		const hw = v - dy;
+		if (dcx + hw <= cx) L = Math.max(L, dcx + hw + AMOUNT_FIT.playClear * g.u);
+		else if (dcx - hw >= cx) R = Math.min(R, dcx - hw - AMOUNT_FIT.playClear * g.u);
 	}
 	return [L, R];
 };
@@ -583,7 +634,11 @@ export const seatAmount = (g: SignGeo, widestEm: number, headW: number, limits: 
 	const nominal = READOUT_TYPE.amt * g.rs.amt * u;
 	const full = widestEm * nominal;
 	const minW = AMOUNT_FIT.minW * u;
-	const room = Math.max(minW, 2 * (Math.min(cx - limits[0], limits[1] - cx) - keyW - gap));
+	// THE ROOM. Desktop: twice the nearer side's, about his center (as the mock). Phones (2026-11-22, the larger amount):
+	// all the row has between its two limits, shared evenly; the group then stands as near his center as that width
+	// allows (the smallest move: none where his center already has the room on both sides).
+	const phone = g.kind !== 'landscape';
+	const room = Math.max(minW, phone ? limits[1] - limits[0] - 2 * (keyW + gap) : 2 * (Math.min(cx - limits[0], limits[1] - cx) - keyW - gap));
 	let k: number | null = 1;
 	let under = false;
 	if (full > room) {
@@ -599,6 +654,12 @@ export const seatAmount = (g: SignGeo, widestEm: number, headW: number, limits: 
 		}
 	}
 	const W = Math.max(minW, Math.min(room, Math.max(full * k, headW)));
+	const his = cx;
+	if (phone) {
+		const lo = limits[0] + keyW + gap + W / 2;
+		const hi = limits[1] - keyW - gap - W / 2;
+		cx = lo <= hi ? Math.max(lo, Math.min(cx, hi)) : (limits[0] + limits[1]) / 2;
+	}
 	// THE GUARD: a symbol's press box never touches the Play's diamond; the group moves away from the Play
 	let nudge = 0;
 	const play = shapeOf('play', g.box.play);
@@ -633,7 +694,22 @@ export const seatAmount = (g: SignGeo, widestEm: number, headW: number, limits: 
 		cx += nudge;
 	}
 	const q = boxes(cx);
-	return { px: nominal * k, k, under, W, amt: { x: cx - W / 2, y: b.y, w: W, h: b.h }, down: q.down, up: q.up, downC: q.downC, upC: q.upC, nudge };
+	// (nudge: all the group moved from his center, CSS px)
+	return { px: nominal * k, k, under, W, amt: { x: cx - W / 2, y: b.y, w: W, h: b.h }, down: q.down, up: q.up, downC: q.downC, upC: q.upC, nudge: cx - his };
+};
+
+// ---- SKIP TO RESULT, upright (components/SkipButton.svelte through ui/hud/hudLayout.ts hudSkipRect) ----
+// Corey on the live bar, 2026-11-22: "what doesn't work well is the Skip Buttom moved down, I'd move it to the left of
+// the Menu Button on Portrait". So upright it stands on Menu's row, to Menu's left: Menu's own top and height, the
+// button's own width (the dock's 76 bar px), SKIP_PLACE.gap bar px clear of Menu's box (Menu's press region is its
+// box). Sideways and on the desktop the button keeps the dock's places, which are clear of the sign bar.
+export const SKIP_PLACE = { gap: 6, w: 76 } as const;
+/** the button's box, CSS px, for an upright layout */
+export const skipBox = (g: SignGeo): Box => {
+	const m = g.box.menu;
+	const right = m.x - SKIP_PLACE.gap * g.u;
+	const x = Math.max(0, right - SKIP_PLACE.w * g.u);
+	return { x, y: m.y, w: right - x, h: m.h };
 };
 
 /** the Win box's glass round its readout, CSS px, and its corner radius (a pill on the desktop, 4 bar px on a phone) */
