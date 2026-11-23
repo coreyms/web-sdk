@@ -16,6 +16,8 @@
 //   - the upright phone (UPRIGHT, uprightLayout): his five gears exact at 402 x 874, each move from his places, the
 //     windows the mock solved (meshed, on the window, < and > clear of the Play, nothing on the board, the plaque or the
 //     logo by the stills' boxes), a 34 px bottom safe area, a sweep of phone windows, the chain's turning, its switch
+//   - the sideways phone (SIDEWAYS, sidewaysLayout): his chain from the frame's wheel at 874 x 402, the moves from his
+//     export, the Play's size at 852 x 393, 844 x 390, 812 x 425 and 667 x 375, the stills' boxes, safe areas, a sweep
 //   - the switch: desktop windows get the gear bar, the two popouts and every phone keep the dock, one constant rolls back
 import { registerHooks } from 'node:module';
 import { existsSync } from 'node:fs';
@@ -292,7 +294,7 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	const bk = (vw, vh, phoneFlag = true, mode) => (phone(vw, vh), L.barKind({ kind: 'portrait', vw, vh, phone: phoneFlag }, mode));
 	check('upright switch: phones from 360 wide get the gear bar', ['402x874', '402x700', '390x844', '375x667', '425x812', '360x800'].every((s) => bk(...s.split('x').map(Number)) === 'gear'));
 	check('upright switch: 320 x 568 keeps the dock (the chain does not fit), and so does a tablet held upright', bk(320, 568) === 'dock' && up(320, 568) === null && bk(820, 1180, false) === 'dock');
-	check('upright switch: the rollback constant gives the dock; sideways phones keep the dock (their table is empty)', bk(402, 874, true, 'dock') === 'dock' && L.TABLES.sideways === null && L.barKind({ kind: 'phone', vw: 874, vh: 402, phone: true }) === 'dock');
+	check('upright switch: the rollback constant gives the dock', bk(402, 874, true, 'dock') === 'dock');
 	const short = ['390x620', '360x740', '375x553'].filter((s) => bk(...s.split('x').map(Number)) === 'dock');
 	console.log(`     note: phone windows that keep the dock because no arrangement fits: 320x568, ${short.join(', ')}`);
 	// the train's turning: each gear from the gear it meshes with
@@ -314,13 +316,137 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	}
 }
 
+// ---- 4d. THE SIDEWAYS PHONE (src/ui/gear/gearLayout.ts SIDEWAYS, sidewaysLayout) ----
+{
+	const side = (vw, vh, safe) => L.sidewaysLayout(vw, vh, safe);
+	const toBox = (c, b) => {
+		const nx = Math.max(b.x, Math.min(c.cx, b.x + b.w));
+		const ny = Math.max(b.y, Math.min(c.cy, b.y + b.h));
+		return c.cx > b.x && c.cx < b.x + b.w && c.cy > b.y && c.cy < b.y + b.h ? -c.R : Math.hypot(c.cx - nx, c.cy - ny) - c.R;
+	};
+	const meet = (a, b) => a.x < b.x + b.w - 0.01 && b.x < a.x + a.w - 0.01 && a.y < b.y + b.h - 0.01 && b.y < a.y + a.h - 0.01;
+	// COPY OF Desktop "Manticore Mayhem/phone_stills_2026-11-22/layout.json" (the running game, CSS px): the board frame's
+	// plate and the logo's art on the sideways windows
+	const STILLS = {
+		'874x402': { frame: [194.1, -10.9, 485.9, 407], logo: [43.7, 27.5, 148.8, 53.8] },
+		'844x390': { frame: [186.3, -10.6, 471.4, 394.9], logo: [40.4, 26.6, 144.4, 52.2] },
+		'812x425': { frame: [160.7, -1.5, 490.7, 411], logo: [8.8, 37.2, 150.3, 54.4] },
+		'667x375': { frame: [132, 11.7, 403.1, 337.6], logo: [7.2, 43.5, 123.5, 44.6] },
+	};
+	const faults = (G, safe = { t: 0, r: 0, b: 0, l: 0 }) => {
+		const bad = [];
+		const g = G.gears;
+		const chain = [['auto', G.wheel], ['turbo', g.auto], ['play', g.turbo]];
+		for (const [id, p] of chain) if (!near(Math.hypot(g[id].cx - p.cx, g[id].cy - p.cy), g[id].pitchR + p.pitchR + L.SIDEWAYS.small.clear, 1e-6)) bad.push(`${id} not meshed`);
+		for (const id of ['play', 'auto', 'turbo']) {
+			const c = g[id];
+			if (c.cx + c.R > G.vw - safe.r - 1.99 || c.cy - c.R < 1.99 || c.cy + c.R > G.vh - 1.99) bad.push(`${id} off the window or in the safe area`);
+			if (2 * c.R < L.MIN_PRESS - 0.01) bad.push(`${id} ${f1(2 * c.R)} px`);
+			if (!near((2 * Math.PI * c.pitchR) / c.teeth, G.tooth.pitch, 1e-9)) bad.push(`${id} tooth`);
+		}
+		if (g.play.cx - g.play.R < G.scene.plate.x1 + 1.99 || g.play.cx <= g.turbo.cx) bad.push('the Play not right of the plate and of Turbo');
+		for (const [a, b] of [[g.turbo, G.wheel], [g.play, G.wheel], [g.play, g.auto]]) if (Math.hypot(a.cx - b.cx, a.cy - b.cy) < a.R + b.R + 0.99) bad.push('a gear crosses one it does not mesh with');
+		for (const id of L.PIECES) for (const b of [G.box[id], G.press[id]]) if (b.x < safe.l - 0.01 || b.y < -0.01 || b.x + b.w > G.vw - safe.r + 0.01 || b.y + b.h > G.vh - safe.b + 0.01) bad.push(`${id} off the window or in a safe area`);
+		for (const id of ['down', 'up', 'menu', 'arm']) if (Math.min(G.press[id].w, G.press[id].h) < L.MIN_PRESS - 0.01) bad.push(`${id} press ${f1(Math.min(G.press[id].w, G.press[id].h))}`);
+		if (meet(G.press.down, G.press.up)) bad.push('< and > press boxes overlap');
+		for (const id of ['down', 'up', 'amt']) for (const k of ['play', 'auto', 'turbo']) if (toBox(g[k], G.press[id]) < 1) bad.push(`${id} on ${k}`);
+		for (const id of ['menu', 'arm', 'win', 'bal']) if (G.box[id].x + G.box[id].w > G.scene.plate.x0 - 5.99) bad.push(`${id} on the board frame`);
+		for (const id of ['down', 'up', 'amt']) if (G.press[id].x < G.scene.plate.x1 + 3.99) bad.push(`${id} on the board frame`);
+		if (meet(G.box.menu, G.box.arm) || meet(G.box.win, G.box.bal) || G.box.win.y < G.box.menu.y + G.box.menu.h) bad.push('left column pieces meet');
+		if (G.coverPx / G.scene.boardK > L.SIDEWAYS.cover + 0.51) bad.push(`the Play ${f1(G.coverPx)} px under his top edge`);
+		return bad;
+	};
+	// his phone: corey_phone_sideways_r3_2026-11-22.json
+	const H = side(874, 402);
+	const HIS = { auto: [698.44, 27.85], turbo: [736.48, 50.07], play: [809.71, 55.71] };
+	check('sideways 874 x 402: his chain (the wheel, Auto 90.4, Turbo 120.3, the Play 94.4), every gear within 0.5 px of his place; 40 and 17 teeth; 106.7 and 47.9 across', !!H && ['auto', 'turbo', 'play'].every((id) => Math.hypot(H.gears[id].cx - HIS[id][0], H.gears[id].cy - HIS[id][1]) < 0.5) && H.gears.auto.deg === 90.4 && H.gears.turbo.deg === 120.3 && H.gears.play.deg === 94.4 && H.gears.play.teeth === 40 && H.gears.auto.teeth === 17 && near(2 * H.gears.play.R, 106.73, 0.05) && near(2 * H.gears.auto.R, 47.94, 0.05) && H.playScale === 1, H ? ['auto', 'turbo', 'play'].map((id) => `${id} ${f1(H.gears[id].cx)}, ${f1(H.gears[id].cy)}`).join('; ') : 'no fit');
+	if (H) {
+		const mv = { upX: H.box.up.x - 838.67, upY: H.box.up.y - 368.33, downX: H.box.down.x - 704.13, downY: H.box.down.y - 368.33, amtX: H.box.amt.x - 736.47, amtY: H.box.amt.y - 367 };
+		check('sideways 874 x 402: the moves from his export: > 1.3 px left, < and > 3 px up, the amount with them', near(mv.upX, -1.33, 0.05) && near(mv.upY, -3, 0.05) && near(mv.downX, 0, 0.05) && near(mv.downY, -3, 0.05) && near(mv.amtX, -0.67, 0.1) && near(mv.amtY, -3, 0.05), JSON.stringify(Object.fromEntries(Object.entries(mv).map(([k, v]) => [k, f1(v)]))));
+		const st = { menu: [19.35, 94.9, 72.7, 80.6], arm: [102.05, 94.9, 72.7, 80.6], bal: [6, 361.44, 174.6, 37.5], win: [6, 319.4, 181.1, 40] };
+		check('sideways 874 x 402: the standards, Win and Balance within 1.1 px of his places', Object.entries(st).every(([id, b]) => near(H.box[id].x, b[0], 1.1) && near(H.box[id].y, b[1], 1.1) && near(H.box[id].w, b[2], 1.1) && near(H.box[id].h, b[3], 1.1)), Object.keys(st).map((id) => `${id} ${f1(H.box[id].x)}, ${f1(H.box[id].y)}, ${f1(H.box[id].w)} x ${f1(H.box[id].h)}`).join('; '));
+		check('sideways 874 x 402: real text: 9 px words; Balance 19.8 px, Win 23 px, the amount 16.8 px; the longest US amounts fit', H.text.label === 9 && near(H.text.bal, 19.8, 0.1) && near(H.text.win, 23, 0.1) && H.fitW.bal >= 6.83 * H.text.bal && H.fitW.win >= 6.83 * H.text.win && H.fitW.amt >= 4.77 * H.text.number, JSON.stringify(H.fitW));
+		// THE TOP LINE: the studio name as the dock draws it (ui/ClockStrip.svelte: right 14, top 10, 12 px type, 133.8 wide,
+		// master px) is under his Play gear, which is why ui/ChromePhone.svelte draws it at the left under the clock line
+		const fit = H.fit;
+		const strip = { x: (874 - 1480 * fit) / 2 + (1480 - 14 - 133.8) * fit, y: (402 - 740 * fit) / 2 + 10 * fit, w: 133.8 * fit, h: 15 * fit };
+		check('sideways 874 x 402: his Play gear stands on the top right studio name (so that line is drawn at the left instead)', toBox(H.gears.play, strip) < -5, `${f1(-toBox(H.gears.play, strip))} px in`);
+	}
+	// the sizes: his proportion wherever his own cover of the tail allows, no jump between near phones
+	const WANT = { '874x402': [106.7, 1], '852x393': [104.4, 1], '844x390': [103.6, 1], '812x425': [107.8, 1], '667x375': [86.4, 0.98] };
+	for (const [key, [across, scale]] of Object.entries(WANT)) {
+		const [vw, vh] = key.split('x').map(Number);
+		const G = side(vw, vh);
+		check(`sideways ${key}: the Play ${across} px across (${scale} of his proportion)`, !!G && near(2 * G.gears.play.R, across, 0.15) && near(G.playScale, scale, 0.001), G ? `${f1(2 * G.gears.play.R)} px, ${(2 * G.gears.play.R / vh).toFixed(3)} of the height, angles ${G.gears.auto.deg}, ${G.gears.turbo.deg}, ${G.gears.play.deg}, ${f1(G.coverPx)} px under his top edge, the amount ${G.how}` : 'no fit');
+		if (!G) continue;
+		const bad = faults(G);
+		const S = STILLS[key];
+		if (S) {
+			const fr = { x: S.frame[0], y: S.frame[1], w: S.frame[2], h: S.frame[3] };
+			const lg = { x: S.logo[0], y: S.logo[1], w: S.logo[2], h: S.logo[3] };
+			for (const id of ['menu', 'arm', 'win', 'bal', 'down', 'up', 'amt']) if (meet(G.press[id], fr) || meet(G.box[id], fr)) bad.push(`${id} on the board frame in the still`);
+			for (const id of L.PIECES) if (meet(G.box[id], lg)) bad.push(`${id} on the logo`);
+			if (G.gears.play.cx - G.gears.play.R < fr.x + fr.w + 1.5) bad.push('the Play on the plate in the still');
+		}
+		check(`sideways ${key}: meshed from the frame's wheel, on the window, nothing on the board frame or the logo, < and > apart`, bad.length === 0, bad.slice(0, 4).join('; '));
+	}
+	check('sideways: 874 x 402, 852 x 393 and 844 x 390 draw his chain at his proportion (no jump)', [[874, 402], [852, 393], [844, 390]].every(([vw, vh]) => { const G = side(vw, vh); return G.playScale === 1 && G.gears.auto.deg === 90.4 && near((2 * G.gears.play.R) / vh, 0.2655, 0.002); }));
+	// (checked once against the mock's own shapes of him per window, build/creature_dist.json, 2026-11-22: the Play reaches
+	// 11.4 px into his tallest pose at 874 x 402 as built here (his export's own place: 9.4), 5.8 at 844 x 390, and is
+	// clear of every shape at 812 x 425 and 667 x 375; Auto and Turbo are clear everywhere)
+	// the side safe areas, and a sweep
+	const R59 = side(874, 402, { t: 0, r: 59, b: 21, l: 59 });
+	check('sideways 874 x 402 with 59 px side safe areas and 21 px at the bottom: the chain bends and the Play is 0.9 of his', !!R59 && near(R59.playScale, 0.9, 0.021) && faults(R59, { t: 0, r: 59, b: 21, l: 59 }).length === 0, R59 ? `${f1(2 * R59.gears.play.R)} px, the amount ${R59.how}; ${faults(R59, { t: 0, r: 59, b: 21, l: 59 }).slice(0, 3).join('; ')}` : 'no fit');
+	{
+		let n = 0;
+		let dock = 0;
+		const bad = [];
+		for (let vw = 640; vw <= 960; vw += 8) {
+			for (let vh = 340; vh <= 440; vh += 10) {
+				for (const safe of [{ t: 0, r: 0, b: 0, l: 0 }, { t: 0, r: 47, b: 21, l: 47 }, { t: 0, r: 59, b: 21, l: 0 }]) {
+					const G = side(vw, vh, safe);
+					if (!G) {
+						dock += 1;
+						continue;
+					}
+					n += 1;
+					const f = faults(G, safe);
+					if (f.length) bad.push(`${vw}x${vh} r${safe.r}: ${f[0]}`);
+				}
+			}
+		}
+		check(`sideways sweep: ${n} windows solved (${dock} keep the dock), every one meshed, inside the safe areas, < and > never overlapping`, bad.length === 0 && n > 800, bad.slice(0, 4).join('; '));
+	}
+	const bk = (vw, vh, mode) => L.barKind({ kind: 'phone', vw, vh, phone: true }, mode);
+	check('sideways switch: 874 x 402, 844 x 390, 812 x 425 and 667 x 375 get the gear bar; 568 x 320 keeps the dock; the rollback gives the dock', ['874x402', '844x390', '812x425', '667x375'].every((s2) => bk(...s2.split('x').map(Number)) === 'gear') && bk(568, 320) === 'dock' && side(568, 320) === null && bk(874, 402, 'dock') === 'dock');
+	check('sideways switch: 667 x 375 with a 59 px right safe area keeps the dock (no chain fits; the mock overlapped < and > there)', side(667, 375, { t: 0, r: 59, b: 0, l: 59 }) === null);
+	// the chain's turning from the frame's wheel
+	{
+		const g = H.gears;
+		let worst = 0;
+		for (let links = 0; links < 6; links += 0.0713) {
+			const a = { wheel: L.wheelAngle(links) };
+			for (const [id, pid, p] of [['auto', 'wheel', H.wheel], ['turbo', 'auto', g.auto], ['play', 'turbo', g.turbo]]) {
+				const c = g[id];
+				a[id] = L.smallAngle(a[pid], c.deg, p.teeth, c.teeth);
+				const gapP = L.fold(c.deg - a[pid] - 180 / p.teeth, 360 / p.teeth) * (Math.PI / 180) * p.pitchR;
+				const toothC = L.fold(c.deg + 180 - a[id], 360 / c.teeth) * (Math.PI / 180) * c.pitchR;
+				worst = Math.max(worst, Math.abs(gapP + toothC));
+			}
+		}
+		// (0.03 px: the frame wheel's own tooth pitch is half a percent over the gears', so its tooth and Auto's gap part by
+		// 0.02 px at the edges of a tooth's travel)
+		check('sideways turning: from the frame wheel\'s own tooth (20.6 degrees at rest, 45 a link) each gear\'s tooth sits in its parent\'s gap', worst < 0.03 && near(L.wheelAngle(0), 20.578, 1e-9) && near(L.wheelAngle(1) - L.wheelAngle(0), 45, 1e-9), `worst ${worst.toFixed(5)} px`);
+	}
+}
+
 // ---- 5. the switch ----
 {
 	const k = (kind, vw, vh, mode) => L.barKind({ kind, vw, vh }, mode);
 	check('switch: desktop and laptop windows get the gear bar', ['1920x1080', '1200x675', '1024x576', '1280x720', '1366x768', '1440x900', '2560x1440', '2560x1080', '3440x1440'].every((s) => k('landscape', ...s.split('x').map(Number)) === 'gear'));
 	check('switch: the two popouts keep the dock', k('landscape', 800, 450) === 'dock' && k('landscape', 400, 225) === 'dock');
 	check('switch: a small window near 4:3 (an iPad held sideways) keeps the dock: its gears would be under 55 percent', k('landscape', 1024, 768) === 'dock' && k('landscape', 1180, 820) === 'dock', `1024 x 768 would draw them at ${L.desktopLayout(1024, 768).scale.gears.toFixed(2)}, 1180 x 820 at ${L.desktopLayout(1180, 820).scale.gears.toFixed(2)}`);
-	check('switch: a sideways phone keeps the dock until its table is filled', L.TABLES.sideways === null && k('phone', 844, 390) === 'dock');
+	check('switch: every table is filled (desktop, upright, sideways)', !!L.TABLES.desktop && !!L.TABLES.upright && !!L.TABLES.sideways);
 	check('switch: one constant rolls every screen back to the dock', k('landscape', 1920, 1080, 'dock') === 'dock' && L.gearBarLayout({ kind: 'landscape', vw: 1920, vh: 1080 }, 'dock') === null && L.GAME_BAR === 'gear');
 }
 

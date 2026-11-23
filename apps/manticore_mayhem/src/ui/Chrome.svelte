@@ -71,7 +71,7 @@
 	if (import.meta.env.DEV && typeof window !== 'undefined') {
 		// house rule: extend __manticore, never a new global (tools/manticore/hud_probe.js reads the HUD's scale, the
 		// portrait row's t and the plaque box the rule placed it under)
-		((window as any).__manticore ??= {}).hudFrame = () => ({ variant: hud.variant, bar: barKind({ kind, vw, vh, phone, safeBottom: safe.b }, BAR_MODE), u: hud.u, t: hud.t, gap: hud.gap, plaque: kind === 'portrait' ? portraitBoardBottoms(vw, vh) : null });
+		((window as any).__manticore ??= {}).hudFrame = () => ({ variant: hud.variant, bar: barKind({ kind, vw, vh, phone, safeBottom: safe.b, safe }, BAR_MODE), u: hud.u, t: hud.t, gap: hud.gap, plaque: kind === 'portrait' ? portraitBoardBottoms(vw, vh) : null });
 		// THE WIN ODOMETER's state (ui/hud/winOdometer.ts; tools/manticore/hud_probe.js section `cards`): its mode, the total,
 		// what the readout reads now (locked digits, '#' for a moving one), the banner screen and the clock ms it drew at, the
 		// count's end, when it went plain and whether by a skip, the pops played

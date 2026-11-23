@@ -63,7 +63,15 @@ loop, every move book driven).
   left; icons only). `gearLayout.ts` `UPRIGHT` is his setup at 402 x 874 and `uprightLayout()` the one rule for every
   other phone window (the scale, the chain's angles, where each readout goes, the bottom safe area); its comment lists
   every move from his places. A window where nothing fits (320 x 568, 390 x 620, 360 x 740) keeps the dock, and so do
-  tablets and sideways phones (`sideways` is empty). The readouts are real text: a 9 px word over a 15 px number.
+  tablets. The readouts are real text: a 9 px word over a 15 px number.
+- THE SIDEWAYS PHONE'S GEAR CHAIN (2026-11-22, `ui/gear/GearBarSideways.svelte`): a chain from the board frame's own
+  top right wheel: Auto on the wheel, Turbo on Auto, the Play on Turbo at the right; Menu and the Armoury as standards
+  under the logo; Win over Balance bottom left; the amount with `<` `>` bottom right. `gearLayout.ts` `SIDEWAYS` is
+  Corey's own placing at 874 x 402 and `sidewaysLayout()` the one rule (his chain scaled with the board wherever it
+  fits; other bends, then a smaller Play, where it does not; `SKYLINE` is the Manticore's top edge, and the Play may
+  reach under it only as far as his own placing does). The HTML gears are phased to the wheel (`WHEEL_REST`). With
+  this bar the studio name of the top line is drawn under the clock line at the left (`ui/ChromePhone.svelte`): the
+  Play gear stands where it was. Under 640 x 340, and where no chain fits, the dock stays. Desktop popouts keep the dock.
 - The look is one theme block, `ui/hudTheme.ts` (tokens injected as `--hud-*`); read `ui/HUD_THEME.md` before restyling.
   `.am-glass` (`ui/ChromeStyles.svelte`) is the panel frame every HUD modal shares; the riveted bronze plate is
   `.am-plate`. Active highlights use this game's accent (gold, `accent-rgb` in `ui/hudTheme.ts`), rule L6.

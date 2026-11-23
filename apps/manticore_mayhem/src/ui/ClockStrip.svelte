@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
-	type Props = { side: 'left' | 'right'; text?: string; clock?: boolean };
-	const { side, text = '', clock = false }: Props = $props();
+	// row: the line the strip is drawn on, 0 the top one. The sideways phone's gear bar draws the studio name on row 1 at
+	// the left (under the clock line): its Play gear stands where that name is at the top right (ui/ChromePhone.svelte).
+	type Props = { side: 'left' | 'right'; text?: string; clock?: boolean; row?: number };
+	const { side, text = '', clock = false, row = 0 }: Props = $props();
 
 	let now = $state(new Date());
 	onMount(() => {
@@ -12,7 +14,7 @@
 	const hhmm = $derived(`${`${now.getHours()}`.padStart(2, '0')}:${`${now.getMinutes()}`.padStart(2, '0')}`);
 </script>
 
-<div class="strip" style:left={side === 'left' ? '14px' : 'auto'} style:right={side === 'right' ? '14px' : 'auto'}>
+<div class="strip" style:left={side === 'left' ? '14px' : 'auto'} style:right={side === 'right' ? '14px' : 'auto'} style:margin-top="{row * 15}px">
 	{#if clock}{hhmm}&nbsp;&nbsp;&nbsp;{/if}{text}
 </div>
 

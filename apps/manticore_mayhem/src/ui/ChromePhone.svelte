@@ -20,6 +20,9 @@
 	import HudStep from './hud/HudStep.svelte';
 	import HudReadout from './hud/HudReadout.svelte';
 	import HudMenuPanel from './hud/HudMenuPanel.svelte';
+	import GearBarSideways from './gear/GearBarSideways.svelte';
+	import { sidewaysBarLayout } from './gear/gearLayout';
+	import { BAR_MODE } from './gear/barMode';
 
 	type Props = { controls: Controls; hud: HudFrame };
 	const { controls, hud }: Props = $props();
@@ -29,6 +32,9 @@
 	const logo = logoArtRect('phone'); // the logo's art box (constants LOGO.phone)
 
 	const G = $derived(landscapeGeo(hud));
+	// THE GEAR BAR (2026-11-22, ui/gear): a sideways phone's chain from the frame's wheel; null where the rule keeps the
+	// dock (a window under 640 x 340, one where no chain fits, and every screen while GAME_BAR says 'dock')
+	const gear = $derived(sidewaysBarLayout({ kind: 'phone', vw: hud.W * hud.u, vh: hud.H * hud.u, safe: hud.safe }, BAR_MODE));
 	const capO = $derived(outlineArch(G.cap));
 	const kcO = $derived(outlineArch(G.kc));
 	const ante = $derived(hs.anteLevel());
@@ -42,12 +48,17 @@
 </script>
 
 <ClockStrip side="left" clock text="MANTICORE UNLEASHED" />
-<ClockStrip side="right" text="POLYMATH GAMES" />
+<!-- the studio name: at the top right on the dock; with the gear bar the Play gear stands there, so the same line is
+     drawn under the clock line at the left (never hidden) -->
+{#if gear}<ClockStrip side="left" text="POLYMATH GAMES" row={1} />{:else}<ClockStrip side="right" text="POLYMATH GAMES" />{/if}
 
 <!-- the logo (the tablet). THE CANVAS DRAWS IT (components/Logo.svelte, game/logo/still.ts: under the creature, with
      the shadow); this <img> is the fallback until the canvas has it, and hidden from then on (logoState.canvas) -->
 <div class="logo" class:canvas={logoState.canvas} style:left="{logo.x}px" style:top="{logo.y}px" style:width="{logo.width}px"><LogoPicture /></div>
 
+{#if gear}
+<GearBarSideways {controls} {hud} layout={gear} />
+{:else}
 <div class="hudp hud-group v-landscape" class:menu-open={stateUi.menuOpen} data-plane="base" style={plane}>
 	<div class="shadow" style:left="{G.cap.x0 + 14}px" style:top="{G.cap.y1 - 14}px" style:width="{G.cap.x1 - G.cap.x0 - 28}px" style:height="28px"></div>
 	<div class="shadow" style:left="{G.kc.x0 + 14}px" style:top="{G.kc.y1 - 14}px" style:width="{G.kc.x1 - G.kc.x0 - 28}px" style:height="28px"></div>
@@ -101,6 +112,7 @@
 		{#if !replay}<HudStep dir={1} {controls} x={K.plus.x} y={K.plus.y} d={K.plus.d} cls="uc" />{/if}
 	</div>
 </div>
+{/if}
 
 <style>
 	/* placed by the layout rule (inline left / top / width: game/logo/layout.ts) */

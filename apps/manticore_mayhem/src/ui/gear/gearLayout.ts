@@ -37,7 +37,7 @@
 // filled its screens keep today's glass dock exactly as it is (ui/hud/hudLayout.ts).
 //
 // Pure: no DOM, no runes. tools/gear_layout_test.mjs sweeps it in node.
-import { MASTER, frameFor, landscapeExtraY, landscapeTallFrame, registrationOf, type LayoutKind } from '../../game/layoutSpec';
+import { FRAME, MASTER, frameFor, landscapeExtraY, landscapeTallFrame, registrationOf, type LayoutKind } from '../../game/layoutSpec';
 import { PORTRAIT, portraitBoardBottoms } from '../hud/hudLayout';
 import { BOARD_ART } from '../../game/boardArtSpec';
 import { LOGO, LOGO_KEY } from '../../game/constants';
@@ -143,11 +143,58 @@ export const UPRIGHT: UprightTable = {
 	box: { win: { w: 108, h: 26 }, bal: { w: 108, h: 26 }, amt: { w: 78, h: 26 } },
 };
 
-/** THE TABLES. Fill `sideways` (a phone held sideways) to give those screens the gear bar; barKind() then answers
- *  'gear' for them and the bar needs their placement added beside the rules below. */
-export const TABLES: { desktop: DesktopTable; sideways: PhoneTable | null; upright: UprightTable | null } = {
+/** the sideways phone's table: a chain from the board frame's top right wheel (Auto on the wheel, Turbo on Auto, the
+ *  Play on Turbo, each at an angle clockwise from the top), on its own reference window */
+export type SidewaysTable = {
+	window: { vw: number; vh: number };
+	tooth: { pitch: number; height: number; boardK: number };
+	play: { across: number; hub: number };
+	small: { across: number; clear: number };
+	chain: { auto: number; turbo: number; play: number };
+	/** how far the Play may reach under the top edge of the Manticore's shape (px of the board art; his own placing's) */
+	cover: number;
+	/** the arrows' drawn size and their centers' spacing in a row; the amount's box; the standards' and the readouts'
+	 *  scales against the desktop pieces; SPIN and the small gears' word; the readouts' word */
+	arrow: number;
+	arrowGap: number;
+	amt: { w: number; h: number; number: number };
+	std: number;
+	readout: number;
+	text: { spin: number; spinInk: number; word: number; label: number };
+};
+/** COREY'S SIDEWAYS PHONE, 874 x 402 (corey_phone_sideways_r3_2026-11-22.json, his own placing on an iPhone 17 Pro: the
+ *  frame's top right wheel, then Auto on it at 90.4 degrees, Turbo on Auto at 120.3, the Play on Turbo at 94.4; the
+ *  Play 105.5 (106.7 across its tips, 40 teeth), Auto and Turbo 48 (17 teeth), their words 8.2 px, SPIN 13.6).
+ *  Corey: "Ideally the play button is this large, and we connect a chain where Auto is connected to Turbo and Turbo is
+ *  connected to Play, Play on the right, so it's not covering the tail". His Play reaches 11 px under the tip of the
+ *  Manticore's tail in his tallest pose; Corey: "That's fine, if it covers the tail a little bit, it doesn't at rest,
+ *  but most of the time it wont". */
+export const SIDEWAYS: SidewaysTable = {
+	window: { vw: 874, vh: 402 },
+	tooth: { pitch: 8.0307, height: 4.4897, boardK: 0.24726 },
+	play: { across: 105.5, hub: 0.66 },
+	small: { across: 48, clear: 0.6 },
+	chain: { auto: 90.4, turbo: 120.3, play: 94.4 },
+	cover: 46.5,
+	arrow: 29.33,
+	arrowGap: 133.2,
+	amt: { w: 99.2, h: 32, number: 16.8 },
+	std: 0.48,
+	readout: 0.553,
+	text: { spin: 13.6, spinInk: 0.8, word: 8.2, label: 9 },
+};
+/** a sideways phone smaller than this keeps the dock (Stake's 568 x 320 and smaller) */
+export const SIDEWAYS_MIN = { vw: 640, vh: 340 } as const;
+/** THE MANTICORE'S TOP EDGE on a sideways phone: [x, y] in px of the board art from the frame's top right wheel's center
+ *  (x right, y down), the highest point of him in each 16 px column over his idle loops and his tallest pose (roar 13).
+ *  From the mock's build/creature_dist.json (its "rest" shape at 874 x 402; he and the board scale together on every
+ *  sideways phone, so one table serves them all). Everything under it is his. */
+const SKYLINE: readonly (readonly [number, number])[] = [[-127,793],[-111,720],[-94,688],[-78,664],[-62,656],[-46,639],[-30,631],[-14,623],[3,615],[19,599],[35,591],[51,583],[67,583],[83,583],[100,583],[116,567],[132,567],[148,567],[164,567],[181,567],[197,567],[213,567],[229,292],[245,284],[261,275],[278,267],[294,259],[310,259],[326,251],[342,251],[358,243],[375,243],[391,243],[407,235],[423,251],[439,251],[456,251],[472,251],[488,251],[504,259],[520,259],[536,259],[553,275],[569,284],[585,292],[601,308],[617,332],[634,356],[650,397],[666,591],[682,591],[698,591],[714,591],[731,599],[747,607],[763,615],[779,615],[795,615],[811,623],[828,631],[844,647],[860,656],[876,664]];
+
+/** THE TABLES: every screen kind's table is filled. */
+export const TABLES: { desktop: DesktopTable; sideways: SidewaysTable | null; upright: UprightTable | null } = {
 	desktop: DESKTOP,
-	sideways: null,
+	sideways: SIDEWAYS,
 	upright: UPRIGHT,
 };
 /** an upright phone narrower than this keeps the dock (Stake's Mobile S, 320 x 568: the chain does not fit, the mock
@@ -162,11 +209,12 @@ export const DESKTOP_MIN = { vw: 900, vh: 500, gears: 0.55 } as const;
 
 /** THE SWITCH: which bar a screen draws. kind is the chrome's (game/layoutSpec.ts layoutKind): 'landscape' is every
  *  desktop window, 'phone' a phone held sideways, 'portrait' a phone or tablet held upright. */
-export type BarView = { kind: LayoutKind; vw: number; vh: number; phone?: boolean; safeBottom?: number };
+export type Safe = { t: number; r: number; b: number; l: number };
+export type BarView = { kind: LayoutKind; vw: number; vh: number; phone?: boolean; safeBottom?: number; safe?: Safe };
 export const barKind = (v: BarView, mode: 'gear' | 'dock' = GAME_BAR): 'gear' | 'dock' => {
 	if (mode === 'dock') return 'dock';
 	if (v.kind === 'landscape') return TABLES.desktop && v.vw >= DESKTOP_MIN.vw && v.vh >= DESKTOP_MIN.vh && desktopLayout(v.vw, v.vh).scale.gears >= DESKTOP_MIN.gears ? 'gear' : 'dock';
-	if (v.kind === 'phone') return TABLES.sideways ? 'gear' : 'dock';
+	if (v.kind === 'phone') return TABLES.sideways && sidewaysLayout(v.vw, v.vh, v.safe) ? 'gear' : 'dock';
 	// upright: phones from UPRIGHT_MIN_VW wide where the train fits; a tablet held upright keeps the dock
 	return TABLES.upright && v.phone && v.vw >= UPRIGHT_MIN_VW && uprightLayout(v.vw, v.vh, v.safeBottom ?? 0) ? 'gear' : 'dock';
 };
@@ -319,6 +367,209 @@ export const gearBarLayout = (v: BarView, mode: 'gear' | 'dock' = GAME_BAR): Gea
 /** the upright phone's gear bar for a screen, or null where barKind() says dock */
 export const uprightBarLayout = (v: BarView, mode: 'gear' | 'dock' = GAME_BAR): UprightLayout | null =>
 	v.kind === 'portrait' && barKind(v, mode) === 'gear' ? uprightLayout(v.vw, v.vh, v.safeBottom ?? 0) : null;
+
+/** the sideways phone's gear bar for a screen, or null where barKind() says dock */
+export const sidewaysBarLayout = (v: BarView, mode: 'gear' | 'dock' = GAME_BAR): SidewaysLayout | null =>
+	v.kind === 'phone' && mode === 'gear' && TABLES.sideways ? sidewaysLayout(v.vw, v.vh, v.safe) : null;
+
+// ---- THE SIDEWAYS PHONE'S RULE ----------------------------------------------------------------------------------------
+// ONE RULE, his placing exactly at 874 x 402 with no safe area:
+//   WHEEL  the chain starts on the board frame's own top right wheel (the game's registration for this window), so it
+//          is meshed with the wheel the canvas draws, and it is phased to it (WHEEL_REST: the wheel's tooth at rest).
+//   SIZES  everything scales with the board (s = this window's board scale over his): the Play his 105.5 x s (about
+//          0.265 of the window's height), Auto and Turbo his 48 and never smaller (their press is 44 px or more).
+//   CHAIN  his angles first (Auto 90.4 on the wheel, Turbo 120.3 on Auto, the Play 94.4 on Turbo: a row to the right,
+//          so on every wide phone the chain is his, only scaled: no jump between 874 x 402, 852 x 393 and 844 x 390).
+//          Where his chain does not fit at full size (a narrower window, a right safe area) the other bends are tried at
+//          that size before the Play is made smaller (2 percent a step, down to 0.6 of his). A chain fits when:
+//            every gear is 2 px inside the window and inside the right safe area; the Play is right of the board frame's
+//            plate and of Turbo; no gear crosses a gear it does not mesh with, or the symbol cells;
+//            Auto and Turbo are clear of the Manticore (his top edge, SKYLINE, 1.5 px kept);
+//            the Play reaches under his top edge no further than his own placing does (SIDEWAYS.cover: 11 px at 874 x
+//            402, the tail tip in his tallest pose; Corey: "That's fine, if it covers the tail a little bit").
+//          No chain fits: null (the dock).
+//   THE REST  Menu and the Armoury as standards under the logo (0.48 of the desktop pair, smaller where the column left
+//          of the board is narrower); Win over Balance at the bottom left (as wide as that column); the amount with gold
+//          < and > at the bottom right, over his feet (accepted), in a row where the room right of the board holds it,
+//          else the amount over the two arrows side by side, else over the two arrows one above the other: the arrows'
+//          44 px press boxes never overlap. Real text: 9 px words everywhere.
+// THE MOVES FROM HIS EXPORT at 874 x 402: > 1.3 px left and < and > 3 px up (their 44 px press boxes were 1.3 px off
+// the right edge and 3 px off the bottom), the amount with them (0.7 px left, 3 px up). The gears are his.
+// THE TOP LINE: his Play covers the studio name at the top right (ui/ChromePhone.svelte moves that line under the
+// clock line at the left while this bar is drawn; nothing is hidden).
+/** the frame wheel's tooth angle at rest, degrees clockwise from the top, and its turn per link (the mock's
+ *  gears/wheel.json frameDeg[0]; two of its 16 teeth a link, clockwise) */
+export const WHEEL_REST = { deg: 20.578, perLink: 45 } as const;
+export const wheelAngle = (links: number) => WHEEL_REST.deg + links * WHEEL_REST.perLink;
+export type SidewaysLayout = NonNullable<ReturnType<typeof sidewaysLayout>>;
+const A1 = [0, 110, 125, 144, 160, 176];
+const A2 = [0, 36, 52, 64, 76, 88, 100, 112, 136, 152];
+const A3 = [0, 30, 48, 60, 76, 88, 100, 114, 130];
+
+export const sidewaysLayout = (vw: number, vh: number, safe: Safe = { t: 0, r: 0, b: 0, l: 0 }, T: SidewaysTable = SIDEWAYS) => {
+	if (vw < SIDEWAYS_MIN.vw || vh < SIDEWAYS_MIN.vh) return null;
+	const M = MASTER.phone;
+	const fit = Math.min(vw / M.width, vh / M.height);
+	const left = (vw - M.width * fit) / 2;
+	const top0 = (vh - M.height * fit) / 2;
+	const css = (p: { x: number; y: number }) => ({ x: left + p.x * fit, y: top0 + p.y * fit });
+	const reg = registrationOf(frameFor('phone'));
+	const boardK = reg.m * fit;
+	const s = boardK / T.tooth.boardK;
+	const tooth = { pitch: T.tooth.pitch * s, height: T.tooth.height * s };
+	const wc = css(reg.map(FRAME_WHEEL.center.R[0], FRAME_WHEEL.center.R[1]));
+	const wheel = { cx: wc.x, cy: wc.y, R: FRAME_WHEEL.tipR * boardK, pitchR: ((FRAME_WHEEL.tipR + FRAME_WHEEL.rootR) / 2) * boardK, teeth: FRAME_WHEEL.teeth };
+	const fs = BOARD_ART.frame.phone;
+	const p0 = css(reg.map(fs.crop[0], fs.crop[1]));
+	const p1 = css(reg.map(fs.crop[0] + fs.size[0], fs.crop[1] + fs.size[1]));
+	const plate = { x0: p0.x, y0: p0.y, x1: p1.x, y1: p1.y };
+	const F = FRAME.phone;
+	const c0 = css({ x: F.x + F.inset, y: F.y + F.inset });
+	const cells: Box = { x: c0.x, y: c0.y, w: (F.width - 2 * F.inset) * fit, h: (F.width - 2 * F.inset) * fit };
+	const right = vw - Math.max(0, safe.r) - 2;
+	const gearOf = (across: number) => {
+		let g = matchedTo(across, tooth.pitch, tooth.height, 8);
+		while (2 * g.R < MIN_PRESS) g = matchedTo(2 * g.R + tooth.pitch / 2, tooth.pitch, tooth.height, g.teeth + 1);
+		return g;
+	};
+	const S = gearOf(Math.max(T.small.across, T.small.across * s));
+	type C = { cx: number; cy: number; R: number; pitchR: number; teeth: number };
+	const on = (p: C, g: { R: number; pitchR: number; teeth: number }, a: number): C => {
+		const d = p.pitchR + g.pitchR + T.small.clear;
+		return { cx: p.cx + d * Math.sin(deg(a)), cy: p.cy - d * Math.cos(deg(a)), R: g.R, pitchR: g.pitchR, teeth: g.teeth };
+	};
+	/** how far a gear reaches under the Manticore's top edge, px of the board art (negative: clear by that much) */
+	const under = (c: C) => {
+		const x = (c.cx - wheel.cx) / boardK;
+		const y = (c.cy - wheel.cy) / boardK;
+		let best = Infinity;
+		for (let i = 0; i < SKYLINE.length; i += 1) {
+			const dx = Math.abs(x - SKYLINE[i][0]);
+			const d = y >= SKYLINE[i][1] ? dx : Math.hypot(dx, y - SKYLINE[i][1]);
+			if (d < best) best = d;
+		}
+		return c.R / boardK - best;
+	};
+	const inWin = (c: C) => c.cx - c.R >= 2 && c.cx + c.R <= right && c.cy - c.R >= 2 && c.cy + c.R <= vh - 2;
+	const apart = (a: C, b: C) => Math.hypot(a.cx - b.cx, a.cy - b.cy) >= a.R + b.R + 1;
+	const smallOk = (c: C) => inWin(c) && circleToBox(c, cells) >= 1 && under(c) <= -1.5 / boardK;
+	let found: { auto: C; turbo: C; play: C; a: [number, number, number]; f: number; cover: number } | null = null;
+	search: for (let f = 1; f >= 0.6 - 1e-9; f -= 0.02) {
+		const P = gearOf(T.play.across * s * f);
+		for (const b1 of A1) {
+			const a1 = b1 || T.chain.auto;
+			const auto = on(wheel, S, a1);
+			if (!smallOk(auto)) continue;
+			for (const b2 of A2) {
+				const a2 = b2 || T.chain.turbo;
+				const turbo = on(auto, S, a2);
+				if (!smallOk(turbo) || !apart(turbo, wheel)) continue;
+				for (const b3 of A3) {
+					const a3 = b3 || T.chain.play;
+					const play = on(turbo, P, a3);
+					if (!inWin(play) || play.cx - play.R < plate.x1 + 2 || play.cx <= turbo.cx || !apart(play, wheel) || !apart(play, auto) || circleToBox(play, cells) < 1) continue;
+					const cover = under(play);
+					if (cover > T.cover + 0.5) continue;
+					found = { auto, turbo, play, a: [a1, a2, a3], f, cover };
+					break search;
+				}
+			}
+		}
+	}
+	if (!found) return null;
+	const gears = {
+		play: { ...found.play, parent: 'turbo' as const, deg: found.a[2] },
+		auto: { ...found.auto, parent: 'wheel' as const, deg: found.a[0] },
+		turbo: { ...found.turbo, parent: 'auto' as const, deg: found.a[1] },
+	};
+	// ---- the standards under the logo. COPY OF game/logo/layout.ts logoArtRect('phone'): LOGO.phone, the tablet in its box ----
+	const lw = LOGO.phone.width * fit;
+	const lh = lw / (LOGO.art.width / LOGO.art.height);
+	const logo: Box = { x: left + LOGO.phone.left * fit, y: top0 + LOGO.phone.top * fit + (lw / LOGO.boxAspect - lh) / 2, w: lw, h: lh };
+	const edge = Math.max(0, safe.l) + 6;
+	const D = DESKTOP.boxes;
+	// the pair is 155.4 px wide at 0.48 (the mock's short rod): as large as the column left of the board holds
+	const kStd = Math.min(T.std, (T.std * (plate.x0 - 6 - edge)) / 155.4);
+	if (D.menu.w * kStd < MIN_PRESS) return null;
+	const q = kStd / T.std;
+	const menuX = Math.max(edge, Math.min(logo.x + logo.w / 2 - 98.75 * q, plate.x0 - 6 - 155.4 * q));
+	const stdY = logo.y + logo.h + 13.6 * q;
+	const box = {} as Record<Piece, Box>;
+	const press = {} as Record<Piece, Box>;
+	box.menu = { x: menuX, y: stdY, w: D.menu.w * kStd, h: D.menu.h * kStd };
+	box.arm = { x: menuX + 82.7 * q, y: stdY, w: D.arm.w * kStd, h: D.arm.h * kStd };
+	// ---- Win over Balance, bottom left: as wide as the column left of the board ----
+	const kRo = Math.min(T.readout, (plate.x0 - 6 - edge) / D.win.w);
+	const num = { bal: Math.max(13, Math.min(20, 35.8 * kRo)), win: Math.max(14, Math.min(23, 41.6 * kRo)) };
+	const floor = vh - Math.max(3, safe.b + 1);
+	const balH = Math.max(D.bal.h * kRo, T.text.label + 1 + num.bal + 2);
+	const winH = Math.max(D.win.h * kRo, T.text.label + 1 + num.win + 2);
+	box.bal = { x: edge, y: floor - balH, w: D.bal.w * kRo, h: balH };
+	box.win = { x: edge, y: floor - balH - 2 - winH, w: D.win.w * kRo, h: winH };
+	if (box.win.y < box.menu.y + box.menu.h + 2) return null;
+	// ---- the amount with < and >, bottom right: a row, else the amount over the arrows side by side, else over the
+	// arrows one above the other; the arrows' press boxes whole, inside the window and the safe areas, never overlapping ----
+	const x1 = vw - Math.max(0, safe.r);
+	const room = x1 - (plate.x1 + 4);
+	const yb = vh - Math.max(0, safe.b);
+	const h2 = MIN_PRESS / 2;
+	let how: 'row' | 'side by side' | 'stacked';
+	let dn: { x: number; y: number };
+	let up: { x: number; y: number };
+	let amt: Box;
+	if (room >= T.arrowGap * Math.min(1, s) + MIN_PRESS) {
+		how = 'row';
+		up = { x: x1 - h2, y: yb - h2 };
+		dn = { x: up.x - T.arrowGap * Math.min(1, s), y: up.y };
+		amt = { x: (dn.x + up.x) / 2 - T.amt.w / 2, y: up.y - T.amt.h / 2, w: T.amt.w, h: T.amt.h };
+	} else if (room >= 2 * MIN_PRESS + 4) {
+		how = 'side by side';
+		const m = Math.min(6, (room - 2 * MIN_PRESS) / 2);
+		up = { x: x1 - m - h2, y: yb - h2 };
+		dn = { x: up.x - MIN_PRESS - Math.min(2, m), y: up.y };
+		const w = Math.min(T.amt.w, room);
+		amt = { x: Math.max(plate.x1 + 4, Math.min((dn.x + up.x) / 2 - w / 2, x1 - w)), y: up.y - h2 - 2 - T.amt.h, w, h: T.amt.h };
+	} else if (room >= MIN_PRESS + 2) {
+		how = 'stacked';
+		dn = { x: x1 - 1 - h2, y: yb - h2 };
+		up = { x: dn.x, y: dn.y - MIN_PRESS };
+		const w = Math.min(T.amt.w, room);
+		amt = { x: x1 - w, y: up.y - h2 - 2 - T.amt.h, w, h: T.amt.h };
+	} else return null;
+	box.amt = amt;
+	for (const [id, c] of [['down', dn], ['up', up]] as const) {
+		press[id] = { x: c.x - h2, y: c.y - h2, w: MIN_PRESS, h: MIN_PRESS };
+		box[id] = { x: c.x - T.arrow / 2, y: c.y - T.arrow / 2, w: T.arrow, h: T.arrow };
+	}
+	for (const id of ['play', 'auto', 'turbo'] as const) {
+		const c = gears[id];
+		box[id] = press[id] = { x: c.cx - c.R, y: c.cy - c.R, w: 2 * c.R, h: 2 * c.R };
+	}
+	for (const id of ['win', 'bal', 'amt', 'menu', 'arm'] as const) press[id] = box[id];
+	const hubR = gears.play.R * T.play.hub;
+	const hub0 = matchedTo(T.play.across, T.tooth.pitch, T.tooth.height, 8).R * T.play.hub;
+	const word = Math.max(T.text.word, (T.text.word * S.R) / matchedTo(T.small.across, T.tooth.pitch, T.tooth.height, 8).R);
+	return {
+		table: 'sideways' as const,
+		vw, vh, fit, s, safe,
+		tooth,
+		wheel,
+		gears,
+		/** the Play against his own size (1 = his proportion), and how far it reaches under the Manticore's top edge (CSS px) */
+		playScale: found.f,
+		coverPx: Math.max(0, found.cover) * boardK,
+		hubR,
+		box,
+		press,
+		how,
+		scale: { std: kStd, readout: kRo },
+		fitW: { win: box.win.w - 6, bal: box.bal.w - 6, amt: how === 'row' ? Math.min(amt.w - 4, up.x - dn.x - 0.32 * T.arrow - 2) : amt.w - 4 },
+		text: { label: T.text.label, number: T.amt.number, bal: num.bal, win: num.win, word, spin: (T.text.spin * hubR) / hub0, spinInk: T.text.spinInk, count: Math.max(13, (14.4 * hubR) / hub0), sub: Math.max(8, (6.5 * hubR) / hub0), hub0 },
+		scene: { boardK, plate, logo, cells },
+		/** the top line's studio name (ui/ClockStrip.svelte, right side) as the dock draws it, and whether the Play covers it */
+		chainTop: logo.y + logo.h * 0.965,
+	};
+};
 
 // ---- THE UPRIGHT PHONE'S RULE -----------------------------------------------------------------------------------------
 // ONE RULE, exact at 402 x 874 with no safe area:
