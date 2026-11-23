@@ -786,6 +786,47 @@ export class Roam {
 		return true;
 	}
 
+	/** does the way just picked (this.route, or the level walk in from past his side's edge to this.to) take his body or
+	 *  his shadow over a sign (a zone named 'sign'), swept as clearWay sweeps a key */
+	private wayMeetsSign(): boolean {
+		const signs = this.zones.filter((z) => z.name === 'sign');
+		if (!signs.length) return false;
+		const way = this.route.length >= 2 ? this.route : [{ x: this.enterX(), y: this.to.y }, { x: this.to.x, y: this.to.y }];
+		const s = this.scale();
+		const side = ROAM_REACH.side * s;
+		const h = ROAM_REACH.up * s;
+		const lean = castReach();
+		for (let i = 0; i + 1 < way.length; i++) {
+			const a = way[i];
+			const dx = way[i + 1].x - a.x;
+			const dy = way[i + 1].y - a.y;
+			const x0 = a.x - side - Math.max(0, -lean.x) * h;
+			const x1 = a.x + side + Math.max(0, lean.x) * h;
+			const y0 = Math.min(a.y - h, a.y + Math.min(0, lean.y) * h);
+			const y1 = a.y;
+			for (const z of signs) {
+				// (the moving box [x0 + dx t, x1 + dx t] x [y0 + dy t, y1 + dy t] against the zone, t in 0 to 1: clearWay's hits)
+				let lo = 0;
+				let hi = 1;
+				const keep = (p: number, q: number) => {
+					if (Math.abs(q) < 1e-12) {
+						if (p <= 0) hi = -1;
+						return;
+					}
+					const t = -p / q;
+					if (q > 0) lo = Math.max(lo, t);
+					else hi = Math.min(hi, t);
+				};
+				keep(z.x1 - x0, -dx);
+				keep(x1 - z.x0, dx);
+				keep(z.y1 - y0, -dy);
+				keep(y1 - z.y0, dy);
+				if (hi - lo > 1e-9) return true;
+			}
+		}
+		return false;
+	}
+
 	/** the mouths grown by his body box (with the shadow's lean) at his scale: feet space obstacles */
 	private growMouths() {
 		const s = this.scale();
@@ -930,8 +971,12 @@ export class Roam {
 		this.passSigns = true;
 		const ok = this.pickOnce(null, true);
 		this.passSigns = false;
-		this.underSign = ok;
-		if (ok) this.counts.underSign++;
+		// (marked only where his way does cross behind a sign. The second try draws new random spots, and the way in it finds
+		// may pass no sign at all: one the first try's spots missed. The probe host at 832 x 376 had 9 to 12 of 33 walk ins
+		// marked; the game's roamer in node there, 368 of 1901 marked, none of them crossing a sign. The walk is the same
+		// either way: only the mark follows what his way does.)
+		this.underSign = ok && this.wayMeetsSign();
+		if (this.underSign) this.counts.underSign++;
 		return ok;
 	}
 	private pickOnce(from: Pt | null, walkIn = false): boolean {

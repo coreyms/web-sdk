@@ -16,6 +16,7 @@
 // WATCHES: apps/run_over_reindeer/src/game/{roamGround.ts,scene/forestPlace.ts}; roamGround, ROAM_ROAD, ROAM_TREE_PAD, sceneFit, PHONE_R3, LAND_R3
 // WATCHES: ; __reindeer.roamGround, __reindeer.sign.scene, __reindeer.sign.inputs, boardDy, treeDy
 // WATCHES: ; ROAM_SHORT, roamShortOn, roamShortArea, roam().short, shortWayIn
+// WATCHES: apps/run_over_reindeer/src/game/forestLineSpec.ts; FOREST_LINE, wayMeetsSign, underSign
 // THE ROAM PROBE (the roaming reindeer, 2026-11-17; game/road/roam.ts, constants STRIKE.roam and ROAM, game/roamPaths.ts).
 // Since round 3 (Corey: "an allowed to walk area where it randomly chooses where to go") he roams an AREA. Per size
 // (1440x900 desktop, 844x390 phone held sideways, 390x844 upright phone; 1920x1080 desktop for the area checks only):
@@ -73,12 +74,13 @@
 //      strip and the board, and A WALK IN IS FOUND at 440x742, 413x586, 375x530, 626x816, 832x376 and 360x560.
 //      UNDER THE SIGN (Corey 2026-11-24: "Let him pass under the sign"): the Fast Lane and Menu signs are zones named
 //      'sign'. He never stands under one. A walk IN may cross behind one, only where no way in is clear of every key
-//      (the game marks that pick underSign): at 360x560 every walk in is such a one (the builder's node model:
+//      (the game marks that pick underSign, and since wip/reindeer-probefix only where its way does meet a sign: a
+//      second try's way that passes none is not marked, roam.ts wayMeetsSign): at 360x560 every walk in is such a one (the builder's node model:
 //      tools/roam_ground_test.mjs), at 440x742 and 832x376 none is.
 //      THE SHORT UPRIGHT GROUND (2026-11-25, Corey on the annotated 413x586 still: "Look at my shape";
 //      game/roamGround.ts ROAM_SHORT): at 413x586, 375x530 and 626x816 the tree line stands under the right tunnel
 //      mouth's top, and his ground there is Corey's band in front of the trees (roam().short): its top edge is
-//      roam().trees, the logo keeps his body off it (not his shadow: the logo is drawn over both), and every walk in
+//      roam().trees (so the scene's tree line there is read from the drawn forest and FOREST_LINE), the logo keeps his body off it (not his shadow: the logo is drawn over both), and every walk in
 //      comes down from above the mouth's arch behind the Fast Lane sign (sign 'under' below). The builder's node
 //      tools/roam_ground_test.mjs (section 5) holds the same with the game's own roamer.
 //   a hidden tab: nothing moves; no page errors anywhere
@@ -2131,21 +2133,43 @@ async function groundSize(browser, S) {
 		await ctx.close();
 		return;
 	}
-	const d = await p.evaluate(() => {
+	const d = await p.evaluate(async () => {
 		const h = window.__reindeer;
-		return { G: h.roamGround(), view: h.roamView(), roam: h.roam(), zones: h.roamZones(), scene: h.sign?.scene?.() ?? null, signZones: h.sign?.inputs?.().zones ?? null, board: h.boardLayout().css, vp: { width: innerWidth, height: innerHeight } };
+		const roam = h.roam();
+		// (the drawn forest's own tree line, game/forestLineSpec.ts: on the short upright ground roam().trees.y is Corey's
+		// band top edge, not the tree line)
+		const kit = roam.trees?.forest?.kit;
+		const forestLine = kit ? ((await import('/src/game/forestLineSpec.ts')).FOREST_LINE[kit]?.line ?? null) : null;
+		return { G: h.roamGround(), view: h.roamView(), roam, forestLine, zones: h.roamZones(), scene: h.sign?.scene?.() ?? null, signZones: h.sign?.inputs?.().zones ?? null, board: h.boardLayout().css, vp: { width: innerWidth, height: innerHeight } };
 	});
 	const out = { name: S.name };
 	report.sizes[S.name] = out;
 	const v = d.view;
 	const css = (y) => v.oy + y * v.k;
-	// the tree line as drawn: the lowest of the forest's columns the window shows (roam().trees: road px, with the 6 road px pad)
+	// the tree line as drawn: the lowest of the forest's columns the window shows (road px). Off the short ground from
+	// roam().trees (each column's tree row plus the 6 road px pad). On the short upright ground (roam().short, since
+	// d66617c8) roam().trees.y is Corey's band top edge in finer columns (its lowest point is the band's left end, road y
+	// 49.6 at the 413x586 forest, 7 to 11 CSS px under the tree line), so the tree line there is read from the drawn forest
+	// box (roam().trees.forest) and its kit's FOREST_LINE columns, the rule's own sum; the band edge is printed beside it
 	let live = null;
 	if (d.roam.trees) {
 		const T = d.roam.trees;
 		let low = -Infinity;
-		for (let i = 0; i < T.y.length; i++) if (T.x[i + 1] > v.rect.left && T.x[i] < v.rect.right) low = Math.max(low, T.y[i]);
-		live = { feet: css(low), line: css(low - 6) };
+		if (d.roam.short) {
+			const F = T.forest;
+			const L = d.forestLine ?? [];
+			for (let i = 0; i < L.length; i++) {
+				const a = F.x + (F.width * i) / L.length;
+				const b = F.x + (F.width * (i + 1)) / L.length;
+				if (b > v.rect.left && a < v.rect.right) low = Math.max(low, F.y + F.height * L[i] + 6);
+			}
+			let band = -Infinity;
+			for (let i = 0; i < T.y.length; i++) if (T.x[i + 1] > v.rect.left && T.x[i] < v.rect.right) band = Math.max(band, T.y[i]);
+			live = { feet: css(low), line: css(low - 6), bandLow: css(band) };
+		} else {
+			for (let i = 0; i < T.y.length; i++) if (T.x[i + 1] > v.rect.left && T.x[i] < v.rect.right) low = Math.max(low, T.y[i]);
+			live = { feet: css(low), line: css(low - 6) };
+		}
 	}
 	const road = d.zones.find((z) => z.name === 'road');
 	const logo = d.zones.find((z) => z.name === 'logo');

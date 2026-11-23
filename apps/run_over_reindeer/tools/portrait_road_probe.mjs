@@ -1,6 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/{game/layoutSpec.ts,ui/hud/hudLayout.ts};
 // WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.scene, HUD_BED, PORTRAIT, ROAD, ROAD_LAYOUT.portrait, data-hud
+// WATCHES: ; roadPlacement, portraitHudTop, hudClear, boardDy
 // WATCHES: ; data-title-sign, .hudp, .landing
 // WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/scene/sceneLayers.ts,game/forestLineSpec.ts}; LOGO_SIGN.treeGapCss
 // WATCHES: ; LOGO_SIGN.boardGapCss, forestLineY, forestBox, __reindeer.sceneWant, __reindeer.sceneSwap, logo.foot, logo.treeLine
@@ -9,9 +10,12 @@
 // THE PORTRAIT ROAD PROBE (Job 4, Corey 2026-11-15: "Move it down about half of that distance"): at each portrait size
 // it measures, in CSS px, the road picture's top and bottom (from __reindeer.boardLayout()), the title sign's bottom,
 // and the HUD's real top (the higher of the dark bed's top edge and the HUD's highest readout or key), then the snow
-// above the road and the gap under it. Checks (unless BEFORE=1, which only measures): the gap under the road is midway
-// between the centred place and HUD_CLEAR above the HUD (or the road stays where it was when there is no room), the
-// board never meets the HUD or the title sign, and the reindeer's run band stays clear of the title.
+// above the road and the gap under it. Checks (unless BEFORE=1, which only measures): the road picture's bottom is where
+// the lowering rule puts it to 1 px (midway from the centred place's gap down to hudClear, measured to the HUD top the
+// rule reads, ui/hud/hudLayout.ts portraitHudTop, read from the game's modules; or the centred place where that gap is
+// hudClear or less; plus his board move), the board never meets the drawn HUD or the title sign, and the reindeer's run
+// band stays clear of the title. (Since the sign bar replaced the glass dock, 791eba85, the rule's HUD top is the glass
+// dock's row, under the sign bar's keys: the gap to the drawn bar is printed, not held to hudClear.)
 // THE SIGN'S FOOT ON OPEN GROUND (2026-11-19, Corey: "on portrait mode the logo bottom is never in the trees"): on every
 // upright phone size, in every scene preset (each draws the forest there), the sign's lowest visible pixel is at or under
 // the drawn forest's tree line, and the sign did not fall short of it (the board's top in the way); its box stays over the
@@ -57,8 +61,6 @@ const SIZES = [
 ];
 /** the HUD's dark bed (constants HUD_BED): portrait bottom 606 master units, hudPad 8 CSS px */
 const BED = { bottom: 606, hudPad: 8 };
-/** the gap kept when the road sits just above the HUD, master units (layoutSpec ROAD_LAYOUT.portrait.hudClear) */
-const HUD_CLEAR = 24;
 
 let pass = 0;
 let fail = 0;
@@ -88,7 +90,18 @@ const r1 = (v) => Math.round(v * 10) / 10;
 				await sleep(600);
 			}
 			await sleep(1200);
-			const m = await p.evaluate(() => {
+			const m = await p.evaluate(async () => {
+				// THE LOWERING RULE'S OWN NUMBERS (game/layoutSpec.ts roadPlacement, ROAD_LAYOUT.portrait; ui/hud/hudLayout.ts
+				// portraitHudTop), read from the game's modules for this window
+				const LS = await import('/src/game/layoutSpec.ts');
+				const HL = await import('/src/ui/hud/hudLayout.ts');
+				const vw = innerWidth;
+				const vh = innerHeight;
+				const PM = LS.MASTER.portrait;
+				const fit = Math.min(vw / PM.width, vh / PM.height);
+				const mTop = (vh - PM.height * fit) / 2;
+				const c = LS.roadPlacement('portrait', { masterWidth: vw / fit, masterHeight: vh / fit, vw, vh }, true, true);
+				const rule = { hud: HL.portraitHudTop(vw, vh), centredBottom: mTop + (c.y + c.height) * fit, hudClear: LS.ROAD_LAYOUT.portrait.hudClear * fit, lower: LS.ROAD_LAYOUT.portrait.lower, boardDy: window.__reindeer.sign?.scene?.()?.boardDy ?? 0 };
 				const L = window.__reindeer.boardLayout();
 				const k = L.css.pitch / 250; // CSS px per road px
 				const top = (sel) => document.querySelector(sel)?.getBoundingClientRect().top ?? Infinity;
@@ -96,7 +109,7 @@ const r1 = (v) => Math.round(v * 10) / 10;
 				// the title: the billboard logo in the canvas since scene pass 9
 				const lg = window.__reindeer.scene?.()?.logo?.css;
 				const title = lg ? { bottom: lg.y + lg.height } : document.querySelector('[data-title-sign]')?.getBoundingClientRect();
-				return { kind: L.kind, boardTop: L.css.y, boardBottom: L.css.y + L.css.height, picTop: L.css.y - 167 * k, picBottom: L.css.y + (1024 - 167) * k, hudEls, titleBottom: title ? title.bottom : null, vw: innerWidth, vh: innerHeight };
+				return { kind: L.kind, boardTop: L.css.y, boardBottom: L.css.y + L.css.height, picTop: L.css.y - 167 * k, picBottom: L.css.y + (1024 - 167) * k, hudEls, titleBottom: title ? title.bottom : null, vw: innerWidth, vh: innerHeight, rule };
 			});
 			const scale = Math.min(m.vw / 412, m.vh / 760);
 			const masterTop = (m.vh - 760 * scale) / 2;
@@ -104,13 +117,25 @@ const r1 = (v) => Math.round(v * 10) / 10;
 			const bedTop = Math.max(m.boardBottom, Math.min(masterTop + (BED.bottom + extra) * scale, m.hudEls - BED.hudPad));
 			const bedFree = Math.min(masterTop + (BED.bottom + extra) * scale, m.hudEls - BED.hudPad);
 			const hudTop = Math.min(bedFree, m.hudEls);
-			const row = { size: name, kind: m.kind, picTop: r1(m.picTop), picBottom: r1(m.picBottom), boardBottom: r1(m.boardBottom), titleBottom: m.titleBottom === null ? null : r1(m.titleBottom), hudTop: r1(hudTop), bedTop: r1(bedTop), snowAbove: m.titleBottom === null ? null : r1(m.picTop - m.titleBottom), gapBelow: r1(hudTop - m.picBottom), hudClearCss: r1(HUD_CLEAR * scale) };
+			const row = { size: name, kind: m.kind, picTop: r1(m.picTop), picBottom: r1(m.picBottom), boardBottom: r1(m.boardBottom), titleBottom: m.titleBottom === null ? null : r1(m.titleBottom), hudTop: r1(hudTop), bedTop: r1(bedTop), snowAbove: m.titleBottom === null ? null : r1(m.picTop - m.titleBottom), gapBelow: r1(hudTop - m.picBottom), hudClearCss: r1(m.rule.hudClear) };
 			rows.push(row);
 			console.log(`  INFO ${name}: ${JSON.stringify(row)}`);
 			if (!BEFORE) {
 				check(m.boardBottom <= m.hudEls - 0.5, `${name}: the board's bottom (${r1(m.boardBottom)}) stays above the HUD's highest readout or key (${r1(m.hudEls)})`);
 				check(m.titleBottom === null || m.boardTop - 167 * 0 > m.titleBottom, `${name}: the board stays under the title sign`);
-				check(row.gapBelow >= row.hudClearCss - 1 || row.gapBelow < 0, `${name}: the road picture's bottom keeps at least ${row.hudClearCss} px over the HUD's top, or it was already over it and stayed put (gap ${row.gapBelow})`);
+				// THE LOWERING, against the HUD top the rule reads (2026-11-23). Since 791eba85 the sign bar (ui/sign/SignHud.svelte)
+				// is drawn in place of the glass dock, and the rule still measures the glass dock's row (hudLayout.ts portraitHudTop:
+				// at 413x586 455.2, where the sign bar's keys stand about 10 px higher). The road's place from that rule is the
+				// layout Corey approved on staging (his round 3 phone windows, 483b5850 and 44029535), so the drawn picture is held
+				// to the rule exactly: its bottom where the centred place's gap to that HUD top comes midway (ROAD_LAYOUT.portrait
+				// .lower) down to hudClear, or stays at the centred place where that gap is hudClear or less, plus his own move of
+				// the board (sceneFit boardDy). The gap to the drawn bar's top (hudTop above) is printed: 14.9 at 390x580 and
+				// 413x586, 9.9 at 375x530 on 29b36949, under hudClear there by design of that approved place.
+				const R = m.rule;
+				const cGap = R.hud - R.centredBottom;
+				const want = R.centredBottom + Math.max(0, cGap - R.hudClear) * R.lower + R.boardDy;
+				const ruleGap = R.hud - m.picBottom;
+				check(Math.abs(m.picBottom - want) <= 1 && (cGap <= R.hudClear || ruleGap >= R.hudClear - 1), `${name}: the road picture's bottom (${r1(m.picBottom)}) is where the lowering rule puts it (${r1(want)}): the centred gap ${r1(cGap)} to the rule's HUD top ${r1(R.hud)} ${cGap > R.hudClear ? `comes down midway to ${r1(ruleGap)} (hudClear ${r1(R.hudClear)})` : `is hudClear (${r1(R.hudClear)}) or less: it stays put`}${R.boardDy ? `, his board move ${r1(R.boardDy)}` : ''}; to the drawn bar's top ${row.gapBelow}`, { picBottom: m.picBottom, want, rule: R });
 			}
 			const his = await p.evaluate(() => window.__reindeer.sign?.scene?.() ?? null);
 			if (his && (his.share > 0 || his.boardDy || his.treeDy)) console.log(`  INFO ${name}: his round 3 scene here: the board ${r1(his.boardDy)} px down, the tree line ${r1(his.treeDy)} px down, his logo box's share ${r1(his.share * 100)} %`);
