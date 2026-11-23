@@ -98,7 +98,9 @@
 		if (!stateUi.menuOpen) return;
 		const away = (e: PointerEvent) => {
 			const t = e.target as Element | null;
-			if (el && t && !el.contains(t) && !t.closest?.('[data-hud="menu-key"]')) stateUi.menuOpen = false;
+			// (the sign bar's catch outline of Menu, ui/sign/SignHud.svelte, is the Menu key too: a press on Menu's very edge
+			// goes down on it, and closing here first would let its click open the menu again)
+			if (el && t && !el.contains(t) && !t.closest?.('[data-hud="menu-key"], [data-catch="menu"]')) stateUi.menuOpen = false;
 		};
 		document.addEventListener('pointerdown', away, true);
 		return () => document.removeEventListener('pointerdown', away, true);

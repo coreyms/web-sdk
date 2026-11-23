@@ -49,7 +49,9 @@
 }
 /* THE PRESS PADS under the small keys (ui/sign/SignHud.svelte): one unseen svg over the whole plane, drawn first so it
    lies under every control; each pad is an outline in it (a 44 CSS px circle, cut at the middle line where two share
-   their ground), and only the outlines take a press (the svg itself takes none). (The bar's own rules that turn every
+   their ground), and only the outlines take a press (the svg itself takes none). With them, each control's own press
+   shape once more (.sgcatch: where the browser's test of a key's box misses its edge by a px, the outline under it
+   takes the press; SignHud.svelte barPress judges both). (The bar's own rules that turn every
    press off, ui/Chrome.svelte .hud-off and .hud-held, are marked important and reach these too.) */
 .hudp.sg .sgpads {
 	position: absolute;
@@ -58,7 +60,8 @@
 	overflow: visible;
 	pointer-events: none;
 }
-.hudp.sg .sgpad {
+.hudp.sg .sgpad,
+.hudp.sg .sgcatch {
 	fill: none;
 	stroke: none;
 	pointer-events: all;

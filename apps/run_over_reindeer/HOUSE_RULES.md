@@ -69,7 +69,9 @@ events (`game/bookEventHandlerMap.ts`). Every decision taken is one line in `doc
   of the sign bar gets is judged by where the pointer went down, by the drawn shapes (`pressOwner`, `pressVerdict`,
   `SignHud.svelte` barPress, 2026-11-23): a browser hands a touch to a nearby button by the buttons' upright boxes
   and paint order, and the diamonds' boxes overlap (a tap on Turbo's edge started a round). A round starts only from
-  a press that went down inside the Play's own diamond. A new control on this bar goes through barPress.
+  a press that went down inside the Play's own diamond. A new control on this bar goes through barPress. The
+  rule's shapes are the buttons' own (`pressShape`: turned squares with round corners, no slack), and each is drawn
+  once more as an unseen catch outline under the controls, so a place the rule names a key's always has a taker.
 - Active highlights use this game's own "Frost" accent (`accent-rgb` in `ui/hudTheme.ts`), never Manticore's gold
   (rule L6).
 - CSS `filter` in the HTML chrome, allowed as shipped (rule R2): only the `.slot-btn` hover and press lift

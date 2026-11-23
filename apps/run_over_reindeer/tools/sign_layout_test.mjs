@@ -13,6 +13,8 @@
 //      sizes), by real shape: no piece on the board, the strip or the logo, none off the window, no bet symbol's press
 //      box on the Play's diamond, no press region under 44 CSS px. Inside his own range of windows that must hold;
 //      beyond it (and at the two popouts) what fails is listed.
+//   7. WHAT THE RULE NAMES A CONTROL'S GROUND IS COVERED (2026-11-23, pressShape): the rule's shapes are the buttons'
+//      own round cornered ones, no slack; every place it gives a control lies inside that control's catch outline or pad.
 //   6. A ROUND STARTS ONLY FROM THE PLAY'S OWN DIAMOND (2026-11-23, pressOwner, pressVerdict): at every layout the
 //      Play's diamond shares no ground with a neighbour; a click the Play gets for a neighbour's place is the neighbour's.
 //   5. WHOSE PRESS IS IT, OF AUTO AND TURBO (2026-11-23, pressOwner): the drawn diamonds never overlap; a place is
@@ -501,6 +503,114 @@ for (const [vw, vh, name, must] of [[800, 450, 'Popout L', true], [400, 225, 'Po
 		const B = setup('phone', 667, 375).own([623.7, 194.9]);
 		const C = setup('landscape', 1200, 675).own([1145.4, 428.2]);
 		line(A === 'turbo' && B === 'turbo' && C === 'turbo', "the probe host's three places 2 px inside Turbo's edge nearest the Play are Turbo's (so the Play passes the press on, and no round starts)", `844x390 (755.8, 196.9): ${A}; 667x375 (623.7, 194.9): ${B}; 1200x675 (1145.4, 428.2): ${C}; in the Play's upright box: ${inBox([755.8, 196.9], setup('phone', 844, 390).boxes.play)}, ${inBox([623.7, 194.9], setup('phone', 667, 375).boxes.play)}, ${inBox([1145.4, 428.2], setup('landscape', 1200, 675).boxes.play)}`);
+	}
+}
+// ---- 7. WHAT THE RULE NAMES A CONTROL'S GROUND IS COVERED BY SOMETHING THAT TAKES THE PRESS (2026-11-23; the probe
+// host on b32bacde: owner() named places a key's where only the canvas lay: the Play's top corner on the desktop, Auto's
+// bottom corner at 568 x 320, Menu's bottom edge at 390 x 844). The rule's shapes were sharp diamonds with 1.5 px of
+// slack; the buttons are turned squares with ROUND corners. Now the rule's shapes are the buttons' own (pressShape),
+// there is no slack, and every control's shape is drawn once more as a catch outline under the controls.
+//   a. the shapes' numbers are the theme's and the stylesheet's own (read from the source files), and the buttons are
+//      sized from the same two functions (keyHit, playHit)
+//   b. at every window (the 1009 of section 6): on a grid over every control's ground, each place the rule gives a
+//      control lies inside that control's catch outline or its pad (what the page draws for it), and a place the rule
+//      gives the Play lies inside the Play's own round cornered diamond; the round cornered shapes lie inside the sharp
+//      ones the layout's clearances are measured with
+//   c. the probe host's three places ----
+{
+	const src = (rel) => readFileSync(join(APP, 'src', ...rel.split('/')), 'utf8');
+	const theme = src('ui/hudTheme.ts');
+	const css = src('ui/sign/sign.css');
+	const draw = src('ui/sign/signDraw.ts');
+	const hud = src('ui/sign/SignHud.svelte');
+	const play = src('ui/sign/SignPlay.svelte');
+	const key = src('ui/sign/SignKey.svelte');
+	const num = (text, re) => {
+		const m = text.match(re);
+		return m ? Number(m[1]) : NaN;
+	};
+	const T = {
+		V: num(theme, /play:\s*\{\s*V:\s*([\d.]+)/),
+		R: num(theme, /play:\s*\{\s*V:\s*[\d.]+,\s*R:\s*([\d.]+)/),
+		bw: num(theme, /key:\s*\{\s*bw:\s*([\d.]+)/),
+		ko: num(theme, /key:\s*\{[^}]*\bko:\s*([\d.]+)/),
+		margin: num(theme, /key:\s*\{[^}]*\bmargin:\s*([\d.]+)/),
+		corner: num(theme, /key:\s*\{[^}]*\bcorner:\s*([\d.]+)/),
+		menu: num(css.slice(css.indexOf('.hudp.sg .sgm,')), /border-radius:\s*calc\(var\(--s\)\s*\*\s*([\d.]+)\)/),
+		menuS: num(hud, /style:--s="\{B\.menu\.h \/ ([\d.]+)\}px"/),
+	};
+	const same = T.V === L.PLAY_LINE.V && T.R === L.PLAY_LINE.R && T.bw === L.KEY_LINE.bw && T.ko === L.KEY_LINE.ko && T.margin === L.KEY_LINE.margin && T.corner === L.KEY_LINE.corner && Math.abs(T.menu / T.menuS - L.MENU_CORNER) < 1e-9;
+	const wired = /const hit = keyHit\(w\);/.test(draw) && /PLAY_HIT = \{ side: playHit\(1\)\.side, r: playHit\(1\)\.r \}/.test(draw) && /style:border-radius="\{PLAY_HIT\.r \* d\}px"/.test(play) && /PLAY_HIT\.side \* d/.test(play) && /style:width="\{frame\.hit\.side\}px"/.test(key) && /style:border-radius="\{frame\.hit\.r\}px"/.test(key) && /class="sgcatch" data-catch=\{c\.id\}/.test(hud);
+	line(same && wired, "the press shapes' numbers are the theme's and the stylesheet's own, the Play's and the keys' buttons are sized from the layout file's two functions, and the bar draws a catch outline for every control", `theme and stylesheet: ${JSON.stringify(T)}; layout: ${JSON.stringify({ ...L.PLAY_LINE, ...L.KEY_LINE, menu: L.MENU_CORNER })}`);
+
+	const inP = (p, P) => {
+		let c = false;
+		for (let i = 0, j = P.length - 1; i < P.length; j = i++) if (P[i][1] > p[1] !== P[j][1] > p[1] && p[0] < ((P[j][0] - P[i][0]) * (p[1] - P[i][1])) / (P[j][1] - P[i][1]) + P[i][0]) c = !c;
+		return c;
+	};
+	const setup = (kind, vw, vh) => {
+		const { g, seat } = at(kind, vw, vh);
+		const boxes = { play: g.box.play, auto: g.box.auto, turbo: g.box.turbo, menu: g.box.menu, bonus: g.box.bonus, down: seat.down, up: seat.up, amt: seat.amt };
+		const pads = { ...L.padShapes(boxes, vw, vh) };
+		if (g.box.bonus.h < 44) pads.bonus = { poly: L.padCircle([g.box.bonus.x + g.box.bonus.w / 2, g.box.bonus.y + g.box.bonus.h / 2]) };
+		return { g, boxes, pads, own: (q) => L.pressOwner(boxes, pads, q) };
+	};
+	const bad = [];
+	let n = 0;
+	let places = 0;
+	let owned = 0;
+	let tip = { v: 0, at: '' };
+	const each = (kind, vw, vh, step) => {
+		const R = setup(kind, vw, vh);
+		n++;
+		// what the page draws to take each control's presses: its catch outline (its own press shape) and its pad
+		const taking = Object.fromEntries(Object.keys(R.boxes).map((id) => [id, [L.pressShape(id, R.boxes[id]), ...(R.pads[id] ? [R.pads[id].poly] : [])]]));
+		const playShape = L.pressShape('play', R.boxes.play);
+		for (const id of ['play', 'auto', 'turbo']) {
+			const sharp = L.shapeOf(id, R.boxes[id]);
+			// (a key's keyline stands a little outside the sharp diamond the clearances use, 0.6 px on a phone: its round
+			// cornered square within 1.2 % of its box's width of it; the Play's inside it)
+			const out = Math.max(...L.pressShape(id, R.boxes[id]).map((q) => (inP(q, sharp) ? 0 : Math.min(...sharp.map((a, i) => { const b = sharp[(i + 1) % 4]; const dx = b[0] - a[0]; const dy = b[1] - a[1]; const t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / (dx * dx + dy * dy))); return Math.hypot(q[0] - a[0] - dx * t, q[1] - a[1] - dy * t); })))));
+			if (out > (id === 'play' ? 0.01 : 0.012 * R.boxes[id].w)) bad.push(`${vw}x${vh}: ${id}'s press shape reaches ${out.toFixed(2)} px past its sharp diamond`);
+		}
+		const top = R.boxes.play.y + R.boxes.play.h / 2 - Math.min(...playShape.map((q) => q[1]));
+		const sharpTop = (R.boxes.play.w / 2) * L.PLAY_V;
+		if (sharpTop - top > tip.v) tip = { v: sharpTop - top, at: `${vw}x${vh}` };
+		for (const id of Object.keys(R.boxes)) {
+			const xs = taking[id].flat().map((q) => q[0]);
+			const ys = taking[id].flat().map((q) => q[1]);
+			for (let y = Math.min(...ys) - 3; y <= Math.max(...ys) + 3; y += step)
+				for (let x = Math.min(...xs) - 3; x <= Math.max(...xs) + 3; x += step) {
+					places++;
+					const o = R.own([x, y]);
+					if (!o) continue;
+					owned++;
+					if (!taking[o].some((P) => inP([x, y], P))) bad.push(`${vw}x${vh}: (${x.toFixed(1)}, ${y.toFixed(1)}) is ${o}'s and nothing of ${o}'s covers it`);
+					if (o === 'play' && !inP([x, y], playShape)) bad.push(`${vw}x${vh}: (${x.toFixed(1)}, ${y.toFixed(1)}) is the Play's outside its diamond`);
+				}
+		}
+	};
+	for (const [vw, vh] of [[1920, 1080], [1200, 675], [1024, 576], [1280, 720], [1366, 768], [1440, 900], [2560, 1440], [2560, 1080], [3440, 1440], [1280, 800], [1024, 768], [800, 450]]) each('landscape', vw, vh, 2);
+	for (const o of ['portrait', 'phone']) for (const r of L.PHONE_PLACES[o]) each(o, r.vw, r.vh, 1.5);
+	for (let vh = 320; vh <= 430; vh += 10) for (let vw = 568; vw <= 932; vw += 4) if (vw / vh >= 1.5 && vw / vh <= 2.34) each('phone', vw, vh, 3);
+	for (let vw = 320; vw <= 430; vw += 10) for (let k = 1.6; k <= 2.2001; k += 0.05) each('portrait', vw, Math.round(vw * k), 3);
+	line(bad.length === 0, `at ${n} windows, ${owned} places the rule gives a control (of ${places} tried round every control): each lies inside that control's own catch outline or pad, and a place that is the Play's lies inside the Play's round cornered diamond`, `${bad.slice(0, 4).join(' | ')}${bad.length ? ` (${bad.length}) | ` : ''}the Play's round top corner ends ${tip.v.toFixed(2)} px short of the sharp diamond's at the most (${tip.at})`);
+	// c. the probe host's places
+	{
+		const d = setup('landscape', 1200, 675);
+		const a = setup('phone', 568, 320);
+		const m = setup('portrait', 390, 844);
+		const pc = [d.boxes.play.x + d.boxes.play.w / 2, d.boxes.play.y + d.boxes.play.h / 2];
+		const q = [1112.1, 420.4];
+		const len = Math.hypot(q[0] - pc[0], q[1] - pc[1]);
+		const u = [(q[0] - pc[0]) / len, (q[1] - pc[1]) / len];
+		let reach = 0;
+		for (let v = 0; v < 120; v += 0.05) if (d.own([pc[0] + u[0] * v, pc[1] + u[1] * v]) === 'play') reach = v;
+		const sharp = ((d.boxes.play.w / 2) * L.PLAY_V) / (Math.abs(u[0]) + Math.abs(u[1]));
+		const oa = a.own([513.1, 146.1]);
+		const om = m.own([324.8, 139.5]);
+		const od = d.own(q);
+		line(od === null && reach < len && om === 'menu', "the probe host's places: 1200x675 (1112.1, 420.4) is past the Play's round corner (nobody's: the drawn Play ends before it); 390x844 (324.8, 139.5) is Menu's and Menu's catch outline covers it", `1200x675: owner ${od}; the place is ${len.toFixed(1)} px from the Play's middle, the Play's ground on that line ends at ${reach.toFixed(1)} px (its round corner; the sharp diamond's would at ${sharp.toFixed(1)}) | 568x320 (513.1, 146.1): owner ${oa} (Auto's round bottom corner and its moved pad) | 390x844: owner ${om}, Menu's box ends at y ${(m.boxes.menu.y + m.boxes.menu.h).toFixed(1)}`);
 	}
 }
 for (const [vw, vh] of [[1920, 1080], [1200, 675], [1024, 576], [1280, 720], [1366, 768], [1440, 900], [2560, 1440], [2560, 1080], [3440, 1440], [1280, 800], [1024, 768]]) {

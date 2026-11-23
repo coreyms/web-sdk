@@ -5,6 +5,7 @@
 // engraved mark's (ui/hud/engrave.ts, as the glass dock's key had it) cut to the hexagon.
 import { LINE_WIN } from '../../game/constants';
 import { SIGN } from '../hudTheme';
+import { keyHit, playHit } from './signLayout';
 
 const f = (v: number) => Math.round(v * 100) / 100;
 type Pt = [number, number];
@@ -219,7 +220,7 @@ export const playKeylines = () =>
 /** THE PRESS REGION: the drawn diamond is a square turned 45 degrees with rounded corners, and that is what the button
  *  itself is (a turned box takes presses as its own shape in every browser; nothing is cut and no child takes the
  *  press). Its side and its corner radius as shares of the key's box */
-export const PLAY_HIT = { side: (PL.V * Math.SQRT2) / 240, r: PL.R / 240 };
+export const PLAY_HIT = { side: playHit(1).side, r: playHit(1).r };
 /** |x| + |y| a text box in the Play may reach: inside the band's black line, less the limit */
 export const PLAY_TEXT_LIMIT = shapeAt(PL.band + PL.inner).V - SIGN.text.limit;
 /** the ink's outline in the Play: the glass's own dark */
@@ -292,7 +293,8 @@ export const keyFrame = (w: number, tints: Record<string, string>, glow: Record<
 		`<path d="${d}" fill="none" stroke="url(#${id}w)" stroke-width="${f(bw)}" stroke-linejoin="round"/>` +
 		`<path d="${outline(pts, rs, -(bw / 2 + ki / 2 - 0.05))}" fill="none" stroke="${SIGN.black}" stroke-width="${f(ki + 0.1)}" stroke-linejoin="round"/>`;
 	// the press region: the keyline's outer edge, a square turned 45 degrees (its side and corner radius, bar px)
-	const hit = { side: W / Math.SQRT2 + 2 * (bw / 2 + ko), r: W * K.corner + bw / 2 + ko };
+	// (one rule with the layout file's press shapes, ui/sign/signLayout.ts keyHit: whose press a place is reads it too)
+	const hit = keyHit(w);
 	return { defs, body, s, K: s * K.content, hit };
 };
 /** an icon in a 24 unit view: a dark (or light) halo under the ink, as the mock's keys draw it */

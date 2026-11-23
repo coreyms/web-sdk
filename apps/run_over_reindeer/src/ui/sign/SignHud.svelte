@@ -20,7 +20,7 @@
 	import HudReadout from '../hud/HudReadout.svelte';
 	import HudMenuPanel from '../hud/HudMenuPanel.svelte';
 	import { HEAD_LS, headWidth } from './signDraw';
-	import { DESKTOP, KEY_V, PHONE_PLACES, PHONE_REFS, PLAY_V, READOUT_TYPE, TEXT_MIN, amountLimits, padCircle, padPlaces, padShapes, readoutFit, pressOwner, pressRegions, pressVerdict, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type OwnerId, type PieceId } from './signLayout';
+	import { DESKTOP, KEY_V, OWNER_ORDER, PHONE_PLACES, PHONE_REFS, PLAY_V, READOUT_TYPE, TEXT_MIN, amountLimits, padCircle, padPlaces, padShapes, readoutFit, pressOwner, pressRegions, pressShape, pressVerdict, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type OwnerId, type PieceId } from './signLayout';
 	import { signZones } from './signZones';
 	import { holdLights } from './ledBand';
 	import SignPlay from './SignPlay.svelte';
@@ -154,9 +154,32 @@
 		return () => window.removeEventListener('pointerdown', down, true);
 	});
 	const bonusPad = $derived(!replay && !controls.jurisdiction().disabledBuyFeature && geo.box.bonus.h < 44);
-	const ownerBoxes = $derived({ ...pressBoxes, amt: seat.amt });
+	// (only the controls that are on the screen own ground: a key an operator switches off, or a replay leaves out, owns none)
+	const ownerBoxes = $derived.by(() => {
+		const J = controls.jurisdiction();
+		const out: Partial<Record<OwnerId, Box>> = { play: geo.box.play, menu: geo.box.menu };
+		if (!replay && !J.disabledAutoplay) out.auto = geo.box.auto;
+		if (!J.disabledTurbo) out.turbo = geo.box.turbo;
+		if (!replay && !J.disabledBuyFeature) out.bonus = geo.box.bonus;
+		if (!replay) {
+			out.down = seat.down;
+			out.up = seat.up;
+			out.amt = seat.amt;
+		}
+		return out;
+	});
 	const ownerPads = $derived({ ...padShape, ...(bonusPad ? { bonus: { poly: padCircle([geo.box.bonus.x + geo.box.bonus.w / 2, geo.box.bonus.y + geo.box.bonus.h / 2]) } } : {}) });
 	const OWNER_SEL: Record<OwnerId, string> = { play: 'button.sgp', auto: 'button.sgk-auto', turbo: 'button.sgk-turbo', menu: '[data-hud="menu-key"]', bonus: 'button.sgf', down: '[data-hud-step="minus"]', up: '[data-hud-step="plus"]', amt: 'button[data-hud="amount"]' };
+	// THE CATCH OUTLINES (2026-11-23, the probe host: this rule named ground a key's that no element covered, so a press
+	// there did nothing). Every control's own press shape (signLayout.ts pressShape: what pressOwner calls its ground)
+	// is drawn once more as an unseen outline in the pads' svg, under every control. The real key above takes its
+	// presses, its pointer and its looks as before; where the browser's own test of the key's box misses a place by a
+	// px (a round corner, an edge), the outline under it takes the press and it is judged by the same rule: the key
+	// acts through its own click, under its own disabled rule. An outline is its control's ground and no more, so it
+	// blocks nothing outside it, and the Play's is the Play's own diamond.
+	const outline = (poly: [number, number][]) => `M${poly.map((q) => `${q[0].toFixed(2)} ${q[1].toFixed(2)}`).join('L')}Z`;
+	const catches = $derived(OWNER_ORDER.filter((id) => ownerBoxes[id]).map((id) => ({ id, d: outline(pressShape(id, ownerBoxes[id] as Box)) })));
+	const viaKey = (id: OwnerId) => () => root?.querySelector<HTMLElement>(OWNER_SEL[id])?.click();
 	const barPress = (ev: MouseEvent, got: OwnerId, own: () => void) => {
 		if (ev.detail === 0) return void own();
 		// (this click's own pointerdown is the last one the window saw; a browser with no pointer events gives the click's place)
@@ -177,7 +200,7 @@
 	};
 	const pads = $derived.by(() => {
 		const out: { id: string; d: string; press: (ev: MouseEvent) => void }[] = [];
-		const path = (poly: [number, number][]) => `M${poly.map((q) => `${q[0].toFixed(2)} ${q[1].toFixed(2)}`).join('L')}Z`;
+		const path = outline;
 		const add = (id: PieceId, drawn: number, press: (ev: MouseEvent) => void) => {
 			if (drawn * u >= 44) return;
 			const b = geo.box[id];
@@ -215,6 +238,8 @@
 			/** whose press a place is ('play', 'auto', 'turbo', 'menu', 'bonus', 'down', 'up', 'amt' or null: nobody's), by
 			 *  the drawn shapes and the pads (pressOwner) */
 			owner: (x: number, y: number) => pressOwner(ownerBoxes, ownerPads, [x, y]),
+			/** each control's own press shape (its outline's corners, CSS px): its ground by the rule, and its catch outline */
+			shapes: () => Object.fromEntries(OWNER_ORDER.filter((id) => ownerBoxes[id]).map((id) => [id, pressShape(id, ownerBoxes[id] as Box)])),
 			/** Auto's and Turbo's press pads: where the rule puts each one's center (CSS px), each one's real shape (its
 			 *  outline's corners, CSS px, and whether the two share their ground down the middle line), the keys' centers */
 			pads: () => JSON.parse(JSON.stringify({ at: padAt, shapes: padShape, keys: { auto: [geo.box.auto.x + geo.box.auto.w / 2, geo.box.auto.y + geo.box.auto.h / 2], turbo: [geo.box.turbo.x + geo.box.turbo.w / 2, geo.box.turbo.y + geo.box.turbo.h / 2] } })),
@@ -255,6 +280,10 @@
 
 <div bind:this={root} class="hudp hud-group sg v-{kind === 'landscape' ? 'desktop' : kind === 'portrait' ? 'portrait' : 'landscape'}" class:menu-open={stateUi.menuOpen} data-plane="base" data-bar="sign" style={plane}>
 	<svg class="sgpads" viewBox="0 0 {vw} {vh}" style:width="{vw / u}px" style:height="{vh / u}px" aria-hidden="true">
+		{#each catches as c (c.id)}
+			<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+			<path class="sgcatch" data-catch={c.id} d={c.d} onclick={(ev) => barPress(ev, c.id, viaKey(c.id))} />
+		{/each}
 		{#each pads as pd (pd.id)}
 			<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 			<path class="sgpad" data-pad={pd.id} d={pd.d} onclick={pd.press} />

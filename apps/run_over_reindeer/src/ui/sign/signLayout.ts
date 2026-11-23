@@ -388,34 +388,85 @@ export const padShapes = (boxes: Partial<Record<PressId, Box>>, vw: number, vh: 
  *  the finger or the pointer went DOWN and asks this rule whose press it is (SignHud.svelte barPress).
  *  ORDER: the drawn shapes first, the one drawn last first (ui/sign/SignHud.svelte: the bet symbols and the amount,
  *  the Play, Turbo, Auto, Menu, the Fast Lane), then the pads (unseen, under every control).
- *  `slack`: a place within PRESS_SLACK of a drawn control or a pad counts as on it, the nearest one (a browser tests
- *  whole px, and a key's keyline is 0.6 px outside shapeOf's diamond). */
-export const PRESS_SLACK = 1.5;
+ *  THE SHAPES ARE THE REAL ONES (pressShape below: the turned squares with their round corners, as the buttons are),
+ *  and there is NO SLACK (2026-11-23, the probe host: with sharp diamonds and 1.5 px of slack this rule gave a key
+ *  ground that no element covered: the Play's sharp top corner on the desktop, 7 px past its round one; Auto's bottom
+ *  corner at 568 x 320; so a press there was named a key's and nothing took it). What this rule names a control's
+ *  ground is drawn as that control's own catch outline under every control (SignHud.svelte), so wherever a place is a
+ *  control's, something takes the press. Only boxes that are on the screen are passed in. */
+export const PRESS_SLACK = 0;
 export type OwnerId = PressId | 'amt';
 export const OWNER_ORDER: OwnerId[] = ['up', 'amt', 'down', 'play', 'turbo', 'auto', 'menu', 'bonus'];
+/** THE REAL PRESS SHAPES' NUMBERS: the Play's diamond in its 240 unit view (half its corner to corner width and its
+ *  corner radius: ui/hudTheme.ts SIGN.play V and R); a key's frame in the 80 unit key its box is KEY_BOX of (SIGN.key
+ *  bw, ko, margin, corner); Menu's corner as a share of its height (ui/sign/sign.css .sgm: 0.14 of --s, --s its
+ *  height over 0.8). tools/sign_layout_test.mjs holds these to the theme's and the stylesheet's own numbers. */
+export const PLAY_LINE = { V: 113.6, R: 20.45 };
+export const KEY_LINE = { bw: 4.4, ko: 1.3, margin: 2.2, corner: 0.09 };
+export const MENU_CORNER = 0.14 / 0.8;
+/** the Play's press square: its side and corner radius for a box `d` wide (the button is this square, turned 45 degrees) */
+export const playHit = (d: number) => ({ side: (PLAY_LINE.V * Math.SQRT2 * d) / 240, r: (PLAY_LINE.R * d) / 240 });
+/** a key's press square (Auto, Turbo): the keyline's outer edge, its side and corner radius for a box `w` wide */
+export const keyHit = (w: number) => {
+	const k = w / KEY_BOX / 80;
+	const out = (KEY_LINE.bw / 2 + KEY_LINE.ko) * k;
+	const W = w - 2 * (KEY_LINE.margin * k + out);
+	return { side: W / Math.SQRT2 + 2 * out, r: W * KEY_LINE.corner + out };
+};
+/** a convex shape with every corner rounded to radius r (each corner an arc of `n` steps) */
+const roundCorners = (pts: Pt[], r: number, n = 6): Pt[] => {
+	if (r <= 0) return pts;
+	const out: Pt[] = [];
+	for (let i = 0; i < pts.length; i++) {
+		const v = pts[i];
+		const p = pts[(i + pts.length - 1) % pts.length];
+		const q = pts[(i + 1) % pts.length];
+		const a: Pt = [p[0] - v[0], p[1] - v[1]];
+		const b: Pt = [q[0] - v[0], q[1] - v[1]];
+		const la = Math.hypot(a[0], a[1]);
+		const lb = Math.hypot(b[0], b[1]);
+		const ua: Pt = [a[0] / la, a[1] / la];
+		const ub: Pt = [b[0] / lb, b[1] / lb];
+		const half = Math.acos(Math.max(-1, Math.min(1, ua[0] * ub[0] + ua[1] * ub[1]))) / 2;
+		const t = Math.min(r / Math.tan(half), la / 2, lb / 2);
+		const rr = t * Math.tan(half);
+		const bis: Pt = [ua[0] + ub[0], ua[1] + ub[1]];
+		const lbis = Math.hypot(bis[0], bis[1]) || 1;
+		const c: Pt = [v[0] + (bis[0] / lbis) * (rr / Math.sin(half)), v[1] + (bis[1] / lbis) * (rr / Math.sin(half))];
+		const a0 = Math.atan2(v[1] + ua[1] * t - c[1], v[0] + ua[0] * t - c[0]);
+		let a1 = Math.atan2(v[1] + ub[1] * t - c[1], v[0] + ub[0] * t - c[0]);
+		// the short way round
+		while (a1 - a0 > Math.PI) a1 -= 2 * Math.PI;
+		while (a1 - a0 < -Math.PI) a1 += 2 * Math.PI;
+		for (let k = 0; k <= n; k++) out.push([c[0] + rr * Math.cos(a0 + ((a1 - a0) * k) / n), c[1] + rr * Math.sin(a0 + ((a1 - a0) * k) / n)]);
+	}
+	return out;
+};
+/** A CONTROL'S REAL PRESS SHAPE, CSS px: what its element takes presses as. The Play, Auto and Turbo: the turned
+ *  square with its round corners (the drawn diamond ends at the round corner, not at the square's sharp one); Menu:
+ *  its box with its round corners; the Fast Lane: its hexagon; a bet symbol and the amount: the box. */
+const shapeMemo = new WeakMap<Box, Partial<Record<OwnerId, Pt[]>>>();
+export const pressShape = (id: OwnerId, b: Box): Pt[] => {
+	// (kept per box: a layout's boxes are the same objects from press to press)
+	const memo = shapeMemo.get(b) ?? {};
+	if (!shapeMemo.has(b)) shapeMemo.set(b, memo);
+	if (memo[id]) return memo[id] as Pt[];
+	const cx = b.x + b.w / 2;
+	const cy = b.y + b.h / 2;
+	let out: Pt[];
+	if (id === 'play' || id === 'auto' || id === 'turbo') {
+		const h = id === 'play' ? playHit(b.w) : keyHit(b.w);
+		const v = h.side / Math.SQRT2;
+		out = roundCorners([[cx, cy - v], [cx + v, cy], [cx, cy + v], [cx - v, cy]], h.r);
+	} else if (id === 'menu') out = roundCorners(boxPts(b), MENU_CORNER * b.h);
+	else out = shapeOf(id, b);
+	memo[id] = out;
+	return out;
+};
 export const pressOwner = (boxes: Partial<Record<OwnerId, Box>>, pads: Partial<Record<'auto' | 'turbo' | 'bonus', { poly: Pt[] }>>, p: Pt): OwnerId | null => {
-	const ids = OWNER_ORDER.filter((k) => boxes[k]);
-	const drawn = (k: OwnerId) => shapeOf(k, boxes[k] as Box);
-	for (const k of ids) if (inPoly(p, drawn(k))) return k;
-	const padIds = (['turbo', 'auto', 'bonus'] as const).filter((k) => boxes[k] && pads[k]);
-	for (const k of padIds) if (inPoly(p, (pads[k] as { poly: Pt[] }).poly)) return k;
-	let best: OwnerId | null = null;
-	let m = PRESS_SLACK;
-	for (const k of ids) {
-		const d = distToPoly(p, drawn(k));
-		if (d <= m) {
-			m = d;
-			best = k;
-		}
-	}
-	for (const k of padIds) {
-		const d = distToPoly(p, (pads[k] as { poly: Pt[] }).poly);
-		if (d < m) {
-			m = d;
-			best = k;
-		}
-	}
-	return best;
+	for (const k of OWNER_ORDER) if (boxes[k] && inPoly(p, pressShape(k, boxes[k] as Box))) return k;
+	for (const k of ['turbo', 'auto', 'bonus'] as const) if (boxes[k] && pads[k] && inPoly(p, (pads[k] as { poly: Pt[] }).poly)) return k;
+	return null;
 };
 
 /** WHAT A CONTROL DOES WITH A CLICK IT GOT, by whose press the place is (`who`, pressOwner at the place the pointer

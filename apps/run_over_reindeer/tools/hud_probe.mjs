@@ -10,7 +10,7 @@
 // WATCHES: ; __reindeer.ringMethod, __reindeer.ringRounds, __reindeer.ringNow, __reindeer.spinSerial
 // WATCHES: apps/run_over_reindeer/src/{game/currency.ts,fixtures/fixtureRgs.ts};
 // WATCHES: apps/run_over_reindeer/src/{ui/sign/SignHud.svelte,ui/sign/signLayout.ts,ui/sign/signZones.ts,ui/sign/SignPlay.svelte,ui/hudTheme.ts};
-// WATCHES: ; __reindeer.sign, __reindeer.hud.bar, HUD_BAR, .sgw, .s-words, .s-ring, data-shape, data-total, data-bar, .sgpad, .sgpads, data-pad, padPlaces, padShapes, pressOwner, __reindeer.sign.pads, __reindeer.sign.owner, data-l, .am-ui
+// WATCHES: ; __reindeer.sign, __reindeer.hud.bar, HUD_BAR, .sgw, .s-words, .s-ring, data-shape, data-total, data-bar, .sgpad, .sgpads, data-pad, padPlaces, padShapes, pressOwner, pressShape, __reindeer.sign.pads, __reindeer.sign.owner, __reindeer.sign.shapes, .sgcatch, data-catch, data-l, .am-ui, .menu-open
 // WATCHES: apps/run_over_reindeer/src/{game/actor.ts,game/utils.ts,game/stateGame.svelte.ts,ui/SpinHotkey.svelte};
 // WATCHES: ; __reindeer.pressReady, __reindeer.spinTail, roundSettled, roundTailFinish, landSmall, SPIN_TAIL, flipGraceMs, ledCountDone, data-resume-card
 // THE HUD PROBE (the house glass HUD from Manticore, "Win over Balance, Drop 6" plus round 6, in this game's "Frost"
@@ -1962,6 +1962,10 @@ async function tailSection(browser) {
 //     (Turbo; the drawn diamonds overlap at no window, their upright boxes do); outside that, the key whose drawing
 //     or pad the place is in; anywhere else, neither. Touch taps on the phone sizes: bare ground between the two
 //     presses neither, each pad's ground nearest the other key presses its own key (__reindeer.sign.owner)
+//   - WHAT THE RULE NAMES A CONTROL'S GROUND IS COVERED (2026-11-23): wherever __reindeer.sign.owner names a control
+//     (a grid 2 px apart over every control's press shape, __reindeer.sign.shapes), the top element is a key, a pad
+//     or that control's catch outline (.sgcatch, data-catch), never the canvas; a press 0.5 px inside Menu's edge
+//     nearest the Spin opens the menu (the walk's sizes)
 //   - THE SPIN'S NEIGHBOURS (2026-11-23, sizes marked walk: 1200x675 by mouse; 844x390, 667x375, 568x320, 390x844 by
 //     touch): a round starts only from a press that went down inside the Spin's own diamond. 2 px inside Auto's and
 //     Turbo's edges nearest the Spin: no round, the key acts; 2 px inside the Spin's edge nearest each: a round, the
@@ -2360,6 +2364,76 @@ async function signHud(browser) {
 					check(end.turbo === was.turbo && !end.card, `${tag}: after the taps Turbo is back at ${was.turbo} and the autoplay card is closed`, end);
 				}
 			}
+			// ---- WHAT THE RULE NAMES A CONTROL'S GROUND IS COVERED (2026-11-23; the probe host on b32bacde: owner() named
+			// places a key's where only the canvas lay, so a press there did nothing: the Spin's top corner on the desktop,
+			// Auto's bottom corner at 568 x 320). The rule's shapes are the buttons' own round cornered ones now, and each
+			// is drawn once more as a catch outline under the controls (.sgcatch). On a grid 2 px apart over every control's
+			// ground (__reindeer.sign.shapes and the pads, 3 px round each): wherever owner() names a control, the top
+			// element there is one of the bar's own press takers (a button, a pad or a catch outline), never the canvas.
+			{
+				const cover = await p.evaluate(() => {
+					const S = window.__reindeer.sign;
+					if (!S.shapes) return null;
+					const shapes = S.shapes();
+					const pads = S.pads().shapes;
+					const groups = Object.entries(shapes).map(([id, P]) => [id, [...P, ...(pads[id]?.poly ?? [])]]);
+					const bar = document.querySelector('.hudp.sg');
+					const naked = [];
+					let owned = 0;
+					let viaCatch = 0;
+					for (const [, P] of groups) {
+						const xs = P.map((q) => q[0]);
+						const ys = P.map((q) => q[1]);
+						for (let y = Math.max(0.5, Math.min(...ys) - 3); y <= Math.min(window.innerHeight - 0.5, Math.max(...ys) + 3); y += 2)
+							for (let x = Math.max(0.5, Math.min(...xs) - 3); x <= Math.min(window.innerWidth - 0.5, Math.max(...xs) + 3); x += 2) {
+								const o = S.owner(x, y);
+								if (!o) continue;
+								owned++;
+								const at = document.elementFromPoint(x, y);
+								const taker = at && bar.contains(at) ? at.closest('button, .sgpad, .sgcatch') : null;
+								if (taker?.matches('.sgcatch')) viaCatch++;
+								if (!taker && naked.length < 6) naked.push(`(${x.toFixed(1)}, ${y.toFixed(1)}) is ${o}'s and the top element is ${at ? at.tagName.toLowerCase() + (at.getAttribute('class') ? '.' + String(at.getAttribute('class')).trim().split(/\s+/)[0] : '') : 'nothing'}`);
+								else if (!taker) naked.push('');
+							}
+					}
+					return { owned, viaCatch, naked: naked.filter(Boolean), nakedCount: naked.length, catches: document.querySelectorAll('.hudp.sg .sgcatch').length, controls: Object.keys(shapes).length };
+				});
+				if (!cover) check(false, `${tag}: the bar tells its controls' press shapes (__reindeer.sign.shapes)`);
+				else check(cover.nakedCount === 0 && cover.catches === cover.controls, `${tag}: every place the press rule names a control's (${cover.owned} tried, 2 px apart) has one of the bar's own press takers on top (a key, a pad, or the control's catch outline: ${cover.viaCatch} of them); a catch outline for each of the ${cover.controls} controls`, cover);
+			}
+			// MENU'S EDGE (the probe host by hand, 390 x 844 touch: 0.1 to 0.5 px inside Menu's bottom edge, owner menu,
+			// nothing happened): at the walk's sizes, a press 0.5 px inside Menu's edge nearest the Spin opens the menu.
+			if (S.walk) {
+				const M = await p.evaluate(() => {
+					const g = window.__reindeer.sign.geo();
+					return { menu: g.box.menu, play: g.box.play };
+				});
+				const a = [M.menu.x + M.menu.w / 2, M.menu.y + M.menu.h / 2];
+				const b = [M.play.x + M.play.w / 2, M.play.y + M.play.h / 2];
+				const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+				const n = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+				const last = await p.evaluate(
+					({ a, n, len }) => {
+						let v = 0;
+						while (v + 0.1 <= len && window.__reindeer.sign.owner(a[0] + n[0] * (v + 0.1), a[1] + n[1] * (v + 0.1)) === 'menu') v += 0.1;
+						return v;
+					},
+					{ a, n, len },
+				);
+				const q = [a[0] + n[0] * (last - 0.5), a[1] + n[1] * (last - 0.5)];
+				const open = () => p.evaluate(() => !!document.querySelector('.hudp.sg.menu-open'));
+				const was = await open();
+				if (S.touch) await p.touchscreen.tap(q[0], q[1]);
+				else await p.mouse.click(q[0], q[1]);
+				await sleep(350);
+				const now = await open();
+				check(!was && now, `${tag}: a ${S.touch ? 'touch tap' : 'mouse press'} 0.5 px inside Menu's edge nearest the Spin (${q.map(r1).join(', ')}, ${r1(last)} px from its middle) opens the menu`, { was, now, under: await p.evaluate((q) => document.elementsFromPoint(q[0], q[1]).slice(0, 3).map((e) => e.tagName.toLowerCase() + (e.getAttribute('data-catch') ? `[data-catch=${e.getAttribute('data-catch')}]` : '') + (e.getAttribute('data-hud') ? `[data-hud=${e.getAttribute('data-hud')}]` : '')), q) });
+				if (await open()) {
+					await p.click('.hudp [data-hud="menu-key"]');
+					await sleep(350);
+				}
+				check(!(await open()), `${tag}: a press on Menu's middle closes the menu again`);
+			}
 			// ---- THE SPIN'S NEIGHBOURS (2026-11-23; the probe host, touch, 844 x 390 and 667 x 375: a tap 2 px inside
 			// Turbo's edge nearest the Spin STARTED A ROUND and left Turbo as it was; a mouse at the same place turned Turbo
 			// on). THE RULE: a round starts only from a press that went down inside the Spin's own diamond; a press that went
@@ -2423,9 +2497,20 @@ async function signHud(browser) {
 					let last = -1;
 					while (last + 1 < owners.length && owners[last + 1] === id) last++;
 					const first = owners.indexOf('play');
-					const walk = `${id} 0..${last / 2} | ${first - last - 1 > 0 ? `nobody's ${(last + 1) / 2}..${(first - 1) / 2} | ` : ''}the Spin ${first / 2}..${r1(len)}`;
-					if (last < 4 || first < 0 || owners.slice(last + 1, first).some((o) => o !== null)) {
-						check(false, `${tag}: on the line from ${id}'s middle to the Spin's the ground is ${id}'s, then nobody's, then the Spin's`, walk);
+					// the walk as runs: whose ground from where to where (another control may lie between: upright, Auto stands
+					// between Turbo and the Spin)
+					const runs = [];
+					owners.forEach((o, k) => {
+						const who = o === null ? "nobody's" : o === 'play' ? 'the Spin' : o;
+						if (runs.length && runs[runs.length - 1].who === who) runs[runs.length - 1].to = k / 2;
+						else runs.push({ who, from: k / 2, to: k / 2 });
+					});
+					const walk = runs.map((r) => `${r.who} ${r.from}..${r.to}`).join(' | ');
+					// (2026-11-23: this line asked for nobody's ground alone between the key and the Spin, and failed at 390 x 844,
+					// where Auto's ground lies between Turbo and the Spin; what must hold is the key's ground first, the Spin's
+					// last and unbroken to its middle, and neither of the two in between)
+					if (last < 4 || first < 0 || owners.slice(last + 1, first).some((o) => o === id || o === 'play') || owners.slice(first).some((o) => o !== 'play')) {
+						check(false, `${tag}: on the line from ${id}'s middle to the Spin's the ground is ${id}'s, then other controls' or nobody's, then the Spin's to its middle`, walk);
 						continue;
 					}
 					const qk = [a[0] + n[0] * (last / 2 - 2), a[1] + n[1] * (last / 2 - 2)];
