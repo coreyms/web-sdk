@@ -8,7 +8,7 @@
 //          toward the trees after this rule (components/Board.svelte logoTreeDrop): the box here is the rule's.
 import { MASTER, boardRect, landscapeExtraY, logoBox, logoClass, roadPlacement, type LayoutKind } from '../../game/layoutSpec';
 import { scoreboardGeometry } from '../../game/scoreboard/layout';
-import { fitBox, sceneFit, type Zones } from './signLayout';
+import { POPOUT_S, fitBox, phoneLayout, popoutSize, popoutStack, sceneFit, type Zones } from './signLayout';
 
 export const signZones = (kind: LayoutKind, vw: number, vh: number, phoneSize: boolean): Zones => {
 	const M = MASTER[kind];
@@ -30,9 +30,23 @@ export const signZones = (kind: LayoutKind, vw: number, vh: number, phoneSize: b
 	const fit = sceneFit(kind, vw, vh);
 	const lbo = logoBox(logoClass(kind, vw, vh), own, scale, left, kind === 'landscape' ? landscapeExtraY(vh / scale) : 0);
 	void lb;
-	return {
+	const zones: Zones = {
 		board: { x: left + br.x * scale, y: top + br.y * scale, w: br.width * scale, h: br.height * scale },
 		strip: { x: g.strip.housing.x, y: capTop, w: g.strip.housing.w, h: g.strip.housing.y + g.strip.housing.h - capTop },
 		logo: fitBox({ x: left + own.x * scale + lbo.x * k, y: top + own.y * scale + lbo.y * k, w: lbo.width * k, h: lbo.height * k }, fit.logo, fit.share),
 	};
+	// THE LOGO AT THE SMALL POPOUT (Corey 2026-11-23, "CV1"; signLayout.ts POPOUT_S, popoutStack): where the bar's left
+	// column stands too close, the logo is drawn smaller from its own top left corner, as large as leaves POPOUT_S.gap over
+	// Menu's top once the column is stacked (0.731 at 400 x 225), and never larger than its own size; where that would be
+	// under POPOUT_S.minLogo nothing changes. `popout` keeps its own box (the bar's guards read it). Every other window:
+	// these zones, as they were.
+	const lg = zones.logo;
+	if (lg && popoutSize(kind, vw, vh)) {
+		const s = popoutStack(phoneLayout({ kind, vw, vh, zones }));
+		const share = s ? Math.min(1, (s.menu - POPOUT_S.gap - lg.y) / lg.h) : 1;
+		if (s && share >= POPOUT_S.minLogo) return { ...zones, logo: { x: lg.x, y: lg.y, w: lg.w * share, h: lg.h * share }, popout: lg };
+	}
+	return zones;
 };
+/** the share of its own size the logo is drawn at (1 except at the small popout): components/Board.svelte */
+export const logoShare = (z: Zones) => (z.popout && z.logo ? z.logo.h / z.popout.h : 1);

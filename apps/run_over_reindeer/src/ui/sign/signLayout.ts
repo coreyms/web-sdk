@@ -43,7 +43,9 @@ export type PieceId = 'play' | 'auto' | 'turbo' | 'menu' | 'bonus' | 'amt' | 'ba
 export type Just = 'left' | 'center';
 export type Pt = [number, number];
 /** the scene's keep-outs, CSS px: the five columns, the LED strip (snow cap top to housing bottom), the logo sign */
-export type Zones = { board: Box; strip: Box; logo: Box | null };
+/** `popout`: at the small popout (POPOUT_S below) the logo's own box before it was drawn smaller; present only where that
+ *  rule acts (ui/sign/signZones.ts) */
+export type Zones = { board: Box; strip: Box; logo: Box | null; popout?: Box };
 export type SignView = { kind: SignKind; vw: number; vh: number; safe?: Insets; zones?: Zones | null };
 
 export const PIECES: PieceId[] = ['play', 'auto', 'turbo', 'menu', 'bonus', 'amt', 'bal', 'win'];
@@ -850,6 +852,9 @@ export const phoneLayout = (v: SignView): SignGeo => {
 	const moved: string[] = [];
 	const safe = v.safe ?? ZERO;
 	const Z = v.zones ?? null;
+	// (THE SMALL POPOUT, POPOUT_S below: every guard reads the logo's own box, as at every other window; only the column
+	// is stacked at the end, under the smaller logo)
+	const logoZ = Z ? (Z.popout ?? Z.logo) : null;
 	// THE TOUCH FLOOR (round 3: outside his windows the bar's scale can take Menu's height or the Fast Lane's hexagon a
 	// px under 44 CSS px; 390 x 844 gave Menu 43.9): each grows about its own middle, its shape kept, to hold 44
 	for (const [id, held] of [['menu', Math.min(box.menu.w, box.menu.h)], ['bonus', inCircle([box.bonus.x + box.bonus.w / 2, box.bonus.y + box.bonus.h / 2], shapeOf('bonus', box.bonus))]] as [PieceId, number][]) {
@@ -935,8 +940,8 @@ export const phoneLayout = (v: SignView): SignGeo => {
 					moved.push(`${dir < 0 ? 'left' : 'right'} pieces ${r1(d)} px out (the board or the strip)`);
 				}
 			}
-			if (Z.logo && dir < 0) {
-				const lg = Z.logo;
+			if (logoZ && dir < 0) {
+				const lg = logoZ;
 				const hit = ids.filter((id) => onZone(shapeOf(id, box[id]), lg));
 				if (hit.length) {
 					e = extent(box, ids);
@@ -990,7 +995,7 @@ export const phoneLayout = (v: SignView): SignGeo => {
 		}
 	}
 	const just = refs[w.indexOf(Math.max(...w))].just;
-	return {
+	const out: SignGeo = {
 		kind: v.kind,
 		u,
 		vw: v.vw,
@@ -1010,6 +1015,46 @@ export const phoneLayout = (v: SignView): SignGeo => {
 		moved,
 		area: { x0: 0, x1: v.vw },
 	};
+	// THE SMALL POPOUT (POPOUT_S below): where signZones drew the logo smaller, the column stands under it
+	if (Z?.popout && Z.logo) {
+		const s = popoutStack(out);
+		if (s && Z.logo.y + Z.logo.h + POPOUT_S.gap <= s.menu + 0.01) {
+			box.menu = { ...box.menu, y: s.menu };
+			box.bonus = { ...box.bonus, y: s.bonus };
+			box.bal = { ...box.bal, y: s.bal };
+			moved.push(`the small popout: Menu, Fast Lane and Balance stacked over the Win box, under the logo at ${Math.round(((Z.logo.h / Z.popout.h) * 1000)) / 10} %`);
+		}
+	}
+	return out;
+};
+
+// ---- THE SMALL POPOUT (Corey 2026-11-23, "CV1": Stake's Popout S, 400 x 225, a mouse window) ----
+/** WHERE IT APPLIES: a sideways layout no wider than POPOUT_S.w and no taller than POPOUT_S.h CSS px, where the left
+ *  column (Menu, the Fast Lane, Balance, the Win box's glass, top to bottom) stands closer than POPOUT_S.gap anywhere,
+ *  and where the logo, drawn smaller from its own top left corner, still holds at least POPOUT_S.minLogo of its size.
+ *  At such a window the 44 CSS px touch floor has grown Menu and the Fast Lane about their own middles into each other
+ *  (400 x 225: 11.6 px, and Balance 1.45 px into the Fast Lane and into the Win glass). WHAT IT DOES: the Win box keeps
+ *  its place; Balance, the Fast Lane and Menu stand over it, POPOUT_S.gap CSS px apart, at their own sizes and x; the
+ *  logo is drawn as large as fits POPOUT_S.gap over Menu, never larger than its own size (ui/sign/signZones.ts; the
+ *  canvas draws it so, components/Board.svelte: 0.731 at 400 x 225). Auto and Turbo are unchanged (Corey: "CW2", a
+ *  mouse only window). Anywhere else nothing of this runs: every other window's layout is unchanged
+ *  (tools/sign_layout_test.mjs section 9). */
+export const POPOUT_S = { w: 480, h: 270, gap: 1, minLogo: 0.6 } as const;
+/** is a window in the small popout's size class (a sideways layout, POPOUT_S.w by POPOUT_S.h CSS px or smaller) */
+export const popoutSize = (kind: SignKind, vw: number, vh: number) => kind === 'phone' && vw > vh && vw <= POPOUT_S.w && vh <= POPOUT_S.h;
+/** the small popout's column for a layout (the one the bar has with the logo's own box): the tops of Menu, the Fast Lane
+ *  and Balance, CSS px, standing over the Win box's glass POPOUT_S.gap apart; null where the window is not in the size
+ *  class or its column already stands that clear */
+export const popoutStack = (g: SignGeo): { menu: number; bonus: number; bal: number } | null => {
+	if (!popoutSize(g.kind, g.vw, g.vh)) return null;
+	const b = g.box;
+	const glass = winGlass(g);
+	const gap = POPOUT_S.gap;
+	const tight = b.menu.y + b.menu.h + gap > b.bonus.y + 1e-6 || b.bonus.y + b.bonus.h + gap > b.bal.y + 1e-6 || b.bal.y + b.bal.h + gap > glass.y + 1e-6;
+	if (!tight) return null;
+	const bal = glass.y - gap - b.bal.h;
+	const bonus = bal - gap - b.bonus.h;
+	return { menu: bonus - gap - b.menu.h, bonus, bal };
 };
 
 // ---- HIS PHABLET SIDEWAYS BESIDE THE DESKTOP RULE (round 3, 890 x 552) ----

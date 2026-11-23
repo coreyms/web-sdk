@@ -91,6 +91,7 @@
 	import { forestLineY } from '../game/scene/sceneLayers';
 	import { ROAM_ROAD, roamGround } from '../game/roamGround';
 	import { forestOn, sceneFit } from '../ui/sign/signLayout';
+	import { logoShare, signZones } from '../ui/sign/signZones';
 	import { scenePrefetchState, setScenePrefetchView } from '../game/scenePrefetch';
 	import { RoadBoard } from '../game/road/roadBoard';
 	import { planRun } from '../game/road/roadFeatures';
@@ -622,6 +623,15 @@
 				box.y += ((L.y - oyOwn) / k - box.y) * t;
 				box.width += (L.w / k - box.width) * t;
 				box.height += (L.h / k - box.height) * t;
+			}
+			// THE SMALL POPOUT (Corey 2026-11-23, "CV1"; ui/sign/signZones.ts, signLayout.ts POPOUT_S): the sign drawn smaller
+			// from its own top left corner, so the sign bar's Menu, Fast Lane and Balance stand clear under it. 1 elsewhere.
+			if (kind === 'phone') {
+				const ls = logoShare(signZones(kind, canvasSize.width, canvasSize.height, phoneSizeNow));
+				if (ls < 1) {
+					box.width *= ls;
+					box.height *= ls;
+				}
 			}
 			logoHome = box;
 			placeLogo();

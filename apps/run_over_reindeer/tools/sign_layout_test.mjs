@@ -1152,5 +1152,117 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 	const lows = [...L.PIECES.map((id) => b.g.box[id]), b.seat.down, b.seat.up].map((q) => q.y + q.h);
 	line(b.problems.length === 0, '844x390 with 44 px notch sides and a 21 px home indicator', `${b.g.moved.join('; ') || 'nothing moved'} | ${b.problems.join('; ') || 'clear'} | lowest edge ${r1(Math.max(...lows))} of 390`);
 }
+// ---- 9. THE SMALL POPOUT (Corey 2026-11-23, "CV1"; signLayout.ts POPOUT_S, popoutStack; signZones.ts): at Stake's
+// Popout S (400 x 225) the touch floor had grown Menu and the Fast Lane into each other, and Balance into both its
+// neighbours. There the logo is drawn smaller from its own top left corner and the column stands under it.
+//   a. NOTHING ELSE MOVES: the layout and the scene's keep-outs are 8bf4d10a's (the files before the rule), byte for
+//      byte (JSON of the whole layout and the zones), at his approved frames, and over a sweep of windows every window
+//      that differs is in the size class (sideways, POPOUT_S.w by POPOUT_S.h CSS px or smaller)
+//   b. IN THE CLASS (360 to 480 wide, 200 to 270 tall, 5 px steps): where the rule acts, the logo, Menu, the Fast Lane,
+//      Balance and the Win glass are clear of one another, Menu and the Fast Lane hold 44 px press regions that do not
+//      overlap, the logo is POPOUT_S.minLogo of its size or more, and nothing else is wrong by shape (Auto's and Turbo's
+//      25 px press regions are Corey's ruling there, "CW2": a mouse only window). Where the column cannot fit (the
+//      shortest windows) nothing changes and the window is listed. ----
+{
+	const BASE = '8bf4d10a';
+	let old = null;
+	try {
+		const dir = mkdtempSync(join(tmpdir(), 'signpopout-'));
+		const show = (rel) => execFileSync('git', ['-C', APP, 'show', `${BASE}:apps/run_over_reindeer/${rel}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+		writeFileSync(join(dir, 'signLayout.ts'), show('src/ui/sign/signLayout.ts'));
+		// (its zones file, pointed at this tree's scene rules, which the rule does not touch, and at its own layout file)
+		const z = show('src/ui/sign/signZones.ts')
+			.replace("'../../game/layoutSpec'", JSON.stringify(pathToFileURL(join(APP, 'src', 'game', 'layoutSpec.ts')).href))
+			.replace("'../../game/scoreboard/layout'", JSON.stringify(pathToFileURL(join(APP, 'src', 'game', 'scoreboard', 'layout.ts')).href))
+			.replace("'./signLayout'", JSON.stringify(pathToFileURL(join(dir, 'signLayout.ts')).href));
+		writeFileSync(join(dir, 'signZones.ts'), z);
+		old = { L: await import(pathToFileURL(join(dir, 'signLayout.ts')).href), Z: await import(pathToFileURL(join(dir, 'signZones.ts')).href) };
+	} catch (e) {
+		console.log(`     (${BASE} is not in this checkout: the before and after comparison is passed over: ${e.message.split('\n')[0]})`);
+	}
+	const kindOf = (vw, vh) => (vw < vh ? 'portrait' : Math.min(vw, vh) <= 480 ? 'phone' : 'landscape');
+	const same = (vw, vh, kind = kindOf(vw, vh)) => {
+		const phone = kind !== 'landscape';
+		const za = Z.signZones(kind, vw, vh, phone);
+		const zb = old.Z.signZones(kind, vw, vh, phone);
+		const a = JSON.stringify([za, L.signLayout({ kind, vw, vh, zones: za })]);
+		const b = JSON.stringify([zb, old.L.signLayout({ kind, vw, vh, zones: zb })]);
+		return a === b;
+	};
+	if (old) {
+		const FRAMES = [[1920, 1080], [1440, 900], [1280, 720], [1200, 675], [1024, 576], [800, 450], [440, 742], [832, 376], [413, 586], [375, 667], [375, 530], [626, 816], [320, 568], [568, 320], [667, 375], [812, 425], [844, 390], [390, 844]];
+		const off = FRAMES.filter(([vw, vh]) => !same(vw, vh)).map(([vw, vh]) => `${vw}x${vh}`);
+		line(off.length === 0, `the small popout: his ${FRAMES.length} approved frames are ${BASE}'s, byte for byte (the whole layout and the zones)`, off.join(', '));
+		let n = 0;
+		let inClass = 0;
+		const outside = [];
+		for (let vw = 300; vw <= 2000; vw += 20)
+			for (let vh = 180; vh <= 1200; vh += 15) {
+				for (const kind of new Set([kindOf(vw, vh), vw > vh ? 'phone' : 'portrait'])) {
+					n++;
+					if (same(vw, vh, kind)) continue;
+					if (L.popoutSize(kind, vw, vh)) inClass++;
+					else outside.push(`${kind} ${vw}x${vh}`);
+				}
+			}
+		line(outside.length === 0, `the small popout: ${n} layouts swept (300 to 2000 x 180 to 1200, each window's own kind and sideways or upright): ${inClass} differ from ${BASE}, every one inside the size class (sideways, ${L.POPOUT_S.w} x ${L.POPOUT_S.h} or smaller)`, outside.slice(0, 6).join(' | '));
+	}
+	const acted = [];
+	const left = [];
+	const bad = [];
+	const keptBefore = [];
+	/** a window's layout, seat and problems by 8bf4d10a's files (section 3's `at`) */
+	const atOld = (kind, vw, vh) => {
+		const zones = old.Z.signZones(kind, vw, vh, kind !== 'landscape');
+		const g = old.L.signLayout({ kind, vw, vh, zones });
+		const headW = (HEAD_EM * Math.max(g.head.amt, 10 / g.u) + 12) * g.u;
+		const seat = { ...old.L.seatAmount(g, WIDEST_EM, headW, old.L.amountLimits(g, zones)) };
+		Object.assign(seat, old.L.amountType(g, seat, WIDEST_EM));
+		return { problems: old.L.signProblems(g, zones, seat) };
+	};
+	let at400 = null;
+	for (let vw = 360; vw <= 480; vw += 5)
+		for (let vh = 200; vh <= 270; vh += 5) {
+			const r = at('phone', vw, vh);
+			const { g, zones } = r;
+			if (!zones.popout) {
+				// (the column cannot stand clear here, or already does: nothing changes, nothing new is asserted)
+				if (old && !same(vw, vh, 'phone')) bad.push(`${vw}x${vh}: changed with the rule off`);
+				left.push(`${vw}x${vh}`);
+				continue;
+			}
+			acted.push(`${vw}x${vh}`);
+			const k = zones.logo.h / zones.popout.h;
+			const col = { logo: zones.logo, menu: g.box.menu, bonus: g.box.bonus, bal: g.box.bal, win: L.winGlass(g) };
+			const ids = Object.keys(col);
+			const why = [];
+			for (let i = 0; i < ids.length; i++)
+				for (let j = i + 1; j < ids.length; j++) {
+					const p = col[ids[i]];
+					const q = col[ids[j]];
+					if (Math.min(p.x + p.w, q.x + q.w) > Math.max(p.x, q.x) && Math.min(p.y + p.h, q.y + q.h) > Math.max(p.y, q.y)) why.push(`${ids[i]} on ${ids[j]}`);
+				}
+			const press = L.pressRegions({ play: g.box.play, auto: g.box.auto, turbo: g.box.turbo, menu: g.box.menu, bonus: g.box.bonus, down: r.seat.down, up: r.seat.up });
+			if (press.menu < L.TOUCH_MIN - 0.005 || press.bonus < L.TOUCH_MIN - 0.005) why.push(`press Menu ${r1(press.menu)}, Fast Lane ${r1(press.bonus)}`);
+			if (k < L.POPOUT_S.minLogo - 1e-9 || k > 1 + 1e-9) why.push(`logo at ${r1(k * 100)} %`);
+			// (what was wrong by shape before the rule and is still: Menu wider than the room beside the board at the
+			// narrowest of these windows, as it was; Auto's and Turbo's press regions, his ruling)
+			const before = old ? atOld('phone', vw, vh).problems : [];
+			const rest = r.problems.filter((x) => !/^(auto|turbo) press region /.test(x) && !before.includes(x));
+			why.push(...rest);
+			const kept = r.problems.filter((x) => !/^(auto|turbo) press region /.test(x) && before.includes(x));
+			if (kept.length) keptBefore.push(`${vw}x${vh}: ${kept.join(', ')}`);
+			if (why.length) bad.push(`${vw}x${vh}: ${why.join(', ')}`);
+			if (vw === 400 && vh === 225) at400 = { g, zones, k };
+		}
+	line(bad.length === 0 && acted.includes('400x225'), `the small popout: at ${acted.length} windows of 360 to 480 x 200 to 270 the rule acts (400x225 among them) and the logo, Menu, Fast Lane, Balance and the Win glass are clear of one another, Menu and Fast Lane hold 44 px, nothing else wrong by shape`, bad.slice(0, 5).join(' | '));
+	if (keptBefore.length) console.log(`     the small popout: wrong before the rule and still (not of its making): ${keptBefore.join(' | ')}`);
+	console.log(`     the small popout: ${left.length} windows keep their places (the column cannot fit, or stands clear already): ${left.join(', ')}`);
+	if (at400) {
+		const f = (b) => `x ${b.x.toFixed(2)} y ${b.y.toFixed(2)} w ${b.w.toFixed(2)} h ${b.h.toFixed(2)}`;
+		const { g, zones, k } = at400;
+		console.log(`     400x225: logo ${f(zones.logo)} (${(k * 100).toFixed(1)} %) | Menu ${f(g.box.menu)} | Fast Lane ${f(g.box.bonus)} | Balance ${f(g.box.bal)} | Win ${f(g.box.win)}`);
+	}
+}
 console.log(`${fail} fail`);
 process.exit(fail ? 1 : 0);
