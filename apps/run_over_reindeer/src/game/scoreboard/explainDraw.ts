@@ -11,7 +11,7 @@
 // are faces of the board's density, the sentence's glyphs are drawn in LED_BOARD.density.bodyWeight on today's cells, and
 // the wipe's edge and the confetti are set in LEDs.
 import { LED_BOARD } from '../constants';
-import { drawText, textW, type Cv } from '../landing/ledScreens';
+import { drawText, noOrphan, textW, type Cv } from '../landing/ledScreens';
 import { clearP, copyFace, copyP, dotAt, fillP, kOf, ledN, mkFace } from './ledGrid';
 import { BULBS, boardTitle, chaseBorder, drawFit, drawRow, fitCap, lineInk, rowCapEff, rowDotsNow, rowInfo, sparkles, sprite, type Face } from './scoreboardDraw';
 
@@ -22,7 +22,8 @@ const ease = (t: number) => {
 	return t * t * (3 - 2 * t);
 };
 
-/** a sentence in lines no wider than maxW at scale z (words kept whole; a word wider than the line stands alone) */
+/** a sentence in lines no wider than maxW at scale z (words kept whole; a word wider than the line stands alone; no word
+ *  alone on the last line where the same lines can avoid it, noOrphan) */
 export function wrapLines(str: string, z: number, maxW: number): string[] {
 	const words = str.split(/\s+/).filter(Boolean);
 	const out: string[] = [];
@@ -36,7 +37,7 @@ export function wrapLines(str: string, z: number, maxW: number): string[] {
 		}
 	}
 	if (cur) out.push(cur);
-	return out;
+	return out.every((l) => textW(l, z) <= maxW) ? noOrphan(out, maxW, (l) => textW(l, z)) : out;
 }
 
 /** the sentence's fit in a box: the largest scale (and its lines) whose lines all fit the width and whose block fits the
@@ -165,7 +166,8 @@ function fitHeavy(str: string, w: number, h: number, maxLines: number, capMax: n
 		if (cur) lines.push(cur);
 		const lh = Math.round(cap * 1.32);
 		const bh = lines.length * lh - (lh - cap);
-		if (ok && lines.length <= maxLines && bh <= h) return { cap, lines, lh, bh };
+		// (no word alone on the last line, at the same lines and cap: noOrphan)
+		if (ok && lines.length <= maxLines && bh <= h) return { cap, lines: noOrphan(lines, w, (l) => heavyW(l, cap)), lh, bh };
 	}
 	return null;
 }

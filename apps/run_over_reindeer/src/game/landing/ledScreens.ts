@@ -471,6 +471,52 @@ function wrap(text: string, s: number, maxW: number): string[] | null {
 	if (cur) lines.push(cur);
 	return lines;
 }
+/** NO WORD ALONE ON THE LAST LINE (2026-11-23, Corey's Super sentence at 1200 x 675: "round." stood alone on a fifth
+ *  line; the big board's sentence, game/scoreboard/explainDraw.ts, and the press screens' lines, wrapEven). Given the greedy wrap's lines, when its last line holds a single word, the break set at the SAME number of lines
+ *  with the most even line widths (the least sum of squared widths) whose last line holds two words or more and whose every
+ *  line fits maxW; the greedy lines otherwise (no such set, or no word alone). A wrap with no word alone is never changed,
+ *  the line count and the size never change, and no line is wider than maxW. `lineW` measures a line of words. */
+export function noOrphan(lines: string[], maxW: number, lineW: (line: string) => number): string[] {
+	const n = lines.length;
+	if (n < 2 || lines[n - 1].split(' ').length > 1) return lines;
+	const words = lines.join(' ').split(' ');
+	const N = words.length;
+	const seg = (i: number, j: number) => words.slice(i, j).join(' ');
+	// best[k][j]: the least cost of the first j words in k lines; from[k][j]: where the k-th line starts
+	const best: number[][] = Array.from({ length: n + 1 }, () => new Array(N + 1).fill(Infinity));
+	const from: number[][] = Array.from({ length: n + 1 }, () => new Array(N + 1).fill(-1));
+	best[0][0] = 0;
+	const memo = new Map<number, number>();
+	const wOf = (i: number, j: number) => {
+		const key = i * 1024 + j;
+		let v = memo.get(key);
+		if (v === undefined) memo.set(key, (v = lineW(seg(i, j))));
+		return v;
+	};
+	for (let k = 1; k <= n; k++)
+		for (let j = k; j <= N; j++)
+			for (let i = k - 1; i < j; i++) {
+				if (best[k - 1][i] === Infinity) continue;
+				// (the last line: two words or more)
+				if (k === n && (j !== N || j - i < 2)) continue;
+				const w = wOf(i, j);
+				if (w > maxW) continue;
+				const c = best[k - 1][i] + w * w;
+				if (c < best[k][j]) {
+					best[k][j] = c;
+					from[k][j] = i;
+				}
+			}
+	if (best[n][N] === Infinity) return lines;
+	const out: string[] = [];
+	for (let k = n, j = N; k > 0; k--) {
+		const i = from[k][j];
+		out.unshift(seg(i, j));
+		j = i;
+	}
+	return out;
+}
+
 function wrapEven(text: string, s: number, maxW: number): string[] | null {
 	const g = wrap(text, s, maxW);
 	if (!g || g.length < 2) return g;
@@ -480,7 +526,8 @@ function wrapEven(text: string, s: number, maxW: number): string[] | null {
 		if (!t || t.length > g.length) break;
 		best = t;
 	}
-	return best;
+	// (no word alone on the last line where the same lines at the same size can avoid it, within maxW)
+	return noOrphan(best, maxW, (l) => textW(l, s));
 }
 type Block = { text: string; scales: number[]; color: string; gap?: number };
 type Laid = { lines: { text: string; s: number; color: string; y: number; w: number; h: number }[]; h: number };

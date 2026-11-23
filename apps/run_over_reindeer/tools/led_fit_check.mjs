@@ -16,6 +16,11 @@
 //      different lines at rest may overlap, no line may be the heavy face drawn under 9 LEDs tall (blobs), every title and
 //      amount the programs record must lie inside its face, the words each card must show are all drawn, and on the press
 //      screen no words sit under the light string along the top
+//   2b. NO WORD ALONE ON A LAST LINE (2026-11-23, wip/reindeer-superline; game/scoreboard/explainDraw.ts noOrphan): every
+//      sentence a card sets in two lines or more (the Free Spins and Super entries' INTRO_LINE sentences and the capped
+//      Total Win's line on the big board; the press screens' bodies) is read back from the lines drawn at rest, and its
+//      last line holds two words or more. A press screen's head (three or four capital words on a face that may hold one
+//      a line) may keep a word alone only where no other cut into the same number of lines fits within its widest line
 //   3. THE 5 x 7 DOT FONT: no two signs are the same picture at size 1 or size 2, and the look-alike pairs (D and O, B and
 //      8, S and 5, 0 and O, M and W, the apostrophe against the comma, the full stop, I, 1, l and !) differ by enough dots
 // Each window and density runs in its own node process (fresh caches, as a fresh page), four at a time.
@@ -27,6 +32,25 @@ import { fileURLToPath } from 'node:url';
 import { APP, geometryFor, install, patternSheet, resolutionFor, src } from './led_node_kit.mjs';
 
 const SELF = fileURLToPath(import.meta.url);
+/** a sentence's lines read back from the strings drawn at rest (each line one string, the words in order), or null */
+function linesOf(sentence, drawn) {
+	const words = sentence.split(/\s+/).filter(Boolean);
+	const N = words.length;
+	// every way to cut the words into drawn lines; prefer one whose last line is not a word alone (no false alarm)
+	const ways = [];
+	const walk = (i, acc) => {
+		if (ways.length > 20) return;
+		if (i === N) return void ways.push(acc);
+		for (let j = N; j > i; j--) {
+			const l = words.slice(i, j).join(' ');
+			if (drawn.has(l)) walk(j, [...acc, l]);
+		}
+	};
+	walk(0, []);
+	if (!ways.length) return null;
+	return ways.find((w) => w.length < 2 || w[w.length - 1].split(' ').length > 1) ?? ways[0];
+}
+const orphaned = (lines) => !!lines && lines.length > 1 && lines[lines.length - 1].split(' ').length === 1;
 /** the windows (CSS px): Stake's review sizes and full screens, the wide screens, upright and sideways phones, the popouts */
 const WINDOWS = [
 	[1200, 675], [1024, 576], [1280, 720], [1366, 768], [1920, 1080], [2560, 1440], [2560, 1080], [3440, 1440],
@@ -201,6 +225,9 @@ const mkBoard = (env = { free: false, left: 0, idle: true, scatter: null }) => {
 	return sb;
 };
 const problems = new Map();
+/** 2b: the sentences each card sets in lines, and the wraps read back (card: sentence: the distinct line sets) */
+const sentencesFor = new Map();
+const wraps = new Map();
 const shown = new Map();
 const blame = (card, what, detail) => {
 	const key = `${card}: ${what}`;
@@ -281,6 +308,25 @@ function sample(sb, card, label) {
 			if (t.kind === 'title') (shown.get(card) ?? shown.set(card, new Set()).get(card)).add(t.str);
 		}
 	}
+	// 2b: the card's sentences, read back from the lines at rest
+	const noteOf = new Map();
+	for (const n of rest) if (n.str.trim() && !noteOf.has(n.str.trim())) noteOf.set(n.str.trim(), n);
+	const drawnAt = new Set(noteOf.keys());
+	for (const { text: sent, strict } of sentencesFor.get(card) ?? []) {
+		const ls = linesOf(sent, drawnAt);
+		if (!ls || ls.length < 2) continue;
+		// (a head's word alone is allowed only where it cannot be helped: no other cut into as many lines fits within the
+		// widest line drawn, measured in the face the lines are set in)
+		let helpless = false;
+		if (!strict && orphaned(ls)) {
+			const n0 = noteOf.get(ls[0]);
+			const wOf = (l) => (n0.kind === 'row' ? draw.rowInfo(l, n0.s).w : screens.textW(l, n0.s));
+			const widest = Math.max(...ls.map(wOf));
+			helpless = JSON.stringify(screens.noOrphan(ls, widest, wOf)) === JSON.stringify(ls);
+		}
+		const per = wraps.get(card) ?? wraps.set(card, new Map()).get(card);
+		(per.get(sent) ?? per.set(sent, new Map()).get(sent)).set(JSON.stringify(ls), helpless);
+	}
 	if (VERBOSE) console.log(`V ${VW}x${VH}@${density} ${card} ${label}: ${seen.join(' | ')}`);
 }
 /** the words a card must show: each word of each string in some line drawn at rest on a face */
@@ -303,6 +349,7 @@ const cards = [];
 	screens.SCREEN_NAMES.forEach((name, i) => {
 		const card = `press screen ${name}`;
 		cards.push(card);
+		sentencesFor.set(card, name === 'win' ? [{ text: TX.win.top, strict: false }] : [{ text: TX[name].head, strict: false }, { text: TX[name].body, strict: true }]);
 		for (const at of [1700, 2500, 3300]) {
 			sb.show.t = sb.show.contentAt + i * period + at;
 			sb.clock = 5000 + i * period + at;
@@ -323,6 +370,7 @@ const cards = [];
 	};
 	for (const [card, [C, words]] of Object.entries(reqs)) {
 		cards.push(card);
+		sentencesFor.set(card, [C.kind === 'fs' ? INTRO_LINE.bonus : C.kind === 'sfs' ? INTRO_LINE.super : C.line].filter(Boolean).map((text) => ({ text, strict: true })));
 		const sb = mkBoard({ free: true, left: 10, idle: false, scatter: null });
 		sb.card({ kind: C.kind, spins: C.spins, amount: C.amount, fmt: C.kr ? fmtKr : fmt, rate: 1, title: C.title ?? null, line: C.line ?? null, x: C.x ?? 0, capped: !!C.capped, auto: false, presents: C.presents ?? 0 });
 		const s = sb.show;
@@ -444,5 +492,17 @@ for (const [k, v] of problems) {
 for (const card of cards) {
 	const bad = byCard.get(card) ?? [];
 	check(bad.length === 0, `2. ${card} fits${bad.length ? '' : ` (${[...(shown.get(card) ?? [])].length} lines of words judged)`}`, bad.slice(0, 6));
+}
+// 2b: no word alone on a last line (each sentence a card set in two lines or more, every distinct wrap seen)
+for (const card of cards) {
+	const per = wraps.get(card);
+	if (!per) continue;
+	for (const [sent, sets] of per) {
+		const all = [...sets.keys()].map((j) => JSON.parse(j));
+		const alone = all.filter((ls) => orphaned(ls) && !sets.get(JSON.stringify(ls)));
+		const kept = all.filter((ls) => orphaned(ls) && sets.get(JSON.stringify(ls)));
+		const show = all.map((ls) => ls.map((l) => `[${l}]`).join(' ')).join(' / ');
+		check(alone.length === 0, `2b. ${card}: no word alone on the last line of ${JSON.stringify(sent.slice(0, 32) + (sent.length > 32 ? '...' : ''))}: ${show}${kept.length ? ' (a word alone where no other cut fits: allowed for a head)' : ''}`, alone);
+	}
 }
 done();
