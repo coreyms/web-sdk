@@ -85,7 +85,10 @@ loop, every move book driven).
   Readout boxes stand 4 px inside the sides and 6 px over the bottom edge (`UPRIGHT.readEdge`); a long label (FREE
   SPINS WIN, BASE AMOUNT) is tracked as tight as its row needs (`UPRIGHT.label`, `--lab-track`). THE ARMOURY on a
   short upright window is drawn smaller as a whole so its plate ends above the bar's lit amount row
-  (`ui/armoury/menuFrame.ts` `fitPortrait`, floor `ARMOURY.layout.portrait.fitMin`).
+  (`ui/armoury/menuFrame.ts` `fitPortrait`, floor `ARMOURY.layout.portrait.fitMin`); it only steps down while the
+  menu is open. With the hero dropped the close key stands in the name's row over room the fit keeps clear of the
+  tray (`closeTop`, `closeRoom`); press areas are written rounded up (44 CSS px at the least), a tile's grows to
+  44 px, and the confirm card never rises so far that Cancel's press area is cut by the window (`portraitCard`).
 - THE SIDEWAYS PHONE'S GEAR CHAIN (2026-11-22, `ui/gear/GearBarSideways.svelte`): a chain from the board frame's own
   top right wheel: Auto on the wheel, Turbo on Auto, the Play on Turbo at the right; Menu and the Armoury as standards
   under the logo; Win over Balance bottom left; the amount with `<` `>` bottom right. `gearLayout.ts` `SIDEWAYS` is

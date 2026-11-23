@@ -702,7 +702,7 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 					const d = MF.designAnchors(F, anchors, ARM);
 					const k = F.u / F0.u;
 					if (need === 460) k460 = k;
-					if (k > ARM.portrait.fitMin + 1e-6 && d.contentBottom - d.contentTop < need - 0.5) fail(`the Armoury's ${need} px of tray and plate do not fit over the bar (room ${f1(d.contentBottom - d.contentTop)} at ${k.toFixed(2)})`);
+					if (k > ARM.portrait.fitMin + 1e-6 && d.contentBottom - d.contentTop - MF.closeRoom(d, ARM) < need - 0.5) fail(`the Armoury's ${need} px of tray and plate and the close key's room do not fit over the bar (room ${f1(d.contentBottom - d.contentTop)} at ${k.toFixed(2)})`);
 					if (d.contentBottom * F.u > G.hudTop - ARM.portrait.gapToHud * F.u + 0.01) fail('the Armoury ends under the bar\'s top');
 					if (Math.abs(F.contentLeft * 2 + F.contentWidth - F.width) > 0.01 || Math.abs(F.contentWidth - F0.contentWidth) > 0.01) fail('the Armoury\'s column is not centered at its own width');
 				}
@@ -828,6 +828,80 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 		tops.push([`${vw}x${vh}`, G.hudTop, G.band.plate, Math.min(G.box.win.y, G.box.bal.y)]);
 	}
 	check('the Armoury on an upright phone: the gear bar\'s top is in its band under the plaque (within 3 px of the plaque\'s plate), never the readouts under the logo', tops.every(([, t, plate]) => t >= plate && t <= plate + 3), tops.map(([k, t, plate, ro]) => `${k}: ${f1(t)} (plate ${f1(plate)}, highest of Win and Balance ${f1(ro)})`).join('; '));
+}
+
+// ---- 4f2. THE OPEN ARMOURY ON EVERY UPRIGHT FRAME (ui/armoury/menuFrame.ts fitPortrait, closeTop, closeRoom, portraitCard) ----
+// The menu's pieces by the game's own rules: the name's row, the close key, the tray and the plate at the column's
+// foot (the hero dropped), the lit row of the bar under them, and the confirm card with Cancel on its corner diamond.
+// The tray's and the plate's heights are measured in the page, never known here, so the sweep takes what they may
+// need together (380 to 470 design px: the tray is 169, a plate 230 to 300) and holds the rules for each.
+{
+	const LS = await import('../src/game/layoutSpec.ts');
+	const US = await import('../src/ui/gear/uprightScene.ts');
+	const MF = await import('../src/ui/armoury/menuFrame.ts');
+	const ARM = (await import('../src/game/constants.ts')).ARMOURY.layout;
+	// COPY OF ui/armoury/Armoury.svelte: the card's corner diamond (CARD_DIAMOND), the close key's right inset (8), the
+	// tile's height and the gap between the two rows of tiles (the second group's word and gaps), design px
+	const DIAMOND = { x: 725.6 / 768, y: 50.5 / 1152 };
+	const TILE = { h: 54, between: 26 };
+	const FRAMES = [[360, 640], [390, 664], [360, 780], [375, 504], [375, 512], [375, 528], [375, 554], [375, 585], [375, 627], [375, 717], [385, 598], [402, 573], [402, 597], [402, 643], [402, 661], [402, 704], [402, 786], [402, 874], [412, 891], [413, 586], [440, 655], [440, 679], [440, 701], [440, 742], [440, 868], [440, 956], [466, 678]];
+	const bad = [];
+	const floor = [];
+	const rows = [];
+	for (const [vw, vh] of FRAMES) {
+		const scale = Math.min(vw / 412, vh / 760);
+		LS.setPortraitViewportSource(() => ({ masterHeight: vh / scale, cssPerMaster: scale, phone: true }));
+		const G = L.uprightLayout(vw, vh, 0);
+		if (!G) { bad.push(`${vw}x${vh}: no train`); continue; }
+		const S = US.uprightScene(vw, vh, 0);
+		const anchors = { hudTop: G.hudTop, clockTop: S.top0 + 10 * S.fit, clockBottom: S.top0 + 25 * S.fit, safe: { top: 0, right: 0, bottom: 0, left: 0 } };
+		const F0 = MF.menuFrame({ kind: 'portrait', phone: true, vw, vh, scale: S.fit, master: { width: 412, height: 760 }, fitWidth: Math.max(412, vw / S.fit) }, ARM);
+		for (const need of [380, 420, 450, 470]) {
+			const F = MF.fitPortrait(F0, anchors, need, ARM);
+			const d = MF.designAnchors(F, anchors, ARM);
+			const u = F.u;
+			const k = u / F0.u;
+			const fail = (why) => bad.push(`${vw}x${vh}, ${need} px of tray and plate (menu at ${k.toFixed(2)}): ${why}`);
+			const css = (y) => F.top + y * u;
+			const room = d.contentBottom - d.contentTop;
+			const atFloor = k <= ARM.portrait.fitMin + 1e-6 && room - MF.closeRoom(d, ARM) < need - 0.5;
+			if (atFloor) { floor.push(`${vw}x${vh} at ${need}`); continue; }
+			// the hero is dropped where its room is under its minimum (Armoury.svelte heroRoom: 9 over the plate, 6 under the hero)
+			const noHero = room - need - 6 < ARM.portrait.minHero;
+			const trayTop = noHero ? d.contentBottom - need : d.contentTop + (room - need);
+			// the plate ends over the bar's lit row; the lit pieces are at or under the bar's top
+			if (css(d.contentBottom) > G.hudTop - ARM.portrait.gapToHud * u + 0.01) fail('the plate runs on over the bar\'s lit row');
+			for (const id of ['amt', 'bal']) if (G.box[id].y < G.hudTop - 0.01) fail(`the lit ${id} is over the bar's top`);
+			// the close key: its drawn box and its 44 CSS px press square clear of the tray (and so of every tile), of the
+			// lit row, in the window, under the clock line
+			const ct = MF.closeTop(d, noHero, ARM);
+			const key = { x0: (F.width - F.contentLeft - 8 - ARM.portrait.closeKey) * u, x1: (F.width - F.contentLeft - 8) * u, y0: css(ct), y1: css(ct + ARM.portrait.closeKey) };
+			const half = Math.max((ARM.portrait.closeKey * u) / 2, ARM.portrait.minHitCss / 2);
+			const cx = (key.x0 + key.x1) / 2, cy = (key.y0 + key.y1) / 2;
+			const press = { x0: cx - half, x1: cx + half, y0: cy - half, y1: cy + half };
+			if (2 * half < 44 - 0.01) fail(`the close key's press area ${f1(2 * half)} px`);
+			if (noHero && (key.y1 > css(trayTop) - 0.01 || press.y1 > css(trayTop) + 0.01)) fail(`the close key on the tray (its box to ${f1(key.y1)}, its press area to ${f1(press.y1)}, the tray from ${f1(css(trayTop))})`);
+			if (press.x0 < -0.01 || press.x1 > vw + 0.01 || press.y0 < -0.01 || press.y1 > G.hudTop) fail('the close key\'s press area leaves the window or reaches the bar');
+			if (key.y0 < anchors.clockBottom - 0.01) fail('the close key on the clock line');
+			// the tiles: 44 CSS px of press area each, the two rows' areas apart
+			const tileHit = Math.max(TILE.h * u, 44);
+			if ((tileHit - TILE.h * u) / 2 > (TILE.between * u) / 2 + 0.01) fail(`the two rows of tiles' press areas meet (${f1(tileHit)} px each, ${f1(TILE.between * u)} between the rows)`);
+			// the confirm card: in the window over the bar, Cancel's and CONFIRM's press areas 44 px, Cancel's whole in the window
+			const C = MF.portraitCard(F, d, d.contentTop + ARM.portrait.cardGap, DIAMOND.y, ARM);
+			const cardW = ARM.portrait.card.w * C.k * u, cardH = ARM.portrait.card.h * C.k * u;
+			const cardX = (vw - cardW) / 2, cardY = css(C.top);
+			const xc = { x: cardX + DIAMOND.x * cardW, y: cardY + DIAMOND.y * cardH };
+			if (cardY < -0.01 || cardY + cardH > G.hudTop - ARM.portrait.gapToHud * u + 0.5 || cardX < -0.01) fail(`the confirm card leaves its room (${f1(cardY)} to ${f1(cardY + cardH)})`);
+			if (xc.y - 22 < -0.01 || xc.x + 22 > vw + 0.01 || xc.x - 22 < -0.01) fail(`Cancel's press area is cut by the window (its middle ${f1(xc.x)}, ${f1(xc.y)})`);
+			if (C.k < 0.55) fail(`the confirm card at ${C.k.toFixed(2)}`);
+			if (need === 450) rows.push(`${vw}x${vh} menu ${k.toFixed(2)} (${f1(12 * u)} px text)${noHero ? `, close key ${f1(ARM.portrait.closeKey * u)} px in the name's row, ${f1(css(trayTop) - press.y1)} px over the tray` : ', hero kept'}; card ${C.k.toFixed(2)}`);
+		}
+	}
+	LS.setPortraitViewportSource(() => ({ masterHeight: 760, cssPerMaster: 1, phone: true }));
+	console.log('     THE OPEN ARMOURY on every upright frame, were its tray and plate 450 design px:');
+	for (const row of rows) console.log(`       ${row}`);
+	check(`armoury: on ${FRAMES.length} upright frames, for 380 to 470 px of tray and plate: the plate ends over the bar's lit row, the close key and its 44 px press area are clear of the tray, in the window and under the clock line, the tiles' press areas are 44 px and apart, and the confirm card's Cancel is whole in the window`, bad.length === 0, bad.slice(0, 5).join(' | '));
+	console.log(`     note: at the menu's floor (${ARM.portrait.fitMin} of its size) the plate would still run on: ${floor.join(', ') || 'nowhere'}`);
 }
 
 // ---- 4g. THE FIVE RINGS (game/frameGears.ts FRAME_PINION, pinionRing; components/BoardFrame.svelte) ----

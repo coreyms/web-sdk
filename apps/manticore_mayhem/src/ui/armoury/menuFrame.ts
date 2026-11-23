@@ -25,7 +25,7 @@ export type ArmouryLayout = 'desktop' | 'portrait' | 'tablet' | 'sideways';
 
 export type FrameRules = {
 	desktop: { w: number; h: number; master: number; scaledUnderRatio: number };
-	portrait: { w: number; gapToHud: number; underClock: number; nameBandMin: number; minHitCss: number; nameGap: number; fitMin: number };
+	portrait: { w: number; gapToHud: number; underClock: number; nameBandMin: number; minHitCss: number; nameGap: number; fitMin: number; closeKey: number; closeGap: number; card: { w: number; h: number }; cardGap: number };
 	tablet: { w: number; minFrame: number; maxContent: number; nameTop: number; contentTop: number };
 	sideways: { w: number; h: number; minLeft: number; hudGap: number; nameAbove: number };
 };
@@ -112,9 +112,14 @@ export const menuFrame = (inp: FrameInput, rules: FrameRules): MenuFrame => {
  *  exactly. Pure (ui/armoury/Armoury.svelte measures `need` and the anchors; tools/gear_layout_test.mjs sweeps it). */
 export const fitPortrait = (f: MenuFrame, a: Anchors, need: number, rules: FrameRules): MenuFrame => {
 	if (f.layout !== 'portrait' || !(need > 0) || a.hudTop == null) return f;
+	// (2026-11-24) THE CLOSE KEY'S ROW. With the hero dropped the tray and the plate stand at the bottom of the column,
+	// and the close key (a `closeKey` px square, top right) needs its own room over the tray's corner: fitted to
+	// `need` alone, the whole menu drawn smaller left none, and the key sat on the SUPER ANTE tile's edge. The room
+	// kept over the tray is the key and `closeGap`; where the name stands under the clock line (its own `nameGap`
+	// row, over the content) the key stands in that row with it (closeTop), so only the rest is kept.
 	const room = (g: MenuFrame) => {
 		const d = designAnchors(g, a, rules);
-		return d.contentBottom - d.contentTop;
+		return d.contentBottom - d.contentTop - closeRoom(d, rules);
 	};
 	if (room(f) >= need) return f;
 	const at = (k: number): MenuFrame => {
@@ -131,6 +136,33 @@ export const fitPortrait = (f: MenuFrame, a: Anchors, need: number, rules: Frame
 	}
 	return at(lo);
 };
+
+/** the room kept over the tray for the close key with the hero dropped, design px: the lower half of its press area
+ *  (the key itself, or the 44 CSS px square round its middle where the menu is drawn small), the key's upper half,
+ *  closeGap, less the name's row where the key stands in it */
+export const closeRoom = (d: DesignAnchors, rules: FrameRules): number =>
+	Math.max(rules.portrait.closeKey, d.minHit) / 2 + rules.portrait.closeKey / 2 + rules.portrait.closeGap - (d.name.place === 'under' ? rules.portrait.nameGap : 0);
+
+/** THE CONFIRM CARD on an upright phone or a tablet (design px): `want` its top, cardGap under the first content line.
+ *  On a window too short for it, it first rises (never above the safe area), and only then is scaled down to the room
+ *  above the HUD row. 2026-11-24: and never so high that Cancel's press area (the round key on the frame art's corner
+ *  diamond, `diamondY` of the card's height down) is cut by the window's top: on a menu drawn small the diamond stood
+ *  under 22 CSS px from the edge, and a press on the key's upper part missed it. */
+export const portraitCard = (f: MenuFrame, d: DesignAnchors, want: number, diamondY: number, rules: FrameRules): { top: number; k: number } => {
+	const C = rules.portrait.card;
+	let top = Math.max(d.safe.top, Math.min(want, d.contentBottom - C.h));
+	// the diamond's center, top + diamondY x (the card's drawn height), at least half a press area under the edge
+	const centre = (t: number) => t + diamondY * Math.min(C.h, d.contentBottom - t);
+	const half = d.minHit / 2 + 0.5 / f.u;
+	if (centre(top) < half && d.contentBottom - top < C.h) top = Math.max(top, (half - diamondY * d.contentBottom) / (1 - diamondY));
+	else if (centre(top) < half) top = half - diamondY * C.h;
+	return { top, k: Math.min(1, (d.contentBottom - top) / C.h) };
+};
+
+/** THE CLOSE KEY'S TOP on an upright phone, design px: on the content's first line beside the hero; with the hero
+ *  dropped and the name in its own row under the clock line, in that row (the key is taller than the row and runs
+ *  `closeKey - nameGap` px on under it, over the room fitPortrait keeps clear of the tray) */
+export const closeTop = (d: DesignAnchors, noHero: boolean, rules: FrameRules): number => (noHero && d.name.place === 'under' ? d.contentTop - rules.portrait.nameGap : d.contentTop);
 
 /** what the game measures when the menu opens and on every resize (never per frame), CSS px in the viewport */
 export type Anchors = {

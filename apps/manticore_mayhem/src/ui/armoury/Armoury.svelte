@@ -46,7 +46,7 @@
 	import { numberToCurrencyString } from '../../game/amount';
 
 	import type { Controls } from '../controls.svelte';
-	import { designAnchors, fitPortrait, type Anchors, type MenuFrame } from './menuFrame';
+	import { closeTop, designAnchors, fitPortrait, portraitCard, type Anchors, type MenuFrame } from './menuFrame';
 	import { armouryView } from './armouryView.svelte';
 	import HeroView from './HeroView.svelte';
 	import { fitConfirmAmount, fitPrice } from './fit';
@@ -969,19 +969,34 @@
 		anchors = a;
 	};
 	const da = $derived(designAnchors(frame, anchors, LAY));
+	/** a press area's side in design px, written to a tenth and never rounded DOWN: 44 CSS px at the least on the
+	 *  screen (2026-11-24: to the nearest tenth, a menu drawn at an odd scale came out at 43.98) */
+	const hitPx = (v: number) => (Math.ceil(v * 10 - 1e-9) / 10).toFixed(1);
 	// THE SHORT UPRIGHT PHONE (2026-11-23; menuFrame.ts fitPortrait): the gear bar's band stands higher than the dock's
 	// row, so on a phone browser's real frames the tray and the plate are taller than the room over the HUD's top, and
 	// the plate ran on over the bar's lit amount row (413 x 586: it read as covered, not lit and live). The menu is then
 	// drawn smaller as a whole, so the plate ends above the lit row and + and - stay live. From the tray's and the
 	// plate's own heights in design px (a transform does not change them) and the measured anchors, never from the
 	// fitted frame itself, so it cannot chase its own tail.
+	// It only ever steps DOWN while the menu is open in one window (2026-11-24): the plates of the modes are not all one
+	// height, and a menu that grew and shrank as the player went through the tiles would be worse than one drawn for the
+	// tallest plate seen. Closing the menu, a resize or a turn starts it over.
+	let fitFor = '';
 	$effect(() => {
 		const f = chromeFrame;
 		const a = anchors;
+		const ph = phase;
 		const need = trayH + panelH + PANEL_MARGIN_TOP;
 		untrack(() => {
-			const g = f.layout === 'portrait' && phase !== 'closed' ? fitPortrait(f, a, need, LAY) : f;
+			const key = `${f.layout} ${f.u} ${f.width} ${f.height} ${a.hudTop ?? ''} ${a.clockBottom ?? ''}`;
+			if (ph === 'closed' || key !== fitFor) {
+				fitFor = key;
+				if (fitted) fitted = null;
+				if (ph === 'closed') return;
+			}
+			const g = f.layout === 'portrait' ? fitPortrait(f, a, need, LAY) : f;
 			const next = g === f ? null : g;
+			if (fitted && (!next || next.u > fitted.u)) return;
 			if ((next?.u ?? 0) !== (fitted?.u ?? 0)) fitted = next;
 		});
 	});
@@ -1023,16 +1038,16 @@
 	const closeStyle = $derived.by(() => {
 		if (!touch) return '';
 		if (frame.layout === 'sideways') return `right:${sideEdge.toFixed(1)}px;top:${SIDE_TOP}px`;
-		return `right:${(frame.contentLeft + 8).toFixed(1)}px;top:${da.contentTop.toFixed(1)}px`;
+		// (menuFrame.ts closeTop: with the hero dropped the key stands in the name's row, clear of the tray's corner)
+		return `right:${(frame.contentLeft + 8).toFixed(1)}px;top:${closeTop(da, noHero, LAY).toFixed(1)}px`;
 	});
 	/** the confirm: the intro card's frame (portrait, tablet), centred, cardGap under the first content line. On a phone
 	 *  too short for it (spec risk 4), it first rises (the name it would sit under has stepped back in confirm; never
 	 *  above the safe area), and only then is scaled down to the room above the HUD row. Sideways: the tray's own slab */
 	const cardPlace = $derived.by(() => {
-		const C = LAY.portrait.card;
 		const want = frame.layout === 'tablet' ? Math.max(da.safe.top, LAY.tablet.cardTop) : da.contentTop + LAY.portrait.cardGap;
-		const top = Math.max(da.safe.top, Math.min(want, da.contentBottom - C.h));
-		return { top, k: Math.min(1, (da.contentBottom - top) / C.h) };
+		// (menuFrame.ts portraitCard: it rises, then scales, and Cancel's press area on the corner diamond stays in the window)
+		return portraitCard(frame, da, want, CARD_DIAMOND.y, LAY);
 	});
 	const cardScale = $derived(!touch || frame.layout === 'sideways' ? 1 : cardPlace.k);
 	const cardStyle = $derived.by(() => {
@@ -1041,7 +1056,7 @@
 		const C = LAY.portrait.card;
 		const { top, k } = cardPlace;
 		// a scaled card scales its hit boxes too: CONFIRM's and Cancel's minimum grows to stay 44 CSS px
-		return `left:${((frame.width - C.w) / 2).toFixed(1)}px;top:${top.toFixed(1)}px;width:${C.w}px;height:${C.h}px${k < 1 ? `;transform:scale(${k.toFixed(4)});transform-origin:50% 0;--hit:${(da.minHit / k).toFixed(1)}px` : ''}`;
+		return `left:${((frame.width - C.w) / 2).toFixed(1)}px;top:${top.toFixed(1)}px;width:${C.w}px;height:${C.h}px${k < 1 ? `;transform:scale(${k.toFixed(4)});transform-origin:50% 0;--hit:${hitPx(da.minHit / k)}px` : ''}`;
 	});
 	/** the small 16:9 frames: the menu's own BALANCE, bet readout and steppers, where the landscape HUD's trio would sit
 	 *  under the desktop box (the trio's master rectangle at the box's 1440 / 1280) */
@@ -1414,8 +1429,8 @@
 			style:--side-r={touch ? `${(LAY.sideways.rail + LAY.sideways.hudGap).toFixed(1)}px` : null}
 			style:--side-edge={touch ? `${sideEdge.toFixed(1)}px` : null}
 			style:--side-top={touch ? `${(da.safe.top + SIDE_TOP).toFixed(1)}px` : null}
-			style:--hit={touch ? `${da.minHit.toFixed(1)}px` : null}
-			style:--xhit={touch ? null : `${(44 / frame.u).toFixed(1)}px`}
+			style:--hit={touch ? `${hitPx(da.minHit)}px` : null}
+			style:--xhit={touch ? null : `${hitPx(44 / frame.u)}px`}
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="arm-name"
@@ -2903,6 +2918,18 @@
 	.arm.confirm.lay-tablet .close {
 		opacity: 0;
 		pointer-events: none;
+	}
+	/* a tile on a menu drawn small (a short upright phone, menuFrame.ts fitPortrait): its press area stays 44 CSS px
+	   tall, grown up and down into the group's own word and gap (26 design px between the two rows of tiles), never
+	   onto the other row; nothing moves */
+	.arm.lay-portrait .tile::after {
+		content: '';
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 50%;
+		height: max(100%, var(--hit));
+		transform: translateY(-50%);
 	}
 	/* touch hit boxes: at least 44 CSS px (--hit is that in design px), grown by a clear ::after, nothing moves */
 	.arm.touch .close::after,
