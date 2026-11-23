@@ -20,7 +20,7 @@
 	import HudReadout from '../hud/HudReadout.svelte';
 	import HudMenuPanel from '../hud/HudMenuPanel.svelte';
 	import { HEAD_LS, headWidth } from './signDraw';
-	import { DESKTOP, KEY_V, PHONE_PLACES, PHONE_REFS, PLAY_V, READOUT_FIT, READOUT_TYPE, TEXT_MIN, amountLimits, fitSteps, readoutRoom, pressRegions, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type PieceId } from './signLayout';
+	import { DESKTOP, KEY_V, PHONE_PLACES, PHONE_REFS, PLAY_V, READOUT_TYPE, TEXT_MIN, amountLimits, readoutFit, pressRegions, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type PieceId } from './signLayout';
 	import { signZones } from './signZones';
 	import { holdLights } from './ledBand';
 	import SignPlay from './SignPlay.svelte';
@@ -102,16 +102,19 @@
 	// part of its box that is inside the window and clear of its row's neighbors, at the largest of its nominal size,
 	// 95 %, 90 % ... 50 % that fits there (smaller still for a longer string: never clipped, never abbreviated). The
 	// width is the string's with every digit a 0 wide, so the size changes only when the number gains a figure.
-	const fitIn = (text: string, nominal: number, roomCss: number) => {
+	// THE BOX NEVER CHANGES (2026-11-22, the probe host at 1920 x 1080 on e5db525d: Balance's element had become its room,
+	// 5.6 px narrower where the LED strip's left end stands in its row). Each readout's element is his box, as before the
+	// rooms; only the number's size answers to the room, and only when the number is too long for it (readoutFit).
+	const fitIn = (id: 'bal' | 'win', text: string) => {
 		void faceReady;
-		const k = fitSteps(em(text.replace(/\d/g, '0')) * nominal * u, Math.max(1, roomCss - 2 * READOUT_FIT.pad * u));
-		return { px: nominal * k.k, k: k.k, under: k.under };
+		const f = readoutFit(geo, id, zones, safe, em(text));
+		return { px: f.px / u, k: f.k, under: f.under, room: f.room };
 	};
 	const balText = $derived(replay ? (rh && !rh.isBase ? rh.base : '') : controls.balanceText());
-	const balRoom = $derived(readoutRoom(geo, 'bal', zones, safe));
-	const balFit = $derived(fitIn(balText, READOUT_TYPE.bal * geo.rs.bal, balRoom.w));
-	const winRoom = $derived(readoutRoom(geo, 'win', zones, safe));
-	const winFit = $derived(fitIn(controls.winOdoText() ?? winValue, READOUT_TYPE.win * geo.rs.win, winRoom.w));
+	const balFit = $derived(fitIn('bal', balText));
+	const winFit = $derived(fitIn('win', controls.winOdoText() ?? winValue));
+	const balRoom = $derived(balFit.room);
+	const winRoom = $derived(winFit.room);
 
 	// ---- THE PRESS PADS: a key whose drawn shape holds less than a 44 CSS px circle gets a 44 px round pad on its
 	// center, drawn first so it lies under every control: where a pad meets a neighbour, the neighbour's own shape takes
@@ -201,9 +204,9 @@
 			pre={hs.winPre()}
 			value={winValue}
 			odo={controls.winOdoText()}
-			x={winRoom.x / u}
+			x={B.win.x}
 			y={B.win.y}
-			w={winRoom.w / u}
+			w={B.win.w}
 			h={B.win.h}
 			nominal={READOUT_TYPE.win * geo.rs.win}
 			fontPx={winFit.px}
@@ -237,9 +240,9 @@
 	<SignPlay {controls} x={B.play.x} y={B.play.y} d={B.play.w} css={geo.box.play.w} />
 	<div class="dc" style:--rs={geo.rs.bal} style:--hf="{headFs(geo.rs.bal)}px">
 		{#if !replay}
-			<HudReadout label="BALANCE" value={controls.balanceText()} x={balRoom.x / u} y={B.bal.y} w={balRoom.w / u} h={B.bal.h} nominal={READOUT_TYPE.bal * geo.rs.bal} fontPx={balFit.px} pad={0} cls="sgr bal {geo.just.bal === 'left' ? 'al-left' : ''}" hud="balance" lit face={OVER} />
+			<HudReadout label="BALANCE" value={controls.balanceText()} x={B.bal.x} y={B.bal.y} w={B.bal.w} h={B.bal.h} nominal={READOUT_TYPE.bal * geo.rs.bal} fontPx={balFit.px} pad={0} cls="sgr bal {geo.just.bal === 'left' ? 'al-left' : ''}" hud="balance" lit face={OVER} />
 		{:else if rh && !rh.isBase}
-			<HudReadout label="BASE AMOUNT" value={rh.base} x={balRoom.x / u} y={B.bal.y} w={balRoom.w / u} h={B.bal.h} nominal={READOUT_TYPE.bal * geo.rs.bal} fontPx={balFit.px} pad={0} cls="sgr bal {geo.just.bal === 'left' ? 'al-left' : ''}" hud="balance" lit face={OVER} />
+			<HudReadout label="BASE AMOUNT" value={rh.base} x={B.bal.x} y={B.bal.y} w={B.bal.w} h={B.bal.h} nominal={READOUT_TYPE.bal * geo.rs.bal} fontPx={balFit.px} pad={0} cls="sgr bal {geo.just.bal === 'left' ? 'al-left' : ''}" hud="balance" lit face={OVER} />
 		{/if}
 	</div>
 	<div class="dc" style:--rs={geo.rs.amt} style:--hf="{headFs(geo.rs.amt)}px">

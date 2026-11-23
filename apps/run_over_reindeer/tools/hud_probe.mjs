@@ -2152,9 +2152,7 @@ async function signHud(browser) {
 			// once a win has brought it up)
 			for (const id of Object.keys(SIGN_PIECES).filter((k) => k !== 'win')) {
 				const a = d.dom[id];
-				// (Balance's and Win's elements are their rooms: his box, less whatever of it is past the window's edge or over a
-				// neighbor in its row; anchored as he set them, checked just below)
-				const b = id === 'bal' ? { ...want(id), x: d.readouts.bal.room.x, w: d.readouts.bal.room.w } : want(id);
+				const b = want(id);
 				if (!a) {
 					off.push(`${id} not drawn`);
 					continue;
@@ -2175,7 +2173,12 @@ async function signHud(browser) {
 			if (S.his && kind === 'landscape') {
 				const D = d.his.desktop;
 				const u = d.geo.u;
-				const bad = Object.keys(D.p).filter((id) => Math.abs(d.dom[id === 'amt' ? 'play' : id].w - D.p[id === 'amt' ? 'play' : id][2] * u) > 1 || Math.abs(S.vp.height - d.geo.box[id].y - (D.plane.h - D.p[id][1]) * u) > 0.5);
+				// (each piece named with what is off: its drawn width against his, its distance up from the bottom edge against his;
+				// the amount's element is its reserved width, so its width is not his box's and only its distance is read)
+				const bad = Object.keys(D.p)
+					.map((id) => ({ id, dw: id === 'amt' ? 0 : d.dom[id].w - D.p[id][2] * u, dy: S.vp.height - d.geo.box[id].y - (D.plane.h - D.p[id][1]) * u }))
+					.filter((x) => Math.abs(x.dw) > 1 || Math.abs(x.dy) > 0.5)
+					.map((x) => `${x.id}: width ${x.dw >= 0 ? '+' : ''}${r1(x.dw)} px, from the bottom ${x.dy >= 0 ? '+' : ''}${r1(x.dy)} px`);
 				check(Math.abs(u - S.vp.width / D.plane.w) < 0.001 && bad.length === 0, `${tag}: his 1440 x 810 plane at this window's scale, every piece his distance from the bottom edge`, bad);
 			}
 			check(d.win.shape === (kind === 'landscape' ? 'pill' : 'rect'), `${tag}: the Win box is a ${kind === 'landscape' ? 'pill' : 'rectangle'}`, d.win.shape);
@@ -2248,7 +2251,7 @@ async function signHud(browser) {
 				const e = await signRead(p);
 				shownGlass = e.win.rects.glass;
 				const a = e.dom.win;
-				const b = { ...want('win'), x: e.readouts.win.room.x, w: e.readouts.win.room.w };
+				const b = want('win');
 				const dd = a ? Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.w - b.w), Math.abs(a.h - b.h)) : 99;
 				check(dd <= 1, `${tag}: the Win box, up, within 1 CSS px of ${ref ? 'his place' : "the rule's place"}`, { off: r1(dd), drawn: a, his: b });
 			}

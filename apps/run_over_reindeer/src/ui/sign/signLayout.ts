@@ -745,6 +745,21 @@ export const readoutRoom = (g: SignGeo, id: 'bal' | 'win', zones: Zones | null, 
 	return { x: cx - half, w: 2 * half };
 };
 
+/** THE READOUT'S NUMBER. Its box is his place, always and exactly: the fit never moves or resizes the box. The number is
+ *  drawn in the box (from its left edge, or about its center) at its nominal size while it is no wider than the box
+ *  less the 8 bar px the box always kept round it (so a number that fitted before fits now, at the same size), and no
+ *  wider than its room allows about that anchor; a longer one comes down by fitSteps. `textEm`: the number's width in
+ *  em of its face, every digit a 0 wide. */
+export const readoutFit = (g: SignGeo, id: 'bal' | 'win', zones: Zones | null, safe: Insets, textEm: number) => {
+	const b = g.box[id];
+	const nominal = READOUT_TYPE[id] * g.rs[id] * g.u;
+	const room = readoutRoom(g, id, zones, safe);
+	const span = g.just[id] === 'left' ? room.x + room.w - b.x : room.w;
+	const limit = Math.max(1, Math.min(b.w - 8 * g.u, span - 2 * READOUT_FIT.pad * g.u));
+	const f = fitSteps(textEm * nominal, limit);
+	return { box: b, room, limit, px: nominal * f.k, k: f.k, under: f.under };
+};
+
 // ---- SKIP TO RESULT, upright (components/SkipButton.svelte through ui/hud/hudLayout.ts hudSkipRect) ----
 // Corey on the live bar, 2026-11-22: "what doesn't work well is the Skip Buttom moved down, I'd move it to the left of
 // the Menu Button on Portrait". So upright it stands on Menu's row, to Menu's left: Menu's own top and height, the

@@ -16,7 +16,9 @@
 // The amount's widths have no font here: a widest amount of 4.4 em ("$100.00" in Overpass 900 is 4.36 em) and a 3.2 em
 // header stand in. Pass: every line PASS, "0 fail" and exit 0.
 import { register } from 'node:module';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -279,8 +281,10 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 				for (const a of amounts(code)) {
 					const t = cur.numberToCurrencyString(a, { fixed: true });
 					const full = emOf(t) * nominal;
-					const f = L.fitSteps(full, Math.max(1, room.w - 2 * L.READOUT_FIT.pad * g.u));
-					if (full * f.k > room.w - 2 * L.READOUT_FIT.pad * g.u + 0.01) bad.push(`${vw}x${vh} ${id} ${t}: ${r1(full * f.k)} px in ${r1(room.w)}`);
+					const f = L.readoutFit(g, id, zones, undefined, emOf(t));
+					// the number as drawn (from his left edge, or about his center) is inside its room
+					const x0 = g.just[id] === 'left' ? b.x : b.x + b.w / 2 - (full * f.k) / 2;
+					if (x0 < room.x - 0.01 || x0 + full * f.k > room.x + room.w + 0.01 || full * f.k > f.limit + 0.01 || f.box !== b) bad.push(`${vw}x${vh} ${id} ${t}: ${r1(x0)} to ${r1(x0 + full * f.k)} in ${r1(room.x)} to ${r1(room.x + room.w)}`);
 					if (nominal * f.k < least[id][0]) least[id] = [nominal * f.k, t];
 					if (f.under) under.push(`${id} ${t} ${r1(nominal * f.k)} px`);
 				}
@@ -292,9 +296,46 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 			const room = L.readoutRoom(g, 'bal', zones);
 			for (const a of [1000, 10000, 1e7]) {
 				const t = cur.numberToCurrencyString(a, { fixed: true });
-				const f = L.fitSteps(emOf(t) * 21 * g.rs.bal * g.u, room.w - 2 * L.READOUT_FIT.pad * g.u);
+				const f = L.readoutFit(g, 'bal', zones, undefined, emOf(t));
 				rows.push(`       568x320 BTC, ${t}: ${r1(21 * g.rs.bal * g.u * f.k)} px (${Math.round(f.k * 100)} %), room ${r1(room.x)} to ${r1(room.x + room.w)} of 568`);
 			}
+		}
+	}
+	// AN ORDINARY AMOUNT CHANGES NOTHING (2026-11-22, the probe host at 1920 x 1080 on e5db525d): with an everyday balance
+	// or win in USD the readout's box is his box itself and its number is at its nominal size, at every window; and
+	// every piece's box is the box 0d30b1b8 laid out, to the last digit (that commit's layout file, read from git)
+	{
+		state.stateBet.currency = 'USD';
+		const moved = [];
+		for (const [kind, vw, vh] of windows) {
+			const zones = Z.signZones(kind, vw, vh, kind !== 'landscape');
+			const g = L.signLayout({ kind, vw, vh, zones });
+			for (const [id, amounts] of [['bal', [1000, 10000]], ['win', [12.4, 1234.5]]])
+				for (const a of amounts) {
+					const t = cur.numberToCurrencyString(a, { fixed: true });
+					const f = L.readoutFit(g, id, zones, undefined, emOf(t));
+					if (f.box !== g.box[id] || f.k !== 1 || f.under || Math.abs(f.px - (id === 'bal' ? 21 : 26) * g.rs[id] * g.u) > 1e-9) moved.push(`${vw}x${vh} ${id} ${t}: ${Math.round(f.k * 100)} %`);
+				}
+		}
+		line(moved.length === 0, `an ordinary balance and win (USD) change nothing: his box, the nominal size, at ${windows.length} windows`, moved.slice(0, 5).join(' | '));
+		let old = null;
+		try {
+			const src = execFileSync('git', ['-C', APP, 'show', '0d30b1b8:apps/run_over_reindeer/src/ui/sign/signLayout.ts'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+			const tmp = join(mkdtempSync(join(tmpdir(), 'signlayout-')), 'signLayout_0d30b1b8.ts');
+			writeFileSync(tmp, src);
+			old = await import(pathToFileURL(tmp).href);
+		} catch {
+			console.log('     (0d30b1b8 is not in this checkout: the comparison with its layout file is passed over)');
+		}
+		if (old) {
+			const off = [];
+			for (const [kind, vw, vh] of windows) {
+				const zones = Z.signZones(kind, vw, vh, kind !== 'landscape');
+				const a = L.signLayout({ kind, vw, vh, zones });
+				const b = old.signLayout({ kind, vw, vh, zones });
+				for (const id of L.PIECES) for (const k of ['x', 'y', 'w', 'h']) if (a.box[id][k] !== b.box[id][k]) off.push(`${vw}x${vh} ${id}.${k}: ${b.box[id][k]} to ${a.box[id][k]}`);
+			}
+			line(off.length === 0, `every piece's box is 0d30b1b8's, to the last digit, at ${windows.length} windows`, off.slice(0, 5).join(' | '));
 		}
 	}
 	line(bad.length === 0, `Balance and Win fit their rooms: ${windows.length} windows x 9 currencies x an everyday and a very long amount (10,000,000.000000 BTC, 1,000,000,000.00 GC), every room inside the window and clear of the scene and the diamonds`, bad.slice(0, 5).join(' | '));
