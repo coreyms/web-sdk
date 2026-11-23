@@ -347,6 +347,9 @@ const assets = {
 	// (four variants in one atlas) and the same veins as light for the reactive light-ups (greyscale, drawn additive).
 	// Both at boot: the wells are under every cell from the first board, and the first win can light the veins.
 	// The phone tier takes the half atlases (128 px cells).
+	// THE LIGHT RING on the frame's two top wheels (gear bar 2026-11-22; tools/build_gear_ring.py, game/frameGears.ts): one
+	// small white ring, tinted and faded by components/BoardFrame.svelte. In at boot so it never uploads mid-play.
+	gearRing: { type: 'sprite', src: stamp(new URL('../../assets/ui/gear-ring.png', import.meta.url).href), preload: true },
 	boardWells: { type: 'sprite', src: tiered(stamp(new URL('../../assets/ui/board-wells.webp', import.meta.url).href), stamp(new URL('../../assets/ui/board-wells-half.webp', import.meta.url).href)), preload: true },
 	boardWellsGlow: { type: 'sprite', src: tiered(stamp(new URL('../../assets/ui/board-wells-glow.webp', import.meta.url).href), stamp(new URL('../../assets/ui/board-wells-glow-half.webp', import.meta.url).href)), preload: true },
 	// THE BOARD FRAME and its chain loop tiles (tools/build_board_layers.py from the board_v5j renders;

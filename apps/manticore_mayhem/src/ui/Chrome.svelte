@@ -12,6 +12,8 @@
 	import ChromeStyles from './ChromeStyles.svelte';
 	import HudStyles from './hud/HudStyles.svelte';
 	import { hudFrame, readSafeInsets, portraitBoardBottoms } from './hud/hudLayout';
+	import { barKind } from './gear/gearLayout';
+	import { BAR_MODE } from './gear/barMode';
 	import { readOdoDev } from './hud/winOdometer';
 	import ChromeLandscape from './ChromeLandscape.svelte';
 	import ChromePortrait from './ChromePortrait.svelte';
@@ -69,7 +71,7 @@
 	if (import.meta.env.DEV && typeof window !== 'undefined') {
 		// house rule: extend __manticore, never a new global (tools/manticore/hud_probe.js reads the HUD's scale, the
 		// portrait row's t and the plaque box the rule placed it under)
-		((window as any).__manticore ??= {}).hudFrame = () => ({ variant: hud.variant, u: hud.u, t: hud.t, gap: hud.gap, plaque: kind === 'portrait' ? portraitBoardBottoms(vw, vh) : null });
+		((window as any).__manticore ??= {}).hudFrame = () => ({ variant: hud.variant, bar: barKind({ kind, vw, vh }, BAR_MODE), u: hud.u, t: hud.t, gap: hud.gap, plaque: kind === 'portrait' ? portraitBoardBottoms(vw, vh) : null });
 		// THE WIN ODOMETER's state (ui/hud/winOdometer.ts; tools/manticore/hud_probe.js section `cards`): its mode, the total,
 		// what the readout reads now (locked digits, '#' for a moving one), the banner screen and the clock ms it drew at, the
 		// count's end, when it went plain and whether by a skip, the pops played

@@ -7,9 +7,12 @@
 	import type { Controls } from '../controls.svelte';
 	import { betStepTarget } from '../betStep';
 	import HudIcon from './HudIcon.svelte';
+	import { chevronSvg } from '../gear/gearArt';
 
-	type Props = { dir: 1 | -1; controls: Controls; x: number; y: number; d: number; cls?: string };
-	const { dir, controls, x, y, d, cls = '' }: Props = $props();
+	// THE GEAR BAR (2026-11-22, ui/gear/GearBar.svelte): `chev` draws the key as a bare gold < or > (no glass); what the
+	// key does is the same.
+	type Props = { dir: 1 | -1; controls: Controls; x: number; y: number; d: number; cls?: string; chev?: boolean };
+	const { dir, controls, x, y, d, cls = '', chev = false }: Props = $props();
 	const target = $derived(controls.betDisabled() ? undefined : betStepTarget(dir));
 	const step = () => {
 		const next = betStepTarget(dir);
@@ -22,7 +25,7 @@
 
 <button
 	type="button"
-	class="slot-btn hg gl sk hit {cls}"
+	class="slot-btn hg {chev ? 'bare' : 'gl'} sk hit {cls}"
 	data-hud-step={dir > 0 ? 'plus' : 'minus'}
 	style:left="{x}px"
 	style:top="{y}px"
@@ -32,5 +35,5 @@
 	onclick={step}
 	aria-label={label}
 >
-	<HudIcon name={dir > 0 ? 'plus' : 'minus'} />
+	{#if chev}{@html chevronSvg(dir)}{:else}<HudIcon name={dir > 0 ? 'plus' : 'minus'} />{/if}
 </button>

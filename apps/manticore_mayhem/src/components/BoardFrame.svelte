@@ -62,6 +62,7 @@
 	import { sceneLight } from '../game/scene';
 	import { loadFrameNightLate } from '../game/deferredLoad';
 	import { bannerBackSlot, boardPlateSlot, boardPlaqueSlot, frameLight } from '../game/boardPlateSlot';
+	import { FRAME_WHEEL, frameGearsAt, ringAt } from '../game/frameGears';
 
 	const context = getContext();
 	const parent = getContextParent();
@@ -121,6 +122,23 @@
 	under.addChild(shadowSprite, shadowDaySprite, backing, plateSlot, bannerBack, frameSprite, gearBox.day, nightSprite, fireSprite, gearBox.night, gearBox.fire, plaqueSlot);
 	const UNDER_NAMES = new Map<PIXI.Container, string>([[shadowSprite, 'shadow'], [shadowDaySprite, 'shadow-day2'], [backing, 'backing'], [plateSlot, 'plates'], [bannerBack, 'banner-back'], [frameSprite, 'frame'], [gearBox.day, 'gears-day'], [nightSprite, 'frame-night'], [fireSprite, 'frame-fire'], [gearBox.night, 'gears-night'], [gearBox.fire, 'gears-fire'], [plaqueSlot, 'plaque']]);
 
+	// THE LIGHT RING ON THE TWO TOP WHEELS (gear bar 2026-11-22; game/frameGears.ts): one plain sprite a wheel, straight
+	// over the wheel's own brass ring, in the color and at the strength the Play gear's hub ring has (a feature's color
+	// while its free spins play, a pulse as a win lands). Its own container, drawn right after `under` at the same depth
+	// and moved with the same kick, so the frame's own layer list is untouched. A tint and an opacity only: no filter, no
+	// mask, no texture made here (static/assets/ui/gear-ring.png, tools/build_gear_ring.py: RING_TEX_R px to its middle line).
+	const RING_TEX_R = 216;
+	const rings = new PIXI.Container({ zIndex: -1, label: 'wheel-rings' });
+	const ringSprites = (['L', 'R'] as const).map((side) => {
+		const sprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
+		sprite.anchor.set(0.5);
+		sprite.label = `wheel-ring-${side}`;
+		sprite.visible = false;
+		rings.addChild(sprite);
+		return { side, sprite };
+	});
+	const ringLit = { rgb: -1, level: -1 };
+
 	const chains = new PIXI.Container({ zIndex: 1 });
 	const SIDES = ['L', 'R'] as const;
 	type Side = (typeof SIDES)[number];
@@ -156,6 +174,7 @@
 	}
 
 	parent.addToParent(under);
+	parent.addToParent(rings);
 	parent.addToParent(chains);
 
 	// ---- layout -------------------------------------------------------------------------------
@@ -174,6 +193,7 @@
 			night: assets?.[`boardFrameNight_${kind}`],
 			fire: assets?.[`boardFrameFire_${kind}`],
 			gears: { day: gearTable(assets, kind, 'day'), night: gearTable(assets, kind, 'night'), fire: gearTable(assets, kind, 'fire') },
+			ring: assets?.gearRing,
 		};
 	});
 	// the other layouts' night sets are not registered at boot: this layout's is fetched the first time it shows
@@ -490,6 +510,14 @@
 			});
 		}
 		setGears(gear.frame);
+		// the wheels' light rings: each on its wheel's center, its middle line on the wheel's brass ring
+		for (const { side, sprite } of ringSprites) {
+			if (!t.ring) continue;
+			const c = r.map(FRAME_WHEEL.center[side][0], FRAME_WHEEL.center[side][1]);
+			sprite.texture = t.ring;
+			sprite.position.set(c.x, c.y);
+			sprite.scale.set((FRAME_WHEEL.ringR * r.m) / RING_TEX_R);
+		}
 		if (t.shadow && t.frame) {
 			const box = spec.shadow.box;
 			const at = r.map(box[0], box[1]);
@@ -603,6 +631,7 @@
 			ukx = kx;
 			uky = ky;
 			under.position.set(kx, ky);
+			rings.position.set(kx, ky);
 			dirty = true;
 		}
 		// THE FOREGROUND KICK: the courtyard's foreground takes this same read, in canvas px, inside this call
@@ -610,8 +639,22 @@
 		shoveForeground(kx * toCanvas, ky * toCanvas);
 		// the light first: it needs no chains (the scene's night, fire level and tints onto the layers)
 		applyLight(performance.now());
+		// the wheels' light rings (game/frameGears.ts): written only when the color or the strength changed
+		const ring = ringAt(performance.now());
+		if (ring.level !== ringLit.level || ring.rgb !== ringLit.rgb) {
+			ringLit.level = ring.level;
+			ringLit.rgb = ring.rgb;
+			const on = ring.level > 0 && frameSprite.texture !== PIXI.Texture.EMPTY;
+			for (const { sprite } of ringSprites) {
+				sprite.visible = on && sprite.texture !== PIXI.Texture.EMPTY;
+				sprite.alpha = ring.level;
+				sprite.tint = ring.rgb;
+			}
+		}
 		if (!chainsReady) return;
 		if (tickHaul(performance.now())) setUvs();
+		// the HTML gears of the game bar turn from this same travel, in this same tick (game/frameGears.ts)
+		frameGearsAt(haul.offset);
 		// the gears follow the chain's own travel, this frame's (the overshoot too): a texture swap when the frame changes
 		gear.frame = gearFrameFor(haul.offset);
 		if (gear.frame !== gear.shown) setGears(gear.frame);
@@ -814,6 +857,9 @@
 					underOrder: under.children.map((c) => UNDER_NAMES.get(c) ?? 'other'),
 					/** THE RELIGHT AND THE GEARS (constants FRAME_RELIGHT; tools/manticore/gear_probe.js) */
 					relight: relightState(),
+					/** THE WHEELS' LIGHT RINGS (game/frameGears.ts; tools/manticore/hud_probe.js section `gear`): each sprite's
+					 *  center and its middle line's radius in master units, whether it draws, its color and strength */
+					wheelRings: ringSprites.map(({ side, sprite }) => ({ side, x: sprite.x, y: sprite.y, r: RING_TEX_R * sprite.scale.x, visible: sprite.visible, alpha: Number(sprite.alpha.toFixed(4)), tint: sprite.tint as number, tex: [sprite.texture.width, sprite.texture.height], blend: sprite.blendMode as string, filters: Array.isArray(sprite.filters) ? sprite.filters.length : sprite.filters ? 1 : 0, mask: !!sprite.mask })),
 					/** the tool's numbers for this layout: the plate's crop and sizes, each loop's box, the shadow's, the checks */
 					relightSpec: { frame: fs, layout: RL.layouts[k], checks: RL.checks },
 					/** the old cell-well sprite in the board container: null since it left the game (2026-10-28, asset grade #4;

@@ -110,7 +110,7 @@ export const landscapeExtraY = (masterHeight: number | null = landscapeViewport?
 
 /** the landscape frame rect for a desktop screen that shows `extra` master units above and below the master
  *  (LANDSCAPE_TALL); extra 0 is FRAME.landscape itself */
-const landscapeTallFrame = (extra: number) => {
+export const landscapeTallFrame = (extra: number) => {
 	if (extra <= 0) return FRAME.landscape;
 	const B = LANDSCAPE_BOARD;
 	const H = MASTER.landscape.height;

@@ -48,6 +48,16 @@ loop, every move book driven).
   (`MOCK_K`, line 28). FOUR variants: desktop, tablet, portrait, landscape. A different board or creature placement is
   re-measured there, never in a component.
 - `layoutSpec.HUD` (line 439) now holds only the Pixi-side overlay slots: `pressToContinue`, `modePlaque`, `spinWin`.
+- THE GEAR BAR (2026-11-22, `ui/gear/`): desktop and laptop windows draw the approved gear layout in place of the dock
+  (Play as a gear by the frame's top right wheel, Auto and Turbo meshed on it, Menu and the Armoury as war standards
+  under the logo). One typed file holds its tables and its rule, `ui/gear/gearLayout.ts`: `DESKTOP` (Corey's places at
+  1920 x 1080), `desktopLayout()` (every other desktop window), empty `sideways` and `upright` phone tables, and
+  `barKind()`, the one switch. Phones, tablets and Stake's two popouts keep the dock until their tables are filled.
+  Rollback: `GAME_BAR = 'dock'`. On the dev server `?bar=dock` or `?bar=gear` picks a bar for a probe run. It is a
+  re-skin: `HudSpin`, `HudReadout`, `HudStep` and `HudMenuPanel` are reused over the same `controls`. The gears turn
+  from the frame's own haul (`game/frameGears.ts`, called from `components/BoardFrame.svelte`'s tick) by a CSS rotate
+  on five layers, and the hub ring's color is drawn on the frame's two top wheels as plain sprites. Dev hook:
+  `__manticore.gearBar()`, `__manticore.frame.wheelRings`. Node test: `tools/gear_layout_test.mjs`.
 - The look is one theme block, `ui/hudTheme.ts` (tokens injected as `--hud-*`); read `ui/HUD_THEME.md` before restyling.
   `.am-glass` (`ui/ChromeStyles.svelte`) is the panel frame every HUD modal shares; the riveted bronze plate is
   `.am-plate`. Active highlights use this game's accent (gold, `accent-rgb` in `ui/hudTheme.ts`), rule L6.

@@ -19,15 +19,22 @@
 	//   win             a paying board lands: a spark ring, a small pop of the ring and the halo
 	// Transform and opacity only (the ring by the Web Animations API on transform); reduced motion: nothing turns or
 	// loops, the stop square cross-fades.
-	import { onDestroy, untrack } from 'svelte';
+	// THE GEAR BAR (2026-11-22, ui/gear/GearBar.svelte): the same key, the same rules and the same ring driver inside the
+	// Play gear. Four optional props, all absent on the dock: `art` (the gear's own layers, drawn inside the button so the
+	// button's states style them), `hubD` (the hub's diameter: the face's size, where the dock's face is the whole key),
+	// `ringArt` (the hub's stud arrow in place of the lane ring on the full face) and `onwin` (the win flourish's moment,
+	// which the frame's wheels share). Nothing the key does changes.
+	import { onDestroy, untrack, type Snippet } from 'svelte';
 	import type { Controls } from '../controls.svelte';
 	import { replayState } from '../replayState.svelte';
 	import { fitFont, UI_TEXT_FACE } from '../../game/textFit';
 	import { boardPace } from '../../game/boardPace';
 	import { ang, FILL_C, laneRingSvg, REST_METHODS, RingDriver, sparksSvg, stopSquareSvg, type RestMethod, type RingTheme } from './spinRing';
 
-	type Props = { controls: Controls; x: number; y: number; d: number };
-	const { controls, x, y, d }: Props = $props();
+	type Props = { controls: Controls; x: number; y: number; d: number; art?: Snippet; hubD?: number; ringArt?: string; onwin?: () => void };
+	const { controls, x, y, d, art, hubD, ringArt, onwin }: Props = $props();
+	/** the face's diameter: the whole key on the dock, the hub inside the Play gear */
+	const fd = $derived(hubD ?? d);
 
 	const replay = $derived(controls.isReplay());
 	const replayAgain = $derived(replay && replayState.phase === 'done');
@@ -50,14 +57,14 @@
 	const st = $derived(mode === 'spinning' ? (disabled ? 'halt' : 'run') : 'idle');
 	const count = $derived(mode === 'auto' ? controls.autoCount() : mode === 'loaded' && loaded ? loaded.count : 0);
 	const priceText = $derived(mode === 'armed' ? (controls.playCostText() ?? '') : '');
-	const priceFont = $derived(priceText ? fitFont({ text: priceText, nominal: d * 0.13, box: d * 0.7, minScale: 0.55, weight: 900, face: UI_TEXT_FACE }) : null);
+	const priceFont = $derived(priceText ? fitFont({ text: priceText, nominal: fd * 0.13, box: fd * 0.7, minScale: 0.55, weight: 900, face: UI_TEXT_FACE }) : null);
 	const label = $derived(replay ? 'Replay' : showStop ? 'Stop' : autoActive ? 'Stop autoplay' : 'Spin');
 
 	// ---- THE FACE (ui/hud/spinRing.ts): the full ring with its stop square, or the thinned ring round a count ----
 	const TH: RingTheme = 'm';
 	/** which face is drawn: the full ring (idle, spinning, busy) or a counted face; a change rebuilds it (with a pop) */
 	const faceKind = $derived(flip ? 'flip' : mode);
-	const ringHtml = $derived(laneRingSvg(TH, !flip));
+	const ringHtml = $derived(flip && ringArt ? ringArt : laneRingSvg(TH, !flip));
 	const stopHtml = stopSquareSvg(TH);
 	const sparkHtml = sparksSvg(TH);
 	/** the free-spins fill: the lit share of the ring's track (a change moves by the slider below) */
@@ -173,6 +180,7 @@
 			if (w > lastWin && winDue && !reduced) {
 				winDue = false;
 				flash('win', 760);
+				onwin?.();
 			}
 			lastWin = w;
 		});
@@ -308,13 +316,14 @@
 	style:top="{y}px"
 	style:width="{d}px"
 	style:height="{d}px"
-	style:--d="{d}px"
+	style:--d="{fd}px"
 	{disabled}
 	onclick={replay ? () => replayState.start?.() : controls.spin}
 	onpointerenter={hoverOn}
 	onpointerleave={hoverOff}
 	aria-label={label}
 >
+	{@render art?.()}
 	<i class="halo"></i>
 	<svg class="ring" viewBox="0 0 100 100" aria-hidden="true">
 		<circle class="trk" cx="50" cy="50" r="46" />

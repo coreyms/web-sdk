@@ -22,6 +22,9 @@
 	import HudStep from './hud/HudStep.svelte';
 	import HudReadout from './hud/HudReadout.svelte';
 	import HudMenuPanel from './hud/HudMenuPanel.svelte';
+	import GearBar from './gear/GearBar.svelte';
+	import { gearBarLayout } from './gear/gearLayout';
+	import { BAR_MODE } from './gear/barMode';
 
 	type Props = { controls: Controls; hud: HudFrame };
 	const { controls, hud }: Props = $props();
@@ -41,6 +44,9 @@
 	const amtLabel = $derived(rh ? rh.label : hs.amtLabel());
 	const amtValue = $derived(rh ? rh.total : controls.betText());
 	const plane = $derived(`width:${hud.W}px;height:${hud.H}px;transform:${hud.transform};--hit:${44 / hud.u}px`);
+	// THE GEAR BAR (2026-11-22, ui/gear): the bar a desktop or laptop window draws; null where the rule keeps the dock
+	// (Stake's two popouts, a small window near 4:3, and every screen while ui/gear/gearLayout.ts GAME_BAR says 'dock')
+	const gear = $derived(gearBarLayout({ kind: 'landscape', vw: hud.W * hud.u, vh: hud.H * hud.u }, BAR_MODE));
 </script>
 
 <ClockStrip side="left" clock text="MANTICORE UNLEASHED" />
@@ -53,6 +59,9 @@
 	<LogoPicture />
 </div>
 
+{#if gear}
+<GearBar {controls} {hud} layout={gear} />
+{:else}
 <!-- the dock: glass, keys, WIN and Spin (under THE ARMOURY's tint) -->
 <div class="hudp hud-group v-{hud.variant}" data-plane="base" style={plane}>
 	<div class="shadow" style:left="{G.x0 + 14}px" style:top="{G.y1 - 14}px" style:width="{G.xr - G.x0 - 28}px" style:height="28px"></div>
@@ -96,6 +105,7 @@
 	</div>
 </div>
 </div>
+{/if}
 
 <style>
 	/* placed by the layout rule (inline left / top / width: game/logo/layout.ts) */

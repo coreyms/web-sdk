@@ -1,0 +1,608 @@
+/* THE GEAR BAR'S LOOK (2026-11-22; the approved mock Desktop "Manticore Mayhem/desktop_r6_2026-11-22": build/lab6.js,
+   build/page.css, build/r6.css). Scoped to .hudp.v-gear, the planes ui/gear/GearBar.svelte draws; the dock's own rules
+   (ui/hud/hud.css) are untouched and still style the pieces borrowed from it. Painted only: no backdrop-filter, no CSS
+   filter, no mask, no blend mode. Motion is transform and opacity. The planes are in CSS px of the window, so a px
+   here is a real px; sizes that follow a piece come from its own box (percent) or from a variable its component sets. */
+.hudp.v-gear {
+	/* iron and brass (the mock's gear gradients), the arrow's gold, SPIN's gold; a disabled gear swaps them for steel */
+	--gi0: #3d342b;
+	--gi1: #221c17;
+	--gi2: #0f0c0a;
+	--gb0: #f0d6a0;
+	--gb1: #c49656;
+	--gb2: #6e4a22;
+	--ga0: #fff6dc;
+	--ga1: #ffeab0;
+	--ga2: #d9a441;
+	--ga3: #8a6420;
+	--gs0: #fff1c4;
+	--gs1: #f0c766;
+	--gs2: #a87a25;
+	/* the hub ring's color: the theme's gold (a win, autoplay), or a feature's own (GearBar sets it on the gear) */
+	--ring: rgb(var(--hud-accent-rgb));
+	--g-ink: #02080f;
+}
+.hudp.v-gear svg text {
+	font-family: var(--hud-font);
+	font-weight: 900;
+}
+
+/* ---- a gear's layers: each fills the gear's box plus the room for its shadow and halo (--pad) ---- */
+.hudp.v-gear .ga,
+.hudp.v-gear .gn {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+.hudp.v-gear .ga {
+	transition: transform 0.12s ease;
+}
+/* the hover's quarter tooth (the mock's "step"): a short eased turn of the turning layers' holder */
+.hudp.v-gear .gn {
+	transition: transform 0.2s ease;
+}
+.hudp.v-gear .gl {
+	position: absolute;
+	inset: calc(var(--pad) * -1);
+	pointer-events: none;
+}
+.hudp.v-gear .gl > svg {
+	display: block;
+	width: 100%;
+	height: 100%;
+	overflow: visible;
+}
+/* THE TURNING LAYERS: each on a layer of its own, turned by a transform alone (ui/gear/GearBar.svelte apply) */
+.hudp.v-gear .gl.turn {
+	will-change: transform;
+}
+
+/* ---- THE PLAY GEAR: ui/hud/HudSpin.svelte's key, its glass disc gone, its face inside the hub ---- */
+.hudp.v-gear .spin,
+.hudp.v-gear .spin:disabled:not([data-st='halt']),
+.hudp.v-gear .spin.m-feature:disabled,
+.hudp.v-gear .spin.m-auto:disabled {
+	border: 0;
+	background: none;
+	box-shadow: none;
+	transform: none;
+}
+.hudp.v-gear .spin:active:not(:disabled) {
+	transform: none;
+	box-shadow: none;
+}
+/* a disabled Play never goes see-through (the dock's key dims after a stop press; here the stop square alone dims) */
+.hudp.v-gear .spin:disabled {
+	opacity: 1;
+}
+@media (hover: hover) and (pointer: fine) {
+	.hudp.v-gear .spin:hover:not(:disabled) {
+		border: 0;
+		box-shadow: none;
+	}
+}
+/* the press region is the whole gear: the key's own round box, nothing grown round it */
+.hudp.v-gear .spin.hit::after {
+	inset: 0;
+}
+/* the dock's press halo and track are not this face's; the dotted ring of a loaded run or an armed feature stays,
+   inside the hub's ring */
+.hudp.v-gear .spin > .halo,
+.hudp.v-gear .spin .trk {
+	display: none;
+}
+.hudp.v-gear .spin > .ring {
+	left: calc(50% - var(--d) * 0.44);
+	top: calc(50% - var(--d) * 0.44);
+	width: calc(var(--d) * 0.88);
+	height: calc(var(--d) * 0.88);
+}
+.hudp.v-gear .spin > .fxs {
+	inset: auto;
+	left: calc(50% - var(--d) / 2);
+	top: calc(50% - var(--d) / 2);
+	width: var(--d);
+	height: var(--d);
+}
+/* a counted face (autoplay, free spins, a loaded run, an armed feature, a replay) shows no arrow, no fill arc and no
+   sparks: the count stands alone in the hub and the hub's ring says the rest (the mock) */
+.hudp.v-gear .spin .fx.cnt-face .rb,
+.hudp.v-gear .spin .fx .fill,
+.hudp.v-gear .spin .fx .spk,
+.hudp.v-gear .spin .sqs {
+	opacity: 0;
+}
+.hudp.v-gear .spin .sqs {
+	display: none;
+}
+.hudp.v-gear .spin:disabled:not([data-st='halt']):not(.m-feature):not(.m-auto) .fx {
+	opacity: 1;
+}
+/* SPIN in the hub, over the arrow, while the key is at rest */
+.hudp.v-gear .spin > .gw {
+	position: absolute;
+	left: calc(50% - var(--d) / 2);
+	top: calc(50% - var(--d) / 2);
+	width: var(--d);
+	height: var(--d);
+	z-index: 3;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 0.12s ease;
+}
+.hudp.v-gear .spin > .gw svg {
+	display: block;
+	width: 100%;
+	height: 100%;
+	overflow: visible;
+}
+.hudp.v-gear .spin.m-idle > .gw {
+	opacity: 1;
+}
+/* the counts (the mock's 44 over 14, or 17 where 14 would be too small: gearLayout text) */
+.hudp.v-gear .spin .cnt,
+.hudp.v-gear .spin .cnt.long {
+	font-size: var(--g-count);
+	color: rgb(var(--hud-accent-cream-rgb));
+	text-shadow: 0 0 1px #0b0703, 1.5px 1.5px 0 #0b0703, -1.5px 1.5px 0 #0b0703, 1.5px -1.5px 0 #0b0703, -1.5px -1.5px 0 #0b0703, 0 2px 4px rgba(var(--hud-shadow-rgb), 0.6);
+}
+.hudp.v-gear .spin.m-feature .cnt {
+	color: #fff;
+}
+.hudp.v-gear .spin .sub {
+	font-size: var(--g-sub);
+	letter-spacing: 0.16em;
+	margin-right: -0.16em;
+	margin-top: calc(var(--g-sub) * 0.35);
+	text-shadow: 0 0 1px #0b0703, 1px 1px 0 #0b0703, -1px 1px 0 #0b0703, 1px -1px 0 #0b0703, -1px -1px 0 #0b0703;
+}
+.hudp.v-gear .spin.m-feature .sub {
+	color: var(--ring);
+}
+/* the hub's ring and halo by state */
+.hudp.v-gear .spin .gl.glow,
+.hudp.v-gear .spin .gl.flash,
+.hudp.v-gear .spin .hr-mode,
+.hudp.v-gear .spin .hr-hot,
+.hudp.v-gear .spin .hr-sunk,
+.hudp.v-gear .spin .sunk {
+	opacity: 0;
+	transition: opacity 0.12s ease;
+}
+.hudp.v-gear .spin.m-feature .hr-mode {
+	opacity: 1;
+}
+.hudp.v-gear .spin.m-feature .gl.glow {
+	opacity: 0.5;
+}
+.hudp.v-gear .spin.m-auto .gl.glow {
+	animation: gear-breathe 1.8s ease-in-out infinite;
+}
+/* a win: the halo from full and a pale ring over the hub's, both gone in 0.7 s (the frame's wheels pulse with them) */
+.hudp.v-gear .spin.win .gl.glow,
+.hudp.v-gear .spin.win .gl.flash {
+	animation: gear-win 0.7s linear 1;
+}
+@keyframes gear-win {
+	from {
+		opacity: 1;
+	}
+}
+@keyframes gear-breathe {
+	0%,
+	100% {
+		opacity: 0.25;
+	}
+	50% {
+		opacity: 0.65;
+	}
+}
+@media (hover: hover) and (pointer: fine) {
+	.hudp.v-gear .spin:hover:not(:disabled):not(:active) .hr-hot {
+		opacity: 1;
+	}
+	.hudp.v-gear .spin:hover:not(:disabled) .gn,
+	.hudp.v-gear .spin:hover:not(:disabled) ~ .gk .gn {
+		transform: rotate(var(--nudge));
+	}
+}
+/* pressed: the whole drawing sinks (the key's box does not change), the hub darkens */
+.hudp.v-gear .spin:active:not(:disabled) .ga {
+	transform: translateY(0.6%) scale(0.97);
+}
+.hudp.v-gear .spin:active:not(:disabled) .sunk,
+.hudp.v-gear .spin:active:not(:disabled) .hr-sunk {
+	opacity: 1;
+}
+.hudp.v-gear .spin:active:not(:disabled) > .gw {
+	opacity: 0.82;
+}
+/* disabled at rest (a held round, nothing to play with): the gear in steel */
+.hudp.v-gear .spin:disabled:is(.m-idle, .m-loaded, .m-armed) {
+	--gi0: #5d6370;
+	--gi1: #3a3f48;
+	--gi2: #22252b;
+	--gb0: #c3c8d2;
+	--gb1: #8e94a0;
+	--gb2: #5d6370;
+	--ga0: #f2f4f8;
+	--ga1: #c3c8d2;
+	--ga2: #8e94a0;
+	--ga3: #5d6370;
+	--gs0: #9ba1ad;
+	--gs1: #9ba1ad;
+	--gs2: #9ba1ad;
+}
+
+/* ---- AUTO AND TURBO: solid iron gears ---- */
+.hudp.v-gear .gk {
+	position: absolute;
+	padding: 0;
+	margin: 0;
+	border: 0;
+	border-radius: 50%;
+	background: none;
+	font: inherit;
+	color: rgb(var(--hud-accent-cream-rgb));
+	cursor: pointer;
+	opacity: 1;
+	-webkit-tap-highlight-color: transparent;
+	/* the face's paint (dark iron), the ring's color when it is not brass, the word's ink line */
+	--gf0: #3d342b;
+	--gf1: #221c17;
+	--gf2: #0f0c0a;
+	--gkr: rgb(var(--hud-accent-hi-rgb));
+	--gkw: 2.6px;
+}
+.hudp.v-gear .gk.hit::after {
+	inset: 0;
+}
+.hudp.v-gear .gk .kw {
+	stroke-width: var(--gkw);
+}
+.hudp.v-gear .gk .gl.under,
+.hudp.v-gear .gk .kr-c,
+.hudp.v-gear .gk .kr-hot,
+.hudp.v-gear .gk .sunk,
+.hudp.v-gear .gk .off {
+	opacity: 0;
+	transition: opacity 0.12s ease;
+}
+.hudp.v-gear .gk .pip {
+	opacity: 0.34;
+}
+.hudp.v-gear .gk[data-l='0'] .pip:first-of-type {
+	opacity: 0.85;
+}
+/* on (a run loaded or running; Turbo at 1 or 2): the face lit gold, dark ink, a gold halo, the ring bright */
+.hudp.v-gear .gk.is-on,
+.hudp.v-gear .gk:is([data-l='1'], [data-l='2']) {
+	--gf0: #fff1c4;
+	--gf1: #f0c766;
+	--gf2: #a87a25;
+	--gkw: 1px;
+	color: #2a1606;
+}
+.hudp.v-gear .gk.is-on :is(.gl.under, .kr-c),
+.hudp.v-gear .gk:is([data-l='1'], [data-l='2']) :is(.gl.under, .kr-c) {
+	opacity: 1;
+}
+.hudp.v-gear .gk[data-l='1'] .pip {
+	opacity: 0.3;
+}
+.hudp.v-gear .gk[data-l='1'] .pip:nth-of-type(-n + 2),
+.hudp.v-gear .gk[data-l='2'] .pip {
+	opacity: 1;
+}
+.hudp.v-gear .gk[data-l='2'] .ki .bolt {
+	fill: currentColor;
+	fill-opacity: 0.35;
+}
+@media (hover: hover) and (pointer: fine) {
+	.hudp.v-gear .gk:hover:not(:disabled):not(:active) .kr-hot {
+		opacity: 1;
+	}
+}
+.hudp.v-gear .gk:active:not(:disabled) .ga {
+	transform: translateY(0.9%) scale(0.97);
+}
+.hudp.v-gear .gk:active:not(:disabled) {
+	--gkr: #8a6a2a;
+}
+.hudp.v-gear .gk:active:not(:disabled) :is(.sunk, .kr-c) {
+	opacity: 1;
+}
+.hudp.v-gear .gk:disabled {
+	cursor: default;
+	opacity: 1;
+}
+/* disabled while a round plays: the same iron gear under a veil */
+.hudp.v-gear .gk.is-busy:disabled .off {
+	opacity: 1;
+}
+/* disabled at rest: steel */
+.hudp.v-gear .gk:disabled:not(.is-busy) {
+	color: #d9dde4;
+	--gi0: #5d6370;
+	--gi1: #3a3f48;
+	--gi2: #22252b;
+	--gb0: #c3c8d2;
+	--gb1: #8e94a0;
+	--gb2: #5d6370;
+	--gf0: #8e94a0;
+	--gf1: #5d6370;
+	--gf2: #3a3f48;
+	--gkr: #7b818d;
+	--gkw: 2.6px;
+}
+.hudp.v-gear .gk:disabled:not(.is-busy) :is(.kr-c, .off) {
+	opacity: 1;
+}
+.hudp.v-gear .gk:disabled:not(.is-busy) .gl.under {
+	opacity: 0;
+}
+
+/* ---- THE WAR STANDARDS ---- */
+.hudp.v-gear .gs {
+	position: absolute;
+	display: block;
+	padding: 0;
+	margin: 0;
+	border: 0;
+	background: none;
+	font: inherit;
+	color: rgba(var(--hud-ink-rgb), 0.94);
+	cursor: pointer;
+	opacity: 1;
+	-webkit-tap-highlight-color: transparent;
+}
+.hudp.v-gear .gs.hit::after {
+	inset: 0;
+	border-radius: 0;
+}
+.hudp.v-gear .gs .gsa {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	transition: transform 0.12s ease;
+}
+.hudp.v-gear .gs:active:not(:disabled) .gsa {
+	transform: scale(0.94);
+}
+.hudp.v-gear .gs svg.body {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	overflow: visible;
+}
+.hudp.v-gear .gs :is(.glow, .f-on, .em-on, .scr) {
+	opacity: 0;
+	transition: opacity 0.15s ease;
+}
+.hudp.v-gear .gs :is(.f-rest, .em-rest) {
+	transition: opacity 0.15s ease;
+}
+.hudp.v-gear .gs .rimp {
+	transition: stroke 0.12s ease;
+}
+/* Menu: dark glass; gold while the help menu is open */
+.hudp.v-gear .gs.menuk .rimp {
+	stroke: rgba(var(--hud-key-rim-rgb), calc(var(--hud-key-rim-a) + 0.1));
+}
+.hudp.v-gear .gs.menuk .ic {
+	position: absolute;
+	left: calc(50% - var(--s) * 12.58);
+	top: calc(var(--s) * 35.76);
+	width: calc(var(--s) * 25.16);
+	height: calc(var(--s) * 25.16);
+}
+.hudp.v-gear .gs.menuk .kl {
+	position: absolute;
+	left: 50%;
+	top: calc(var(--s) * 71.28);
+	transform: translate(-50%, -50%);
+	font-size: calc(var(--s) * 12.58);
+	line-height: 1;
+	white-space: nowrap;
+	letter-spacing: 0.1em;
+	text-indent: 0.1em;
+	color: var(--lab);
+}
+.hudp.v-gear .gs.menuk.is-on {
+	color: rgb(var(--hud-key-on-ink-rgb));
+}
+.hudp.v-gear .gs.menuk.is-on .kl {
+	color: inherit;
+}
+.hudp.v-gear .gs.menuk.is-on .glow {
+	opacity: 0.55;
+}
+.hudp.v-gear .gs.menuk.is-on .f-on {
+	opacity: 1;
+}
+.hudp.v-gear .gs.menuk.is-on .f-rest {
+	opacity: 0;
+}
+.hudp.v-gear .gs.menuk.is-on .rimp {
+	stroke: rgba(var(--hud-accent-rgb), 0.9);
+}
+/* the Armoury: red cloth, the PolyMath mark in flat gold; with a mode on, the mark inlaid in gold under the mode's name */
+.hudp.v-gear .gs.arm {
+	--e-deep: var(--hud-feature-deep-2-rgb);
+	--e-hi: var(--hud-feature-hi-rgb);
+	--e-lt: var(--hud-feature-rim-rgb);
+	--e-g1: var(--hud-mark-g1-rgb);
+	--e-g2: var(--hud-mark-g2-rgb);
+	--e-g3: var(--hud-mark-g3-rgb);
+	--e-g4: var(--hud-mark-g4-rgb);
+	--e-accent: var(--hud-mark-accent-rgb);
+	color: rgb(var(--hud-ink-rgb));
+}
+.hudp.v-gear .gs.arm.is-on {
+	--e-deep: var(--hud-feature-on-deep-2-rgb);
+	--e-hi: var(--hud-accent-hi-rgb);
+	--e-lt: var(--hud-accent-cream-rgb);
+}
+.hudp.v-gear .gs.arm .rimp {
+	stroke: rgba(var(--hud-feature-rim-rgb), 0.55);
+}
+.hudp.v-gear .gs.arm.is-on .rimp {
+	stroke: var(--hud-feature-on-rim);
+}
+.hudp.v-gear .gs.arm.is-on :is(.f-on, .em-on, .scr) {
+	opacity: 1;
+}
+.hudp.v-gear .gs.arm.is-on :is(.f-rest, .em-rest) {
+	opacity: 0;
+}
+.hudp.v-gear .gs.arm.is-on .glow {
+	opacity: 0.55;
+}
+/* (one class short on purpose, here and on the disabled < and >: the chrome's own fade under a presentation, ui/Chrome.svelte
+   .hud-off, must still win over a disabled key's opacity) */
+.v-gear .gs.arm:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+.hudp.v-gear .gs.arm .lb {
+	position: absolute;
+	left: 50%;
+	top: 46%;
+	transform: translate(-50%, -50%);
+	z-index: 2;
+	font-size: calc(var(--s) * 12.65);
+	line-height: 1;
+	white-space: nowrap;
+	letter-spacing: 0.18em;
+	text-indent: 0.18em;
+	color: rgb(var(--hud-accent-cream-rgb));
+	text-shadow: 0 0 1px rgba(var(--hud-shadow-rgb), 1), 0 0 1px rgba(var(--hud-shadow-rgb), 1), 0 0 2px rgba(var(--hud-shadow-rgb), 0.9), 0 1px 3px rgba(var(--hud-shadow-rgb), 0.8);
+}
+.hudp.v-gear .gs.arm .lb.two {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.2em;
+	font-size: calc(var(--s) * 10);
+}
+.hudp.v-gear .gs.arm .lb b {
+	font-weight: inherit;
+}
+@media (hover: hover) and (pointer: fine) {
+	.hudp.v-gear .gs.menuk:hover .rimp {
+		stroke: rgba(var(--hud-key-rim-rgb), calc(var(--hud-key-rim-a) + 0.36));
+	}
+	.hudp.v-gear .gs.menuk.is-on:hover .rimp {
+		stroke: rgb(var(--hud-accent-hi-rgb));
+	}
+	.hudp.v-gear .gs.arm:hover:not(:disabled):not(.is-on) .rimp {
+		stroke: rgba(var(--hud-feature-rim-rgb), 0.85);
+	}
+	.hudp.v-gear .gs.arm:hover:not(:disabled):not(.is-on) .glow {
+		opacity: 0.3;
+	}
+}
+
+/* ---- the pieces borrowed from the dock, each in a box scaled to its place ---- */
+.hudp.v-gear .gsc {
+	position: absolute;
+	transform-origin: 0 0;
+	pointer-events: none;
+}
+/* the help menu's box takes no press while the menu is shut (the panel inside takes its own when open) */
+.hudp.v-gear .gmp {
+	z-index: 4;
+}
+/* THE READOUTS (the mock's: a small spaced word over the number, an ink line round both, no glass) */
+.hudp.v-gear .stat {
+	gap: 4px;
+	border-radius: 0;
+}
+.hudp.v-gear .stat .lbw,
+.hudp.v-gear .stat.win .lbw {
+	font-size: 10px;
+	letter-spacing: 0.24em;
+	margin-right: -0.24em;
+	color: rgb(var(--hud-label-rgb));
+	text-shadow: 0 0 1px var(--g-ink), 1px 1px 0 var(--g-ink), -1px 1px 0 var(--g-ink), 1px -1px 0 var(--g-ink), -1px -1px 0 var(--g-ink), 0 2px 4px rgba(2, 8, 18, 0.6);
+}
+.hudp.v-gear .stat .value {
+	color: #fff;
+	text-shadow: 0 0 1px var(--g-ink), 1.2px 1.2px 0 var(--g-ink), -1.2px 1.2px 0 var(--g-ink), 1.2px -1.2px 0 var(--g-ink), -1.2px -1.2px 0 var(--g-ink), 0 1.6px 0 var(--g-ink), 0 3px 7px rgba(2, 8, 18, 0.6);
+}
+.hudp.v-gear .stat.win.is-lit .value {
+	color: rgb(var(--hud-burst-ink-rgb));
+	text-shadow: 0 0 1px var(--g-ink), 1.2px 1.2px 0 var(--g-ink), -1.2px 1.2px 0 var(--g-ink), 1.2px -1.2px 0 var(--g-ink), -1.2px -1.2px 0 var(--g-ink), 0 0 12px rgba(var(--hud-burst-rgb), 0.8), 0 3px 7px rgba(2, 8, 18, 0.5);
+}
+.hudp.v-gear .stat.win.is-lit .lbw {
+	color: rgb(var(--hud-burst-hi-rgb));
+}
+.hudp.v-gear .stat.amt.is-locked {
+	opacity: var(--hud-locked-a);
+}
+.hudp.v-gear .stat.amt.ante .value,
+.hudp.v-gear .stat.amt.sante .value {
+	color: rgb(var(--hud-accent-ink-rgb));
+}
+
+/* ---- the bare < and > ---- */
+.hudp.v-gear .sk.bare {
+	padding: 0;
+	margin: 0;
+	border: 0;
+	background: none;
+	box-shadow: none;
+	cursor: pointer;
+	opacity: 1;
+	-webkit-tap-highlight-color: transparent;
+}
+.hudp.v-gear .sk.bare .chev {
+	display: block;
+	width: 92%;
+	height: 92%;
+	overflow: visible;
+	transition: transform 0.12s ease;
+}
+.hudp.v-gear .sk.bare .chev .ko {
+	fill: none;
+	stroke: #0a0f16;
+	stroke-width: 5.6;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+.hudp.v-gear .sk.bare .chev .ink {
+	fill: none;
+	stroke: rgb(var(--hud-accent-rgb));
+	stroke-width: 3.2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+.hudp.v-gear .sk.bare:active:not(:disabled) .chev {
+	transform: scale(0.94);
+}
+.v-gear .sk.bare:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+@media (hover: hover) and (pointer: fine) {
+	.hudp.v-gear .sk.bare:hover:not(:disabled) .chev .ink {
+		stroke-width: 3.8;
+	}
+}
+
+/* reduced motion: nothing eases or breathes; the gears are still (GearBar) */
+@media (prefers-reduced-motion: reduce) {
+	.hudp.v-gear .ga,
+	.hudp.v-gear .gn,
+	.hudp.v-gear .gs .gsa,
+	.hudp.v-gear .sk.bare .chev {
+		transition: none;
+		transform: none !important;
+	}
+	.hudp.v-gear .spin.m-auto .gl.glow {
+		animation: none;
+		opacity: 0.45;
+	}
+}
