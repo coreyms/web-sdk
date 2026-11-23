@@ -9,7 +9,7 @@
 // WATCHES: apps/run_over_reindeer/src/{ui/hud/HudSpin.svelte,ui/hud/spinRing.ts,ui/hud/ringPlan.ts};
 // WATCHES: ; __reindeer.ringMethod, __reindeer.ringRounds, __reindeer.ringNow, __reindeer.spinSerial
 // WATCHES: apps/run_over_reindeer/src/{game/currency.ts,fixtures/fixtureRgs.ts};
-// WATCHES: apps/run_over_reindeer/src/{ui/sign/SignHud.svelte,ui/sign/signLayout.ts,ui/sign/signZones.ts,ui/sign/SignPlay.svelte,ui/hudTheme.ts};
+// WATCHES: apps/run_over_reindeer/src/{ui/sign/SignHud.svelte,ui/sign/signLayout.ts,ui/sign/signZones.ts,ui/sign/SignPlay.svelte,ui/hudTheme.ts,ui/sign/SignMenuPanel.svelte};
 // WATCHES: ; __reindeer.sign, __reindeer.hud.bar, HUD_BAR, .sgw, .s-words, .s-ring, data-shape, data-total, data-bar, .sgpad, .sgpads, data-pad, padPlaces, padShapes, pressOwner, pressShape, __reindeer.sign.pads, __reindeer.sign.owner, __reindeer.sign.shapes, .sgcatch, data-catch, data-l, .am-ui, .menu-open
 // WATCHES: apps/run_over_reindeer/src/{game/actor.ts,game/utils.ts,game/stateGame.svelte.ts,ui/SpinHotkey.svelte};
 // WATCHES: ; __reindeer.pressReady, __reindeer.spinTail, roundSettled, roundTailFinish, landSmall, SPIN_TAIL, flipGraceMs, ledCountDone, data-resume-card
@@ -2423,6 +2423,18 @@ async function signHud(browser) {
 					await sleep(350);
 				}
 				check(!(await open()), `${tag}: a press on Menu's middle closes the menu again`);
+				// ESCAPE (2026-11-23, the probe host: Escape left the green pop-out open, and at 400 x 225 it then covered the
+				// Auto key; ui/sign/SignMenuPanel.svelte): it closes the menu, the Menu key has the focus, no round starts
+				{
+					const playsWas = await p.evaluate(() => window.__reindeer.fixtures?.log?.().plays.length ?? 0);
+					await p.click('.hudp [data-hud="menu-key"]');
+					await sleep(350);
+					const up = await open();
+					await p.keyboard.press('Escape');
+					await sleep(350);
+					const esc = await p.evaluate(() => ({ open: !!document.querySelector('.hudp.sg.menu-open'), focus: document.activeElement?.getAttribute('data-hud') ?? null, plays: window.__reindeer.fixtures?.log?.().plays.length ?? 0 }));
+					check(up && !esc.open && esc.focus === 'menu-key' && esc.plays === playsWas, `${tag}: Escape closes the open menu, the Menu key has the focus after, no round starts`, { up, ...esc, playsWas });
+				}
 			}
 			// ---- THE SPIN'S NEIGHBOURS (2026-11-23; the probe host, touch, 844 x 390 and 667 x 375: a tap 2 px inside
 			// Turbo's edge nearest the Spin STARTED A ROUND and left Turbo as it was; a mouse at the same place turned Turbo

@@ -25,7 +25,7 @@
 	//
 	// LAYOUT. Three layouts, each authored in its own design px inside ONE box scaled by one transform:
 	//   desk  a landscape screen at least 960 x 560: the mock's 1440 x 900 box, absolutely placed, fitted and centred,
-	//         at most 1.2 (DESK_MAX_SCALE: the art's density is built for that)
+	//         at most 1.2 (ui/fastLaneBox.ts FL_BOX.desk.max: the art's density is built for that)
 	//   side  a phone held sideways (or any other short landscape): 390 design px tall, three columns
 	//   up    an upright screen: 390 design px wide, one column; the hero is the piece that gives, and it is dropped
 	//         when too little is left for it
@@ -43,6 +43,7 @@
 	import Icon from './Icon.svelte';
 	import HudIcon from './hud/HudIcon.svelte';
 	import { betStepTarget } from './betStep';
+	import { FL_BOX, flLay, flScale, type FlLay } from './fastLaneBox';
 	import { ANTE_KEYS, modeCost } from '../game/betModeMeta';
 	import { stamp } from '../game/assets';
 	import { PHONE_TIER } from '../game/deviceTier';
@@ -56,24 +57,20 @@
 	const close = () => (stateModal.modal = null);
 
 	// ---- the box -------------------------------------------------------------------------------------------------
-	const DESK = { w: 1440, h: 900 };
-	const DESK_MAX_SCALE = 1.2;
-	const SIDE = { w: 844, h: 390 };
-	const SIDE_MAX_SCALE = 1.15;
-	const UP_W = 390;
-	const UP_MIN_H = 600;
-	const UP_MAX_SCALE = 1.15;
+	// (the layouts' sizes and the box's scale are ui/fastLaneBox.ts, so a node test can hold the confirm card's keys to
+	// the 44 px press rule: tools/sign_panel_test.mjs)
+	const DESK = FL_BOX.desk;
 
 	const vw = $derived(innerWidth.current ?? 1280);
 	const vh = $derived(innerHeight.current ?? 720);
-	type Lay = 'desk' | 'side' | 'up';
-	const lay = $derived<Lay>(vw > vh ? (vw >= 960 && vh >= 560 ? 'desk' : 'side') : 'up');
+	type Lay = FlLay;
+	const lay = $derived<Lay>(flLay(vw, vh));
 	const box = $derived.by(() => {
 		if (lay === 'desk') {
-			const s = Math.min(vw / DESK.w, vh / DESK.h, DESK_MAX_SCALE);
+			const s = flScale('desk', vw, vh);
 			return { s, w: DESK.w, h: DESK.h, x: (vw - DESK.w * s) / 2, y: (vh - DESK.h * s) / 2 };
 		}
-		const s = (lay === 'side' ? Math.min(vh / SIDE.h, vw / SIDE.w, SIDE_MAX_SCALE) : Math.min(vw / UP_W, vh / UP_MIN_H, UP_MAX_SCALE)) * (lay === 'up' ? fitK : 1);
+		const s = flScale(lay, vw, vh) * (lay === 'up' ? fitK : 1);
 		return { s, w: vw / s, h: vh / s, x: 0, y: 0 };
 	});
 	/** a short upright screen (390 x 620 and the like): the plate's line gives way to the odds rows */
@@ -493,7 +490,7 @@
 	<div class="cwrap">
 		<!-- the click handler only keeps a press on the card from reaching the shell (which would close it) -->
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<div class="card c-{lay}" style:transform="scale({box.s})" role="dialog" aria-modal="true" aria-labelledby="fl-confirm-title" tabindex="-1" data-fl-confirm onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
+		<div class="card c-{lay}" style:transform="scale({box.s})" style:--fl-s={box.s} role="dialog" aria-modal="true" aria-labelledby="fl-confirm-title" tabindex="-1" data-fl-confirm onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
 			<h3 id="fl-confirm-title">{X.confirmTitle.replace('{name}', nameOf(key))}</h3>
 			<div class="rows">
 				<div>{X.amount}</div><div class="slot-num" use:fitAmount={{ text: money(stateBet.betAmount), floor: FLOOR.row }} data-fl-confirm-amount>{money(stateBet.betAmount)}</div>
@@ -1712,6 +1709,25 @@
 		transition:
 			transform 90ms ease,
 			background-color 90ms ease;
+	}
+	/* THE KEYS' PRESS HEIGHT (2026-11-23, the probe host: Cancel and CONFIRM were drawn 39 px tall at 320 x 568, 38 at 667
+	   x 375 and 32 at 568 x 320, where the card is scaled under 1): each keeps its drawn size and gets an unseen press
+	   area as wide as itself and at least 44 CSS px tall round its middle (44 over the card's scale, in the card's own
+	   px), as the menu's own keys have (THE TOUCH TARGETS above). The two stand side by side with the row's 12 px gap
+	   between them, so their areas never meet. */
+	.card .ok,
+	.card .no {
+		position: relative;
+	}
+	.card .ok::after,
+	.card .no::after {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 50%;
+		width: 100%;
+		height: max(100%, calc(44px / var(--fl-s, 1)));
+		transform: translateY(-50%);
 	}
 	/* Cancel shows its press (the mock's addition) */
 	.card .no:active {

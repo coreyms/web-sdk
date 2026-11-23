@@ -1,4 +1,5 @@
 // @ts-nocheck: a node test script, not app code (svelte-check picks up .mjs files)
+// WATCHES: apps/run_over_reindeer/src/ui/{FeatureMenu.svelte,fastLaneBox.ts,BetAdjuster.svelte}; flLay, flScale, FL_BOX, --fl-s, ::after
 // WATCHES: apps/run_over_reindeer/src/ui/{hudTheme.ts,sign/signPanelLayout.ts,sign/signLayout.ts,sign/signZones.ts,sign/SignMenuPanel.svelte,AutoplayModal.svelte}; SIGN_PANEL, signPanelTokens, MENU_PANEL, menuPanelPlace, menuPanelHeight, menuClass, autoClass, AUTO, autoGeometry, AUTO_SUB_MIN, lowInner, chipW, subLine
 // THE SIGN PANELS' LAYOUT TEST (2026-11-23, wip/signmenus): node only, no browser. It runs the Menu pop-out's own place
 // rule (src/ui/sign/signPanelLayout.ts) against the sign bar's own layout (src/ui/sign/signLayout.ts: where the Menu key
@@ -18,6 +19,16 @@
 //   7. the Autoplay card's class: the mock's at its four windows (desk, short, portrait, wide); the wide card where a
 //      desktop window is too short for the short card (1024 x 576)
 //   8. the panels' color and line tokens (ui/hudTheme.ts signPanelTokens) are the approved mock's style A at its defaults
+//  10. THE 44 PX PRESS RULE ON TOUCH (2026-11-23, the probe host measured the confirm card's keys at 40, 39 and 34 px at
+//      320 x 568, 667 x 375 and 568 x 320): at every touch window (a phone or tablet layout; not Popout S, a mouse's mini
+//      player), read from the components' own style blocks and worked out with their own scales:
+//        the Fast Lane confirm card's Cancel and CONFIRM (ui/FeatureMenu.svelte, the card at ui/fastLaneBox.ts's scale):
+//        each press area 44 CSS px tall or more, as wide as its key, the two apart by the row's gap, and no lower than
+//        the card's own foot
+//        the Autoplay card's START, close key, limit chips, STOP OPTIONS row and the stepper's keys (ui/AutoplayModal.svelte,
+//        ui/BetAdjuster.svelte): 44 CSS px
+//        the Menu pop-out's GAME INFO row, pills, mute keys and sliders' rows (signPanelLayout.ts MENU_PANEL at the
+//        pop-out's scale): 44 CSS px
 //   9. THE AUTOPLAY CARD'S PRICE LINES (the small sizes fix, tools/fast_lane_probe.mjs ONLY=smallsizes asserts "every spin
 //      count with its price line" in a browser): at that section's nine windows and the real phone frames, with the
 //      card's own widths (signPanelLayout.ts autoGeometry) and the bundled Overpass's advances
@@ -133,6 +144,57 @@ line(P.menuPanelHeight('mouse', false) === 231 && P.menuPanelHeight('touch', fal
 // the Autoplay card's class with a touch screen and with the unload line (each makes the open short card taller)
 line(P.autoClass({ compact: false, portrait: false, vh: 675, coarse: true }) === 'wide' && P.autoClass({ compact: false, portrait: false, vh: 720, coarse: true }) === 'short', 'a touch screen desktop window: the short card from 704 px tall, the wide card under it');
 line(P.autoClass({ compact: false, portrait: false, vh: 675, drop: true }) === 'wide' && P.autoClass({ compact: false, portrait: false, vh: 768, drop: true }) === 'short', 'with the unload line showing: the short card from 702 px tall, the desk card from 792');
+// THE 44 PX PRESS RULE ON TOUCH (10)
+{
+	const F = await import(pathToFileURL(join(APP, 'src', 'ui', 'fastLaneBox.ts')).href);
+	const src = (f) => readFileSync(join(APP, 'src', f), 'utf8');
+	const FM = src('ui/FeatureMenu.svelte');
+	const AM = src('ui/AutoplayModal.svelte');
+	const BA = src('ui/BetAdjuster.svelte');
+	/** a number from a rule in a style block: the first `prop: Npx` after the selector text */
+	const px = (text, selector, prop) => {
+		const i = text.indexOf(selector);
+		if (i < 0) return NaN;
+		const m = text.slice(i, text.indexOf('}', i)).match(new RegExp(`[^-\\w]${prop}:\\s*([\\d.]+)px`));
+		return m ? Number(m[1]) : NaN;
+	};
+	// the confirm card's keys, in the card's own px (touch layouts: .c-up and .c-side), its row's gap, its foot's padding
+	const KEY = { ok: px(FM, '.card.c-up .ok,\n\t.card.c-side .ok {', 'height'), no: px(FM, '.card.c-up .no,\n\t.card.c-side .no {', 'height') };
+	const GAP = px(FM, '.card .btns {', 'gap');
+	const FOOT = Number((FM.match(/\.card\.c-up,\n\t\.card\.c-side \{\n\t\twidth: 340px;\n\t\tpadding: 16px 16px (\d+)px;/) ?? [])[1]);
+	const HIT = Number((FM.match(/\.card \.ok::after,\n\t\.card \.no::after \{[^}]*width: 100%;[^}]*height: max\(100%, calc\((\d+)px \/ var\(--fl-s, 1\)\)\);/) ?? [])[1]);
+	line(KEY.ok >= 44 && KEY.no >= 44 && GAP > 0 && FOOT > 0 && HIT === 44 && /class="card c-\{lay\}"[^>]*style:--fl-s=\{box\.s\}/.test(FM), `the confirm card's keys are ${KEY.no} and ${KEY.ok} px in the card's px, ${GAP} apart, over a ${FOOT} px foot; each has a press area 44 px over the card's scale tall and as wide as itself`, JSON.stringify({ KEY, GAP, FOOT, HIT }));
+	// the Autoplay card's touch sizes
+	const AUTO_T = { close: px(AM, '.touch .panel .x {', 'height'), closeW: px(AM, '.touch .panel .x {', 'width'), lim: px(AM, '.touch .panel .lim {', 'height'), fold: px(AM, '.touch .panel .fold-row {', 'min-height'), go: px(AM, '.touch .panel .go {', 'min-height'), step: px(BA, '.adj.touch :global(.sp-sk) {', 'height'), stepW: px(BA, '.adj.touch :global(.sp-sk) {', 'width') };
+	line(Object.values(AUTO_T).every((v) => v >= 44), `the Autoplay card on touch: close key ${AUTO_T.closeW} x ${AUTO_T.close}, limit chips ${AUTO_T.lim}, STOP OPTIONS ${AUTO_T.fold}, START ${AUTO_T.go}, the stepper's keys ${AUTO_T.stepW} x ${AUTO_T.step} px`, JSON.stringify(AUTO_T));
+	const TOUCH = [[390, 844], [440, 742], [413, 586], [425, 812], [375, 667], [360, 640], [390, 620], [320, 568], [768, 1024], [844, 390], [832, 376], [812, 375], [800, 450], [736, 414], [667, 375], [640, 360], [568, 320], [932, 430]];
+	for (const [vw, vh] of TOUCH) {
+		const kind = kindOf(vw, vh);
+		const tag = `${vw}x${vh} touch`;
+		// the confirm card (the upright layout's own squeeze, fitK, only makes the card smaller: the press area is 44 CSS px
+		// at any scale, so it is worked out at the box's scale and at 0.8 of it)
+		const lay = F.flLay(vw, vh);
+		for (const k of [1, 0.8]) {
+			const s = F.flScale(lay, vw, vh) * (lay === 'up' ? k : 1);
+			const press = (h) => Math.max(h, HIT / s) * s;
+			const drop = Math.max(0, (HIT / s - Math.min(KEY.ok, KEY.no)) / 2);
+			line(lay !== 'desk' && press(KEY.ok) >= 43.99 && press(KEY.no) >= 43.99 && GAP * s > 0.5, `${tag}: the confirm card (${lay}, scale ${s.toFixed(3)}) draws its keys ${r1(KEY.no * s)} px tall; each press area is ${r1(press(KEY.no))} px tall, the two ${r1(GAP * s)} px apart`);
+			line(drop <= FOOT + 0.01, `${tag}: the confirm keys' press areas stay inside the card (they reach ${r1(drop * s)} px under the keys, the foot is ${r1(FOOT * s)} px)`);
+		}
+		// the Autoplay card: the touch sizes apply (never the LOW card at a touch window)
+		const cls = P.autoClass({ compact: true, portrait: kind === 'portrait', vh });
+		const G = P.autoGeometry({ cls, vw, tiny: vh < 300 || vw < 360 });
+		line(kind !== 'landscape' && !G.low, `${tag}: the Autoplay card is the ${cls} card with the 44 px touch sizes (not LOW)`);
+		// the Menu pop-out
+		const zones = Z.signZones(kind, vw, vh, true);
+		const g = L.signLayout({ kind, vw, vh, safe: { t: 0, r: 0, b: 0, l: 0 }, zones });
+		const mc = P.menuClass({ kind, vh, coarse: true });
+		const mp = P.menuPanelPlace({ menu: g.box.menu, u: g.u, vw, vh, cls: mc, session: false });
+		const C = M[mc];
+		const pillW = ((M.w - 2 * (M.band + C.pad) - 2 * 7) / 3) * mp.k;
+		line(mc === 'touch' && Math.min(M.info, C.pill, C.mute, C.slider) * mp.k >= 43.99 && pillW >= 44, `${tag}: the Menu pop-out's GAME INFO row (${r1(M.info * mp.k)}), pills (${r1(pillW)} x ${r1(C.pill * mp.k)}), mute keys (${r1(C.mute * mp.k)}) and sliders' rows (${r1(C.slider * mp.k)}) are 44 CSS px or more`);
+	}
+}
 // THE AUTOPLAY CARD'S PRICE LINES AND START (9): the card's own widths, the bundled face's advances (every digit a 0
 // wide, as game/textFit.ts measures), the component's own rule (ui/AutoplayModal.svelte subLine, goFont)
 {

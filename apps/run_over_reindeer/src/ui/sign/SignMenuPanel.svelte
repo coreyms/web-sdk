@@ -7,12 +7,15 @@
 	// What it holds and does is that panel's, unchanged: the SDK's sound state with the same mute memory, the same Game
 	// Info press, the scene choice (ui/hud/SceneSwitch.svelte), and the operator's readouts (RTP, NET, TIME) under the
 	// sliders where the jurisdiction asks for them. Always mounted, shown by stateUi.menuOpen (opacity and a short
-	// rise: no layout work). A press anywhere else closes it; the Menu key itself toggles it.
+	// rise: no layout work). A press anywhere else closes it; the Menu key itself toggles it; Escape closes it (2026-11-23,
+	// the probe host: Escape left it open, and at 400 x 225 it then covered the Auto key; the glass panel never took
+	// Escape either). However it closes, the Menu key has the focus after (not when GAME INFO opens over it).
 	// ITS SIZE AND PLACE are ui/sign/signPanelLayout.ts's (the mock's rule): drawn 296 px wide at the bar's scale, never
 	// under 1 (so none of its words is under its CSS size) and never larger than the window holds; over the Menu key
 	// where there is room, under it where the key is at the top, beside it otherwise. On a touch layout every press box
 	// is 44 CSS px (the pills, the mute keys, the sliders' rows).
-	import { stateSound, stateUi, stateBet, stateConfig } from 'state-shared';
+	import { untrack } from 'svelte';
+	import { stateSound, stateUi, stateBet, stateConfig, stateModal } from 'state-shared';
 	import { numberToCurrencyString } from '../../game/currency';
 	import { fitFont, measureFitText } from '../../game/textFit';
 	import config from '../../game/config';
@@ -95,8 +98,30 @@
 			// goes down on it, and closing here first would let its click open the menu again)
 			if (el && t && !el.contains(t) && !t.closest?.('[data-hud="menu-key"], [data-catch="menu"]')) stateUi.menuOpen = false;
 		};
+		// ESCAPE CLOSES IT, and does nothing else: taken on the window before anything else hears the key, and kept from
+		// everything else (no round starts or stops on it: the game has no Escape action, and this one ends here)
+		const key = (e: KeyboardEvent) => {
+			if (e.key !== 'Escape') return;
+			e.preventDefault();
+			e.stopPropagation();
+			stateUi.menuOpen = false;
+		};
 		document.addEventListener('pointerdown', away, true);
-		return () => document.removeEventListener('pointerdown', away, true);
+		window.addEventListener('keydown', key, true);
+		return () => {
+			document.removeEventListener('pointerdown', away, true);
+			window.removeEventListener('keydown', key, true);
+		};
+	});
+	// THE FOCUS GOES BACK TO THE MENU KEY when the pop-out closes (Escape, a press elsewhere, a second press on the key:
+	// a browser that does not focus a pressed button, Safari, leaves it nowhere). Not when it closed because GAME INFO
+	// opened over it: then the page has the focus to give. A press elsewhere that lands on another control still
+	// focuses that control after, as any press does.
+	let wasOpen = false;
+	$effect(() => {
+		const open = stateUi.menuOpen;
+		if (wasOpen && !open && untrack(() => stateModal.modal == null)) el?.parentElement?.querySelector<HTMLElement>('[data-hud="menu-key"]')?.focus({ preventScroll: true });
+		wasOpen = open;
 	});
 
 	// DEV: the panel's place for the probes (never in a production build)
