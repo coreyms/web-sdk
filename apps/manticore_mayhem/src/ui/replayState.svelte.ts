@@ -3,7 +3,9 @@
 // a static REPLAY banner while the round runs — re-arms and replays the same round on press, the
 // way Stake's own replay window behaves (Corey 2026-09-02).
 export const replayState = $state({
-	phase: 'ready' as 'ready' | 'playing' | 'done',
+	/** 'failed': the RGS did not answer with a round the game can play (ui/replayRound.ts): no card, no playback, the
+	 *  REPLAY NOT AVAILABLE card with RELOAD */
+	phase: 'ready' as 'ready' | 'playing' | 'done' | 'failed',
 	start: null as null | (() => void),
 	/** THE REPLAY'S BET LINE (harsh review 2026-10-20 must-fix 4, submission checklist "UI clearly displays bet cost and
 	 *  applied multiplier"; Corey 2026-10-21 "We should keep this then for the replay", "If the mode was not Base Games,

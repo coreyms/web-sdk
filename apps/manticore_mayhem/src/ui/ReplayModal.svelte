@@ -14,7 +14,8 @@
 	// multiplier gives the total play; `payoutMultiplier` from /bet/replay is in base-play
 	// multiples (the books' payoutMultiplier / 100), so total win = base × multiplier — the same
 	// arithmetic the win counter uses during the round.
-	import { stateBet, stateUrlDerived, type BetToResume } from 'state-shared';
+	import { untrack } from 'svelte';
+	import { stateBet, stateModal, stateUrlDerived, type BetToResume } from 'state-shared';
 	import { numberToCurrencyString } from '../game/amount';
 
 	import { getContext } from '../game/context';
@@ -23,6 +24,7 @@
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';
 	import { replayState } from './replayState.svelte';
+	import { replayRoundUsable } from './replayRound';
 	import { awaitDeferredAssets } from '../game/assetGate';
 
 	type Props = { controls: Controls; master: { width: number; height: number }; scale: number; left: number; top: number; compact?: boolean };
@@ -32,10 +34,25 @@
 
 	let replayBet = $state<BetToResume>(null);
 
-	// Authenticate resolves the replay before any child mounts, so the round is already here;
-	// the effect also covers a late arrival
+	// Authenticate resolves the replay before any child mounts, so the round is already here.
+	// A REPLAY THAT DID NOT LOAD (2026-11-24, ui/replayRound.ts): the shared fetch hands an RGS error's body on as if it
+	// were the round (a 400 for a mode the RGS no longer serves, a book it does not have), and gives nothing at all when
+	// the answer was empty. Either way there is no round: the card never opens on zeros and nothing can be started. The
+	// game's error card (ui/NoticeModal.svelte: REPLAY NOT AVAILABLE, RELOAD) is shown, unless Authenticate has already
+	// put it up (a fetch that threw), and the unusable answer is taken out of the resume slot so no playback can pick
+	// it up. Only the error's code reaches the card (NoticeModal), never the payload.
 	$effect(() => {
-		if (!replayBet && stateBet.betToResume) replayBet = stateBet.betToResume;
+		if (replayBet || replayState.phase === 'failed' || !stateUrlDerived.replay()) return;
+		const answer = stateBet.betToResume;
+		if (replayRoundUsable(answer)) {
+			replayBet = answer;
+			return;
+		}
+		untrack(() => {
+			replayState.phase = 'failed';
+			stateBet.betToResume = null;
+			if (stateModal.modal?.name !== 'error') stateModal.modal = { name: 'error', error: answer ?? {} };
+		});
 	});
 
 	context.eventEmitter.subscribeOnMount({
@@ -50,7 +67,8 @@
 	// A MODE THE GAME NO LONGER OFFERS (2026-11-21: the Epic and Mystery buys left; an old link can still name EPIC or
 	// MYSTERY): the card names it by its short name ("EPIC", "MYSTERY") rather than calling it the base game. If the RGS
 	// still serves that round it plays from its book like any other (a Mystery book plays as a base spin: its `mystery`
-	// marker is ignored since the Mystery playback left the game, 2026-11-21); if it does not, the shared Authenticate shows the error card with RELOAD
+	// marker is ignored since the Mystery playback left the game, 2026-11-21); if it does not (an error answer, or no
+	// round in it), the effect above shows the error card with RELOAD and this card never opens
 	const modeLabel = $derived(!meta ? (modeKey === 'BASE' ? 'BASE GAME' : modeShortLabel(modeKey)) : meta.type === 'default' ? 'BASE GAME' : meta.text.title);
 	const base = $derived(stateBet.betAmount);
 	// the replay response is the authority on what the round cost; the local table is only a fallback
@@ -72,7 +90,7 @@
 	});
 
 	const start = async () => {
-		if (!replayBet) return;
+		if (!replayBet || replayState.phase === 'failed') return;
 		controls.sound('soundPressMinor');
 		// event '0' = play the round from its first book event. The replay URL's `event` param is
 		// the ROUND identifier (the last path segment of /bet/replay/...), NOT an index into this
