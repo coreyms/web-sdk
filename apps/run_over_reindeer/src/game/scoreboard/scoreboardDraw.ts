@@ -263,9 +263,21 @@ export const setRowDots = (on: boolean) => {
 	ROW_DOTS = on;
 };
 export const rowDotsNow = () => ROW_DOTS;
-/** the dot font's size a row of cap `cap` is set in now: 1 or 2, or 0: the heavy face */
-const dotSize = (cap: number): 0 | 1 | 2 => (!ROW_DOTS ? 0 : cap <= LED_BOARD.pitch.dotRowCap ? 1 : cap <= LED_BOARD.pitch.dotRowCap2 ? 2 : 0);
-/** the rows a row's glyphs take: the cap, or the dot font's 7 or 14 */
+/** THE THIRD STEP (2026-11-23, constants LED_BOARD.pitch.dotRowCap3; the probe host's stills of the upright phone board:
+ *  the amount under BIG to MAX WIN small on a tall, empty face). The heavy face's smallest size is 21 rows, and at 21 rows
+ *  a nine sign amount ("$7,777.00") is about as wide as the whole upright board since the rule gave it 167 dots across
+ *  (it had 257), so such an amount fell two steps at once, from the heavy face to the dot font's 14 rows. A cap from
+ *  dotRowCap2 + 1 to dotRowCap3 (21 to 23) is now set in the dot font at size 3: 21 rows, the same dots three times over,
+ *  narrower than the heavy face at 21 (138 dots for that amount, the heavy face about 165), so the size searches, which
+ *  count a cap down until the row fits, stop there before they fall to 14. A cap of 24 or more is the heavy face, as
+ *  before. dotRowCap3 at dotRowCap2 switches the step off. */
+/** the dot font's size a row of cap `cap` is set in now: 1, 2 or 3, or 0: the heavy face */
+const dotSize = (cap: number): 0 | 1 | 2 | 3 => {
+	if (!ROW_DOTS) return 0;
+	const P = LED_BOARD.pitch;
+	return cap <= P.dotRowCap ? 1 : cap <= P.dotRowCap2 ? 2 : cap <= P.dotRowCap3 ? 3 : 0;
+};
+/** the rows a row's glyphs take: the cap, or the dot font's 7, 14 or 21 */
 export const rowCapEff = (cap: number) => {
 	const z = dotSize(cap);
 	return z ? 7 * z : cap;
@@ -982,6 +994,17 @@ const LOOK: Look[] = [
 
 // ---- THE WIN'S PLACE ON A FACE (cached): stacked (title over amount), one row, or a two line tag (a short strip) ------------
 type WinLay = { stacked: boolean; tag?: boolean; m: number; ts: number; titleX?: number; titleY: number; numX?: number; numW?: number; numY: number; cap: number; cx?: number };
+/** A STRIP'S AMOUNT TAKES THE DOT FONT'S STEP THAT FITS IT TO THE DOT (2026-11-23, the probe host's stills: the upright
+ *  phone's strip had its amount at 14 rows where it used to fill the strip). The one row layouts start their amount a row
+ *  inside the margins (and at 0.8 of the face), room the heavy face's stems want. The dot font's glyphs fill their rows
+ *  exactly, so where a strip's rows inside its margins are exactly a step's (the 390 x 844 strip: 25 rows, 21 inside its
+ *  margins) the search starts at that step, 21 or 14 rows, and counts down from there as before. */
+const dotFill = (H: number, m: number, cap: number) => {
+	if (!ROW_DOTS) return cap;
+	const P = LED_BOARD.pitch;
+	for (const [z, nominal] of [[3, P.dotRowCap2 + 1], [2, P.dotRowCap + 1]] as const) if (rowCapEff(cap) < 7 * z && H - 2 * m >= 7 * z && dotSize(nominal) === z) return nominal;
+	return cap;
+};
 const wlCache = new Map<string, WinLay>();
 function winLayout(W: number, H: number, finalStr: string, titles: string[], size = 1, extraGap = 0, liftK = 0, maxTs = 5): WinLay {
 	const key = W + 'x' + H + '|' + finalStr + '|' + titles.join(',') + '|' + size + '|' + extraGap + '|' + liftK + '|' + maxTs + (ROW_DOTS ? '|.' : '');
@@ -1013,7 +1036,7 @@ function winLayout(W: number, H: number, finalStr: string, titles: string[], siz
 	let row: WinLay | null = null;
 	for (const ts of H >= 30 ? [2, 1] : [1]) {
 		const tw = Math.max(...titles.map((x) => textW(x, ts)));
-		let cap = Math.min(H - 2 * m - 1, Math.round(H * 0.8));
+		let cap = dotFill(H, m, Math.min(H - 2 * m - 1, Math.round(H * 0.8)));
 		while (cap > 5 && tw + 8 + rowInfo(finalStr, cap).w > W - 2 * m - 4) cap--;
 		if (row && row.cap >= cap) continue;
 		const total = tw + 8 + rowInfo(finalStr, cap).w;
@@ -1028,7 +1051,7 @@ function winLayout(W: number, H: number, finalStr: string, titles: string[], siz
 			const tw = Math.max(...words.map((x) => textW(x, ts)));
 			const th = 14 * ts + Math.max(1, ts);
 			if (th > H - 2 * m) continue;
-			let cap = H - 2 * m - 1;
+			let cap = dotFill(H, m, H - 2 * m - 1);
 			while (cap > 5 && tw + 6 + rowInfo(finalStr, cap).w > W - 2 * m - 4) cap--;
 			if (tag && tag.cap >= cap) continue;
 			const total = tw + 6 + rowInfo(finalStr, cap).w;
@@ -1036,8 +1059,15 @@ function winLayout(W: number, H: number, finalStr: string, titles: string[], siz
 			tag = { stacked: false, tag: true, m, ts, titleX: x0 + tw / 2, titleY: Math.round((H - th) / 2), numX: x0 + tw + 6, numW: rowInfo(finalStr, cap).w, numY: Math.round((H - cap) / 2), cap };
 		}
 	}
-	r = stacked && row && stacked.cap >= row.cap * 0.85 ? stacked : (row ?? stacked!);
-	if (tag && tag.cap > r.cap) r = tag;
+	// THE PICK, BY THE ROWS THE AMOUNT REALLY TAKES (2026-11-23, the probe host on the smallest dot rule, upright phones:
+	// BIG to MAX WIN stood 50 dots left of the face's middle and the amount 28 right of it). The row layout's cap is
+	// counted down a dot at a time, the stacked one's comes from fitCap, which answers the rows drawn; under THE DOT FONT
+	// STEP a cap of 15 to 20 is drawn in the dot font's 14 rows, so a row cap of 20 beat a stacked 14 that draws the very
+	// same amount, and the title went beside it. The three are compared by rowCapEff, the rows drawn: the stacked layout
+	// (title over amount, both on the face's middle) wins wherever its amount is 0.85 of the row's or more, as before.
+	const rows = (l: WinLay) => rowCapEff(l.cap);
+	r = stacked && row && rows(stacked) >= rows(row) * 0.85 ? stacked : (row ?? stacked!);
+	if (tag && rows(tag) > rows(r)) r = tag;
 	if (wlCache.size > 200) wlCache.clear();
 	wlCache.set(key, r);
 	return r;

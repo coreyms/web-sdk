@@ -2226,8 +2226,13 @@ export const LED_BOARD = {
 	 *                dots tall), one up to dotRowCap2 in that font at size 2 (14 tall), and only a taller one in the heavy
 	 *                face, which drawn small is blobs (a heavy E's bars close up under about 20 dots). The same steps the
 	 *                press screen's lines take (size 1, size 2, heavy from 21 dots)
+	 *    dotRowCap3  THE THIRD STEP (2026-11-23, the probe host's stills of the upright phone board: a nine sign amount
+	 *                under BIG to MAX WIN was the dot font's 14 rows on a tall, empty face; the heavy face at its least
+	 *                21 rows is as wide as that whole board): an amount or a line whose cap is over dotRowCap2 and up to
+	 *                dotRowCap3 is set in the dot font at size 3 (21 rows, narrower than the heavy face at 21), and the
+	 *                heavy face starts above it. At dotRowCap2 (20) the step is off: heavy from 21, as wip/ledpitch was
 	 *  off: the board before the rule, exactly. Live: a change rebuilds both faces (a card that is up is made ahead first). */
-	pitch: { on: true, desktopCss: 2.5, phoneCss: 2, fill: 0.73, snap: true, minPx: 2, words: 'auto' as 'auto' | 1 | 1.5, stripMinRows: 8, miniShort: 300, dotRowCap: 13, dotRowCap2: 20 },
+	pitch: { on: true, desktopCss: 2.5, phoneCss: 2, fill: 0.73, snap: true, minPx: 2, words: 'auto' as 'auto' | 1 | 1.5, stripMinRows: 8, miniShort: 300, dotRowCap: 13, dotRowCap2: 20, dotRowCap3: 23 },
 	/** THE DOT GRID (Corey 2026-11-20, led_board_size_r1_2026-11-20 round 2, the grid group of his settings; game/scoreboard/
 	 *  scoreboard.ts makeGrille, placeFace). The grille tile over both faces and how it is laid. His pick is TODAY'S GRID, value
 	 *  for value: round dots, fill 0.73, row scale 1, gap darkness 1, no lit over, no snap, unlit dots shown (each line below

@@ -8,6 +8,7 @@
 // WATCHES: apps/run_over_reindeer/src/game/scoreboard/stripDraw.ts; LED_SIGN.face, LED_SIGN.holdS, __reindeer.pressScreenJump, __reindeer.pressScreens, __reindeer.ledFaceAudit
 // WATCHES: ; __reindeer.atRest, __reindeer.boardLayout, __reindeer.bookAmount, __reindeer.fixtures, __reindeer.gagsAsked, __reindeer.hud
 // WATCHES: apps/run_over_reindeer/src/game/scoreboard/layout.ts; LED_BOARD.pitch, LED_BOARD.warm.regrid, __reindeer.scoreboardLeds
+// WATCHES: apps/run_over_reindeer/src/game/scoreboard/{scoreboardDraw.ts,totalLadder.ts}; winLayout, rowCapEff, dotRowCap3, ladder marks phoneRatio, LED_BOARD.sizeD.ladderPhoneFace
 // WATCHES: ; LED_BOARD.density, __reindeer.raceSeed, __reindeer.raceTally, __reindeer.raceTrace, __reindeer.roadBoard, __reindeer.roadSounds, __reindeer.scene
 // WATCHES: ; __reindeer.scoreboard, __reindeer.scoreboardCard, __reindeer.scoreboardCardEnd, __reindeer.scoreboardCardPress
 // WATCHES: ; __reindeer.scoreboardFace, __reindeer.scoreboardDev, __reindeer.scoreboardGag, __reindeer.scoreboardLower, __reindeer.scoreboardManual
@@ -2603,7 +2604,16 @@ async function ladderMarkChecks(browser) {
 				const runnerClear = M.runner.y0 >= M.amount.y1 + 1;
 				const underAmount = lb.every((b) => b.y0 >= M.amount.y1 + 1);
 				if (S.name === 'ladder upright') phoneRatio[k] = M.ratio;
-				const pr = phoneRatio[k];
+				// THE RULE'S OWN PHONE (2026-11-23, wip/signplus2; the probe host on the smallest dot rule: ladder 1024x768, a
+				// label against the amount's cap 0.233 where "the upright phone's" read 0.5). The rule's phone is a face held in
+				// the game, LED_BOARD.sizeD.ladderPhoneFace (the upright phone board the marks were tuned on), and the game lays
+				// the same Total Win out on it: the marks record carries that proportion, `phoneRatio`. Until the dot rule the
+				// live upright phone WAS that face, so this probe read the proportion off the live 390 x 844 board. Since the
+				// rule the live phone board has 167 dots across for 257, its long amounts are set a step smaller, and its own
+				// proportion (0.5, 0.333) is no longer the rule's (0.23). The reference here is the rule's own; the live
+				// phone's is printed beside it.
+				const live = phoneRatio[k];
+				const pr = M.phoneRatio ?? live;
 				// THE RULE AT EVERY SIZE: the label against the amount's cap at the upright phone's for the same amount (within 6
 				// percent, the label's dot scale rounded), or at or above it with factor 1 (a face whose amount is the phone's or
 				// smaller keeps today's marks), or above it where the floor drives; cut back by the room only if reported
@@ -2614,12 +2624,15 @@ async function ladderMarkChecks(browser) {
 				const ratioOk = (!!pr && (M.f === 1 ? M.ratio >= pr * 0.94 : Math.abs(M.ratio - pr) <= pr * 0.06 || wholeOk || (floorDrives && M.ratio >= pr * 0.94))) || M.limited;
 				// (the phone tier is held to today's marks below, not to the ratio; the tier as the game decided it)
 				check(M.phoneTier === !!S.phone, `${tag} ${k}: THE PHONE TIER (deviceTier PHONE_TIER) ${M.phoneTier}, want ${!!S.phone}`, M);
-				if (!S.phone) check(ratioOk, `${tag} ${k} (${row.str}): THE RATIO RULE: a label against the amount's cap ${M.ratio}, the upright phone's ${pr} (factor ${M.f}, labels size ${M.z}${M.fine ? '' : ' on the 1x grid'}, by the amount ${M.byAmount}, by the floor ${M.byFloor}${M.limited ? ', CUT BACK BY THE ROOM' : ''})`, M);
+				if (!S.phone) check(ratioOk, `${tag} ${k} (${row.str}): THE RATIO RULE: a label against the amount's cap ${M.ratio}, the rule's phone face's ${pr}${M.phoneRatio != null ? ` (the live upright phone's now ${live})` : ''} (factor ${M.f}, labels size ${M.z}${M.fine ? '' : ' on the 1x grid'}, by the amount ${M.byAmount}, by the floor ${M.byFloor}${M.limited ? ', CUT BACK BY THE ROOM' : ''})`, M);
 				check(M.labelCss >= r.minCss - 0.01 || M.limited, `${tag} ${k} (${row.str}): THE FLOOR: a label ${M.labelCss} CSS px tall (7 x ${M.z} dots at ${M.pitch} CSS px), at least ${r.minCss}`, M);
 				console.log(`  ROW ${tag} ${k}: face ${M.W} x ${M.H} dots at ${M.pitch} CSS px, the amount's cap ${M.cap} dots = ${Math.round(M.cap * M.pitch * 10) / 10} CSS px, a label ${Math.round(7 * M.z * 100) / 100} dots = ${M.labelCss} CSS px, ratio ${M.ratio} (phone ${pr}), factor ${M.f}, lamps ${M.lampW} x ${M.lampH}, runner ${M.runner.h}, band ${M.band} (held ${M.bandK})${M.limited ? ', cut back' : ''}`);
 				if (!S.d) check(M.f === 1 && M.z === 1 && M.lampW === Math.max(3, Math.round(M.band * 0.2)) && M.lampH === Math.max(2, Math.round(M.band * 0.13)) && M.runner.h === Math.max(7, Math.round(M.band * 0.5)), `${tag} ${k}: PHONES KEEP TODAY'S LADDER MARKS (factor ${M.f}, labels size ${M.z}, ${M.lampW} x ${M.lampH} lamps, runner ${M.runner.h} dots; the label against the amount's cap ${M.ratio})`, M);
 				else {
-					check(M.f > 1 && !!pr && (Math.abs(M.ratio - pr) <= pr * 0.06 || wholeOk || M.limited), `${tag} ${k} (${row.str}): THE LADDER'S MARKS SCALE WITH THE AMOUNT: a label against the amount's cap ${M.ratio}, the upright phone's ${pr} for the same amount (factor ${M.f}, labels size ${M.z}, ${M.lampW} x ${M.lampH} lamps, runner ${M.runner.h} dots${M.limited ? ', cut back by the room' : ''})`, M);
+					// (a face whose amount is the rule's phone face's or smaller keeps today's marks, factor 1: 1024 x 768 since
+					// the dot rule gave it 255 dots across, its amount's cap the phone face's own)
+					const small = M.f === 1 && M.byAmount <= 1.0005 && M.ratio >= pr * 0.94;
+					check((M.f > 1 || small) && !!pr && (Math.abs(M.ratio - pr) <= pr * 0.06 || wholeOk || M.limited || small), `${tag} ${k} (${row.str}): THE LADDER'S MARKS SCALE WITH THE AMOUNT: a label against the amount's cap ${M.ratio}, the rule's phone face's ${pr} for the same amount${small ? " (this face's amount is no larger than the phone face's: today's marks)" : ''} (factor ${M.f}, labels size ${M.z}, ${M.lampW} x ${M.lampH} lamps, runner ${M.runner.h} dots${M.limited ? ', cut back by the room' : ''})`, M);
 				}
 				check(apart && inside && runnerClear && underAmount, `${tag} ${k} (${row.str}): the marks clear: the labels under the amount, apart (${lb.map((b) => `${b.x0}..${b.x1}`).join(' ')}) and inside the face above its border (bottom ${Math.max(...lb.map((b) => b.y1))} of ${M.H}), the runner's top ${M.runner.y0} under the amount's lowest row ${M.amount.y1}`, { M, lb });
 			}

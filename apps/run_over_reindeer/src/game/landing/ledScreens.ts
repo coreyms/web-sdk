@@ -115,11 +115,13 @@ const FONT: Record<string, string[]> = {
 /** a sign's 5 x 7 dots (the dot font's, else a hand set sentence sign's), or null: the dot font has none */
 export const dotGlyph = (ch: string): string[] | null => FONT[ch] || SENTENCE_SIGNS[ch] || null;
 /** one sign's dots at size 1 or 2 as the lines' masks set them (size 2: doubled and rounded, epx), row by row; null: the dot
- *  font has none (the amounts' rows on a face of one LED per dot: scoreboardDraw.ts vglyph) */
-export const dotGlyphGrid = (ch: string, s: 1 | 2): { w: number; h: number; d: Uint8Array } | null => {
+ *  font has none (the amounts' rows on a face of one LED per dot: scoreboardDraw.ts vglyph). Size 3 (2026-11-23, the
+ *  amounts' rows only, scoreboardDraw.ts THE DOT FONT STEP's third step): the 5 x 7 dots three times over, rounded the
+ *  way size 2's are (sc3, the three times form of epx); a line of words at size 3 stays the heavy face (textMask) */
+export const dotGlyphGrid = (ch: string, s: 1 | 2 | 3): { w: number; h: number; d: Uint8Array } | null => {
 	if (!dotGlyph(ch)) return null;
 	const g = grid1(ch);
-	return s === 2 ? epx(g) : g;
+	return s === 3 ? sc3(g) : s === 2 ? epx(g) : g;
 };
 
 /** THE DOTS KEPT SQUARE AT SIZE 2 (2026-11-22): size 2 doubles the 5 x 7 dots and rounds every outer corner (epx). For D and
@@ -184,7 +186,8 @@ function sc3(g: Grid): Grid {
 		for (let x = 0; x < W; x++) {
 			const A = at(x - 1, y - 1), B = at(x, y - 1), Cc = at(x + 1, y - 1), D = at(x - 1, y), E = at(x, y), F = at(x + 1, y), G = at(x - 1, y + 1), Hh = at(x, y + 1), I = at(x + 1, y + 1);
 			const e = [E, E, E, E, E, E, E, E, E];
-			if (B !== Hh && D !== F) {
+			// (a dot kept square, SQUARE above, as epx keeps it)
+			if (!g.sq?.[y * W + x] && B !== Hh && D !== F) {
 				e[0] = D === B ? D : E;
 				e[1] = (D === B && E !== Cc) || (B === F && E !== A) ? B : E;
 				e[2] = B === F ? F : E;

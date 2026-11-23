@@ -85,7 +85,7 @@ function ladderMarks(H: number, s: Show, L: Lay, fy: number, n: number, span: nu
 	const pitch = boardPitchNow();
 	const r3 = (v: number) => Math.round(v * 1000) / 1000;
 	// (today's marks: lamps and runner from the face's own band, labels at size 1)
-	const base = { f: 1, z: 1, rh: rh0, lampW: Math.max(3, Math.round(L.band * 0.2)), lampH: Math.max(2, Math.round(L.band * 0.13)), amount, border, ratio: r3(7 / L.cap), limited: false, want: 1, byAmount: 1, byFloor: 0, rule, pitch: r3(pitch), labelCss: r3(7 * pitch), bandK: L.band };
+	const base = { f: 1, z: 1, rh: rh0, lampW: Math.max(3, Math.round(L.band * 0.2)), lampH: Math.max(2, Math.round(L.band * 0.13)), amount, border, ratio: r3(7 / L.cap), limited: false, want: 1, byAmount: 1, byFloor: 0, rule, pitch: r3(pitch), labelCss: r3(7 * pitch), bandK: L.band, phoneRatio: null as number | null };
 	if (LED_BOARD.size !== 'd') return base;
 	// ('desktop', f3e9bab's rule, to compare: the desktop and tablet class only, no floor, the face's own band)
 	if (rule === 'desktop' && boardClassNow() !== 'desktop') return base;
@@ -100,9 +100,12 @@ function ladderMarks(H: number, s: Show, L: Lay, fy: number, n: number, span: nu
 	const [pw, ph] = K.ladderPhoneFace;
 	const P = totalLay(pw, ph, s);
 	const byAmount = L.cap / P.cap;
+	// (the rule's own proportion, for the probes: a label of 7 dots against this amount's cap on the phone face. Since the
+	// smallest dot rule the live upright phone board is no longer this face, 167 dots across for 257)
+	const phoneRatio = r3(7 / P.cap);
 	const byFloor = rule === 'amount' && pitch > 0 ? K.ladderLabelMinCss / (7 * pitch) : 0;
 	const want = Math.max(1, byAmount, byFloor);
-	if (want <= 1) return { ...base, byAmount: r3(byAmount), byFloor: r3(byFloor) };
+	if (want <= 1) return { ...base, byAmount: r3(byAmount), byFloor: r3(byFloor), phoneRatio };
 	// the band the lamps and the runner are sized over: the face's own (f3e9bab's), held on every layout ('amount') to at
 	// most ladderBandSlack over the phone face's band, so they keep the phone's share of the amount on a tall face too
 	const bandK = rule === 'amount' ? Math.min(L.band, P.band * (1 + Math.max(0, K.ladderBandSlack))) : L.band;
@@ -118,9 +121,9 @@ function ladderMarks(H: number, s: Show, L: Lay, fy: number, n: number, span: nu
 		// the runner as much larger as the room under the amount allows (its top, a hop of 2 included, a dot under the
 		// amount's lowest lit row), never smaller than today's
 		const rh = Math.max(rh0, Math.min(Math.round(bandK * 0.5 * f), fy - 1 - 2 - (amount.y1 + 1)));
-		return { f: Math.round(f * 100) / 100, z, rh, lampW, lampH, amount, border, ratio: r3((7 * z) / L.cap), limited: f < want - 1e-6, want: Math.round(want * 100) / 100, byAmount: r3(byAmount), byFloor: r3(byFloor), rule, pitch: r3(pitch), labelCss: r3(7 * z * pitch), bandK: Math.round(bandK * 100) / 100 };
+		return { f: Math.round(f * 100) / 100, z, rh, lampW, lampH, amount, border, ratio: r3((7 * z) / L.cap), limited: f < want - 1e-6, want: Math.round(want * 100) / 100, byAmount: r3(byAmount), byFloor: r3(byFloor), rule, pitch: r3(pitch), labelCss: r3(7 * z * pitch), bandK: Math.round(bandK * 100) / 100, phoneRatio };
 	}
-	return { ...base, limited: true, want: Math.round(want * 100) / 100, byAmount: r3(byAmount), byFloor: r3(byFloor) };
+	return { ...base, limited: true, want: Math.round(want * 100) / 100, byAmount: r3(byAmount), byFloor: r3(byFloor), phoneRatio };
 }
 
 export function ladderTotal(F: Face, s: Show) {
@@ -229,5 +232,5 @@ export function ladderTotal(F: Face, s: Show) {
 	// the spark at the fuse's tip
 	if (!landed) dot(g, fx + 1, fy - (Math.floor(s.t / 60) % 2), '#ffffff');
 	if (landed && size !== 'small') cornerFireworks(g, W, H, since, size === 'max' ? ['#ffd23a', '#ff3a2e', '#ffffff'] : ['#ffd23a', '#ffffff'], L.Hm);
-	noteIdea(g.canvas, 'ladder', { size, x: Math.round(X * 100) / 100, rungs: rec, fuse: Math.round(fx), multiple: Math.round(mNow * 100) / 100, marks: { f: Math.round(M.f * 100) / 100, z: M.z, lampW, lampH, lampY: ly, runner: { h: rh, y0: fy - 1 - rh - 2, y1: fy - 1 }, amount: M.amount, cap: L.cap, band: L.band, W, H, border: M.border, ratio: M.ratio, limited: M.limited, want: M.want, byAmount: M.byAmount, byFloor: M.byFloor, rule: M.rule, pitch: M.pitch, labelCss: M.labelCss, bandK: M.bandK, fine: F.k > 1, phoneTier: PHONE_TIER, phoneBand: Math.round(LED_BOARD.sizeD.ladderPhoneFace[1] * LED_BOARD.scenes.band) } });
+	noteIdea(g.canvas, 'ladder', { size, x: Math.round(X * 100) / 100, rungs: rec, fuse: Math.round(fx), multiple: Math.round(mNow * 100) / 100, marks: { f: Math.round(M.f * 100) / 100, z: M.z, lampW, lampH, lampY: ly, runner: { h: rh, y0: fy - 1 - rh - 2, y1: fy - 1 }, amount: M.amount, cap: L.cap, band: L.band, W, H, border: M.border, ratio: M.ratio, limited: M.limited, want: M.want, byAmount: M.byAmount, byFloor: M.byFloor, rule: M.rule, pitch: M.pitch, labelCss: M.labelCss, bandK: M.bandK, phoneRatio: M.phoneRatio, fine: F.k > 1, phoneTier: PHONE_TIER, phoneBand: Math.round(LED_BOARD.sizeD.ladderPhoneFace[1] * LED_BOARD.scenes.band) } });
 }

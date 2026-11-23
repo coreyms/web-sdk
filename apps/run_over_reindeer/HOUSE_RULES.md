@@ -131,6 +131,10 @@ events (`game/bookEventHandlerMap.ts`). Every decision taken is one line in `doc
     dots (2560 x 1440 at 2x); everywhere else one dot per layout dot and the 5 x 7 dot font.
   - THE DOT FONT STEP (`scoreboardDraw.ts` `setRowDots`, `dotRowCap`, `dotRowCap2`): on such a face an amount or line under
     14 dots tall is the 5 x 7 font, under 21 that font at size 2, and only from 21 the heavy face (drawn small it is blobs).
+    (2026-11-23: a row of 21 to 23 dots is that font at size 3, 21 rows, `dotRowCap3`: on a 167 dot upright board a nine
+    sign amount in the heavy face at 21 rows is as wide as the board, and fell to 14 rows. A LAYOUT THAT COMPARES TWO
+    AMOUNT SIZES COMPARES THE ROWS DRAWN, `rowCapEff`, never the caps: a cap of 20 and one of 14 are the same 14 rows,
+    and the win's one row layout beat the stacked one on a tall board by that. `tools/led_center_check.mjs` holds it.)
     A new line of words uses `drawText` or `drawRow` and gets this for free; never rasterize a font by hand.
   - THE STRIP keeps the board's dots where that leaves it `stripMinRows` (8) rows; on a short strip (the desktop at
     1200 x 675 and under) its own dots step down a renderer pixel at a time until it has them. (That was the glass dock's
