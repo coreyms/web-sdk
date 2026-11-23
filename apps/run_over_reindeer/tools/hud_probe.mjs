@@ -1494,11 +1494,17 @@ async function cardsHud(browser) {
 		const after = await p.evaluate(() => {
 			const layer = document.querySelector('.am-ui.layer:not(.modals)');
 			const v = document.querySelector('.hudp [data-hud="win"] .value');
-			return { held: !!layer?.classList.contains('hud-held'), off: !!layer?.classList.contains('hud-off'), inert: !!layer?.inert, odo: window.__reindeer.hud.winOdometer().mode, data: v?.getAttribute('data-odo') ?? null, boxes: v ? v.children.length : -1, text: v?.textContent ?? null, win: window.__reindeer.hud.win() };
+			return { held: !!layer?.classList.contains('hud-held'), off: !!layer?.classList.contains('hud-off'), inert: !!layer?.inert, odo: window.__reindeer.hud.winOdometer().mode, data: v?.getAttribute('data-odo') ?? null, boxes: v ? v.children.length : -1, text: v?.textContent ?? null, win: window.__reindeer.hud.win(), bar: window.__reindeer.hud.bar ?? 'dock', odoBoxes: v ? v.querySelectorAll('.od, .oc, .ods, .odz').length : -1, digits: ((v?.textContent ?? '').match(/\d/g) ?? []).length, cells: v ? [...v.children].every((c) => c.classList.contains('tg') && c.children.length === 0 && /^\d$/.test(c.textContent ?? '') && getComputedStyle(c).transform === 'none' && c.getAnimations().length === 0) : false };
 		});
 		check(!after.held && !after.off && !after.inert, `${tag}: after the wrap-up the HUD is live again`, after);
 		// (2026-11-21) after the card the readout is today's: plain text, no odometer
-		check(after.odo === 'off' && after.data === null && after.boxes === 0 && !!after.text && after.win > 0, `${tag}: after the wrap-up WIN is today's plain readout (${after.text})`, after);
+		// THE PLAIN READOUT: the odometer is off and nothing of it is left in the number. On the dock that is a number with no
+		// boxes in it at all. On the sign bar (2026-11-22, ui/hud/HudReadout.svelte `tabular`: its face has no tabular
+		// figures) the plain number's digits stand in static cells one 0 wide, so there: no odometer box of any kind (window,
+		// strip, hidden 0, character box), and every child is such a cell: one digit, no child of its own, no transform, no
+		// animation, one per digit of the amount
+		const plain = after.bar === 'sign' ? after.odoBoxes === 0 && after.cells && after.boxes === after.digits : after.boxes === 0;
+		check(after.odo === 'off' && after.data === null && plain && !!after.text && after.win > 0, `${tag}: after the wrap-up WIN is today's plain readout (${after.text})`, after);
 		check(errs.filter((x) => !/favicon/.test(x)).length === 0, `${tag}: no console errors`, errs.slice(0, 5));
 		await ctx.close();
 	}
