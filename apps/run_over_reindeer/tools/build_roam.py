@@ -11,7 +11,8 @@
 #   walk        every 4th frame of the 40 frame loop (7.5 fps): 1, 5 .. 37
 #   start       every 4th frame of walk_start (1 .. 29): it ends on walk frame 38, the game goes on from walk 39
 #   stop        every 4th frame of walk_stop (1 .. 33) and its last (36, the stand); its frame 1 follows walk frame 8
-#   sniff       every 6th frame of the 100 frame idle loop (5 fps): 1, 7 .. 97; frame 1 is the stand
+#   sniff       every 2nd frame of the 100 frame idle loop (15 fps): 1, 3 .. 99; frame 1 is the stand (2026-11-22, Corey:
+#               "the sniff is choppy", then "Let's try every 2nd frame"; it was every 6th, 5 fps, 17 frames)
 # The game plays them on the rig's own 30 fps clock and shows the packed frame nearest the rig frame due.
 # Each frame is resized as its whole box at the strike's side run density (3 physical px per CSS px at the largest draw:
 # the same numbers as build_assets.py RUN_CSS_PER_ROAD and the R view's draw scale), then trimmed to its ink.
@@ -43,7 +44,7 @@ CLIPS = {
     "walk": ("walk_R", list(range(1, 41, 4))),
     "start": ("walk_start_R", list(range(1, 33, 4))),
     "stop": ("walk_stop_R", list(range(1, 37, 4)) + [36]),
-    "sniff": ("sniff_loop_R", list(range(1, 101, 6))),
+    "sniff": ("sniff_loop_R", list(range(1, 101, 2))),
 }
 CHARGE_SOURCE = os.path.join(SRC, "animation", "export_2026-11-20_charge", "reindeer")
 CHARGE_CLIPS = {

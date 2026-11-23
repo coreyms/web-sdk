@@ -127,7 +127,7 @@ export const chargeFx = (name: ChargeFxName): { texture: PIXI.Texture; diameterF
 };
 
 /** the texture of a clip at a rig frame (1 based, a float): the packed frame NEAREST the rig frame due (the sheets
- *  carry every 4th or 6th rig frame; the rig's clock is the clip's own). A loop counts round its end (rig frame 39 of the
+ *  carry every 4th rig frame of the walks and every 2nd of the sniff; the rig's clock is the clip's own). A loop counts round its end (rig frame 39 of the
  *  40 frame walk is as near its frame 1 as its 37), and a tie goes to the earlier frame. So the joins land on the
  *  nearest packed frame: the start hands over to the walk at walk 39 (its packed 37), the stop ends on the stand. */
 export const roamTexture = (clip: RoamClip, rigFrame: number): PIXI.Texture | null => {
