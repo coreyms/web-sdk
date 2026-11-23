@@ -12,6 +12,9 @@
 //      hashed at every LED step from the card's start to past its press line are the same, step for step
 //   3. NOTHING MADE AS IT COMES UP: after the card was made ahead its first 25 steps make no new canvas at all (the old way
 //      made dozens on the first step: the Total Win's ~400 ms frame); the warm finished ('done') and let its scratch faces go
+//   4. THE SMALL WIN (2026-11-22, wip/winlights; LED_BOARD.warm.small, scoreboard.ts prepareSmall): a line win's strip total
+//      ($1,234.56 and $0.40, counted over LINE_WIN.slam stripCountMs) drawn the old way and after it was made ahead: the strip
+//      dot for dot the same at every step from 450 ms to its end, and made ahead it makes no new canvas at any step it is up
 // Each card in each way runs in its own node process (fresh caches, as a fresh page).
 //   node --experimental-strip-types --no-warnings tools/led_warm_check.mjs      (from apps/run_over_reindeer)
 // Pass: every line PASS, "0 fail" and exit 0.
@@ -28,6 +31,11 @@ const CARDS = {
 	sfs: { kind: 'sfs', spins: 10, amount: 0, presents: 4 },
 	total: { kind: 'total', spins: 0, amount: 1234.56, x: 123.456 },
 	cap: { kind: 'total', spins: 0, amount: 77770, x: 7777, capped: true, title: 'MAX WIN', line: '7,777x the play amount, the most a round can award.' },
+};
+// the strip's small wins (a line win's total, counted at LINE_WIN.slam stripCountMs at turbo 0)
+const SMALLS = {
+	small: { amount: 1234.56, x: 12.3456 },
+	smallCents: { amount: 0.4, x: 0.4 },
 };
 
 // ---- the parent: run every card both ways in child processes and compare -------------------------------------------------
@@ -47,6 +55,22 @@ if (process.argv[2] !== 'child') {
 	};
 	const adv = run('adv', 'none');
 	check(!adv.error && adv.bad.length === 0 && adv.n > 0, `1. a sign's advance alone is its dot count's at every cap 1 to 200 (${adv.n} signs x caps checked)`, adv.error ?? adv.bad?.slice(0, 8));
+	for (const card of Object.keys(SMALLS)) {
+		const cold = run('cold', card);
+		const warm = run('warm', card);
+		if (cold.error || warm.error) {
+			check(false, `${card}: both ways ran`, cold.error ?? warm.error);
+			continue;
+		}
+		const n = Math.min(cold.strip.length, warm.strip.length);
+		const bad = [];
+		for (let i = 0; i < n; i++) if (cold.strip[i] !== warm.strip[i]) bad.push(i);
+		check(n === cold.strip.length && n === warm.strip.length && n > 40, `4. ${card} (${SMALLS[card].amount}): ${n} steps both ways`, { cold: cold.strip.length, warm: warm.strip.length });
+		check(bad.length === 0, `4. ${card}: the strip dot for dot the same at every step, made ahead or not`, bad.slice(0, 10));
+		check(warm.warm?.state === 'done' && warm.warm.samples === warm.warm.of && warm.warm.made > 0, `4. ${card}: the small win made ahead ran to its end (${warm.warm?.state}, ${warm.warm?.samples} of ${warm.warm?.of} samples, ${warm.warm?.made} pictures over ${warm.frames} frames)`, warm.warm);
+		check(cold.madeAll >= 3, `4. ${card}: the old way made ${cold.madeAll} canvases while it showed`, cold.madeAll);
+		check(warm.madeAll === 0, `4. ${card}: made ahead, it makes no new canvas at any step (${warm.madeAll})`, warm.madeAll);
+	}
 	for (const card of Object.keys(CARDS)) {
 		const cold = run('cold', card);
 		const warm = run('warm', card);
@@ -491,8 +515,45 @@ const sb = new Scoreboard();
 sb.deviceRatio = () => 3;
 sb.layout(geo, []);
 const env = { free: true, left: 10, idle: false, scatter: null };
-const C = CARDS[CARD];
 const fmt = (v) => '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+if (SMALLS[CARD]) {
+	// THE SMALL WIN, one way (4 above): its request as components/Board.svelte makes it for a line win's strip total
+	const Q = SMALLS[CARD];
+	const { LINE_WIN } = await import(src('constants.ts'));
+	const wreq = { x: Q.x, amount: Q.amount, bet: 100, fmt, rate: 1, auto: false, small: true, countMs: LINE_WIN.slam.stripCountMs };
+	let warmS = null;
+	let framesS = 0;
+	if (MODE === 'warm') {
+		LED_BOARD.warm.budgetMs = 25;
+		sb.prepareSmall(wreq);
+		for (let i = 0; i < 20000; i++) {
+			sb.update(1000 / 60, env);
+			framesS += 1;
+			const w = sb.smallWarmInfo();
+			if (!w || w.state !== 'running') {
+				warmS = w;
+				break;
+			}
+		}
+	}
+	sb.manual = true;
+	sb.clock = 0;
+	void sb.win(wreq);
+	const shown = sb.snapshot().show;
+	const step = 1000 / LED_BOARD.fps;
+	const outS = { strip: [], madeAll: 0, warm: warmS, frames: framesS };
+	const before = canvasesMade;
+	// (the small win's own steps: the one after its end draws the strip's resting state, the bonus round's counter)
+	for (let t = 0; t + step < shown.end; t += step) {
+		sb.step(step);
+		const s = sb.faceStats('strip');
+		outS.strip.push(t >= 450 ? s.hash : '-');
+	}
+	outS.madeAll = canvasesMade - before;
+	console.log('RESULT ' + JSON.stringify(outS));
+	process.exit(0);
+}
+const C = CARDS[CARD];
 const req = { kind: C.kind, spins: C.spins, amount: C.amount, fmt, rate: 1, title: C.title ?? null, line: C.line ?? null, x: C.x ?? 0, capped: !!C.capped, auto: false, presents: C.presents ?? 0 };
 
 let warm = null;

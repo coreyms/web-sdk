@@ -1298,6 +1298,12 @@ export const LINE_WIN = {
 		shadow: { alpha: 0.3, extra: 16, dy: 6.5, grow: [1.12, 1.05], alphas: [0.22, 0.32], drops: [4, 3] },
 		/** maxUp amounts at once, an amount counting as up until downWindowMs into its take down (it is faint by then) */
 		phone: { on: true, capPx: 18, readMs: 350, topClearRoad: 10, maxUp: 3, downWindowMs: 200 },
+		/** THE AMOUNTS DRAWN AHEAD (2026-11-22, wip/winlights; game/road/winLabelText.ts; Corey "Yes"): each line's label
+		 *  pictures (its amount, its win and their shadows) are Pixi's own text pictures, drawn and sent to the GPU in the
+		 *  frames before each shows (budgetMs of that work a frame, at least one piece a frame), so no amount costs its frame;
+		 *  one still not ready when it shows is made on that frame. false: each is made on the frame it shows (the old
+		 *  timing, for the probes' comparison; the pictures are the same either way) */
+		ahead: { on: true, budgetMs: 3 },
 	},
 };
 
@@ -2038,8 +2044,11 @@ export const LED_BOARD = {
 	 *  so every glyph, title and picture it needs is made before it comes up and its first frame draws from the caches. It
 	 *  samples the card's own clock at every LED step from the rise to `tailMs` past its press line: every `coarseEvery`th step
 	 *  first, then the steps beside any sample that still made something. The card looks and counts exactly as before; off,
-	 *  the card makes its pictures as it comes up, as before. */
-	warm: { on: true, budgetMs: 3, coarseEvery: 4, tailMs: 3000 },
+	 *  the card makes its pictures as it comes up, as before. `small` (2026-11-22, wip/winlights; scoreboard.ts prepareSmall):
+	 *  the strip's small win a line win will show is drawn ahead the same way from the moment the win starts (its first step,
+	 *  the landed amount, the hop, every step of its count), first in the same budget; off, it makes its pictures as it comes
+	 *  up, as before. */
+	warm: { on: true, budgetMs: 3, coarseEvery: 4, tailMs: 3000, small: true },
 	strip: {
 		desktop: { width: 0.62, topShare: 0.15, heightRoad: 125, heightShare: 0.85, roadY: 851, pad: 0, lanesW: 1535, backShare: 0.778 } as StripRule,
 		portrait: { width: 0.9, topShare: 0, heightRoad: 0, heightShare: 0.75, roadY: 948, pad: 0, lanesW: 0, backShare: 0.52 } as StripRule,

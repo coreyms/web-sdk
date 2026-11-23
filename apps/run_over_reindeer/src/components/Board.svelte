@@ -98,6 +98,7 @@
 	import { garlandMemory, loadGarland, setGarlandMipmapper } from '../game/road/garland';
 	import { brawlForBook, brawlRoundEnd } from '../game/road/brawlCloud';
 	import { clipMemory, setClipRebatch, setClipUploader, setClipView } from '../game/road/columnClips';
+	import { compareWithText, setAheadTextHost, slamLabelStyles } from '../game/road/winLabelText';
 	import { loadRunViews, runMemory, setRunMipmapper } from '../game/road/reindeerRun';
 	import { loadRoamFrames, roamMemory, setRoamMipmapper } from '../game/road/roamFrames';
 	import { roamDev, type RoamZone } from '../game/road/roam';
@@ -761,6 +762,9 @@
 		const app = context.stateApp.pixiApplication;
 		// a column character's sheet goes to the GPU when it has loaded, not on the frame it is first drawn
 		setClipUploader(app ? (texture) => app.renderer.prepare.upload(texture) : null);
+		// THE LINE AMOUNTS MADE AHEAD (game/road/winLabelText.ts, constants LINE_WIN.slam.ahead): the resolution a Text is drawn
+		// at, and the call that puts a label's picture on the GPU in the frame the lights choose (never through prepare)
+		setAheadTextHost(app ? { resolution: () => app.renderer.resolution, upload: (source) => (app.renderer as PIXI.Renderer).texture.initSource(source) } : null);
 		// the seated drivers' animation sheets the same way (game/road/seatedClips.ts)
 		setSeatUploader(app ? (texture) => app.renderer.prepare.upload(texture) : null);
 		// before a character's sheet is unloaded, every batch is rebuilt (game/road/columnClips.ts release): toggling an
@@ -946,12 +950,23 @@
 			// TREATMENT B (constants LINE_WIN slam): the spin's total on the strip, plain (no multiplier), counting up, on the win
 			// clock's frame it is due (never waited for: a small win)
 			const amount = stripTotal ?? 0;
+			const stripWin = () => {
+				const value = bookEventAmountToNormalisedAmount(amount);
+				const countMs = LINE_WIN.slam.stripTotal === 'count' ? Math.max(1, LINE_WIN.slam.stripCountMs * pace) : 1;
+				return { x: bookEventAmountToBetAmountMultiplier(amount), amount: value, bet: bookEventAmountToNormalisedAmount(100), fmt: ledAmount(value), rate: motionFor(stateGame.turboLevel).rate, auto: stateBet.autoSpinsCounter > 0, small: true, countMs };
+			};
+			// THE SMALL WIN MADE AHEAD (constants LED_BOARD.warm.small, 2026-11-22): the strip's small win is drawn ahead from now,
+			// in the frames before the lights call for it, so it comes up from the caches
+			if (scoreboard && amount > 0) scoreboard.prepareSmall(stripWin());
+			// (DEV: the frame windows round each line win, __reindeer.lightsFrames)
+			if (import.meta.env.DEV) {
+				lightsMarks.push({ id: ++lightsMarkId, at: performance.now(), lines: wins.length, multi: wins.some((w) => (w.multiplier ?? 1) > 1), strip: amount > 0, turbo: stateGame.turboLevel });
+				if (lightsMarks.length > 60) lightsMarks.splice(0, lightsMarks.length - 60);
+			}
 			const onTotal =
 				scoreboard && amount > 0
 					? () => {
-							const value = bookEventAmountToNormalisedAmount(amount);
-							const countMs = LINE_WIN.slam.stripTotal === 'count' ? Math.max(1, LINE_WIN.slam.stripCountMs * pace) : 1;
-							void scoreboard.win({ x: bookEventAmountToBetAmountMultiplier(amount), amount: value, bet: bookEventAmountToNormalisedAmount(100), fmt: ledAmount(value), rate: motionFor(stateGame.turboLevel).rate, auto: stateBet.autoSpinsCounter > 0, small: true, countMs });
+							void scoreboard.win(stripWin());
 						}
 					: null;
 			await road.showWin(wins, amountText, LINE_WIN.holdMs * pace, multiplier, { pace, capped, onTotal, big: !!big, phone: sceneView?.uprightPhone ?? false });
@@ -1008,6 +1023,9 @@
 		},
 	});
 
+	/** DEV: each line win as it started (performance.now()), for __reindeer.lightsFrames */
+	const lightsMarks: { id: number; at: number; lines: number; multi: boolean; strip: boolean; turbo: number }[] = [];
+	let lightsMarkId = 0;
 	// THE DEV HOOK (house rule: one object on the window per game, extended and never replaced; the probes read it)
 	if (import.meta.env.DEV && typeof window !== 'undefined') {
 		// every animation frame's length (DEV only: cardFrames below)
@@ -1243,6 +1261,30 @@
 				}),
 			/** the cards made ahead (constants LED_BOARD.warm): queued, running and the last finished, with their samples and cost */
 			scoreboardWarm: () => scoreboard?.warmInfo() ?? [],
+			/** the strip's small win made ahead last (constants LED_BOARD.warm.small, 2026-11-22): its samples, pictures and cost */
+			scoreboardSmallWarm: () => scoreboard?.smallWarmInfo() ?? null,
+			/** THE FRAMES ROUND EACH LINE WIN (2026-11-22, wip/winlights; led_board_probe.mjs section hitch): for each line win as it
+			 *  started (the last 60: its lines, a multiplier among them, a strip total, the turbo level) the longest animation frame
+			 *  from `before` ms before it to `after` ms after (its lights, their amounts and the strip's small win all fall inside) */
+			lightsFrames: (before = 200, after = 2500) =>
+				lightsMarks.map((m) => {
+					const w = frames.window(m.at - before, m.at + after);
+					return { ...m, ...w, worstAfterMs: Math.round(w.worstAt - m.at) };
+				}),
+			/** THE LINE AMOUNTS MADE AHEAD (constants LINE_WIN.slam.ahead, game/road/winLabelText.ts): this win's label pictures,
+			 *  and the counts since the page loaded (pieces made ahead, pictures made on the frame they showed) */
+			winLabels: () => road.winLightsSnapshot().labels,
+			/** the same words drawn both ways on this renderer (a PIXI.Text's picture and an AheadText's): quads, sizes, pixels;
+			 *  `scale` the label scale (1; null: the upright phone's, as road.showWin works it out) */
+			winTextCompare: (texts: string[], scale: number | null = 1) => {
+				const app = context.stateApp.pixiApplication;
+				if (!app) return null;
+				// (null: the upright phone's label scale as road.showWin sets it, from the road's scale now)
+				const SL = LINE_WIN.slam;
+				const k = Math.abs(road.root.scale.x) || 1;
+				const S = slamLabelStyles(scale ?? Math.max(1, SL.phone.capPx / (SL.capRatio * LINE_WIN.lights.amount.size * k)));
+				return compareWithText(app.renderer as PIXI.Renderer, texts, { face: S.face, shadow: S.shadow });
+			},
 			scoreboardWin: (x: number, opts: { auto?: boolean; rate?: number; small?: boolean; countMs?: number } = {}) => {
 				if (!scoreboard) return null;
 				const bet = bookEventAmountToNormalisedAmount(100);

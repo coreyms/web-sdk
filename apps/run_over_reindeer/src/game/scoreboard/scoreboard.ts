@@ -119,6 +119,10 @@ type WarmJob = {
 	/** its card has come up (a later card of its kind is not this one's) */
 	used: boolean;
 };
+/** A SMALL WIN MADE AHEAD (2026-11-22, wip/winlights; LED_BOARD.warm.small; prepareSmall / smallWarmStep below): the strip's
+ *  small win a spin's line win will show, drawn ahead on a kept scratch strip face at the steps that make pictures (its
+ *  first step, the landed amount, the reindeer's hop frames, then every step of its count), so it comes up from the caches */
+type SmallWarm = { show: Show; times: number[]; next: number; state: 'running' | 'done' | 'dropped' | 'failed'; why: string; samples: number; made: number; ms: number; frames: number; maxFrameMs: number; amount: string };
 /** a show as it came up (performance.now()), and how far its card's warm had got then (the dev hook's frame windows) */
 export type ShowMark = { kind: string; id: number; at: number; warm: string };
 
@@ -245,6 +249,9 @@ export class Scoreboard {
 	onPress: (() => void) | null = null;
 	/** THE CARDS MADE AHEAD (constants LED_BOARD.warm): the jobs queued, running and the last few finished */
 	private warmJobs: WarmJob[] = [];
+	/** the small win made ahead (the last one kept for the readout), and its scratch strip face (kept: one per face size) */
+	private smallWarm: SmallWarm | null = null;
+	private smallFace: { key: string; F: Face } | null = null;
 	/** the last shows as they came up (ShowMark) */
 	private marks: ShowMark[] = [];
 
@@ -702,8 +709,11 @@ export class Scoreboard {
 		this.show = s;
 		this.mark('show', `${s.kind} ${s.final} ${s.arrive ? 'back' : 'strip'}`);
 		// (a card made ahead is let go as it comes up: what it made is in the caches; the readout keeps how far it got)
+		const sw = this.smallWarm;
+		if (s.kind === 'small' && sw && sw.state === 'running') this.smallEnd(sw, 'dropped', 'the small win came up first');
 		const job = isCard(s) ? this.warmJobs.find((j) => j.kind === s.kind && !j.used && (j.state === 'queued' || j.state === 'running' || j.state === 'done')) : undefined;
-		this.marks.push({ kind: s.kind, id: s.id, at: performance.now(), warm: !isCard(s) ? '-' : !job ? 'none' : job.state === 'done' ? 'done' : `${job.state} ${job.samples}/${job.order.length || job.times.length}` });
+		const smallState = !sw || sw.amount !== s.finalStr ? 'none' : sw.state === 'done' ? 'done' : `${sw.state} ${sw.samples}/${sw.times.length}`;
+		this.marks.push({ kind: s.kind, id: s.id, at: performance.now(), warm: s.kind === 'small' ? smallState : !isCard(s) ? '-' : !job ? 'none' : job.state === 'done' ? 'done' : `${job.state} ${job.samples}/${job.order.length || job.times.length}` });
 		if (this.marks.length > 40) this.marks.splice(0, this.marks.length - 40);
 		if (job) job.used = true;
 		if (job && job.state !== 'done') this.warmEnd(job, 'dropped', 'the card came up first');
@@ -786,6 +796,69 @@ export class Scoreboard {
 			this.warmJobs = this.warmJobs.filter((j) => !drop.has(j));
 		}
 	}
+	/** THE SMALL WIN MADE AHEAD (LED_BOARD.warm.small; components/Board.svelte asks as a line win starts, with the very request
+	 *  its strip total will make when the lights call for it): drawn ahead on a scratch strip face in the frames before it
+	 *  comes up, within the same budget as a card (it goes first: it is due soonest). Nothing waits on it; the real small win
+	 *  draws exactly as it always did, from the caches. */
+	prepareSmall(o: WinRequest) {
+		const W = LED_BOARD.warm;
+		if (!LED_BOARD.on || !W.on || !W.small) return;
+		const s = newShow({ ...o, small: true });
+		// the steps that make pictures first: its first steps (the layout, the title, the amount's ink, its glyphs), the landed
+		// amount, the reindeer's eight hop frames and its sparkles; then every LED step of the count (the digits on the way)
+		const step = 1000 / Math.max(1, LED_BOARD.fps);
+		// (and two steps before the count: the steady 0 shown until it starts is kept made the second time it is drawn)
+		const times = [1, Math.max(2, s.countStart / 2), s.countStart + 1, s.countEnd];
+		for (let i = 0; i < 8; i++) times.push(s.countEnd + 1 + i * 66);
+		for (let t = s.countStart + step; t < s.countEnd; t += step) times.push(t);
+		if (this.smallWarm?.state === 'running') this.smallEnd(this.smallWarm, 'dropped', 'asked for again');
+		this.smallWarm = { show: s, times, next: 0, state: 'running', why: '', samples: 0, made: 0, ms: 0, frames: 0, maxFrameMs: 0, amount: s.finalStr };
+	}
+	private smallEnd(w: SmallWarm, state: SmallWarm['state'], why: string) {
+		w.state = state;
+		w.why = why;
+		this.mark('warm', `small ${state}: ${why} (${w.samples} samples, ${w.made} made, ${Math.round(w.ms)} ms over ${w.frames} frames)`);
+	}
+	/** the small win's share of the frame's budget: true when it used the frame (the cards wait for the next) */
+	private smallWarmStep(budget: number): boolean {
+		const w = this.smallWarm;
+		if (!w || w.state !== 'running' || !this.strip) return false;
+		const S = this.strip.F;
+		const key = this.faceKey;
+		if (!this.smallFace || this.smallFace.key !== key) this.smallFace = { key, F: makeFaceCanvases(S.dotsW, S.dotsH, S.k) };
+		const F = this.smallFace.F;
+		const t0 = performance.now();
+		w.frames += 1;
+		while (w.next < w.times.length) {
+			const left = budget - (performance.now() - t0);
+			if (left <= 0) break;
+			const r = warmRun(left, () => {
+				for (const c of [F.out, F.a, F.b]) {
+					c.ctx.globalAlpha = 1;
+					c.ctx.globalCompositeOperation = 'source-over';
+				}
+				F.out.ctx.clearRect(0, 0, F.dotsW, F.dotsH);
+				clearTitle(F.out.ctx.canvas);
+				clearIdeas(F.out.ctx.canvas);
+				w.show.t = w.times[w.next];
+				showSmall(F, w.show);
+			});
+			w.made += r.misses;
+			if (r.error) {
+				w.ms += performance.now() - t0;
+				this.smallEnd(w, 'failed', String((r.error as Error)?.message ?? r.error).slice(0, 120));
+				return true;
+			}
+			if (!r.done) break;
+			w.samples += 1;
+			w.next += 1;
+		}
+		const ms = performance.now() - t0;
+		w.ms += ms;
+		w.maxFrameMs = Math.max(w.maxFrameMs, ms);
+		if (w.next >= w.times.length) this.smallEnd(w, 'done', 'every sample drawn');
+		return true;
+	}
 	/** a job's scratch faces and samples, for the faces as they are now */
 	private warmSetup(job: WarmJob) {
 		const B = this.back!.F;
@@ -839,10 +912,12 @@ export class Scoreboard {
 	private warmStep(spentMs: number) {
 		const W = LED_BOARD.warm;
 		if (!W.on || !this.back || !this.strip) return;
-		const job = this.warmJobs.find((j) => j.state === 'queued' || j.state === 'running');
-		if (!job) return;
 		const budget = W.budgetMs - spentMs;
 		if (budget <= 0.25) return;
+		// (a small win made ahead goes first: it comes up within a second or so, a card later)
+		if (this.smallWarmStep(budget)) return;
+		const job = this.warmJobs.find((j) => j.state === 'queued' || j.state === 'running');
+		if (!job) return;
 		const t0 = performance.now();
 		if (job.faceKey !== this.faceKey || !job.back) this.warmSetup(job);
 		job.state = 'running';
@@ -886,6 +961,11 @@ export class Scoreboard {
 	warmInfo() {
 		const now = performance.now();
 		return this.warmJobs.map((j) => ({ kind: j.kind, state: j.state, why: j.why, samples: j.samples, of: j.order.length, steps: j.times.length, made: j.made, ms: Math.round(j.ms * 10) / 10, frames: j.frames, maxFrameMs: Math.round(j.maxFrameMs * 10) / 10, agoMs: Math.round(now - j.queuedAt), tookMs: j.doneAt === null ? null : Math.round(j.doneAt - j.queuedAt), used: j.used, amount: j.req.amount, spins: j.req.spins }));
+	}
+	/** DEV / probe: the small win made ahead last (null: none asked for) */
+	smallWarmInfo() {
+		const w = this.smallWarm;
+		return w ? { state: w.state, why: w.why, amount: w.amount, samples: w.samples, of: w.times.length, made: w.made, ms: Math.round(w.ms * 10) / 10, frames: w.frames, maxFrameMs: Math.round(w.maxFrameMs * 10) / 10 } : null;
 	}
 	/** DEV / probe: the last shows as they came up (performance.now()) and how far their card's warm had got */
 	showMarks(): ShowMark[] {
