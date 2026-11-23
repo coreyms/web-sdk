@@ -647,6 +647,7 @@ for (const [vw, vh] of [[1920, 1080], [1200, 675], [1024, 576], [1280, 720], [13
 {
 	const S = await import(pathToFileURL(join(APP, 'src', 'game', 'layoutSpec.ts')).href);
 	line(S.MASTER.portrait.width === L.PORTRAIT_MASTER.w && S.MASTER.portrait.height === L.PORTRAIT_MASTER.h, "the layout file's upright master is the game's (layoutSpec MASTER.portrait)");
+	line(S.MASTER.phone.width === L.PHONE_MASTER.w && S.MASTER.phone.height === L.PHONE_MASTER.h, "the layout file's sideways master is the game's (layoutSpec MASTER.phone)");
 }
 // ---- SKIP TO RESULT upright: on Menu's row, to Menu's left (Corey 2026-11-22), clear of the logo, the board and the top line ----
 for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true], [390, 844, true], [390, 620, true], [360, 640, false], [393, 852, false], [412, 915, false], [430, 932, false]]) {
@@ -676,6 +677,12 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 // Auto's and Turbo's 44 px press pads, inside the window and its safe area, its drawn box off the board, the LED strip
 // and the logo (the scene's keep-outs, ui/sign/signZones.ts); with no insets it is his box from the top
 // right corner. At his own windows and at the desktop it is what it was before (0.5 px).
+// THE TOP LINE (2026-11-25, the probe host on 0d6ce2aa: at 667 x 375 POLYMATH GAMES, y 25.3 to 32.0, lay across the
+// button's top, y 20.9; 568 x 320 the same). Sideways the top line is the phone master's (1480 x 740, fitted and
+// centered, game/layoutSpec.ts MASTER.phone): its text 10 master units under the master's top, about 15 tall
+// (ui/ClockStrip.svelte, 12 px type; the host measured 14.9 to 15.0), its lower edge 28 under it (signLayout.ts
+// PHONE_MASTER.topLine, as upright). His box keeps its distance under that edge as at his windows, scaled; checked here:
+// the drawn box 3 px or more under the text at every window.
 {
 	const H = await import(pathToFileURL(join(APP, 'src', 'ui', 'hud', 'hudLayout.ts')).href);
 	const NAMED = [[568, 320], [667, 375], [736, 414], [812, 375], [812, 425], [844, 390], [896, 414], [926, 428], [932, 430], [832, 376], [667, 311]];
@@ -684,10 +691,15 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 	const rows = [];
 	let n = 0;
 	let least = { v: Infinity, at: '' };
+	let leastTop = { v: Infinity, at: '' };
+	// COPY OF ui/ClockStrip.svelte .strip top (10 px in the master), its line about 15 master px (12 px type)
+	const TOP_TEXT = { top: 10, h: 15 };
 	const each = (vw, vh, safe, show) => {
 		n++;
 		const sk = H.hudSkipRect({ kind: 'phone', phone: true, vw, vh, safe });
 		const { g, seat, zones } = at('phone', vw, vh, safe);
+		const ms = Math.min(vw / S0.MASTER.phone.width, vh / S0.MASTER.phone.height);
+		const textLow = (vh - S0.MASTER.phone.height * ms) / 2 + (TOP_TEXT.top + TOP_TEXT.h) * ms;
 		const ph = Math.max(sk.height, L.TOUCH_MIN);
 		const press = { x: sk.x, y: sk.y + sk.height / 2 - ph / 2, w: sk.width, h: ph };
 		const P = L.shapeOf('menu', press);
@@ -709,6 +721,7 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 		for (const [id, z] of [['board', zones.board], ['LED strip', zones.strip], ['logo', zones.logo]]) if (z && L.onZone(drawn, z)) why.push(`on the ${id}`);
 		const S = safe ?? { t: 0, r: 0, b: 0, l: 0 };
 		if (press.x < S.l - 0.05 || press.y < S.t - 0.05 || press.x + press.w > vw - S.r + 0.05 || press.y + press.h > vh - S.b + 0.05) why.push('outside the window or its safe area');
+		if (sk.y < textLow + 3 - 0.005) why.push(`${r1(sk.y - textLow)} px under the top line's text`);
 		if (!safe) {
 			const his = L.sceneFit('phone', vw, vh).skip;
 			if (!his || Math.max(Math.abs(sk.x - his.x), Math.abs(sk.y - his.y), Math.abs(sk.width - his.w), Math.abs(sk.height - his.h)) > 0.01) why.push('not his box from the top right corner');
@@ -716,14 +729,15 @@ for (const [vw, vh, his] of [[425, 812, true], [375, 667, true], [320, 568, true
 		if (why.length) bad.push(`${tag}: ${why.join(', ')}`);
 		const auto = g.box.auto;
 		const pa = pads.auto?.poly;
-		if (show) rows.push(`       ${tag.padEnd(16)} SKIP ${r1(sk.x)}, ${r1(sk.y)}, ${r1(sk.width)} x ${r1(sk.height)} (press ${r1(press.h)} tall) | Auto's box from ${r1(auto.y)}: ${r1(auto.y - (sk.y + sk.height))} px under the button; Auto's pad ${pa ? r1(L.shapeGap(P, pa)) : '-'} px from its press area | nearest ${near[0]} ${r1(near[1])} px`);
+		if (sk.y - textLow < leastTop.v) leastTop = { v: sk.y - textLow, at: tag };
+		if (show) rows.push(`       ${tag.padEnd(16)} SKIP ${r1(sk.x)}, ${r1(sk.y)}, ${r1(sk.width)} x ${r1(sk.height)} (press ${r1(press.h)} tall) | ${r1(sk.y - textLow)} px under the top line's text (to ${r1(textLow)}) | Auto's box from ${r1(auto.y)}: ${r1(auto.y - (sk.y + sk.height))} px under the button; Auto's pad ${pa ? r1(L.shapeGap(P, pa)) : '-'} px from its press area | nearest ${near[0]} ${r1(near[1])} px`);
 	};
 	for (let vh = 320; vh <= 430; vh += 10) for (let vw = 568; vw <= 932; vw += 4) if (vw / vh >= 1.5 && vw / vh <= 2.34) each(vw, vh, undefined, false);
 	for (const [vw, vh] of NAMED) {
 		each(vw, vh, undefined, true);
 		if (vw >= 812) each(vw, vh, NOTCH, true);
 	}
-	line(bad.length === 0, `sideways SKIP TO RESULT at ${n} windows (the sweep from 568 x 320 to 932 x 430, the named ones bare and with notch insets): his box from the top right corner, its press area 2 px or more clear of every piece, the bet symbols' press boxes and Auto's and Turbo's pads, inside the window, off the board, the strip and the logo`, `${bad.slice(0, 6).join(' | ')}${bad.length ? ` (${bad.length} windows) | ` : ''}least clearance ${r1(least.v)} px (${least.at})`);
+	line(bad.length === 0, `sideways SKIP TO RESULT at ${n} windows (the sweep from 568 x 320 to 932 x 430, the named ones bare and with notch insets): his box from the top right corner, its press area 2 px or more clear of every piece, the bet symbols' press boxes and Auto's and Turbo's pads, inside the window, off the board, the strip and the logo, 3 px or more under the top line's text`, `${bad.slice(0, 6).join(' | ')}${bad.length ? ` (${bad.length} windows) | ` : ''}least clearance ${r1(least.v)} px (${least.at}); least under the top line's text ${r1(leastTop.v)} px (${leastTop.at})`);
 	for (const r of rows) console.log(r);
 	// unchanged at his own windows and at the desktop (hudSkipRect on 930a7748, before this fix)
 	const BEFORE = { 'portrait|440x742': [218.3, 32.5, 85.7, 49.5], 'portrait|413x586': [211.2, 29.5, 71.8, 42.5], 'portrait|375x530': [195, 22.6, 65, 38.5], 'portrait|626x816': [365.5, 38.4, 100, 57], 'portrait|390x844': [193.34, 93.31, 76, 44.01], 'portrait|425x812': [210.85, 47.88, 82.8, 47.81], 'portrait|375x667': [184.73, 28.36, 73.06, 43.42], 'portrait|320x568': [150.23, 20.68, 62.36, 44.01], 'portrait|390x620': [188.61, 26.72, 75.99, 45.06], 'portrait|430x932': [213.33, 103.67, 83.79, 48.38], 'phone|832x376': [703.4, 27.4, 94.5, 28.9], 'phone|667x311': [565, 19.5, 92.8, 28.4], 'landscape|890x552': [786, 26.7, 91.9, 36.8], 'landscape|1920x1080': [1803.33, 48, 106.67, 42.67], 'landscape|1440x900': [1350, 37.5, 80, 32], 'landscape|1280x720': [1198.89, 34, 71.11, 28.44], 'landscape|1180x820': [1090, 31.81, 80, 32], 'landscape|1024x768': [944.58, 28.4, 69.42, 27.77], 'landscape|2560x1080': [2443.33, 48, 106.67, 42.67] };

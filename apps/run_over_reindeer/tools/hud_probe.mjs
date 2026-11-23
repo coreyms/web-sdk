@@ -11,6 +11,7 @@
 // WATCHES: apps/run_over_reindeer/src/{game/currency.ts,fixtures/fixtureRgs.ts};
 // WATCHES: apps/run_over_reindeer/src/{ui/sign/SignHud.svelte,ui/sign/signLayout.ts,ui/sign/signZones.ts,ui/sign/SignPlay.svelte,ui/hudTheme.ts,ui/sign/SignMenuPanel.svelte};
 // WATCHES: ; __reindeer.sign, __reindeer.hud.bar, HUD_BAR, .sgw, .s-words, .s-ring, data-shape, data-total, data-bar, .sgpad, .sgpads, data-pad, padPlaces, padShapes, pressOwner, pressShape, __reindeer.sign.pads, __reindeer.sign.owner, __reindeer.sign.shapes, .sgcatch, data-catch, data-l, .am-ui, .menu-open
+// WATCHES: apps/run_over_reindeer/src/ui/ClockStrip.svelte; data-top-line, phoneTopLine, PHONE_MASTER, skipShare
 // WATCHES: apps/run_over_reindeer/src/{game/actor.ts,game/utils.ts,game/stateGame.svelte.ts,ui/SpinHotkey.svelte};
 // WATCHES: ; __reindeer.pressReady, __reindeer.spinTail, roundSettled, roundTailFinish, landSmall, SPIN_TAIL, flipGraceMs, ledCountDone, data-resume-card
 // THE HUD PROBE (the house glass HUD from Manticore, "Win over Balance, Drop 6" plus round 6, in this game's "Frost"
@@ -2806,6 +2807,14 @@ async function signHud(browser) {
 						const meets = (q) => !!q && Math.min(sk.x + sk.w, q.x + q.w) - Math.max(sk.x, q.x) > 0.5 && Math.min(sk.y + sk.h, q.y + q.h) - Math.max(sk.y, q.y) > 0.5;
 						const on = Object.entries(d.dom).filter(([id, q]) => id !== 'win' && meets(q)).map(([id]) => id);
 						check(on.length === 0, `${tag}: SKIP TO RESULT stands on no piece of the bar`, { skip: sk, on });
+						if (kind === 'phone') {
+							// SIDEWAYS, UNDER THE TOP LINE (2026-11-25, this host on 0d6ce2aa: at 667 x 375 and 568 x 320 POLYMATH GAMES
+							// lay across the button's top): the button's top 3 px or more under the top line's text, at his distance under
+							// the top line's lower edge (ui/sign/signLayout.ts phoneTopLine, sceneFit)
+							const lines = await p.evaluate(() => [...document.querySelectorAll('[data-top-line]')].map((e) => { const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; }));
+							const low = Math.max(0, ...lines.map((q) => q.y + q.h));
+							check(lines.length > 0 && sk.y >= low + 3 - 0.5 && !lines.some((q) => meets(q)), `${tag}: sideways, SKIP TO RESULT stands under the top line (its top ${r1(sk.y)}, the top line's text to ${r1(low)}: ${r1(sk.y - low)} px)`, { skip: sk, lines });
+						}
 						if (kind === 'portrait') {
 							const m = d.dom.menu;
 							const topLine = await p.evaluate(() => Math.max(0, ...[...document.querySelectorAll('[data-top-line]')].map((e) => e.getBoundingClientRect().bottom)));

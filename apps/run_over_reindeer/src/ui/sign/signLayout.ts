@@ -773,6 +773,16 @@ export const topLine = (vw: number, vh: number) => {
 	const fit = Math.min(vw / PORTRAIT_MASTER.w, vh / PORTRAIT_MASTER.h);
 	return (vh - PORTRAIT_MASTER.h * fit) / 2 + PORTRAIT_MASTER.topLine * fit;
 };
+/** THE TOP LINE's lower edge SIDEWAYS, CSS px (2026-11-25, the probe host on 0d6ce2aa: at 667 x 375 POLYMATH GAMES lay
+ *  across SKIP TO RESULT's top). The top line (ui/ClockStrip.svelte: 10 master units under the master's top, 12 px type)
+ *  stands in the phone master (1480 x 740, game/layoutSpec.ts MASTER.phone), fitted and centered, so on a window taller
+ *  for its width than 2:1 it comes down with the letterbox (y 25 at 667 x 375, 5 at 832 x 376). Its lower edge is 28
+ *  master units under the master's top, as upright: SKIP TO RESULT keeps its distance under it (sceneFit). */
+export const PHONE_MASTER = { w: 1480, h: 740, topLine: 28 } as const;
+export const phoneTopLine = (vw: number, vh: number) => {
+	const fit = Math.min(vw / PHONE_MASTER.w, vh / PHONE_MASTER.h);
+	return (vh - PHONE_MASTER.h * fit) / 2 + PHONE_MASTER.topLine * fit;
+};
 /** an anchor's line, bar px: `top` is the top line's lower edge (upright) */
 export const anchorY = (a: Anchor['ay'], H: number, top: number) => (a === 'T' ? top : a === 'B' ? H : H / 2);
 
@@ -1096,7 +1106,9 @@ export const signLayout = (v: SignView): SignGeo => {
 //                    stood on Auto. Off his sideways line his share fell off and the rule's own box took over, the glass
 //                    dock's place under its Auto and Turbo capsule, which is where the sign bar's Auto stands. Sideways the
 //                    bar's pieces are his at every window, by the blend, so SKIP is too: his box from the top right corner
-//                    at the bar's scale, from his nearest windows. Unchanged at his own windows, where the share was 1.)
+//                    at the bar's scale, from his nearest windows. Unchanged at his own windows, where the share was 1.
+//                    Its y is his distance under the top line's lower edge, phoneTopLine, as upright: at 667 x 375 and
+//                    568 x 320 the letterboxed top line came down across his box's top.)
 //   forest           a tree line is drawn (upright): the game's own phones, and since round 3 up to his phablet's width
 export const SCENE_REACH = 1;
 export const FOREST_MAX_SHORT = 640;
@@ -1132,7 +1144,9 @@ export const sceneFit = (kind: SignKind, vw: number, vh: number): SceneFit => {
 			let treeDy = 0;
 			const logo = { x: 0, y: 0, w: 0, h: 0 };
 			const skip = { x: 0, y: 0, w: 0, h: 0 };
-			const top = kind === 'portrait' ? topLine(vw, vh) : 0;
+			// (his distance under the top line's lower edge, scaled: upright and, since 2026-11-25, sideways too)
+			const line = kind === 'portrait' ? topLine : phoneTopLine;
+			const top = line(vw, vh);
 			for (let i = 0; i < refs.length; i++) {
 				const r = refs[i];
 				const S = r.scene;
@@ -1144,7 +1158,7 @@ export const sceneFit = (kind: SignKind, vw: number, vh: number): SceneFit => {
 				logo.y += (f * S.logo[1] * vh) / r.vh;
 				logo.w += (f * S.logo[2] * vw) / r.vw;
 				logo.h += (f * S.logo[3] * vw) / r.vw;
-				const k = skipAt(r, top, kind === 'portrait' ? topLine(r.vw, r.vh) : 0);
+				const k = skipAt(r, top, line(r.vw, r.vh));
 				skip.x += f * k.x;
 				skip.y += f * k.y;
 				skip.w += f * k.w;
