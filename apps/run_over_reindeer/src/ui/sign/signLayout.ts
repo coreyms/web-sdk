@@ -31,6 +31,11 @@
 // Desktop: every piece keeps its bar px size and its distance to the nearer side of the 16:9 game area and to the
 // bottom edge (desktopLayout).
 
+/** THE GAME BAR IN USE: 'sign' (this bar) or 'dock' (the glass dock, ui/hud/, kept whole for a rollback and an A/B).
+ *  One constant; ui/hudTheme.ts documents it and passes it on. It lives here because this file loads anywhere (no
+ *  page, no state): the canvas's layout files read it without loading the theme. */
+export const HUD_BAR: 'sign' | 'dock' = 'sign';
+
 export type Box = { x: number; y: number; w: number; h: number };
 export type Insets = { t: number; r: number; b: number; l: number };
 export type SignKind = 'landscape' | 'portrait' | 'phone';

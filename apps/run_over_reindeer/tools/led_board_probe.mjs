@@ -16,6 +16,7 @@
 // WATCHES: ; .landing, .hudp, .spin, .am-ui, .wrap, .layer, .modals, .go
 // WATCHES: apps/run_over_reindeer/src/game/currency.ts;
 // WATCHES: apps/run_over_reindeer/src/{game/scoreboard/scoreboard.ts,game/scoreboard/warmGate.ts,game/scoreboard/cardFrames.ts,game/scoreboard/ledSigns.ts}; LED_BOARD.warm, __reindeer.cardFrames, __reindeer.scoreboardWarm, data-wheel-gate
+// WATCHES: apps/run_over_reindeer/src/ui/sign/{ledBand.ts,signLayout.ts}; __reindeer.sign.lights, __reindeer.sign.his, HUD_BAR
 // THE LED SCOREBOARD PROBE (part A, 2026-11-17; bigwin_led_r3_2026-11-16 "r3b"; constants LED_BOARD, game/scoreboard/). At each size:
 //   - THE STRIP'S RULE per layout class, worked out here from the game's own geometry (the road picture's place, the board,
 //     the HUD's layout functions): desktop and tablet 0.62 of the road picture, centred on the window, top the bottom lane
@@ -182,6 +183,14 @@ async function boot(browser, S) {
 		await sleep(600);
 	}
 	await sleep(800);
+	// THE SIGN BAR'S LED LIGHTS ARE HELD for this probe (2026-11-22, ui/sign/ledBand.ts through __reindeer.sign.lights; the
+	// dock has none). Several lines here take what the scoreboard draws as the pixels that differ between two captures of a
+	// region (the rise: "nothing of it shows under or beside the strip"), and on an upright phone the region under the
+	// strip now holds the Play's top, whose LED border twinkles at rest: 107 px of it differed and were read as the
+	// rising board. Nothing is left out of any region: the bar is in both captures, in the same state, and a board
+	// showing under the strip would differ exactly as before. (The game hides the lowered board under its own snow
+	// cover from the strip's top to the screen's foot, game/scoreboard/scoreboard.ts buildCover: the bar does not hide it.)
+	await p.evaluate(() => void window.__reindeer.sign?.lights?.(false)).catch(() => {});
 	return { ctx, p, errs };
 }
 
@@ -212,10 +221,10 @@ const expectRule = (p) =>
 			if (window.__reindeer.tune.ledBoard.size === 'd') {
 				const fr = Math.max(6, Math.min(9, 6 + ((h - 53) * 3) / 37));
 				const RB = bl.css;
-				return { cls: f.variant === 'tablet' ? 'tablet' : 'desktop', w: RB.width + 2 * fr, x: RB.x - fr, y, h, hud: under, board: RB, size: 'd' };
+				return { cls: f.variant === 'tablet' ? 'tablet' : 'desktop', w: RB.width + 2 * fr, x: RB.x - fr, y, h, hud: under, board: RB, size: 'd', signH: sign ? window.__reindeer.sign.his().desktop.stripH * f.fit.scale : null };
 			}
 			const w = 0.62 * 1535 * k;
-			return { cls: f.variant === 'tablet' ? 'tablet' : 'desktop', w, x: vw / 2 - w / 2, y, h, hud: under };
+			return { cls: f.variant === 'tablet' ? 'tablet' : 'desktop', w, x: vw / 2 - w / 2, y, h, hud: under, signH: sign ? window.__reindeer.sign.his().desktop.stripH * f.fit.scale : null };
 		}
 		if (bl.kind === 'portrait') {
 			const G = H.portraitGeo(f, 0);
@@ -267,7 +276,15 @@ async function sizeChecks(p, S, memory) {
 		}
 		// (390 x 620: Corey accepted the game's own strip height on 2026-11-17, 6.1 px under the mock's by-eye 58: the
 		// expected height there is the game's rule, E.h, and the strip must stand between the road's edge and the HUD)
-		const M = S.mock ? (S.acceptRuleH ? { ...S.mock, h: E.h } : S.mock) : null;
+		let M = S.mock ? (S.acceptRuleH ? { ...S.mock, h: E.h } : S.mock) : null;
+		// THE SIGN BAR'S DESKTOP STRIP (2026-11-22, ui/hudTheme.ts HUD_BAR 'sign'; with 'dock' the bigwin mock's numbers
+		// stand as they were). The bigwin mock drew the strip over the glass dock: 80 px tall at 1920 x 1080. With the dock
+		// gone Corey's own desktop layout (corey_layout_r4_2026-11-22.json, `led` at 1920x1080: x 351.9, y 907.3, w 1214.4,
+		// height 101, where the game gave 75.3) stands it taller at the same place and width; the game holds that as
+		// ui/sign/signLayout.ts DESKTOP.stripH (101 / 1.5 master units), read here through the dev hook at this window's
+		// scale. The expected height is the taller of the two (16:10 keeps the mock's 90: his 75.8 there is under it);
+		// the place and the width are still the mock's.
+		if (M && E.signH != null && E.signH > M.h) M = { ...M, h: r1(E.signH) };
 		if (S.acceptRuleH) check(st.y >= E.y - 0.6 && st.housingBottom <= E.hud + 0.5, `${tag}: the strip stands between the road's edge (${r1(E.y)}) and the HUD's top (${r1(E.hud)}): ${r1(st.y)} to ${r1(st.housingBottom)}`);
 		const dm = M ? { w: r1(st.w - M.w), x: r1(st.x - M.x), y: r1(st.y - M.y), h: r1(st.h - M.h) } : { w: 0, x: 0, y: 0, h: 0 };
 		// (board size d: the bigwin mock's strip numbers are today's width; the height and the place still hold)

@@ -23,8 +23,7 @@
 // the probes' own copies of these numbers all read the same rules.
 import { MASTER, type LayoutKind, boardRect } from '../../game/layoutSpec';
 import { HUD_BED } from '../../game/constants';
-import { HUD_BAR } from '../hudTheme';
-import { signLayout, skipBox } from '../sign/signLayout';
+import { HUD_BAR, signLayout, skipBox } from '../sign/signLayout';
 
 export type HudVariant = 'desktop' | 'tablet' | 'portrait' | 'landscape';
 export type Insets = { t: number; r: number; b: number; l: number };

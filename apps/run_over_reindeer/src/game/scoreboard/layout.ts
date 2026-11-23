@@ -5,8 +5,8 @@
 import { LED_BOARD, LED_SIGN, type StripRule } from '../constants';
 import { boardRect, landscapeExtraY, type LayoutKind } from '../layoutSpec';
 import { desktopGeo, hudFrame, landscapeGeo, portraitGeo, readSafeInsets } from '../../ui/hud/hudLayout';
-import { HUD_BAR } from '../../ui/hudTheme';
-import { DESKTOP as SIGN_DESKTOP } from '../../ui/sign/signLayout';
+// (the bar's constant from the layout file, not ui/hudTheme.ts: that one needs a page, and this file is loaded by node checks)
+import { DESKTOP as SIGN_DESKTOP, HUD_BAR } from '../../ui/sign/signLayout';
 
 export type Rect = { x: number; y: number; w: number; h: number };
 export type FaceRect = Rect & { dotsW: number; dotsH: number };

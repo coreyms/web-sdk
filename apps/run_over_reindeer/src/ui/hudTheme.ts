@@ -305,8 +305,11 @@ export const HUD_CONFIG = {
  *  Play with its LED border, the sign keys, the Fast Lane hexagon, bare bet symbols, plate headers); 'dock' is the glass
  *  dock it replaced (ui/hud/, kept whole for a rollback and for an A/B on the probe host). One constant: the three
  *  chromes, the canvas beds under the dock (components/HudBeds.svelte) and the desktop LED strip's height
- *  (game/scoreboard/layout.ts) read it. */
-export const HUD_BAR: 'sign' | 'dock' = 'sign';
+ *  (game/scoreboard/layout.ts) read it.
+ *  THE CONSTANT ITSELF is in ui/sign/signLayout.ts and is passed on here (2026-11-23): the canvas's layout files
+ *  (game/scoreboard/layout.ts, ui/hud/hudLayout.ts) read it there, because this file sets the theme on the page as it
+ *  loads and so cannot be loaded where there is no page (tools/led_warm_check.mjs failed on that from 791eba85). */
+export { HUD_BAR } from './sign/signLayout';
 
 /** THE SIGN BAR'S TOKENS: every color and every drawing number of ui/sign/ that is not a place (places and sizes are
  *  ui/sign/signLayout.ts). From Corey's exports: corey_play_r6 (the Play, locked), corey_hud_r8 (the rest), round 9
