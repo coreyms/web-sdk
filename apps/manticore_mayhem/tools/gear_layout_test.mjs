@@ -856,6 +856,130 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	check(`rings: the small ring's art is 256 px square with its middle line ${FG.FRAME_PINION.texR} px out (${f1(FG.FRAME_PINION.texR / css4k)} px per CSS px on a 3840 x 2160 screen), the wheels' 512 px`, small.join() === '256,256' && big.join() === '512,512' && FG.FRAME_PINION.texR / css4k >= 2.95 && FG.FRAME_PINION.texR + 5 * (FG.FRAME_PINION.texR / FG.FRAME_PINION.ringR) + 1 < 128);
 }
 
+// ---- 4h. THE KEYS A PAGE DRAWS (gearLayout.ts seatBar, presentKeys): the eight sets, every frame ----
+// An operator's switches (disabledAutoplay, disabledTurbo, disabledBuyFeature) and a replay (Auto and the Armoury) take
+// keys away; the rest slide toward the Play gear in their order and stay meshed. Corey 2026-11-24: "yes".
+{
+	const LS = await import('../src/game/layoutSpec.ts');
+	const SETS = [];
+	for (const auto of [true, false]) for (const turbo of [true, false]) for (const arm of [true, false]) SETS.push({ auto, turbo, arm });
+	const nameOf = (P) => ['auto', 'turbo', 'arm'].filter((k) => !P[k]).map((k) => ({ auto: 'Auto', turbo: 'Turbo', arm: 'the Armoury' })[k]).join(' and ') || 'nothing';
+	const toBox = (c, b) => {
+		const nx = Math.max(b.x, Math.min(c.cx, b.x + b.w));
+		const ny = Math.max(b.y, Math.min(c.cy, b.y + b.h));
+		return c.cx > b.x && c.cx < b.x + b.w && c.cy > b.y && c.cy < b.y + b.h ? -c.R : Math.hypot(c.cx - nx, c.cy - ny) - c.R;
+	};
+	const dist = (a, b) => Math.hypot(a.cx - b.cx, a.cy - b.cy);
+	// the frames: every upright and sideways gear frame of the survey (their own lists above are private to 4f), the desktop sizes
+	const UP = [[360, 780], [375, 504], [375, 554], [375, 627], [385, 598], [402, 573], [402, 661], [402, 750], [402, 874], [413, 586], [440, 655], [440, 742], [440, 956], [466, 678]];
+	const SIDE = [[667, 325], [667, 355], [678, 402], [780, 360], [832, 376], [840, 360], [874, 338], [874, 402], [891, 412], [956, 376], [956, 440]];
+	const DESK = [[1920, 1080], [1440, 900], [1280, 720], [1024, 576], [1366, 768], [2560, 1440]];
+	const bad = [];
+	const rows = [];
+	let n = 0;
+	/** everything that must hold of a seated bar; `clear`: the play between meshed pitch circles; `wheel`: the frame's wheel (sideways) */
+	const judge = (key, P, L, full, clear, wheel) => {
+		n += 1;
+		const fail = (why) => bad.push(`${key}, without ${nameOf(P)}: ${why}`);
+		const g = L.gears;
+		const small = Object.keys(g).filter((id) => id !== 'play');
+		const want = (L.table === 'upright' ? ['auto', 'menu', 'arm', 'turbo'] : ['auto', 'turbo']).filter((id) => id === 'menu' || P[id]);
+		if (small.slice().sort().join() !== want.slice().sort().join()) fail(`draws ${small.join(', ') || 'no small gear'} (wants ${want.join(', ')})`);
+		// each drawn gear meshes with what it says, by the solved tooth rule (pitch circles `clear` apart); all reach the Play
+		const reach = new Set(['play']);
+		for (let pass = 0; pass < 5; pass += 1) for (const id of small) if ((L.seat.mesh[id] || []).some((m) => reach.has(m))) reach.add(id);
+		for (const id of small) {
+			const c = g[id];
+			if (!(L.seat.mesh[id] || []).length) fail(`${id} meshes with nothing`);
+			for (const m of L.seat.mesh[id] || []) {
+				const o = m === 'wheel' ? wheel : g[m];
+				if (!o) { fail(`${id} is said to mesh with ${m}, which is not drawn`); continue; }
+				if (!near(dist(c, o), c.pitchR + o.pitchR + clear, 1e-6)) fail(`${id} is not meshed with ${m} (${f1(dist(c, o))} against ${f1(c.pitchR + o.pitchR + clear)})`);
+			}
+			if (!reach.has(id)) fail(`${id} is not connected to the Play gear`);
+			// the slot it turns as is a gear of the full train of its own size, and its neighbor toward the Play sits in that slot's own neighbor
+			const sl = L.seat.as[id];
+			if (!sl || !full.train[sl] || !near(full.train[sl].R, c.R, 1e-9) || full.train[sl].teeth !== c.teeth || !near(full.train[sl].cx, c.cx, 1e-9) || !near(full.train[sl].cy, c.cy, 1e-9)) fail(`${id} is not its slot's gear`);
+			if (2 * c.R < L.MIN - 0.01) fail(`${id} ${f1(2 * c.R)} px`);
+		}
+		// no two drawn gears cross unless they mesh
+		const all = ['play', ...small];
+		for (let i = 0; i < all.length; i += 1) for (let j = i + 1; j < all.length; j += 1) {
+			const a = all[i], b = all[j];
+			const meshed = (L.seat.mesh[a] || []).includes(b) || (L.seat.mesh[b] || []).includes(a);
+			// (desktop: Auto and Turbo stand tooth to tooth round the Play gear in his own layout, section 3 holds their distance)
+			if (!meshed && !(L.table === 'desktop' && a !== 'play' && b !== 'play') && dist(g[a], g[b]) < g[a].R + g[b].R + 0.99) fail(`${a} crosses ${b}`);
+		}
+		// sizes and the Play, the amount, the arrows, Win and Balance: exactly the full bar's
+		if (!near(g.play.cx, full.gears.play.cx, 1e-9) || !near(g.play.cy, full.gears.play.cy, 1e-9) || !near(g.play.R, full.gears.play.R, 1e-9)) fail('the Play gear moved or changed size');
+		for (const id of ['amt', 'down', 'up', 'win', 'bal']) for (const set of ['box', 'press']) if (L[set] && JSON.stringify(L[set][id]) !== JSON.stringify(full[set][id])) fail(`${id} moved`);
+		// every drawn piece in the frame; no absent piece left with a box; press boxes; the arrows clear of every drawn gear
+		for (const set of ['box', 'press']) for (const [id, b] of Object.entries(L[set] || {})) if (b.x < -0.01 || b.y < -0.01 || b.x + b.w > L.vw + 0.01 || b.y + b.h > L.vh + 0.01) fail(`${id} outside the frame`);
+		for (const id of ['auto', 'turbo', 'arm']) if (!P[id] && (L.box[id] || (L.press && L.press[id]) || g[id])) fail(`${id} is not drawn and still has a box`);
+		if (L.press) for (const id of ['down', 'up']) for (const k of all) if (toBox(g[k], L.press[id]) < 0.99) fail(`${id}'s press box on ${k}`);
+		if (L.press) for (const id of ['win', 'bal', 'amt']) for (const k of small) if (id !== 'win' && toBox(g[k], L.box[id]) < 0.99) fail(`${id} on ${k}`);
+	};
+	// ---- upright ----
+	for (const [vw, vh] of UP) {
+		const scale = Math.min(vw / 412, vh / 760);
+		LS.setPortraitViewportSource(() => ({ masterHeight: vh / scale, cssPerMaster: scale, phone: true }));
+		const full = L.uprightLayout(vw, vh, 0);
+		if (!full) { bad.push(`${vw}x${vh}: no train`); continue; }
+		for (const P of SETS) {
+			const G = L.uprightBarLayout({ kind: 'portrait', vw, vh, phone: true, safeBottom: 0, present: P });
+			judge(`upright ${vw}x${vh}`, P, { ...G, MIN: L.MIN_PRESS }, full, L.UPRIGHT.small.clear, null);
+			// the order from the left never changes: the Armoury, Menu, Auto, the Play, Turbo, whichever are drawn. Left
+			// of the Play they fill Auto's, Menu's and the Armoury's slots in that order
+			const left = ['auto', 'menu', 'arm'].filter((id) => id === 'menu' || P[id]);
+			if (left.map((id) => G.seat.as[id]).join() !== ['auto', 'menu', 'arm'].slice(0, left.length).join()) bad.push(`upright ${vw}x${vh}, without ${nameOf(P)}: the left chain is not seated from the Play outward (${left.map((id) => `${id} in ${G.seat.as[id]}`).join(', ')})`);
+			if (G.hudTop !== full.hudTop) bad.push(`upright ${vw}x${vh}, without ${nameOf(P)}: the bar's top (THE ARMOURY's anchor) moved`);
+			if (vw === 440 && vh === 742) rows.push(`upright  440x742   without ${nameOf(P).padEnd(34)} left of the Play: ${left.slice().reverse().join(' - ') || 'none'}${P.turbo ? '; right: turbo' : ''}; ${left.map((id) => `${id} at ${f1(G.gears[id].cx)}, ${f1(G.gears[id].cy)}`).join('; ')}`);
+		}
+	}
+	LS.setPortraitViewportSource(() => ({ masterHeight: 760, cssPerMaster: 1, phone: true }));
+	// ---- sideways ----
+	for (const [vw, vh] of SIDE) {
+		const view = { kind: 'phone', vw, vh, safe: { t: 0, r: 0, b: 0, l: 0 }, touch: true };
+		const full = L.sidewaysBarLayout(view);
+		if (!full) { bad.push(`${vw}x${vh}: no chain`); continue; }
+		for (const P of SETS) {
+			const G = L.sidewaysBarLayout({ ...view, present: P });
+			judge(`sideways ${vw}x${vh}`, P, { ...G, MIN: L.MIN_PRESS }, full, L.SIDEWAYS.small.clear, full.wheel && { cx: full.wheel.cx, cy: full.wheel.cy, R: full.wheel.R, pitchR: full.wheel.pitchR });
+			// one small gear alone stands in Turbo's slot, on the Play gear; the standards: Menu alone is centered where the pair was
+			const drawn = ['turbo', 'auto'].filter((id) => P[id]);
+			if (drawn.length === 1 && (G.seat.as[drawn[0]] !== 'turbo' || !G.seat.mesh[drawn[0]].includes('play'))) bad.push(`sideways ${vw}x${vh}, without ${nameOf(P)}: ${drawn[0]} is not on the Play gear`);
+			const mid = (full.box.menu.x + full.box.arm.x + full.box.arm.w) / 2;
+			if (P.arm ? JSON.stringify(G.box.menu) !== JSON.stringify(full.box.menu) || JSON.stringify(G.box.arm) !== JSON.stringify(full.box.arm) : !near(G.box.menu.x + G.box.menu.w / 2, mid, 1e-6) || G.box.arm || G.seat.hangers.join() !== 'menu') bad.push(`sideways ${vw}x${vh}, without ${nameOf(P)}: the standards`);
+			for (const id of L.PIECES) for (const b of [G.box[id], G.press[id]]) if (b && b.y + b.h > vh - L.SIDEWAYS.homeStrip + 0.01) bad.push(`sideways ${vw}x${vh}, without ${nameOf(P)}: ${id} in the bottom strip`);
+			if (vw === 832 && vh === 376) rows.push(`sideways 832x376   without ${nameOf(P).padEnd(34)} from the wheel: ${['auto', 'turbo'].filter((id) => P[id]).map((id) => `${id} (${G.seat.as[id]}'s slot${G.seat.mesh[id].includes('wheel') ? ', on the wheel' : ''})`).join(' - ') || 'no small gear'} - play; standards: ${G.seat.hangers.join(', ')}`);
+		}
+	}
+	// ---- desktop ----
+	for (const [vw, vh] of DESK) {
+		const full = L.gearBarLayout({ kind: 'landscape', vw, vh });
+		if (!full) { bad.push(`${vw}x${vh}: no desktop bar`); continue; }
+		for (const P of SETS) {
+			const G = L.gearBarLayout({ kind: 'landscape', vw, vh, present: P });
+			judge(`desktop ${vw}x${vh}`, P, { ...G, MIN: L.MIN_PRESS, press: null }, { ...full, press: null }, full.mesh.d * 0 + L.DESKTOP.small.clear * full.scale.gears, null);
+			// the standards hang from the logo: Menu alone is centered where the pair was centered, on the window
+			const mid = (full.box.menu.x + full.box.arm.x + full.box.arm.w) / 2;
+			if (P.arm ? JSON.stringify(G.box.menu) !== JSON.stringify(full.box.menu) : !near(G.box.menu.x + G.box.menu.w / 2, mid, 1e-6) || G.box.arm || G.seat.hangers.join() !== 'menu' || G.box.menu.x < 0) bad.push(`desktop ${vw}x${vh}, without ${nameOf(P)}: the standards`);
+			if (vw === 1920) rows.push(`desktop  1920x1080 without ${nameOf(P).padEnd(34)} on the Play: ${['auto', 'turbo'].filter((id) => P[id]).join(', ') || 'no small gear'}; standards: ${G.seat.hangers.join(', ')}${P.arm ? '' : ` (Menu centered at x ${f1(G.box.menu.x + G.box.menu.w / 2)}, was ${f1(full.box.menu.x + full.box.menu.w / 2)})`}`);
+		}
+	}
+	console.log('     THE KEYS A PAGE DRAWS: the eight sets (a replay is "without Auto and the Armoury"):');
+	for (const row of rows) console.log(`       ${row}`);
+	check(`keys: ${n} bars (8 sets x ${UP.length} upright, ${SIDE.length} sideways and ${DESK.length} desktop frames): every drawn gear meshes with a drawn neighbor back to the Play gear by the solved tooth rule, sits in a slot of the full train at that slot's size and turning, nothing crosses, everything is in the frame, and the Play, the amount, its arrows, Win and Balance do not move`, bad.length === 0, bad.slice(0, 6).join(' | '));
+	// the switches and a replay
+	const pk = L.presentKeys;
+	check('keys: the operator\'s switches and a replay give the set (disabledAutoplay: Auto; disabledTurbo: Turbo; disabledBuyFeature: the Armoury; a replay: Auto and the Armoury)', JSON.stringify(pk({}, false)) === JSON.stringify(L.ALL_PRESENT) && !pk({ disabledAutoplay: true }, false).auto && !pk({ disabledTurbo: true }, false).turbo && !pk({ disabledBuyFeature: true }, false).arm && JSON.stringify(pk({}, true)) === JSON.stringify({ auto: false, turbo: true, arm: false }) && JSON.stringify(pk(null, false)) === JSON.stringify(L.ALL_PRESENT));
+	// all keys drawn: the layout itself, untouched
+	{
+		const full = L.sidewaysLayout(874, 402);
+		check('keys: with every key drawn the bar is the solved layout itself', L.seatBar(full, L.ALL_PRESENT) === full && L.seatBar(full) === full);
+	}
+}
+
 // ---- 5. the switch ----
 {
 	const k = (kind, vw, vh, mode) => L.barKind({ kind, vw, vh }, mode);

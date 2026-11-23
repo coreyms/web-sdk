@@ -87,13 +87,20 @@
 	let turns: Turn[] = [];
 	let reduced = false;
 	const angles = { links: 0, wheel: 0, auto: 0, turbo: 0, play: 0 };
+	const slot = { auto: 0, turbo: 0 };
 	const apply = (links: number) => {
 		const G = L.gears;
 		angles.links = links;
+		// THE FULL CHAIN's angles first (the wheel, Auto's slot, Turbo's slot, the Play: ui/gear/gearLayout.ts seatBar),
+		// then each drawn key turns as the slot it sits in: with Turbo gone Auto stands in Turbo's slot, meshed with the
+		// Play gear, and turns as Turbo did. A key that changes slot takes the new slot's phase at once.
+		const F = L.train as Record<Gear, (typeof G)[Gear]>;
 		angles.wheel = wheelAngle(reduced ? 0 : links);
-		angles.auto = smallAngle(angles.wheel, G.auto.deg, L.wheel.teeth, G.auto.teeth);
-		angles.turbo = smallAngle(angles.auto, G.turbo.deg, G.auto.teeth, G.turbo.teeth);
-		angles.play = smallAngle(angles.turbo, G.play.deg, G.turbo.teeth, G.play.teeth);
+		slot.auto = smallAngle(angles.wheel, F.auto.deg, L.wheel.teeth, F.auto.teeth);
+		slot.turbo = smallAngle(slot.auto, F.turbo.deg, F.auto.teeth, F.turbo.teeth);
+		angles.play = smallAngle(slot.turbo, F.play.deg, F.turbo.teeth, F.play.teeth);
+		angles.auto = slot[(L.seat.as.auto ?? 'auto') as 'auto' | 'turbo'];
+		angles.turbo = slot[(L.seat.as.turbo ?? 'turbo') as 'auto' | 'turbo'];
 		for (let i = 0; i < turns.length; i += 1) {
 			const t = turns[i];
 			t.el.style.transform = `rotate(${fold(angles[t.gear], t.period).toFixed(3)}deg)`;
@@ -148,6 +155,9 @@
 				playScale: L.playScale,
 				coverPx: L.coverPx,
 				how: L.how,
+				/** the keys drawn and how they are seated in the full chain (gearLayout.ts seatBar); `train`: the full chain */
+				seat: { present: { ...L.seat.present }, as: { ...L.seat.as }, mesh: { ...L.seat.mesh }, hangers: [...L.seat.hangers] },
+				train: copy(L.train),
 				/** the clear px from the foot of Win's number down to Balance's box */
 				winToBal: L.winToBal,
 				/** every piece's drawn box and its press box (the arrows': 44 px round the drawn arrow), CSS px */

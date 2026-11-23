@@ -90,14 +90,21 @@
 	let turns: Turn[] = [];
 	let reduced = false;
 	const angles: Record<TrainGear, number> & { links: number } = { links: 0, play: 0, turbo: 0, auto: 0, menu: 0, arm: 0 };
+	const slot: Record<TrainGear, number> = { play: 0, turbo: 0, auto: 0, menu: 0, arm: 0 };
 	const apply = (links: number) => {
 		const G = L.gears;
 		angles.links = links;
-		angles.play = reduced ? 0 : playAngle(links, G.play.teeth);
+		// THE FULL TRAIN's angles first (every slot, drawn or not: ui/gear/gearLayout.ts seatBar), then each drawn key
+		// turns as the slot it sits in: with Auto gone Menu stands in Auto's slot and turns as Auto did, meshed with the
+		// Play gear. A key that changes slot takes the new slot's phase at once (no slip, nothing to animate).
+		const F = L.train as Record<TrainGear, (typeof G)[TrainGear]>;
+		slot.play = reduced ? 0 : playAngle(links, F.play.teeth);
 		for (let i = 1; i < ORDER.length; i += 1) {
-			const g = G[ORDER[i]];
-			angles[ORDER[i]] = smallAngle(angles[g.parent as TrainGear], g.deg, G[g.parent as TrainGear].teeth, g.teeth);
+			const g = F[ORDER[i]];
+			slot[ORDER[i]] = smallAngle(slot[g.parent as TrainGear], g.deg, F[g.parent as TrainGear].teeth, g.teeth);
 		}
+		angles.play = slot.play;
+		for (let i = 1; i < ORDER.length; i += 1) angles[ORDER[i]] = slot[L.seat.as[ORDER[i]] ?? ORDER[i]];
 		for (let i = 0; i < turns.length; i += 1) {
 			const t = turns[i];
 			t.el.style.transform = `rotate(${fold(angles[t.gear], t.period).toFixed(3)}deg)`;
@@ -159,6 +166,10 @@
 				gears: { ...copy(L.gears), hubR: L.hubR },
 				tooth: { ...L.tooth },
 				where: { ...L.where },
+				/** the keys drawn and how they are seated in the full train (gearLayout.ts seatBar): each one's slot, what it
+				 *  meshes with; `train`: the full train's gears */
+				seat: { present: { ...L.seat.present }, as: { ...L.seat.as }, mesh: { ...L.seat.mesh }, hangers: [...L.seat.hangers] },
+				train: copy(L.train),
 				label: { win: { track: L.label.win.track, box: { ...L.label.win.box } }, bal: { track: L.label.bal.track, box: { ...L.label.bal.box } } },
 				fitW: { ...L.fitW },
 				gapSpin: L.gapSpin,

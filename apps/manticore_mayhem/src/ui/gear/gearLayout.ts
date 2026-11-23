@@ -256,7 +256,7 @@ export const DESKTOP_MIN = { vw: 900, vh: 500, gears: 0.55 } as const;
 export type Safe = { t: number; r: number; b: number; l: number };
 /** touch: the page is on a touch device (a coarse pointer: ui/gear/barMode.ts TOUCH). A phone held sideways then keeps
  *  the home indicator strip clear (SIDEWAYS.homeStrip); a desktop popout laid out as a sideways phone does not. */
-export type BarView = { kind: LayoutKind; vw: number; vh: number; phone?: boolean; safeBottom?: number; safe?: Safe; touch?: boolean };
+export type BarView = { kind: LayoutKind; vw: number; vh: number; phone?: boolean; safeBottom?: number; safe?: Safe; touch?: boolean; present?: Present };
 /** the safe areas a sideways phone's bar is laid out in: the page's own, the bottom never under the home indicator strip on a touch phone */
 export const sidewaysSafe = (v: Pick<BarView, 'safe' | 'touch'>): Safe => {
 	const s = v.safe ?? { t: 0, r: 0, b: 0, l: 0 };
@@ -414,6 +414,9 @@ export const desktopLayout = (vw: number, vh: number, T: DesktopTable = DESKTOP)
 		scene: { wheel: S.wheel, logo: S.logo, artLeft: S.artLeft, strip: S.strip, boardK: S.boardK },
 		/** where the standards' chains start: the logo plate's underside (the mock's plateBottom) */
 		chainTop: L.y + L.h * 0.965,
+		/** the full train (every key drawn) and how the drawn keys are seated in it (seatBar) */
+		train: gears as Record<string, GearCircle>,
+		seat: { present: ALL_PRESENT, as: { auto: 'auto', turbo: 'turbo' }, mesh: { auto: ['play'], turbo: ['play'] }, hangers: ['menu', 'arm'] } as Seating,
 		/** the Play gear against the frame's wheel: the centers' distance, and how far that is from a true mesh */
 		mesh: { d: Math.hypot(gears.play.cx - S.wheel.cx, gears.play.cy - S.wheel.cy), off: Math.hypot(gears.play.cx - S.wheel.cx, gears.play.cy - S.wheel.cy) - (S.wheel.pitchR + gears.play.pitchR + T.small.clear * kGears) },
 	};
@@ -421,18 +424,109 @@ export const desktopLayout = (vw: number, vh: number, T: DesktopTable = DESKTOP)
 
 /** the desktop gear bar for a screen, or null where barKind() says dock */
 export const gearBarLayout = (v: BarView, mode: 'gear' | 'dock' = GAME_BAR): GearBarLayout | null =>
-	barKind(v, mode) === 'gear' && v.kind === 'landscape' ? desktopLayout(v.vw, v.vh) : null;
+	barKind(v, mode) === 'gear' && v.kind === 'landscape' ? seatBar(desktopLayout(v.vw, v.vh), v.present) : null;
 /** the upright phone's gear bar for a screen, or null where barKind() says dock */
 /** THE SCENE AN UPRIGHT PHONE DRAWS UNDER THE TRAIN (ui/gear/uprightScene.ts), in the canvas's master units, or null
  *  where barKind() says dock (the shipped scene). ui/gear/uprightSceneSource.ts hands it to game/layoutSpec.ts. */
 export const uprightBarScene = (v: BarView, mode: 'gear' | 'dock' = GAME_BAR): PortraitScene | null =>
 	v.kind === 'portrait' && barKind(v, mode) === 'gear' ? uprightScene(v.vw, v.vh, v.safeBottom ?? 0).master : null;
 export const uprightBarLayout = (v: BarView, mode: 'gear' | 'dock' = GAME_BAR): UprightLayout | null =>
-	v.kind === 'portrait' && barKind(v, mode) === 'gear' ? uprightLayout(v.vw, v.vh, v.safeBottom ?? 0) : null;
+	v.kind === 'portrait' && barKind(v, mode) === 'gear' ? seatBar(uprightLayout(v.vw, v.vh, v.safeBottom ?? 0) as UprightLayout, v.present) : null;
 
 /** the sideways phone's gear bar for a screen, or null where barKind() says dock */
-export const sidewaysBarLayout = (v: BarView, mode: 'gear' | 'dock' = GAME_BAR): SidewaysLayout | null =>
-	v.kind === 'phone' && mode === 'gear' && TABLES.sideways ? sidewaysLayout(v.vw, v.vh, sidewaysSafe(v)) : null;
+export const sidewaysBarLayout = (v: BarView, mode: 'gear' | 'dock' = GAME_BAR): SidewaysLayout | null => {
+	const L = v.kind === 'phone' && mode === 'gear' && TABLES.sideways ? sidewaysLayout(v.vw, v.vh, sidewaysSafe(v)) : null;
+	return L ? seatBar(L, v.present) : null;
+};
+
+// ---- THE KEYS A PAGE DRAWS, AND THE TRAIN THAT STAYS MESHED (2026-11-24) ----------------------------------------------
+// An operator's switches take keys away (disabledAutoplay: Auto; disabledTurbo: Turbo; disabledBuyFeature: the Armoury)
+// and so does a replay (Auto and the Armoury). Until now the bars hid the key and left the rest where they stood, so on
+// the upright train a hidden Auto left Menu and the Armoury apart from the Play gear, and sideways a hidden Turbo left
+// Auto apart from it. Corey 2026-11-24, asked "when a gear is hidden, the remaining gears slide toward Play in the same
+// order, so the train is always meshed. Order stays Armoury, Menu, Auto, Play, Turbo with whichever are present": "yes".
+//
+// ONE RULE, seatBar(): every layout is solved once, for all its keys (the tables and rules above), and that solution's
+// small gears are SLOTS. The keys a page draws take the slots from the Play gear outward, in their order:
+//   upright   left of the Play: Auto's slot, then Menu's, then the Armoury's (Menu always; Auto and the Armoury where
+//             drawn). Turbo keeps its own slot at the right.
+//   sideways  from the Play back toward the frame's wheel: Turbo's slot, then Auto's. One small gear alone stands in
+//             Turbo's slot, meshed with the Play (the frame's wheel then turns beside the chain, not in it).
+//   desktop   Auto and Turbo each mesh with the Play gear itself, so one alone is already where it belongs.
+// A key in a slot is that slot's gear exactly: its place, its size, its teeth and its turning (all the small gears of
+// a train are one size, so the mesh is the solved one, tooth in gap, and the haul drives it as before; the bars turn
+// each drawn key as the slot it sits in, so a key that changes slot snaps to the new slot's phase). The Play gear, the
+// amount, its arrows, Win and Balance never move: fewer gears only leave room. Sizes never change.
+// THE STANDARDS (desktop, sideways) never meshed: they hang from the logo. With the Armoury gone Menu hangs alone,
+// centered where the pair was centered (under the logo's middle on desktop), not left where it stood beside a gap.
+export type Present = { auto: boolean; turbo: boolean; arm: boolean };
+export const ALL_PRESENT: Present = { auto: true, turbo: true, arm: true };
+/** the keys a page draws: the operator's switches (stateConfig.jurisdiction) and a replay */
+export const presentKeys = (j: { disabledAutoplay?: boolean; disabledTurbo?: boolean; disabledBuyFeature?: boolean } | null | undefined, replay: boolean): Present => ({
+	auto: !replay && !j?.disabledAutoplay,
+	turbo: !j?.disabledTurbo,
+	arm: !replay && !j?.disabledBuyFeature,
+});
+export type Seating = {
+	present: Present;
+	/** the slot (a gear of the full train) each drawn small gear sits in and turns as */
+	as: Partial<Record<TrainGear, TrainGear>>;
+	/** what each drawn small gear meshes with: other drawn gears, 'play', the frame's 'wheel' */
+	mesh: Partial<Record<TrainGear, string[]>>;
+	/** the drawn pieces that never mesh (the standards hang from the logo) */
+	hangers: Piece[];
+};
+type Seatable = { table: 'desktop' | 'upright' | 'sideways'; gears: Record<string, GearCircle>; box: Record<Piece, Box>; press?: Record<Piece, Box>; seat: Seating; train: Record<string, GearCircle> };
+/** THE BAR FOR THE KEYS A PAGE DRAWS: the solved layout with its absent keys gone and the rest seated (see above).
+ *  All keys present: the layout itself. */
+export const seatBar = <L extends Seatable>(L: L, present: Present = ALL_PRESENT): L => {
+	if (present.auto && present.turbo && present.arm) return L;
+	const F = L.train;
+	const gears: Record<string, GearCircle> = { play: F.play };
+	const box = { ...L.box } as Record<string, Box>;
+	const press = L.press ? ({ ...L.press } as Record<string, Box>) : null;
+	const as: Seating['as'] = {};
+	const mesh: Seating['mesh'] = {};
+	// every slot's box goes; the keys drawn get theirs back as they are seated
+	for (const id of ['auto', 'turbo', 'menu', 'arm'] as const) {
+		if (!(id in F)) continue;
+		delete box[id];
+		if (press) delete press[id];
+	}
+	/** key `id` takes slot `slot`: the slot's gear and boxes */
+	const sit = (id: TrainGear, slot: TrainGear, parent: string, neighbors: string[]) => {
+		gears[id] = { ...F[slot], ...(L.table === 'upright' ? { parent } : {}) } as GearCircle;
+		box[id] = L.box[slot];
+		if (press && L.press) press[id] = L.press[slot];
+		as[id] = slot;
+		mesh[id] = neighbors;
+	};
+	if (L.table === 'upright') {
+		const ids = (['auto', 'menu', 'arm'] as const).filter((id) => id === 'menu' || present[id]);
+		const slots = ['auto', 'menu', 'arm'] as const;
+		ids.forEach((id, i) => sit(id, slots[i], i ? ids[i - 1] : 'play', [i ? ids[i - 1] : 'play', ...(ids[i + 1] ? [ids[i + 1]] : [])]));
+		if (present.turbo) sit('turbo', 'turbo', 'play', ['play']);
+	} else if (L.table === 'sideways') {
+		const ids = (['turbo', 'auto'] as const).filter((id) => present[id]);
+		const slots = ['turbo', 'auto'] as const;
+		ids.forEach((id, i) => sit(id, slots[i], i ? ids[i - 1] : 'play', i ? [ids[i - 1], 'wheel'] : ['play', ...(ids[1] ? [ids[1]] : [])]));
+	} else {
+		for (const id of ['auto', 'turbo'] as const) if (present[id]) sit(id, id, 'play', ['play']);
+	}
+	// the standards (desktop, sideways): Menu alone hangs where the pair was centered
+	let hangers = L.seat.hangers;
+	if (!('menu' in F) && !present.arm) {
+		const mid = (L.box.menu.x + L.box.arm.x + L.box.arm.w) / 2;
+		box.menu = { ...L.box.menu, x: mid - L.box.menu.w / 2 };
+		delete box.arm;
+		if (press) {
+			press.menu = box.menu;
+			delete press.arm;
+		}
+		hangers = ['menu'];
+	}
+	return { ...L, gears, box, ...(press ? { press } : {}), seat: { present: { ...present }, as, mesh, hangers } } as L;
+};
 
 // ---- THE SIDEWAYS PHONE'S RULE ----------------------------------------------------------------------------------------
 // ONE RULE, his placing exactly at 874 x 402 with no safe area:
@@ -662,6 +756,9 @@ export const sidewaysLayout = (vw: number, vh: number, safe: Safe = { t: 0, r: 0
 		scene: { boardK, plate, logo, cells },
 		/** the top line's studio name (ui/ClockStrip.svelte, right side) as the dock draws it, and whether the Play covers it */
 		chainTop: logo.y + logo.h * 0.965,
+		/** the full chain (every key drawn) and how the drawn keys are seated in it (seatBar) */
+		train: gears as Record<string, GearCircle>,
+		seat: { present: ALL_PRESENT, as: { auto: 'auto', turbo: 'turbo' }, mesh: { turbo: ['play', 'auto'], auto: ['turbo', 'wheel'] }, hangers: ['menu', 'arm'] } as Seating,
 	};
 };
 
@@ -1050,6 +1147,9 @@ const uprightSolve = (vw: number, vh: number, safeBottom: number, T: UprightTabl
 		hudTop: Math.min(...Object.values(box).filter((b) => b.y >= plate).map((b) => b.y), ...[press.down, press.up].filter((b) => b.y >= plate).map((b) => b.y)),
 		tooth,
 		gears,
+		/** the full train (every key drawn) and how the drawn keys are seated in it (seatBar) */
+		train: gears as Record<string, GearCircle>,
+		seat: { present: ALL_PRESENT, as: { auto: 'auto', menu: 'menu', arm: 'arm', turbo: 'turbo' }, mesh: { auto: ['play', 'menu'], menu: ['auto', 'arm'], arm: ['menu'], turbo: ['play'] }, hangers: [] } as Seating,
 		hubR,
 		box,
 		press,

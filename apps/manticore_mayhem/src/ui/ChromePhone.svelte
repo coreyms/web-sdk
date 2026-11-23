@@ -21,7 +21,7 @@
 	import HudReadout from './hud/HudReadout.svelte';
 	import HudMenuPanel from './hud/HudMenuPanel.svelte';
 	import GearBarSideways from './gear/GearBarSideways.svelte';
-	import { sidewaysBarLayout } from './gear/gearLayout';
+	import { sidewaysBarLayout, presentKeys } from './gear/gearLayout';
 	import { BAR_MODE, TOUCH } from './gear/barMode';
 
 	type Props = { controls: Controls; hud: HudFrame };
@@ -34,7 +34,7 @@
 	const G = $derived(landscapeGeo(hud));
 	// THE GEAR BAR (2026-11-22, ui/gear): a sideways phone's chain from the frame's wheel; null where the rule keeps the
 	// dock (a window under 640 x 320, one where no chain fits, and every screen while GAME_BAR says 'dock')
-	const gear = $derived(sidewaysBarLayout({ kind: 'phone', vw: hud.W * hud.u, vh: hud.H * hud.u, safe: hud.safe, touch: TOUCH }, BAR_MODE));
+	const gear = $derived(sidewaysBarLayout({ kind: 'phone', vw: hud.W * hud.u, vh: hud.H * hud.u, safe: hud.safe, touch: TOUCH, present: presentKeys(controls.jurisdiction(), controls.isReplay()) }, BAR_MODE));
 	const capO = $derived(outlineArch(G.cap));
 	const kcO = $derived(outlineArch(G.kc));
 	const ante = $derived(hs.anteLevel());

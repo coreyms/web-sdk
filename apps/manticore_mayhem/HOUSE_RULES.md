@@ -62,6 +62,11 @@ loop, every move book driven).
   pinions, the small gear on the top rail inside each wheel) take one color at one strength from one call
   (`game/frameGears.ts` `ringAt`, `FRAME_PINION`, `FRAME_RINGS`; drawn in `components/BoardFrame.svelte`). Art:
   `gear-ring.png` and `gear-ring-small.png`, both from `tools/build_gear_ring.py`. A tint and an opacity only.
+- THE KEYS A PAGE DRAWS (2026-11-24, `gearLayout.ts` `seatBar`, `presentKeys`): an operator's switches (Auto, Turbo,
+  the Armoury) and a replay (Auto and the Armoury) take keys away; each layout is solved once for all its keys and
+  the keys drawn take that solution's slots from the Play gear outward, in their order, so the train stays meshed
+  (upright: Auto's, Menu's, the Armoury's slot; sideways: Turbo's, then Auto's). A key turns as the slot it sits in.
+  The Play, the readouts and the arrows never move; sizes never change. Menu alone as a standard hangs centered.
 - THE UPRIGHT PHONE'S GEAR TRAIN (2026-11-22, `ui/gear/GearBarUpright.svelte`): phones from 360 px wide draw Corey's
   train under the plaque (Play on the center line; Turbo on its right; Auto, Menu and the Armoury as a chain on its
   left; icons only). `gearLayout.ts` `UPRIGHT` is his setup at 402 x 874 and `uprightLayout()` the one rule for every

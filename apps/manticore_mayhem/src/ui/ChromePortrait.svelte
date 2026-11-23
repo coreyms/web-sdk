@@ -26,7 +26,7 @@
 	import HudReadout from './hud/HudReadout.svelte';
 	import HudMenuPanel from './hud/HudMenuPanel.svelte';
 	import GearBarUpright from './gear/GearBarUpright.svelte';
-	import { uprightBarLayout } from './gear/gearLayout';
+	import { uprightBarLayout, presentKeys } from './gear/gearLayout';
 	import { BAR_MODE } from './gear/barMode';
 
 	type Props = { controls: Controls; hud: HudFrame };
@@ -45,7 +45,7 @@
 	// THE GEAR BAR (2026-11-22, ui/gear): an upright phone's gear train; null where the rule keeps the dock (a phone under
 	// 360 px wide or too short for the train, a tablet held upright, and every screen while GAME_BAR says 'dock')
 	// (the window in whole hundredths of a CSS px, as ui/gear/uprightSceneSource.ts asks: the canvas and the bar get one answer)
-	const gear = $derived(uprightBarLayout({ kind: 'portrait', vw: Math.round(hud.W * hud.u * 100) / 100, vh: Math.round(hud.H * hud.u * 100) / 100, phone, safeBottom: hud.safe.b }, BAR_MODE));
+	const gear = $derived(uprightBarLayout({ kind: 'portrait', vw: Math.round(hud.W * hud.u * 100) / 100, vh: Math.round(hud.H * hud.u * 100) / 100, phone, safeBottom: hud.safe.b, present: presentKeys(controls.jurisdiction(), controls.isReplay()) }, BAR_MODE));
 	const outline = $derived(outlineBead(G.bar, G.n));
 	const ante = $derived(hs.anteLevel());
 	const lit = $derived(hs.winLit());

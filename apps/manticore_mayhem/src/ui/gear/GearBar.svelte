@@ -48,7 +48,7 @@
 	import HudMenuPanel from '../hud/HudMenuPanel.svelte';
 	import GearKey from './GearKey.svelte';
 	import GearStandard from './GearStandard.svelte';
-	import { fold, playAngle, smallAngle, type GearBarLayout } from './gearLayout';
+	import { fold, playAngle, smallAngle, type GearBarLayout, type GearCircle } from './gearLayout';
 	import { hubNow } from './hubNow';
 	import './gear.css';
 
@@ -159,7 +159,7 @@
 				/** every piece's box, and its press box (the same box; the gears': the square round their tips), CSS px */
 				box: Object.fromEntries(Object.entries(L.box).map(([k, v]) => [k, { ...v }])),
 				press: Object.fromEntries(Object.entries(L.box).map(([k, v]) => [k, { ...v }])),
-				gears: { play: { ...L.gears.play }, auto: { ...L.gears.auto }, turbo: { ...L.gears.turbo }, hubR: L.hubR },
+				gears: { ...Object.fromEntries(Object.entries(L.gears).map(([k, v]) => [k, { ...v }])), hubR: L.hubR } as Record<'play' | 'auto' | 'turbo', GearCircle> & { hubR: number },
 				wheel: { ...L.scene.wheel },
 				mesh: { ...L.mesh },
 				text: { ...L.text },
@@ -168,6 +168,9 @@
 				angles: { ...angles, reduced },
 				drawn: turns.map((t) => ({ layer: t.el.dataset.turn, period: t.period, transform: t.el.style.transform })),
 				/** the hub ring's state: its kind (null: brass), its color, and the strength the frame's wheels draw it at */
+				/** the keys drawn and how they are seated (gearLayout.ts seatBar): Auto and Turbo each on the Play gear; the
+				 *  standards hang from the logo (Menu alone is centered under it) */
+				seat: { present: { ...L.seat.present }, as: { ...L.seat.as }, mesh: { ...L.seat.mesh }, hangers: [...L.seat.hangers] },
 				ring: { kind: ringKind, pulse: r.kind, color: r.level > 0 ? hex(r.rgb) : null, level: r.level, frame: [...FRAME_RINGS] },
 				/** the hub's ring as drawn now: its colored ring, halo and pale flash (opacities), the ring's color */
 				hub: hubNow(host),

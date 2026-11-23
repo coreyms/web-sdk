@@ -23,7 +23,7 @@
 	import HudReadout from './hud/HudReadout.svelte';
 	import HudMenuPanel from './hud/HudMenuPanel.svelte';
 	import GearBar from './gear/GearBar.svelte';
-	import { gearBarLayout } from './gear/gearLayout';
+	import { gearBarLayout, presentKeys } from './gear/gearLayout';
 	import { BAR_MODE } from './gear/barMode';
 
 	type Props = { controls: Controls; hud: HudFrame };
@@ -46,7 +46,7 @@
 	const plane = $derived(`width:${hud.W}px;height:${hud.H}px;transform:${hud.transform};--hit:${44 / hud.u}px`);
 	// THE GEAR BAR (2026-11-22, ui/gear): the bar a desktop or laptop window draws; null where the rule keeps the dock
 	// (Stake's two popouts, a small window near 4:3, and every screen while ui/gear/gearLayout.ts GAME_BAR says 'dock')
-	const gear = $derived(gearBarLayout({ kind: 'landscape', vw: hud.W * hud.u, vh: hud.H * hud.u }, BAR_MODE));
+	const gear = $derived(gearBarLayout({ kind: 'landscape', vw: hud.W * hud.u, vh: hud.H * hud.u, present: presentKeys(controls.jurisdiction(), controls.isReplay()) }, BAR_MODE));
 </script>
 
 <ClockStrip side="left" clock text="MANTICORE UNLEASHED" />
