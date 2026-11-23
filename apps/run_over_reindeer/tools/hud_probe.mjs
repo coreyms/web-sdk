@@ -1962,6 +1962,10 @@ async function tailSection(browser) {
 //     (Turbo; the drawn diamonds overlap at no window, their upright boxes do); outside that, the key whose drawing
 //     or pad the place is in; anywhere else, neither. Touch taps on the phone sizes: bare ground between the two
 //     presses neither, each pad's ground nearest the other key presses its own key (__reindeer.sign.owner)
+//   - THE SPIN'S NEIGHBOURS (2026-11-23, sizes marked walk: 1200x675 by mouse; 844x390, 667x375, 568x320, 390x844 by
+//     touch): a round starts only from a press that went down inside the Spin's own diamond. 2 px inside Auto's and
+//     Turbo's edges nearest the Spin: no round, the key acts; 2 px inside the Spin's edge nearest each: a round, the
+//     key as it was (__reindeer.atRest, __reindeer.hud.idle, fixtures no_win_1)
 //   - nothing is on the board, the LED strip or the logo by real shape, and no bet symbol's press box is on the Play
 //   - the amount fits its reserved width (the widest amount of the bet menu at the type size in use), the symbols hold
 //     still across bet steps, and a mode on seats them again; in three currencies at four of the sizes
@@ -1981,14 +1985,14 @@ const SIGN_SIZES = [
 	{ name: '425x812', vp: { width: 425, height: 812 }, touch: true, phone: true, family: 'portrait', his: true },
 	{ name: '375x667', vp: { width: 375, height: 667 }, touch: true, phone: true, family: 'portrait', his: true },
 	{ name: '320x568', vp: { width: 320, height: 568 }, touch: true, phone: true, family: 'portrait', his: true, cur: true },
-	{ name: '390x844', vp: { width: 390, height: 844 }, touch: true, phone: true, family: 'portrait', his: true, cur: true, fs: 'retrigger', auto: true },
+	{ walk: true, name: '390x844', vp: { width: 390, height: 844 }, touch: true, phone: true, family: 'portrait', his: true, cur: true, fs: 'retrigger', auto: true },
 	{ name: '390x620', vp: { width: 390, height: 620 }, touch: true, phone: true, family: 'portrait', his: true },
 	{ name: '812x425', vp: { width: 812, height: 425 }, touch: true, phone: true, family: 'landscape', his: true, fs: 'natural_free_spins' },
-	{ name: '667x375', vp: { width: 667, height: 375 }, touch: true, phone: true, family: 'landscape', his: true, fs: 'natural_free_spins' },
-	{ name: '568x320', vp: { width: 568, height: 320 }, touch: true, phone: true, family: 'landscape', his: true, cur: true, fs: 'natural_free_spins' },
-	{ name: '844x390', vp: { width: 844, height: 390 }, touch: true, phone: true, family: 'landscape', his: true, fs: 'retrigger' },
+	{ walk: true, name: '667x375', vp: { width: 667, height: 375 }, touch: true, phone: true, family: 'landscape', his: true, fs: 'natural_free_spins' },
+	{ walk: true, name: '568x320', vp: { width: 568, height: 320 }, touch: true, phone: true, family: 'landscape', his: true, cur: true, fs: 'natural_free_spins' },
+	{ walk: true, name: '844x390', vp: { width: 844, height: 390 }, touch: true, phone: true, family: 'landscape', his: true, fs: 'retrigger' },
 	{ name: '1920x1080', vp: { width: 1920, height: 1080 }, touch: false, phone: false, family: 'desktop', his: true, fs: 'retrigger', auto: true },
-	{ name: '1200x675', vp: { width: 1200, height: 675 }, touch: false, phone: false, family: 'desktop' },
+	{ walk: true, name: '1200x675', vp: { width: 1200, height: 675 }, touch: false, phone: false, family: 'desktop' },
 	{ name: '1024x576', vp: { width: 1024, height: 576 }, touch: false, phone: false, family: 'desktop', cur: true },
 	{ name: '800x450', vp: { width: 800, height: 450 }, touch: false, phone: false, family: 'desktop' },
 	{ name: '400x225', vp: { width: 400, height: 225 }, touch: false, phone: false, family: 'desktop', listOnly: true },
@@ -2355,6 +2359,100 @@ async function signHud(browser) {
 					const end = await read();
 					check(end.turbo === was.turbo && !end.card, `${tag}: after the taps Turbo is back at ${was.turbo} and the autoplay card is closed`, end);
 				}
+			}
+			// ---- THE SPIN'S NEIGHBOURS (2026-11-23; the probe host, touch, 844 x 390 and 667 x 375: a tap 2 px inside
+			// Turbo's edge nearest the Spin STARTED A ROUND and left Turbo as it was; a mouse at the same place turned Turbo
+			// on). THE RULE: a round starts only from a press that went down inside the Spin's own diamond; a press that went
+			// down in Auto's or Turbo's drawing or pad is that key's and never starts a round. A browser hands a touch to a
+			// nearby button by the buttons' upright boxes and paint order (the Spin's box covers its neighbours' ground and
+			// it is drawn after them); the bar judges every click by where the pointer went down (SignHud.svelte barPress).
+			// THE WALK (sizes marked walk: 1200x675 by mouse; 844x390, 667x375, 568x320 and 390x844 by touch): on the line
+			// from each of Auto's and Turbo's middles to the Spin's middle, by __reindeer.sign.owner every 0.5 px:
+			//   2 px inside the key's last place   no round starts (still at rest and idle 900 ms on); the key acts (Turbo
+			//                                      steps a level, Auto opens the autoplay card)
+			//   2 px inside the Spin's first place a round starts (not at rest or not idle within 1.5 s); Turbo's level is
+			//                                      as it was and no autoplay card opened
+			// Rounds are no win fixture rounds; everything is set back.
+			if (S.walk) {
+				const press = S.touch ? (q) => p.touchscreen.tap(q[0], q[1]) : (q) => p.mouse.click(q[0], q[1]);
+				const how = S.touch ? 'touch tap' : 'mouse press';
+				const G = await p.evaluate(() => {
+					const g = window.__reindeer.sign.geo();
+					return { play: g.box.play, auto: g.box.auto, turbo: g.box.turbo };
+				});
+				const mid = (b) => [b.x + b.w / 2, b.y + b.h / 2];
+				const read = () => p.evaluate(() => ({ turbo: document.querySelector('.hudp [data-hud="turbo"]')?.dataset.l ?? null, card: !!document.querySelector('.am-ui.layer.modals .panel'), rest: window.__reindeer.atRest(), idle: window.__reindeer.hud.idle() }));
+				const under = (q) => p.evaluate((q) => document.elementsFromPoint(q[0], q[1]).slice(0, 3).map((e) => `${e.tagName.toLowerCase()}${e.getAttribute('data-pad') ? `[data-pad=${e.getAttribute('data-pad')}]` : ''}${e.getAttribute('data-hud') ? `[data-hud=${e.getAttribute('data-hud')}]` : ''}`), q);
+				/** did a round start within `ms` of now */
+				const started = async (ms) => {
+					for (const t0 = Date.now(); Date.now() - t0 < ms; ) {
+						const st = await read();
+						if (!st.rest || !st.idle) return true;
+						await sleep(60);
+					}
+					return false;
+				};
+				const back = async (want) => {
+					if ((await read()).card) {
+						await p.click('.am-ui.layer.modals button.x[aria-label="Close"]').catch(() => {});
+						for (let k = 0; k < 20 && (await read()).card; k++) await sleep(150);
+					}
+					await settle(p, S);
+					for (let k = 0; k < 3 && (await read()).turbo !== want; k++) {
+						await p.click('.hudp [data-hud="turbo"]');
+						await sleep(200);
+					}
+				};
+				await p.evaluate(() => window.__reindeer.fixtures.next('no_win_1', true));
+				await settle(p, S);
+				const was = await read();
+				for (const id of ['turbo', 'auto']) {
+					if (!(await p.evaluate((id) => !!document.querySelector(`.hudp button[data-hud="${id}"]`), id))) continue;
+					const a = mid(G[id]);
+					const b = mid(G.play);
+					const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+					const n = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+					const owners = await p.evaluate(
+						({ a, n, len }) => {
+							const out = [];
+							for (let v = 0; v <= len; v += 0.5) out.push(window.__reindeer.sign.owner(a[0] + n[0] * v, a[1] + n[1] * v));
+							return out;
+						},
+						{ a, n, len },
+					);
+					let last = -1;
+					while (last + 1 < owners.length && owners[last + 1] === id) last++;
+					const first = owners.indexOf('play');
+					const walk = `${id} 0..${last / 2} | ${first - last - 1 > 0 ? `nobody's ${(last + 1) / 2}..${(first - 1) / 2} | ` : ''}the Spin ${first / 2}..${r1(len)}`;
+					if (last < 4 || first < 0 || owners.slice(last + 1, first).some((o) => o !== null)) {
+						check(false, `${tag}: on the line from ${id}'s middle to the Spin's the ground is ${id}'s, then nobody's, then the Spin's`, walk);
+						continue;
+					}
+					const qk = [a[0] + n[0] * (last / 2 - 2), a[1] + n[1] * (last / 2 - 2)];
+					const qp = [a[0] + n[0] * (first / 2 + 2), a[1] + n[1] * (first / 2 + 2)];
+					const inSpinBox = await p.evaluate((q) => {
+						const r = document.querySelector('.hudp button[data-hud="play"]')?.getBoundingClientRect();
+						return !!r && q[0] >= r.left && q[0] <= r.right && q[1] >= r.top && q[1] <= r.bottom;
+					}, qk);
+					// the key's edge: its own press, no round
+					const uk = await under(qk);
+					await press(qk);
+					const roundK = await started(900);
+					const gk = await read();
+					const acted = id === 'turbo' ? gk.turbo !== null && gk.turbo !== was.turbo : gk.card;
+					check(!roundK && acted && (id === 'turbo' ? !gk.card : gk.turbo === was.turbo), `${tag}: a ${how} 2 px inside ${id === 'turbo' ? "Turbo's" : "Auto's"} edge nearest the Spin (${qk.map(r1).join(', ')}, ${inSpinBox ? "inside the Spin button's upright box" : "outside the Spin button's box"}) starts no round and is ${id === 'turbo' ? "Turbo's (its level steps, no autoplay card)" : "Auto's (the autoplay card opens, Turbo's level stays)"}`, { walk, was, got: gk, round: roundK, under: uk });
+					await back(was.turbo);
+					// the Spin's edge: a round, the key untouched
+					const up2 = await under(qp);
+					await press(qp);
+					const roundP = await started(1500);
+					const gp = await read();
+					check(roundP && gp.turbo === was.turbo && !gp.card, `${tag}: a ${how} 2 px inside the Spin's edge nearest ${id === 'turbo' ? 'Turbo' : 'Auto'} (${qp.map(r1).join(', ')}) starts a round and leaves ${id === 'turbo' ? 'Turbo' : 'Auto'} as it was`, { walk, was, got: gp, round: roundP, under: up2 });
+					await back(was.turbo);
+				}
+				await p.evaluate(() => window.__reindeer.fixtures.clear?.());
+				const end = await read();
+				check(end.turbo === was.turbo && !end.card && end.rest && end.idle, `${tag}: after the walk the game is at rest, Turbo back at ${was.turbo}, no autoplay card`, end);
 			}
 			// ---- the scene and the Play ----
 			const real = d.problems.filter((x) => !/press region/.test(x));

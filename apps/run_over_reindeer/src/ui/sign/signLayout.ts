@@ -373,38 +373,55 @@ export const padShapes = (boxes: Partial<Record<PressId, Box>>, vw: number, vh: 
 	return out;
 };
 
-/** WHOSE PRESS IS IT, OF AUTO AND TURBO (2026-11-23). The rule (Corey's, through the probe host): where the two drawn
- *  keys overlap, a press goes to the key drawn on top at that place; outside that, to the key whose drawing or pad it
- *  is in; anywhere else, to neither.
- *  WHAT IS DRAWN: each key is a diamond (its box's width corner to corner, shapeOf), not its box. The two BOXES overlap
- *  (at 844 x 390 by about 22 x 24 px); the two diamonds do not, at any window swept (11 px apart there), so today there
- *  is no ground where two drawn keys overlap. Turbo is drawn after Auto (ui/sign/SignHud.svelte), so it would be the
- *  one on top, and it is asked first here.
- *  WHY THE PAGE DECIDES THIS ITSELF: a browser gives a touch to a nearby button by the buttons' upright boxes and
- *  their paint order, not by what is drawn (the probe host at 844 x 390: a tap in the bare ground between the two
- *  diamonds, in both boxes, 1 px on Auto's side of the middle line, turned Turbo on), and it reports the click at a
- *  place inside the button it chose. So the bar keeps the place the finger or the pointer went DOWN and asks this
- *  rule whose press it is (SignHud.svelte keyPress).
- *  `slack`: a place within PRESS_SLACK of a drawn key or a pad counts as on it, the nearer one (a browser tests whole
- *  px, and a key's keyline is 0.6 px outside shapeOf's diamond). The Play's own diamond is never theirs. */
+/** WHOSE PRESS IS IT (2026-11-23). The rule (Corey's, through the probe host): a press is the control's whose drawing
+ *  or pad the place is in; where two drawn controls overlap, the one drawn on top at that place; anywhere else it is
+ *  nobody's. A ROUND STARTS ONLY FROM A PRESS THAT WENT DOWN INSIDE THE PLAY'S OWN DIAMOND (an accidental play, Corey:
+ *  "like stealing in my eyes").
+ *  WHAT IS DRAWN: the Play, Auto and Turbo are diamonds (their box's width corner to corner, shapeOf), not their
+ *  boxes. The BOXES overlap: at 844 x 390 Auto's and Turbo's by about 22 x 24 px, and the Play's 157 px box covers
+ *  half of Turbo's ground and both arrows' corners. The diamonds do not, at any window swept.
+ *  WHY THE PAGE DECIDES THIS ITSELF: a browser gives a TOUCH to a nearby button by the buttons' upright boxes and
+ *  their paint order, not by what is drawn, and reports the click at a place inside the button it chose. The probe
+ *  host at 844 x 390 and 667 x 375: a tap 2 px inside Turbo's edge nearest the Play started a round and left Turbo as it
+ *  was (the Play is drawn after Turbo, and its box holds the whole touch); a tap in the bare ground between Auto's
+ *  and Turbo's diamonds turned Turbo on. A mouse at the same places did the right thing. So the bar keeps the place
+ *  the finger or the pointer went DOWN and asks this rule whose press it is (SignHud.svelte barPress).
+ *  ORDER: the drawn shapes first, the one drawn last first (ui/sign/SignHud.svelte: the bet symbols and the amount,
+ *  the Play, Turbo, Auto, Menu, the Fast Lane), then the pads (unseen, under every control).
+ *  `slack`: a place within PRESS_SLACK of a drawn control or a pad counts as on it, the nearest one (a browser tests
+ *  whole px, and a key's keyline is 0.6 px outside shapeOf's diamond). */
 export const PRESS_SLACK = 1.5;
-export const pressOwner = (boxes: Partial<Record<PressId, Box>>, pads: Partial<Record<'auto' | 'turbo', { poly: Pt[] }>>, p: Pt): 'auto' | 'turbo' | null => {
-	const keys = (['turbo', 'auto'] as const).filter((k) => boxes[k]);
-	const dia = (k: 'auto' | 'turbo') => shapeOf(k, boxes[k] as Box);
-	for (const k of keys) if (inPoly(p, dia(k))) return k;
-	if (boxes.play && inPoly(p, shapeOf('play', boxes.play))) return null;
-	for (const k of keys) if (pads[k] && inPoly(p, (pads[k] as { poly: Pt[] }).poly)) return k;
-	let best: 'auto' | 'turbo' | null = null;
+export type OwnerId = PressId | 'amt';
+export const OWNER_ORDER: OwnerId[] = ['up', 'amt', 'down', 'play', 'turbo', 'auto', 'menu', 'bonus'];
+export const pressOwner = (boxes: Partial<Record<OwnerId, Box>>, pads: Partial<Record<'auto' | 'turbo' | 'bonus', { poly: Pt[] }>>, p: Pt): OwnerId | null => {
+	const ids = OWNER_ORDER.filter((k) => boxes[k]);
+	const drawn = (k: OwnerId) => shapeOf(k, boxes[k] as Box);
+	for (const k of ids) if (inPoly(p, drawn(k))) return k;
+	const padIds = (['turbo', 'auto', 'bonus'] as const).filter((k) => boxes[k] && pads[k]);
+	for (const k of padIds) if (inPoly(p, (pads[k] as { poly: Pt[] }).poly)) return k;
+	let best: OwnerId | null = null;
 	let m = PRESS_SLACK;
-	for (const k of keys) {
-		const d = Math.min(distToPoly(p, dia(k)), pads[k] ? distToPoly(p, (pads[k] as { poly: Pt[] }).poly) : Infinity);
+	for (const k of ids) {
+		const d = distToPoly(p, drawn(k));
 		if (d <= m) {
+			m = d;
+			best = k;
+		}
+	}
+	for (const k of padIds) {
+		const d = distToPoly(p, (pads[k] as { poly: Pt[] }).poly);
+		if (d < m) {
 			m = d;
 			best = k;
 		}
 	}
 	return best;
 };
+
+/** WHAT A CONTROL DOES WITH A CLICK IT GOT, by whose press the place is (`who`, pressOwner at the place the pointer
+ *  went down): 'own' it acts; 'pass' the press is another control's, which takes it; 'none' nothing happens. The Play
+ *  is never passed a press: a round starts only from a click the Play itself got for a place in its own diamond. */
+export const pressVerdict = (got: OwnerId, who: OwnerId | null): 'own' | 'pass' | 'none' => (who === got ? 'own' : who === null || who === 'play' ? 'none' : 'pass');
 
 // ---- the bet symbols (the mock's stepDraw and stepBox), bar px ----
 /** the drawn chevron for a symbol `size` bar px tall: its line, its white and dark outlines, half its width (a) and

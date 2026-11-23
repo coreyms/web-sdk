@@ -61,7 +61,7 @@
 		cls?: string;
 		/** the number's type size (mock px) and the room it has: the fit's inputs */
 		nominal: number;
-		onclick?: () => void;
+		onclick?: (ev: MouseEvent) => void;
 		disabled?: boolean;
 		ariaLabel?: string;
 		hud?: string;

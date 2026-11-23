@@ -10,10 +10,11 @@
 	import { stepDraw } from './signLayout';
 	import { stepSvg } from './signDraw';
 
-	type Props = { dir: 1 | -1; controls: Controls; x: number; y: number; w: number; h: number; size: number; cx?: number; cy?: number };
+	type Props = { dir: 1 | -1; controls: Controls; x: number; y: number; w: number; h: number; size: number; cx?: number; cy?: number; press?: (ev: MouseEvent, own: () => void) => void };
 	/** x, y, w, h: the press box, bar px; size: the symbol's height, bar px; cx, cy: where the symbol is drawn in the box
-	 *  (its middle, unless the box had to move in from the window's edge) */
-	const { dir, controls, x, y, w, h, size, cx, cy }: Props = $props();
+	 *  (its middle, unless the box had to move in from the window's edge); press: the bar's own press rule for a click
+	 *  this symbol gets (ui/sign/SignHud.svelte barPress: whose press it is by where the pointer went down) */
+	const { dir, controls, x, y, w, h, size, cx, cy, press }: Props = $props();
 	const target = $derived(controls.betDisabled() ? undefined : betStepTarget(dir));
 	const step = () => {
 		const next = betStepTarget(dir);
@@ -34,7 +35,7 @@
 	style:width="{w}px"
 	style:height="{h}px"
 	disabled={target === undefined}
-	onclick={step}
+	onclick={(ev) => (press ? press(ev, step) : step())}
 	aria-label={label}
 >
 	<svg class="s-in" viewBox="0 0 {w} {h}" aria-hidden="true">{@html html}</svg>

@@ -20,7 +20,7 @@
 	import HudReadout from '../hud/HudReadout.svelte';
 	import HudMenuPanel from '../hud/HudMenuPanel.svelte';
 	import { HEAD_LS, headWidth } from './signDraw';
-	import { DESKTOP, KEY_V, PHONE_PLACES, PHONE_REFS, PLAY_V, READOUT_TYPE, TEXT_MIN, amountLimits, padCircle, padPlaces, padShapes, readoutFit, pressOwner, pressRegions, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type PieceId } from './signLayout';
+	import { DESKTOP, KEY_V, PHONE_PLACES, PHONE_REFS, PLAY_V, READOUT_TYPE, TEXT_MIN, amountLimits, padCircle, padPlaces, padShapes, readoutFit, pressOwner, pressRegions, pressVerdict, seatAmount, signLayout, signProblems, stepBox, winGlass, type Box, type OwnerId, type PieceId } from './signLayout';
 	import { signZones } from './signZones';
 	import { holdLights } from './ledBand';
 	import SignPlay from './SignPlay.svelte';
@@ -130,12 +130,21 @@
 	const pressBoxes = $derived({ play: geo.box.play, auto: geo.box.auto, turbo: geo.box.turbo, menu: geo.box.menu, bonus: geo.box.bonus, down: seat.down, up: seat.up });
 	const padAt = $derived(padPlaces(pressBoxes, vw, vh));
 	const padShape = $derived(padShapes(pressBoxes, vw, vh));
-	// WHOSE PRESS IS IT (2026-11-23, signLayout.ts pressOwner; the probe host at 844 x 390: a tap in the bare ground
-	// between Auto's and Turbo's diamonds turned Turbo on). A browser gives a touch to a nearby button by the buttons'
-	// upright boxes and paint order, and reports the click inside the button it chose; the two diamonds' boxes overlap.
-	// So a click on Auto, on Turbo or on either pad is judged by where the pointer went DOWN (kept here from the
-	// window's pointerdown), by the drawn shapes: the key whose diamond or pad that place is in, or neither. A
-	// keyboard's or a script's press carries no place (detail 0): the control that got it takes it, under its own rule.
+	// WHOSE PRESS IS IT (2026-11-23, signLayout.ts pressOwner). A browser gives a TOUCH to a nearby button by the
+	// buttons' upright boxes and paint order, and reports the click inside the button it chose. The diamonds' boxes
+	// overlap (the Play's covers half of Turbo's ground), so on the probe host a tap 2 px inside Turbo's edge nearest the
+	// Play started a round, and a tap in the bare ground between Auto and Turbo turned Turbo on; a mouse did neither.
+	// So EVERY click a control of this bar gets is judged by where the pointer went DOWN (kept here from the window's
+	// pointerdown: that place is the finger's own), by the drawn shapes:
+	//   the place is in this control's own drawing or pad   it acts
+	//   it is in another control's                          that control takes the press, under its own rule (a click
+	//                                                       sent to it with no place); NEVER the Play: a round starts
+	//                                                       only from a press that went down inside the Play's diamond
+	//                                                       and that the Play itself got
+	//   it is in nobody's                                   nothing happens
+	// A keyboard's or a script's press carries no place (detail 0): the control that got it takes it. The Play has one
+	// way in, this click (no hold to spin: the shared EnableSpaceHold is not mounted, ui/Chrome.svelte).
+	let root = $state<HTMLDivElement | undefined>();
 	let pressDown: { x: number; y: number; t: number } | null = null;
 	$effect(() => {
 		const down = (e: PointerEvent) => {
@@ -144,15 +153,27 @@
 		window.addEventListener('pointerdown', down, true);
 		return () => window.removeEventListener('pointerdown', down, true);
 	});
-	const keyPress = (ev: MouseEvent, got: 'auto' | 'turbo') => {
-		// (the pointerdown of this click, or the click's own place where there was none in the last 1.5 s)
-		const at: [number, number] = pressDown && ev.timeStamp - pressDown.t >= 0 && ev.timeStamp - pressDown.t < 1500 ? [pressDown.x, pressDown.y] : [ev.clientX, ev.clientY];
-		const who = ev.detail === 0 ? got : pressOwner(pressBoxes, padShape, at);
-		if (who === 'auto') {
-			if (!replay && !controls.jurisdiction().disabledAutoplay && !controls.autoDisabled()) controls.autoPress();
-		} else if (who === 'turbo') {
-			if (!controls.jurisdiction().disabledTurbo && !stateBet.isSpaceHold) controls.turboPress();
-		}
+	const bonusPad = $derived(!replay && !controls.jurisdiction().disabledBuyFeature && geo.box.bonus.h < 44);
+	const ownerBoxes = $derived({ ...pressBoxes, amt: seat.amt });
+	const ownerPads = $derived({ ...padShape, ...(bonusPad ? { bonus: { poly: padCircle([geo.box.bonus.x + geo.box.bonus.w / 2, geo.box.bonus.y + geo.box.bonus.h / 2]) } } : {}) });
+	const OWNER_SEL: Record<OwnerId, string> = { play: 'button.sgp', auto: 'button.sgk-auto', turbo: 'button.sgk-turbo', menu: '[data-hud="menu-key"]', bonus: 'button.sgf', down: '[data-hud-step="minus"]', up: '[data-hud-step="plus"]', amt: 'button[data-hud="amount"]' };
+	const barPress = (ev: MouseEvent, got: OwnerId, own: () => void) => {
+		if (ev.detail === 0) return void own();
+		// (this click's own pointerdown is the last one the window saw; a browser with no pointer events gives the click's place)
+		const at: [number, number] = pressDown && pressDown.t <= ev.timeStamp ? [pressDown.x, pressDown.y] : [ev.clientX, ev.clientY];
+		const who = pressOwner(ownerBoxes, ownerPads, at);
+		const verdict = pressVerdict(got, who);
+		if (verdict === 'own') own();
+		else if (verdict === 'pass' && who) root?.querySelector<HTMLElement>(OWNER_SEL[who])?.click();
+	};
+	const autoOwn = () => {
+		if (!replay && !controls.jurisdiction().disabledAutoplay && !controls.autoDisabled()) controls.autoPress();
+	};
+	const turboOwn = () => {
+		if (!controls.jurisdiction().disabledTurbo && !stateBet.isSpaceHold) controls.turboPress();
+	};
+	const bonusOwn = () => {
+		if (!controls.bonusDisabled()) controls.bonusPress();
 	};
 	const pads = $derived.by(() => {
 		const out: { id: string; d: string; press: (ev: MouseEvent) => void }[] = [];
@@ -163,9 +184,9 @@
 			const shape = id === 'auto' || id === 'turbo' ? padShape[id]?.poly : undefined;
 			out.push({ id, d: path(shape ?? padCircle([b.x + b.w / 2, b.y + b.h / 2])), press });
 		};
-		if (!replay && !controls.jurisdiction().disabledAutoplay) add('auto', (B.auto.w * KEY_V) / Math.SQRT2, (ev) => keyPress(ev, 'auto'));
-		if (!controls.jurisdiction().disabledTurbo) add('turbo', (B.turbo.w * KEY_V) / Math.SQRT2, (ev) => keyPress(ev, 'turbo'));
-		if (!replay && !controls.jurisdiction().disabledBuyFeature) add('bonus', B.bonus.h, () => !controls.bonusDisabled() && controls.bonusPress());
+		if (!replay && !controls.jurisdiction().disabledAutoplay) add('auto', (B.auto.w * KEY_V) / Math.SQRT2, (ev) => barPress(ev, 'auto', autoOwn));
+		if (!controls.jurisdiction().disabledTurbo) add('turbo', (B.turbo.w * KEY_V) / Math.SQRT2, (ev) => barPress(ev, 'turbo', turboOwn));
+		if (!replay && !controls.jurisdiction().disabledBuyFeature) add('bonus', B.bonus.h, (ev) => barPress(ev, 'bonus', bonusOwn));
 		return out;
 	});
 
@@ -191,8 +212,9 @@
 			seat: () => JSON.parse(JSON.stringify({ ...seat, widest: widest.text })),
 			/** each press region's largest circle, CSS px */
 			press: () => pressRegions(pressBoxes, padAt),
-			/** whose press a place is, of Auto and Turbo ('auto', 'turbo' or null), by the drawn shapes (pressOwner) */
-			owner: (x: number, y: number) => pressOwner(pressBoxes, padShape, [x, y]),
+			/** whose press a place is ('play', 'auto', 'turbo', 'menu', 'bonus', 'down', 'up', 'amt' or null: nobody's), by
+			 *  the drawn shapes and the pads (pressOwner) */
+			owner: (x: number, y: number) => pressOwner(ownerBoxes, ownerPads, [x, y]),
 			/** Auto's and Turbo's press pads: where the rule puts each one's center (CSS px), each one's real shape (its
 			 *  outline's corners, CSS px, and whether the two share their ground down the middle line), the keys' centers */
 			pads: () => JSON.parse(JSON.stringify({ at: padAt, shapes: padShape, keys: { auto: [geo.box.auto.x + geo.box.auto.w / 2, geo.box.auto.y + geo.box.auto.h / 2], turbo: [geo.box.turbo.x + geo.box.turbo.w / 2, geo.box.turbo.y + geo.box.turbo.h / 2] } })),
@@ -231,7 +253,7 @@
 	}
 </script>
 
-<div class="hudp hud-group sg v-{kind === 'landscape' ? 'desktop' : kind === 'portrait' ? 'portrait' : 'landscape'}" class:menu-open={stateUi.menuOpen} data-plane="base" data-bar="sign" style={plane}>
+<div bind:this={root} class="hudp hud-group sg v-{kind === 'landscape' ? 'desktop' : kind === 'portrait' ? 'portrait' : 'landscape'}" class:menu-open={stateUi.menuOpen} data-plane="base" data-bar="sign" style={plane}>
 	<svg class="sgpads" viewBox="0 0 {vw} {vh}" style:width="{vw / u}px" style:height="{vh / u}px" aria-hidden="true">
 		{#each pads as pd (pd.id)}
 			<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -260,7 +282,7 @@
 			tabular
 		/>
 	</div>
-	{#if !replay && !controls.jurisdiction().disabledBuyFeature}<SignFastLane {controls} x={B.bonus.x} y={B.bonus.y} w={B.bonus.w} h={B.bonus.h} {u} />{/if}
+	{#if !replay && !controls.jurisdiction().disabledBuyFeature}<SignFastLane {controls} x={B.bonus.x} y={B.bonus.y} w={B.bonus.w} h={B.bonus.h} {u} press={(ev) => barPress(ev, 'bonus', controls.bonusPress)} />{/if}
 	<button
 		type="button"
 		class="slot-btn hg sgb sgm"
@@ -271,15 +293,15 @@
 		style:width="{B.menu.w}px"
 		style:height="{B.menu.h}px"
 		style:--s="{B.menu.h / 0.8}px"
-		onclick={controls.menuPress}
+		onclick={(ev) => barPress(ev, 'menu', controls.menuPress)}
 		aria-label="Menu"
 		aria-expanded={stateUi.menuOpen}
 	>
 		<svg class="s-mi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" /></svg><span class="kl">MENU</span>
 	</button>
-	{#if !replay && !controls.jurisdiction().disabledAutoplay}<SignKey kind="auto" {controls} x={B.auto.x} y={B.auto.y} w={B.auto.w} press={(ev) => keyPress(ev, 'auto')} />{/if}
-	{#if !controls.jurisdiction().disabledTurbo}<SignKey kind="turbo" {controls} x={B.turbo.x} y={B.turbo.y} w={B.turbo.w} word={geo.turboWord} press={(ev) => keyPress(ev, 'turbo')} />{/if}
-	<SignPlay {controls} x={B.play.x} y={B.play.y} d={B.play.w} css={geo.box.play.w} />
+	{#if !replay && !controls.jurisdiction().disabledAutoplay}<SignKey kind="auto" {controls} x={B.auto.x} y={B.auto.y} w={B.auto.w} press={(ev) => barPress(ev, 'auto', controls.autoPress)} />{/if}
+	{#if !controls.jurisdiction().disabledTurbo}<SignKey kind="turbo" {controls} x={B.turbo.x} y={B.turbo.y} w={B.turbo.w} word={geo.turboWord} press={(ev) => barPress(ev, 'turbo', controls.turboPress)} />{/if}
+	<SignPlay {controls} x={B.play.x} y={B.play.y} d={B.play.w} css={geo.box.play.w} press={(ev, own) => barPress(ev, 'play', own)} />
 	<div class="dc" style:--rs={geo.rs.bal} style:--hf="{headFs(geo.rs.bal)}px">
 		{#if !replay}
 			<HudReadout label="BALANCE" value={controls.balanceText()} x={B.bal.x} y={B.bal.y} w={B.bal.w} h={B.bal.h} nominal={READOUT_TYPE.bal * geo.rs.bal} fontPx={balFit.px} pad={0} cls="sgr bal {geo.just.bal === 'left' ? 'al-left' : ''}" hud="balance" lit face={OVER} />
@@ -288,7 +310,7 @@
 		{/if}
 	</div>
 	<div class="dc" style:--rs={geo.rs.amt} style:--hf="{headFs(geo.rs.amt)}px">
-		{#if !replay}<SignStep dir={-1} {controls} x={seat.down.x / u} y={seat.down.y / u} w={SB.w} h={SB.h} size={geo.step} cx={(seat.downC[0] - seat.down.x) / u} cy={(seat.downC[1] - seat.down.y) / u} />{/if}
+		{#if !replay}<SignStep dir={-1} {controls} x={seat.down.x / u} y={seat.down.y / u} w={SB.w} h={SB.h} size={geo.step} cx={(seat.downC[0] - seat.down.x) / u} cy={(seat.downC[1] - seat.down.y) / u} press={(ev, own) => barPress(ev, 'down', own)} />{/if}
 		{#if !replay || rh}
 			<HudReadout
 				label={amtLabel}
@@ -301,14 +323,14 @@
 				fontPx={seat.px / u}
 				pad={0}
 				cls="sgr amt {!replay && hs.modeOn() ? 'ante' : ''} {!replay && controls.betDisabled() ? 'is-locked' : ''}"
-				onclick={replay ? undefined : controls.openDenom}
+				onclick={replay ? undefined : (ev) => barPress(ev, 'amt', controls.openDenom)}
 				disabled={replay || controls.betDisabled()}
 				hud="amount"
 				lit
 				face={OVER}
 			/>
 		{/if}
-		{#if !replay}<SignStep dir={1} {controls} x={seat.up.x / u} y={seat.up.y / u} w={SB.w} h={SB.h} size={geo.step} cx={(seat.upC[0] - seat.up.x) / u} cy={(seat.upC[1] - seat.up.y) / u} />{/if}
+		{#if !replay}<SignStep dir={1} {controls} x={seat.up.x / u} y={seat.up.y / u} w={SB.w} h={SB.h} size={geo.step} cx={(seat.upC[0] - seat.up.x) / u} cy={(seat.upC[1] - seat.up.y) / u} press={(ev, own) => barPress(ev, 'up', own)} />{/if}
 	</div>
 	<HudMenuPanel {controls} x={panel.x} y={panel.y} W={panel.w} H={panel.h} tip={0} up={panel.up} T={0} cls={panel.cls} />
 </div>

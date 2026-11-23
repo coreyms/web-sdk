@@ -13,6 +13,8 @@
 //      sizes), by real shape: no piece on the board, the strip or the logo, none off the window, no bet symbol's press
 //      box on the Play's diamond, no press region under 44 CSS px. Inside his own range of windows that must hold;
 //      beyond it (and at the two popouts) what fails is listed.
+//   6. A ROUND STARTS ONLY FROM THE PLAY'S OWN DIAMOND (2026-11-23, pressOwner, pressVerdict): at every layout the
+//      Play's diamond shares no ground with a neighbour; a click the Play gets for a neighbour's place is the neighbour's.
 //   5. WHOSE PRESS IS IT, OF AUTO AND TURBO (2026-11-23, pressOwner): the drawn diamonds never overlap; a place is
 //      the key's whose drawing or pad it is in, else nobody's; were two drawn keys to overlap, Turbo's (drawn on top).
 //   4. AUTO'S AND TURBO'S PRESS PADS (2026-11-23): by their real shapes, at his nine phone windows and at every
@@ -408,6 +410,97 @@ for (const [vw, vh, name, must] of [[800, 450, 'Popout L', true], [400, 225, 'Po
 		const both = [145, 130];
 		const inBoth = L.shapeGap([both, both, both], L.shapeOf('auto', boxes.auto)) === 0 && L.shapeGap([both, both, both], L.shapeOf('turbo', boxes.turbo)) === 0;
 		line(inBoth && L.pressOwner(boxes, {}, both) === 'turbo' && L.pressOwner(boxes, {}, [112, 130]) === 'auto' && L.pressOwner(boxes, {}, [178, 130]) === 'turbo' && L.pressOwner(boxes, {}, [145, 60]) === null, 'two made up keys whose drawn diamonds overlap: a place in both is Turbo\'s (drawn on top), a place in one only is that key\'s, a place in neither is nobody\'s');
+	}
+}
+// ---- 6. A ROUND STARTS ONLY FROM THE PLAY'S OWN DIAMOND (2026-11-23; the probe host, touch, 844 x 390 and 667 x 375:
+// a tap 2 px inside Turbo's edge nearest the Play started a round. Corey on accidental plays: "like stealing in my
+// eyes"). A browser hands a touch to a nearby button by upright boxes and paint order; the bar judges a click by
+// where the pointer went down (pressOwner) and acts by pressVerdict. At every layout (the desktop sizes, the 836
+// sideways windows, his five upright windows and an upright sweep):
+//   a. the Play's drawn diamond shares no ground with Auto's or Turbo's diamond or pad, either arrow's press box, the
+//      amount, Menu or the Fast Lane (so no place is both the Play's and another control's)
+//   b. on the line from each of Auto's, Turbo's and the two arrows' middles to the Play's middle, every 0.5 px: the
+//      ground is that control's, then other controls' or nobody's, then the Play's, in that order only; 2 px inside
+//      the control's edge it is the control's, 2 px inside the Play's edge it is the Play's
+//   c. the verdicts: a click the Play got for a place that is Turbo's, Auto's or an arrow's is passed to that control
+//      (no round); for nobody's place nothing; a click another control got for a place in the Play's diamond does
+//      nothing (the Play is never passed a press); only the Play's own click on its own ground acts
+//   d. the probe host's three places are Turbo's: 844 x 390 (755.8, 196.9), 667 x 375 (623.7, 194.9), 1200 x 675
+//      (1145.4, 428.2) ----
+{
+	const setup = (kind, vw, vh) => {
+		const { g, seat } = at(kind, vw, vh);
+		const boxes = { play: g.box.play, auto: g.box.auto, turbo: g.box.turbo, menu: g.box.menu, bonus: g.box.bonus, down: seat.down, up: seat.up, amt: seat.amt };
+		const pads = { ...L.padShapes(boxes, vw, vh) };
+		if (g.box.bonus.h < 44) pads.bonus = { poly: L.padCircle([g.box.bonus.x + g.box.bonus.w / 2, g.box.bonus.y + g.box.bonus.h / 2]) };
+		return { g, boxes, pads, own: (q) => L.pressOwner(boxes, pads, q) };
+	};
+	const mid = (b) => [b.x + b.w / 2, b.y + b.h / 2];
+	const inBox = (q, b) => q[0] >= b.x && q[0] <= b.x + b.w && q[1] >= b.y && q[1] <= b.y + b.h;
+	const bad = [];
+	let n = 0;
+	let least = { v: Infinity, at: '' };
+	const inPlayBox = { auto: 0, turbo: 0, down: 0, up: 0 };
+	const each = (kind, vw, vh) => {
+		const R = setup(kind, vw, vh);
+		n++;
+		const play = L.shapeOf('play', R.boxes.play);
+		// a. no shared ground
+		for (const id of ['auto', 'turbo', 'down', 'up', 'amt', 'menu', 'bonus']) {
+			const gap = L.shapeGap(play, L.shapeOf(id, R.boxes[id]));
+			if (gap < least.v) least = { v: gap, at: `${vw}x${vh} ${id}` };
+			if (gap <= 0) bad.push(`${vw}x${vh}: the Play's diamond meets ${id}`);
+		}
+		for (const id of ['auto', 'turbo', 'bonus']) {
+			if (!R.pads[id]) continue;
+			const gap = L.shapeGap(play, R.pads[id].poly);
+			if (gap < least.v) least = { v: gap, at: `${vw}x${vh} ${id}'s pad` };
+			if (gap <= 0) bad.push(`${vw}x${vh}: the Play's diamond meets ${id}'s pad`);
+		}
+		// b. the walks
+		for (const id of ['auto', 'turbo', 'down', 'up']) {
+			const a = mid(R.boxes[id]);
+			const b = mid(R.boxes.play);
+			const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+			const u = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+			const owners = [];
+			for (let v = 0; v <= len; v += 0.5) owners.push(R.own([a[0] + u[0] * v, a[1] + u[1] * v]));
+			let last = -1;
+			while (last + 1 < owners.length && owners[last + 1] === id) last++;
+			const first = owners.indexOf('play');
+			const afterPlay = first < 0 ? ['none'] : owners.slice(first).filter((o) => o !== 'play');
+			const between = first < 0 ? [] : owners.slice(last + 1, first).filter((o) => o === id || o === 'play');
+			if (last < 4 || first < 0 || afterPlay.length || between.length) {
+				bad.push(`${vw}x${vh}: from ${id} to the Play the ground is not ${id}'s, then others' or nobody's, then the Play's`);
+				continue;
+			}
+			const qk = [a[0] + u[0] * (last / 2 - 2), a[1] + u[1] * (last / 2 - 2)];
+			const qp = [a[0] + u[0] * (first / 2 + 2), a[1] + u[1] * (first / 2 + 2)];
+			if (R.own(qk) !== id || R.own(qp) !== 'play') bad.push(`${vw}x${vh}: 2 px inside ${id}'s edge is ${R.own(qk)}'s, 2 px inside the Play's is ${R.own(qp)}'s`);
+			if (L.pressVerdict('play', R.own(qk)) !== 'pass' || L.pressVerdict(id, R.own(qp)) !== 'none') bad.push(`${vw}x${vh}: the verdict at ${id}'s edge or the Play's is wrong`);
+			// (where the browser's own choice is at risk: the control's edge place lies inside the Play button's upright box)
+			if (inBox(qk, R.boxes.play)) inPlayBox[id]++;
+		}
+	};
+	for (const [vw, vh] of [[1920, 1080], [1200, 675], [1024, 576], [1280, 720], [1366, 768], [1440, 900], [2560, 1440], [2560, 1080], [3440, 1440], [1280, 800], [1024, 768], [800, 450]]) each('landscape', vw, vh);
+	const desk = n;
+	for (let vh = 320; vh <= 430; vh += 10) for (let vw = 568; vw <= 932; vw += 4) if (vw / vh >= 1.5 && vw / vh <= 2.34) each('phone', vw, vh);
+	const side = n - desk;
+	for (const r of L.PHONE_PLACES.portrait) each('portrait', r.vw, r.vh);
+	for (let vw = 320; vw <= 430; vw += 10) for (let k = 1.6; k <= 2.2001; k += 0.05) each('portrait', vw, Math.round(vw * k));
+	line(bad.length === 0, `the Play and its neighbours at ${n} windows (${desk} desktop, ${side} sideways, ${n - desk - side} upright): the Play's diamond shares no ground with any other control or pad; from Auto, Turbo and each arrow to the Play the ground is the control's, then others' or nobody's, then the Play's; a click the Play gets for a neighbour's place is passed to the neighbour, never a round`, `${bad.slice(0, 4).join(' | ')}${bad.length ? ` (${bad.length}) | ` : ''}the Play's diamond is ${least.v.toFixed(2)} px from the nearest other press shape at the least (${least.at}); the neighbour's edge place lies inside the Play button's upright box (where a browser may hand the touch to the Play) at ${inPlayBox.turbo} windows for Turbo, ${inPlayBox.auto} for Auto, ${inPlayBox.down} for <, ${inPlayBox.up} for >`);
+	// c. the verdicts
+	{
+		const V = L.pressVerdict;
+		const others = ['auto', 'turbo', 'down', 'up', 'amt', 'menu', 'bonus'];
+		line(V('play', 'play') === 'own' && others.every((o) => V('play', o) === 'pass' && V(o, 'play') === 'none' && V(o, o) === 'own' && V(o, null) === 'none') && V('play', null) === 'none' && V('turbo', 'auto') === 'pass', 'the verdicts: only the Play\'s own click on its own ground starts a round; a click the Play got for another control\'s place is that control\'s; the Play is never passed a press; nobody\'s place does nothing');
+	}
+	// d. the probe host's places
+	{
+		const A = setup('phone', 844, 390).own([755.8, 196.9]);
+		const B = setup('phone', 667, 375).own([623.7, 194.9]);
+		const C = setup('landscape', 1200, 675).own([1145.4, 428.2]);
+		line(A === 'turbo' && B === 'turbo' && C === 'turbo', "the probe host's three places 2 px inside Turbo's edge nearest the Play are Turbo's (so the Play passes the press on, and no round starts)", `844x390 (755.8, 196.9): ${A}; 667x375 (623.7, 194.9): ${B}; 1200x675 (1145.4, 428.2): ${C}; in the Play's upright box: ${inBox([755.8, 196.9], setup('phone', 844, 390).boxes.play)}, ${inBox([623.7, 194.9], setup('phone', 667, 375).boxes.play)}, ${inBox([1145.4, 428.2], setup('landscape', 1200, 675).boxes.play)}`);
 	}
 }
 for (const [vw, vh] of [[1920, 1080], [1200, 675], [1024, 576], [1280, 720], [1366, 768], [1440, 900], [2560, 1440], [2560, 1080], [3440, 1440], [1280, 800], [1024, 768]]) {

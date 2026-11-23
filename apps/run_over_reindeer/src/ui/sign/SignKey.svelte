@@ -16,7 +16,7 @@
 
 	type Props = { kind: 'auto' | 'turbo'; controls: Controls; x: number; y: number; w: number; word?: boolean; press?: (ev: MouseEvent) => void };
 	/** x, y, w: the key's box, bar px; word: Turbo shows its word; press: the bar's own press rule for a click this
-	 *  key gets (ui/sign/SignHud.svelte keyPress: whose press it is by where the pointer went down), else the key's own */
+	 *  key gets (ui/sign/SignHud.svelte barPress: whose press it is by where the pointer went down), else the key's own */
 	const { kind, controls, x, y, w, word = true, press }: Props = $props();
 
 	const level = $derived(controls.turboLevel());

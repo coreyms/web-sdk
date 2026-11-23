@@ -21,9 +21,13 @@
 	import { LedBand, type LightMode } from './ledBand';
 	import { LIGHTS, PLAY_HIT, PLAY_TEXT_DARK, PLAY_TEXT_LIMIT, playBand, playBody, playKeylines, ringLed, ringPlan, ringPoints } from './signDraw';
 
-	type Props = { controls: Controls; x: number; y: number; d: number; css: number };
+	type Props = { controls: Controls; x: number; y: number; d: number; css: number; press?: (ev: MouseEvent, own: () => void) => void };
 	/** x, y, d: the key's box in bar px; css: its side on screen in CSS px (the light canvas's size) */
-	const { controls, x, y, d, css }: Props = $props();
+	const { controls, x, y, d, css, press }: Props = $props();
+	// THE PRESS (2026-11-23): a round starts only from a press that went down inside this diamond. A browser hands a
+	// touch on a neighbour's edge to this button (its upright box covers their ground and it is drawn after them), so
+	// the bar's own rule judges the click by where the pointer went down (ui/sign/SignHud.svelte barPress).
+	const act = () => (replay ? replayState.start?.() : controls.spin());
 
 	// ---- the state: ui/hud/HudSpin.svelte's own reading of the controls, unchanged ----
 	const replay = $derived(controls.isReplay());
@@ -171,7 +175,7 @@
 	style:border-radius="{PLAY_HIT.r * d}px"
 	style:transform="rotate(45deg)"
 	{disabled}
-	onclick={replay ? () => replayState.start?.() : controls.spin}
+	onclick={(ev) => (press ? press(ev, act) : act())}
 	aria-label={label}
 >
 	<span class="s-up" data-hud="play-box" style:left="{-off}px" style:top="{-off}px" style:width="{d}px" style:height="{d}px">

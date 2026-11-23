@@ -22,9 +22,9 @@
 	import { TEXT_MIN } from './signLayout';
 	import { WORD_LS, bonusBand, bonusEtchClip, bonusFace, bonusGeo, bonusLights, bonusWordBox, fitWords, glassInk } from './signDraw';
 
-	type Props = { controls: Controls; x: number; y: number; w: number; h: number; u: number };
+	type Props = { controls: Controls; x: number; y: number; w: number; h: number; u: number; press?: (ev: MouseEvent) => void };
 	/** x, y, w, h: the key's box, bar px; u: CSS px per bar px */
-	const { controls, x, y, w, h, u }: Props = $props();
+	const { controls, x, y, w, h, u, press }: Props = $props();
 
 	// (the dock's own words: an Ante level says its level, the number the mode's own cost)
 	const anteWord = (key: string) => `${modeCost(key)}X ${modeShortLabel(key)}`;
@@ -86,7 +86,7 @@
 	style:width="{w}px"
 	style:height="{h}px"
 	{disabled}
-	onclick={controls.bonusPress}
+	onclick={press ?? controls.bonusPress}
 	aria-label={on ? `${FEATURE_MENU_TEXT.name}: ${onLabel ?? ''} is on` : soc('Buy bonus', 'Get bonus')}
 >
 	<svg viewBox="0 0 {w} {h}" aria-hidden="true">{@html faceHtml}</svg>
