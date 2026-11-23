@@ -6,11 +6,11 @@
 	// Cached by the string's SHAPE (digits as 0, as the helper measures them), so a WIN count-up measures once per shape,
 	// not per frame.
 	const cache = new Map<string, number>();
-	const fitted = (text: string, nominal: number, box: number) => {
-		const key = `${nominal}|${box}|${text.replace(/\d/g, '0')}`;
+	const fitted = (text: string, nominal: number, box: number, face: string = UI_TEXT_FACE) => {
+		const key = `${face}|${nominal}|${box}|${text.replace(/\d/g, '0')}`;
 		let v = cache.get(key);
 		if (v === undefined) {
-			v = fitFont({ text, nominal, box, weight: 900, face: UI_TEXT_FACE }) ?? nominal;
+			v = fitFont({ text, nominal, box, weight: 900, face }) ?? nominal;
 			if (cache.size > 400) cache.clear();
 			cache.set(key, v);
 		}
@@ -72,17 +72,23 @@
 		/** THE WIN ODOMETER (hud="win" only; controls.winOdoText): the total the readout rolls to and lands on with the Total
 		 *  Win card's own count, null or absent: today's readout */
 		odo?: string | null;
+		/** THE SIGN BAR (ui/sign/, 2026-11-22; the glass dock passes none of these): the face the number is fitted in (the
+		 *  dock's is the label face); a type size set by the caller, taking the fit's place (the amount, sized by the widest
+		 *  amount rule); no sunburst behind WIN (the sign bar's Win box is its own glass) */
+		face?: string;
+		fontPx?: number;
+		burstOff?: boolean;
 	};
-	const { label, value, pre = '', x, y, w, h, cls = '', nominal, onclick, disabled = false, ariaLabel, hud, lit = false, keep = false, pad = 12, odo = null }: Props = $props();
+	const { label, value, pre = '', x, y, w, h, cls = '', nominal, onclick, disabled = false, ariaLabel, hud, lit = false, keep = false, pad = 12, odo = null, face, fontPx, burstOff = false }: Props = $props();
 	const interactive = $derived(!!onclick && !disabled);
 	const odoOn = $derived(hud === 'win' && !!odo);
 	/** the text the readout is fitted to: the odometer's total while it plays (its zeros, its windows and its landing all
 	 *  have the total's shape, so one fit and one width throughout) */
 	const fitText = $derived(odoOn ? (odo as string) : value);
-	const font = $derived(fitted(fitText, nominal, w - pad));
+	const font = $derived(fontPx ?? fitted(fitText, nominal, w - pad, face));
 
 	// ---- the WIN readout's sunburst (only hud="win"; the chromes' own classes say which screen and when a win shows) ----
-	const burst = $derived(hud === 'win');
+	const burst = $derived(hud === 'win' && !burstOff);
 	const classes = $derived(cls.split(/\s+/));
 	const view = $derived<BurstView>(classes.includes('pt') ? 'portrait' : classes.includes('lc') ? 'landscape' : 'desktop');
 	const winLit = $derived(classes.includes('is-lit'));
@@ -348,5 +354,5 @@
 >
 	<span class="lbw">{#if pre}<span class="pre">{pre}</span>{/if}<span class="label">{label}</span></span>
 	<!-- (the odometer's markup is one line: a space between its boxes would widen the number) -->
-	<span class="value" class:odo={odoOn} bind:this={valEl} style:font-size={font !== nominal ? `${font}px` : undefined} aria-hidden={odoOn ? 'true' : undefined} data-odo={odoOn ? odoMode : undefined}>{#if !odoOn}{value}{:else if odoMode === 'roll'}{#each odoChars as ch}{#if ch.d}<span class="od"><span class="odz">0</span><span class="ods">{#each STRIP as dd}<i>{dd}</i>{/each}</span></span>{:else}<span class="oc">{ch.c}</span>{/if}{/each}{:else}{#each odoChars as ch}<span class="oc">{ch.d && odoMode !== 'done' ? '0' : ch.c}</span>{/each}{/if}</span>
+	<span class="value" class:odo={odoOn} bind:this={valEl} style:font-size={font !== nominal || face ? `${font}px` : undefined} aria-hidden={odoOn ? 'true' : undefined} data-odo={odoOn ? odoMode : undefined}>{#if !odoOn}{value}{:else if odoMode === 'roll'}{#each odoChars as ch}{#if ch.d}<span class="od"><span class="odz">0</span><span class="ods">{#each STRIP as dd}<i>{dd}</i>{/each}</span></span>{:else}<span class="oc">{ch.c}</span>{/if}{/each}{:else}{#each odoChars as ch}<span class="oc">{ch.d && odoMode !== 'done' ? '0' : ch.c}</span>{/each}{/if}</span>
 </button>

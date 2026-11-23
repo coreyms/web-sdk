@@ -23,6 +23,8 @@
 // the probes' own copies of these numbers all read the same rules.
 import { MASTER, type LayoutKind, boardRect } from '../../game/layoutSpec';
 import { HUD_BED } from '../../game/constants';
+import { HUD_BAR } from '../hudTheme';
+import { signLayout } from '../sign/signLayout';
 
 export type HudVariant = 'desktop' | 'tablet' | 'portrait' | 'landscape';
 export type Insets = { t: number; r: number; b: number; l: number };
@@ -396,6 +398,13 @@ export const hudSkipRect = (v: HudView) => {
 		const right = Math.max(10, f.safe.r + 8) / f.u;
 		s = { x: v.vw / f.u - right - L.w, y: clock, w: L.w, h: L.h };
 		void desktopGeo;
+	}
+	// THE SIGN BAR (2026-11-22, ui/hudTheme.ts HUD_BAR): upright, Corey's Menu and Fast Lane stand in the top right corner
+	// where this button was (at every one of his windows its box met Menu). There it stands just under the Fast Lane key,
+	// its right edge on the key's, the same size. Sideways and on the desktop its own place is clear of the bar.
+	if (HUD_BAR === 'sign' && f.variant === 'portrait') {
+		const b = signLayout({ kind: 'portrait', vw: v.vw, vh: v.vh, safe: f.safe }).box.bonus;
+		return { x: b.x + b.w - s.w * f.u, y: b.y + b.h + 6, width: s.w * f.u, height: s.h * f.u, u: f.u, variant: f.variant };
 	}
 	return { x: s.x * f.u, y: s.y * f.u, width: s.w * f.u, height: s.h * f.u, u: f.u, variant: f.variant };
 };

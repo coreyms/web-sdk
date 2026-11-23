@@ -20,9 +20,12 @@
 	import HudStep from './hud/HudStep.svelte';
 	import HudReadout from './hud/HudReadout.svelte';
 	import HudMenuPanel from './hud/HudMenuPanel.svelte';
+	import { HUD_BAR } from './hudTheme';
+	import SignHud from './sign/SignHud.svelte';
 
-	type Props = { controls: Controls; hud: HudFrame };
-	const { controls, hud }: Props = $props();
+	// THE GAME BAR IN USE (ui/hudTheme.ts HUD_BAR, 2026-11-22): the sign bar (ui/sign/SignHud.svelte), or the glass dock below
+	type Props = { controls: Controls; hud: HudFrame; vw: number; vh: number };
+	const { controls, hud, vw, vh }: Props = $props();
 	const hs = createHudState(controls);
 	const replay = $derived(controls.isReplay());
 	const rh = $derived(hs.replay());
@@ -48,6 +51,9 @@
      a bonus round, with its counter (ui/TitleSign.svelte roundOnly), kept up through every presentation -->
 <div class="logo keep" style:left="{title.x}px" style:top="calc({title.y}px - var(--vp-extra-top, 0px))"><TitleSign width={title.width} height={title.height} lines={title.lines} roundOnly plate="landscape" /></div>
 
+{#if HUD_BAR === 'sign'}
+	<SignHud {controls} kind="landscape" {vw} {vh} safe={hud.safe} />
+{:else}
 <!-- the dock: glass, keys, WIN and Spin -->
 <div class="hudp hud-group v-{hud.variant}" data-plane="base" style={plane}>
 	<div class="shadow" style:left="{G.x0 + 14}px" style:top="{G.y1 - 14}px" style:width="{G.xr - G.x0 - 28}px" style:height="28px"></div>
@@ -92,6 +98,7 @@
 	</div>
 </div>
 </div>
+{/if}
 
 <style>
 	/* placed by the layout rule (inline left / top: layoutSpec TITLE) */

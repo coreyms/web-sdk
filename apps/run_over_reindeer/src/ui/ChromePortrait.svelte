@@ -24,9 +24,12 @@
 	import HudStep from './hud/HudStep.svelte';
 	import HudReadout from './hud/HudReadout.svelte';
 	import HudMenuPanel from './hud/HudMenuPanel.svelte';
+	import { HUD_BAR } from './hudTheme';
+	import SignHud from './sign/SignHud.svelte';
 
-	type Props = { controls: Controls; hud: HudFrame };
-	const { controls, hud }: Props = $props();
+	// THE GAME BAR IN USE (ui/hudTheme.ts HUD_BAR, 2026-11-22): the sign bar (ui/sign/SignHud.svelte), or the glass dock below
+	type Props = { controls: Controls; hud: HudFrame; vw: number; vh: number };
+	const { controls, hud, vw, vh }: Props = $props();
 	const hs = createHudState(controls);
 	const replay = $derived(controls.isReplay());
 	const rh = $derived(hs.replay());
@@ -55,6 +58,9 @@
      presentation -->
 <div class="top keep" style:top="{title.y}px" style:right="{title.x}px" style:width="{title.width}px"><TitleSign width={title.width} height={title.height} lines={title.lines} roundOnly plate="portrait" /></div>
 
+{#if HUD_BAR === 'sign'}
+	<SignHud {controls} kind="portrait" {vw} {vh} safe={hud.safe} />
+{:else}
 <div class="hudp hud-group v-portrait" class:menu-open={stateUi.menuOpen} data-plane="base" style={plane}>
 	<div class="shadow" style:left="{G.bar.x0 + 14}px" style:top="{G.bar.y1 - 14}px" style:width="{G.bar.x1 - G.bar.x0 - 28}px" style:height="28px"></div>
 	<HudGlass {outline} frame={{ x0: G.bar.x0, x1: G.bar.x1, y0: G.n.cy - G.n.R, y1: G.n.cy + (G.n.Rb ?? G.n.R), peak: 0.5 }} {ante} W={hud.W} H={hud.H} />
@@ -96,6 +102,7 @@
 		<HudStep dir={1} {controls} x={K.plus.x} y={K.plus.y} d={K.plus.d} cls="inb uc" />
 	{/if}
 </div>
+{/if}
 
 <style>
 	/* top, right and width come from the layout rule (inline: layoutSpec TITLE); this frame spans the screen's width */

@@ -9,6 +9,8 @@
 // WATCHES: apps/run_over_reindeer/src/{ui/hud/HudSpin.svelte,ui/hud/spinRing.ts,ui/hud/ringPlan.ts};
 // WATCHES: ; __reindeer.ringMethod, __reindeer.ringRounds, __reindeer.ringNow, __reindeer.spinSerial
 // WATCHES: apps/run_over_reindeer/src/{game/currency.ts,fixtures/fixtureRgs.ts};
+// WATCHES: apps/run_over_reindeer/src/{ui/sign/SignHud.svelte,ui/sign/signLayout.ts,ui/sign/signZones.ts,ui/sign/SignPlay.svelte,ui/hudTheme.ts};
+// WATCHES: ; __reindeer.sign, __reindeer.hud.bar, HUD_BAR, .sgw, .s-words, .s-ring, data-shape, data-total, data-bar
 // WATCHES: apps/run_over_reindeer/src/{game/actor.ts,game/utils.ts,game/stateGame.svelte.ts,ui/SpinHotkey.svelte};
 // WATCHES: ; __reindeer.pressReady, __reindeer.spinTail, roundSettled, roundTailFinish, landSmall, SPIN_TAIL, flipGraceMs, ledCountDone, data-resume-card
 // THE HUD PROBE (the house glass HUD from Manticore, "Win over Balance, Drop 6" plus round 6, in this game's "Frost"
@@ -143,6 +145,15 @@ const r1 = (v) => Math.round(v * 10) / 10;
 const inter = (a, b) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
 
 const H = () => window.__reindeer;
+/** THE GAME BAR IN USE (ui/hudTheme.ts HUD_BAR, read through __reindeer.hud.bar; 2026-11-22). The sections written for
+ *  the glass dock's own drawing (its geometry per size, the lane ring) do not run under the sign bar: they say so and
+ *  pass over. Set HUD_BAR to 'dock' to run them. The sign bar's own checks are section `signhud`. */
+const barOf = (p) => p.evaluate(() => window.__reindeer?.hud?.bar ?? 'dock').catch(() => 'dock');
+const dockOnly = async (p, what) => {
+	if ((await barOf(p)) !== 'sign') return false;
+	console.log(`SKIP ${what}: the glass dock's section, and the game bar in use is the sign bar`);
+	return true;
+};
 
 async function boot(browser, S, extra = '') {
 	const ctx = await browser.newContext({ viewport: S.vp, deviceScaleFactor: S.phone ? 3 : 2, isMobile: S.touch && S.family !== 'desktop', hasTouch: S.touch, reducedMotion: S.reduced ? 'reduce' : 'no-preference' });
@@ -373,6 +384,7 @@ async function spinOnce(p) {
 
 async function runSize(browser, S) {
 	const { ctx, p, errs } = await boot(browser, S);
+	if (await dockOnly(p, "the glass dock's geometry at this size (the sign bar's is section signhud)")) return void (await ctx.close());
 	const name = `${S.name} ${S.vp.width}x${S.vp.height}`;
 	await settle(p, S);
 	await sleep(600);
@@ -867,6 +879,7 @@ async function ringStill(p, tag) {
 async function everyRoundTurns(browser) {
 	const S = { name: 'rounds', vp: { width: 1440, height: 900 }, phone: false, touch: false, family: 'desktop' };
 	const { ctx, p, errs } = await boot(browser, S);
+	if (await dockOnly(p, 'rounds: the lane ring turning each round')) return void (await ctx.close());
 	await settle(p, S);
 	await sleep(500);
 	// AUTOPLAY, BACK TO BACK: Super Turbo, every round the no-win fixture (sticky), so each round starts as the one before ends
@@ -1073,6 +1086,10 @@ async function homePose(browser) {
 	for (const method of methods) {
 		const S = { name: 'home', vp: { width: 1440, height: 900 }, phone: false, touch: false, family: 'desktop' };
 		const { ctx, p, errs } = await boot(browser, S);
+		if (await dockOnly(p, 'home: the lane ring coming to rest on its home pose')) {
+			await ctx.close();
+			return;
+		}
 		await settle(p, S);
 		await sleep(500);
 		// (the pointer off the Spin: a desktop hover turns the ring itself since 2026-11-20; the hover rounds below put it on)
@@ -1492,6 +1509,7 @@ async function cardsHud(browser) {
 async function reducedMotion(browser) {
 	const S = { name: 'reduced', vp: { width: 1440, height: 900 }, phone: false, touch: false, family: 'desktop', reduced: true };
 	const { ctx, p, errs } = await boot(browser, S);
+	if (await dockOnly(p, 'reduced: the lane ring under reduced motion')) return void (await ctx.close());
 	await settle(p, S);
 	await sleep(600);
 	const a = await ringNow(p);
@@ -1519,6 +1537,7 @@ async function reducedMotion(browser) {
 async function flip(browser) {
 	const S = { name: 'flip', vp: { width: 1440, height: 900 }, phone: false, touch: false, family: 'desktop' };
 	const { ctx, p } = await boot(browser, S);
+	if (await dockOnly(p, "flip: the lane ring's face flip")) return void (await ctx.close());
 	await settle(p, S);
 	await sleep(400);
 	const arm = (want) =>
@@ -1921,6 +1940,262 @@ async function tailSection(browser) {
 	await ctx.close();
 }
 
+// ---- THE SIGN BAR (ONLY=signhud; 2026-11-22, wip/signhud; ui/sign/, ui/hudTheme.ts HUD_BAR 'sign') ----
+// At each of Corey's own windows, three more desktop sizes and the two popouts:
+//   - every piece is drawn within 1 CSS px of his place (his own table, read through __reindeer.sign.his(), never a
+//     copy; at a window he did not set, of the place the rule answers: tools/sign_layout_test.mjs proves the rule)
+//   - every press region holds a 44 CSS px circle (his own Auto and Turbo stand closer than 44 at 568 x 320 and
+//     667 x 375: there the circle between their centers is what is asked), and a press on each control's middle lands
+//     on that control
+//   - nothing is on the board, the LED strip or the logo by real shape, and no bet symbol's press box is on the Play
+//   - the amount fits its reserved width (the widest amount of the bet menu at the type size in use), the symbols hold
+//     still across bet steps, and a mode on seats them again; in three currencies at four of the sizes
+//   - the Win box is hidden at rest, shows on a win, goes at the next spin, and stays through free spins
+//   - the Play says SPIN at rest and STOP while a round's stop is available
+//   - the free spins ring holds one LED per free spin, the lit count is the spin in play, and a retrigger adds three
+// Popout S (400 x 225) is the least important size: what fails there is listed, and only "everything can be pressed"
+// is asked of it.
+const SIGN_SIZES = [
+	{ name: '425x812', vp: { width: 425, height: 812 }, touch: true, phone: true, family: 'portrait', his: true },
+	{ name: '375x667', vp: { width: 375, height: 667 }, touch: true, phone: true, family: 'portrait', his: true },
+	{ name: '320x568', vp: { width: 320, height: 568 }, touch: true, phone: true, family: 'portrait', his: true, cur: true },
+	{ name: '390x844', vp: { width: 390, height: 844 }, touch: true, phone: true, family: 'portrait', his: true, cur: true, fs: true },
+	{ name: '390x620', vp: { width: 390, height: 620 }, touch: true, phone: true, family: 'portrait', his: true },
+	{ name: '812x425', vp: { width: 812, height: 425 }, touch: true, phone: true, family: 'landscape', his: true },
+	{ name: '667x375', vp: { width: 667, height: 375 }, touch: true, phone: true, family: 'landscape', his: true },
+	{ name: '568x320', vp: { width: 568, height: 320 }, touch: true, phone: true, family: 'landscape', his: true, cur: true },
+	{ name: '844x390', vp: { width: 844, height: 390 }, touch: true, phone: true, family: 'landscape', his: true, fs: true },
+	{ name: '1920x1080', vp: { width: 1920, height: 1080 }, touch: false, phone: false, family: 'desktop', his: true, fs: true },
+	{ name: '1200x675', vp: { width: 1200, height: 675 }, touch: false, phone: false, family: 'desktop' },
+	{ name: '1024x576', vp: { width: 1024, height: 576 }, touch: false, phone: false, family: 'desktop', cur: true },
+	{ name: '800x450', vp: { width: 800, height: 450 }, touch: false, phone: false, family: 'desktop' },
+	{ name: '400x225', vp: { width: 400, height: 225 }, touch: false, phone: false, family: 'desktop', listOnly: true },
+];
+// (the Play, Auto and Turbo buttons are their drawn diamonds; each one's box, his place, is the element inside marked *-box)
+const SIGN_PIECES = { play: '.hudp [data-hud="play-box"]', auto: '.hudp [data-hud="auto-box"]', turbo: '.hudp [data-hud="turbo-box"]', menu: '.hudp [data-hud="menu-key"]', bonus: '.hudp .fb', bal: '.hudp [data-hud="balance"]', win: '.hudp [data-hud="win"]', amt: '.hudp [data-hud="amount"]' };
+const signRead = (p) =>
+	p.evaluate((SEL) => {
+		const S = window.__reindeer.sign;
+		if (!S) return null;
+		const dom = {};
+		for (const [id, sel] of Object.entries(SEL)) {
+			const e = document.querySelector(sel);
+			if (!e) continue;
+			const b = e.getBoundingClientRect();
+			dom[id] = { x: b.left, y: b.top, w: b.width, h: b.height };
+		}
+		const hitOk = {};
+		for (const id of ['play', 'auto', 'turbo', 'menu', 'bonus']) {
+			const e = document.querySelector(SEL[id])?.closest('button') ?? document.querySelector(SEL[id]);
+			if (!e) continue;
+			const b = e.getBoundingClientRect();
+			const at = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+			hitOk[id] = !!at && (at === e || e.contains(at));
+		}
+		for (const [id, sel] of [['down', '.hudp [data-hud-step="minus"]'], ['up', '.hudp [data-hud-step="plus"]']]) {
+			const e = document.querySelector(sel);
+			if (!e) continue;
+			const b = e.getBoundingClientRect();
+			dom[id] = { x: b.left, y: b.top, w: b.width, h: b.height };
+			const at = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+			hitOk[id] = !!at && (at === e || e.contains(at));
+		}
+		const seat = S.seat();
+		// the widest amount of the bet menu at the type in use, measured in the page's own face
+		const m = document.createElement('span');
+		m.style.cssText = `position:absolute;left:-9999px;top:0;white-space:pre;font:900 ${seat.px}px 'Overpass',sans-serif;font-variant-numeric:tabular-nums`;
+		m.textContent = seat.widest;
+		document.body.appendChild(m);
+		const widestPx = m.getBoundingClientRect().width;
+		m.remove();
+		const val = document.querySelector('.hudp [data-hud="amount"] .value')?.getBoundingClientRect();
+		const box = document.querySelector('.hudp .sgw');
+		const words = [...document.querySelectorAll('.hudp button.spin .s-words text')].map((t) => t.textContent);
+		const ring = document.querySelector('.hudp button.spin .s-ring');
+		return {
+			inputs: S.inputs(),
+			geo: S.geo(),
+			seat,
+			press: S.press(),
+			problems: S.problems(),
+			his: S.his(),
+			dom,
+			hitOk,
+			widestPx,
+			value: val ? { x0: val.left, x1: val.right, text: document.querySelector('.hudp [data-hud="amount"] .value').textContent } : null,
+			win: { on: S.winOn(), opacity: box ? Number(getComputedStyle(box).opacity) : null, shape: box?.dataset.shape ?? null, text: document.querySelector('.hudp [data-hud="win"] .value')?.textContent ?? '' },
+			play: { words, label: document.querySelector('.hudp button.spin')?.getAttribute('aria-label'), st: document.querySelector('.hudp button.spin')?.getAttribute('data-st'), red: document.querySelector('.hudp button.spin')?.classList.contains('is-red') },
+			ring: ring ? { total: Number(ring.dataset.total), leds: ring.querySelectorAll('.ib').length, lit: ring.querySelectorAll('.ib.lit').length } : null,
+			gameType: window.__reindeer.gameType?.(),
+			mode: window.__reindeer.hud.mode(),
+		};
+	}, SIGN_PIECES);
+const amountFits = (tag, d) => {
+	const s = d.seat;
+	const room = s.up.x - (s.down.x + s.down.w);
+	check(d.widestPx <= s.W + 0.75 && s.W <= room + 0.01, `${tag}: the widest amount (${d.seat.widest}) fits its reserved width at the type in use`, { widest: r1(d.widestPx), reserved: r1(s.W), type: r1(s.px), share: s.k, under: s.under });
+	if (d.value && d.dom.down && d.dom.up) check(d.value.x0 >= d.dom.down.x + d.dom.down.w - 0.75 && d.value.x1 <= d.dom.up.x + 0.75, `${tag}: the amount shown (${d.value.text}) stands between its two symbols`, { value: [r1(d.value.x0), r1(d.value.x1)], down: r1(d.dom.down.x + d.dom.down.w), up: r1(d.dom.up.x) });
+};
+async function signHud(browser) {
+	for (const S of SIGN_SIZES) {
+		const tag = `signhud ${S.name}`;
+		const { ctx, p, errs } = await boot(browser, S);
+		try {
+			await settle(p, S);
+			if ((await barOf(p)) !== 'sign') {
+				check(false, `${tag}: the game bar in use is the sign bar (ui/hudTheme.ts HUD_BAR)`);
+				continue;
+			}
+			let d = await signRead(p);
+			check(!!d, `${tag}: __reindeer.sign answers`);
+			if (!d) continue;
+			const kind = d.inputs.kind;
+			console.log(`     ${tag}: layout ${kind}, u ${d.geo.u.toFixed(3)}, weights ${d.geo.weights.map((w) => w.toFixed(2)).join(' ') || '-'}${d.geo.moved.length ? ', guards: ' + d.geo.moved.join('; ') : ''}`);
+			// ---- places ----
+			const ref = S.his && kind !== 'landscape' ? d.his.phone[kind].find((r) => r.vw === S.vp.width && r.vh === S.vp.height) : null;
+			if (S.his && kind !== 'landscape') check(!!ref, `${tag}: this is one of his windows in the layout file`);
+			const want = (id) => (ref ? { x: ref.p[id][0], y: ref.p[id][1], w: ref.p[id][2], h: ref.p[id][3] } : d.geo.box[id]);
+			const off = [];
+			for (const id of Object.keys(SIGN_PIECES)) {
+				const a = d.dom[id];
+				const b = want(id);
+				if (!a) {
+					off.push(`${id} not drawn`);
+					continue;
+				}
+				// (the amount's element is its reserved width about his center: its middle and its height are his)
+				const dd = id === 'amt' ? Math.max(Math.abs(a.x + a.w / 2 - (b.x + b.w / 2) - d.seat.nudge), Math.abs(a.y - b.y), Math.abs(a.h - b.h)) : Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.w - b.w), Math.abs(a.h - b.h));
+				if (dd > 1) off.push(`${id} ${r1(dd)} px`);
+			}
+			check(off.length === 0, `${tag}: every piece within 1 CSS px of ${ref ? 'his place' : S.his ? 'his place (his 1920 x 1080 layout by the rule)' : "the rule's place"}`, off);
+			if (S.his && kind === 'landscape') {
+				const D = d.his.desktop;
+				const u = d.geo.u;
+				const bad = Object.keys(D.p).filter((id) => Math.abs(d.dom[id === 'amt' ? 'play' : id].w - D.p[id === 'amt' ? 'play' : id][2] * u) > 1 || Math.abs(S.vp.height - d.geo.box[id].y - (D.plane.h - D.p[id][1]) * u) > 0.5);
+				check(Math.abs(u - S.vp.width / D.plane.w) < 0.001 && bad.length === 0, `${tag}: his 1440 x 810 plane at this window's scale, every piece his distance from the bottom edge`, bad);
+			}
+			check(d.win.shape === (kind === 'landscape' ? 'pill' : 'rect'), `${tag}: the Win box is a ${kind === 'landscape' ? 'pill' : 'rectangle'}`, d.win.shape);
+			// ---- press regions ----
+			const need = (id) => {
+				if ((id === 'auto' || id === 'turbo') && ref) {
+					const c = (k) => [ref.p[k][0] + ref.p[k][2] / 2, ref.p[k][1] + ref.p[k][3] / 2];
+					return Math.min(44, Math.hypot(c('auto')[0] - c('turbo')[0], c('auto')[1] - c('turbo')[1]));
+				}
+				return 44;
+			};
+			const small = Object.entries(d.press).filter(([id, v]) => v < need(id) - 0.06).map(([id, v]) => `${id} ${r1(v)}`);
+			const hisOwn = Object.entries(d.press).filter(([id, v]) => v < 43.94 && v >= need(id) - 0.06).map(([id, v]) => `${id} ${r1(v)}`);
+			const cannot = Object.entries(d.hitOk).filter(([, ok]) => !ok).map(([id]) => id);
+			if (S.listOnly) console.log(`     ${tag}, listed only: press regions under 44: ${small.join(', ') || 'none'}; problems: ${d.problems.join('; ') || 'none'}; amount ${r1(d.seat.px)} px${d.seat.under ? ' (under the floor)' : ''}`);
+			else check(small.length === 0, `${tag}: every press region holds a 44 CSS px circle${hisOwn.length ? ` (his own close Auto and Turbo: ${hisOwn.join(', ')})` : ''}`, small);
+			check(cannot.length === 0, `${tag}: a press on each control's middle lands on that control`, cannot);
+			// ---- the scene and the Play ----
+			const real = d.problems.filter((x) => !/press region/.test(x));
+			if (!S.listOnly) check(real.length === 0, `${tag}: nothing on the board, the LED strip or the logo, no bet symbol on the Play (by real shape)`, real);
+			// ---- the amount ----
+			if (!S.listOnly) {
+				amountFits(tag, d);
+				const before = JSON.stringify([d.dom.down, d.dom.up]);
+				for (let i = 0; i < 3; i++) {
+					await p.click('.hudp [data-hud-step="plus"]', { timeout: 1500 }).catch(() => {});
+					await sleep(120);
+				}
+				let e = await signRead(p);
+				check(JSON.stringify([e.dom.down, e.dom.up]) === before, `${tag}: the bet symbols hold still across bet steps (${d.value?.text} to ${e.value?.text})`);
+				for (let i = 0; i < 3; i++) {
+					await p.click('.hudp [data-hud-step="minus"]', { timeout: 1500 }).catch(() => {});
+					await sleep(120);
+				}
+				const base = d.mode;
+				await p.evaluate(() => window.__reindeer.hud.setMode('ANTE_10'));
+				await sleep(500);
+				e = await signRead(p);
+				amountFits(`${tag} with 10X ANTE on`, e);
+				const pr = e.problems.filter((x) => !/press region/.test(x));
+				check(pr.length === 0, `${tag} with 10X ANTE on: still nothing on the scene or the Play`, pr);
+				await p.evaluate((m) => window.__reindeer.hud.setMode(m), base);
+				await sleep(400);
+			}
+			// ---- the words and the Win box ----
+			check(d.play.words.join(' ') === 'SPIN' && d.play.label === 'Spin' && !d.play.red, `${tag}: at rest the Play says SPIN on its green face`, d.play);
+			check(d.win.on === false && d.win.opacity === 0, `${tag}: the Win box is hidden at rest`, d.win);
+			await p.evaluate(() => window.__reindeer.fixtures.next('plain_line_win'));
+			await spinOnce(p);
+			let stop = null;
+			for (let i = 0; i < 30 && !stop; i++) {
+				const e = await signRead(p);
+				if (e.play.words.join(' ') === 'STOP') stop = e.play;
+				else await sleep(60);
+			}
+			check(!!stop && stop.label === 'Stop' && stop.red, `${tag}: while the round's stop is available the Play says STOP on its red face`, stop);
+			let shown = null;
+			for (let i = 0; i < 160 && !shown; i++) {
+				const e = await signRead(p);
+				if (e.win.on && e.win.opacity > 0.9) shown = e.win;
+				else await sleep(120);
+			}
+			check(!!shown && /[1-9]/.test(shown.text), `${tag}: a win shows the Win box with its amount`, shown);
+			await settle(p, S);
+			await p.evaluate(() => window.__reindeer.fixtures.next('no_win_1'));
+			await spinOnce(p);
+			let gone = null;
+			for (let i = 0; i < 60 && !gone; i++) {
+				const e = await signRead(p);
+				if (!e.win.on && e.win.opacity < 0.05) gone = e.win;
+				else await sleep(100);
+			}
+			check(!!gone, `${tag}: the next spin takes the Win box away`, gone);
+			await settle(p, S);
+			// ---- free spins: the Win box stays, the ring counts, a retrigger adds three ----
+			if (S.fs && !process.env.SKIPFS) {
+				await p.evaluate(() => window.__reindeer.fixtures.next('retrigger'));
+				await spinOnce(p);
+				const seen = [];
+				let inFs = false;
+				const t0 = Date.now();
+				for (;;) {
+					const st = await p.evaluate(() => ({ g: window.__reindeer.hud.gates(), idle: window.__reindeer.hud.idle(), rest: window.__reindeer.atRest() })).catch(() => null);
+					const e = await signRead(p).catch(() => null);
+					if (e && e.gameType === 'freegame' && e.ring) {
+						inFs = true;
+						seen.push({ total: e.ring.total, leds: e.ring.leds, lit: e.ring.lit, words: e.play.words.join(' '), win: e.win.on, box: e.win.opacity, red: e.play.red });
+					}
+					if (st && st.g > 0) await p.mouse.click(S.vp.width / 2, S.vp.height * 0.4).catch(() => {});
+					else if (st && st.idle && st.rest && (inFs || Date.now() - t0 > 20000)) break;
+					if (Date.now() - t0 > 300000) break;
+					await sleep(200);
+				}
+				const totals = [...new Set(seen.map((x) => x.total))];
+				check(seen.length > 10 && totals[0] === 10 && totals.includes(13) && totals.every((t, i) => i === 0 || t === totals[i - 1] + 3), `${tag}: the ring starts at 10 LEDs and a retrigger adds three (totals seen ${totals.join(', ')})`, seen.length);
+				check(seen.every((x) => x.leds === x.total), `${tag}: one LED per free spin of the round's total`, seen.find((x) => x.leds !== x.total));
+				check(seen.every((x) => x.words === `SPIN ${x.lit} OF ${x.total}` && x.red), `${tag}: the lit LEDs are the spin in play, as the Play's words say (SPIN n OF total, red face)`, seen.find((x) => x.words !== `SPIN ${x.lit} OF ${x.total}`));
+				check(seen.every((x, i) => i === 0 || x.lit >= seen[i - 1].lit), `${tag}: a lit LED never goes dark in the round`);
+				check(seen.every((x) => x.win) && seen.slice(5).every((x) => x.box > 0.9), `${tag}: the Win box stays all through free spins`, seen.find((x) => !x.win));
+			}
+			if (SHOTS) await p.screenshot({ path: join(SHOTS, `signhud_${S.name}.png`) });
+			check(errs.length === 0, `${tag}: no page errors`, errs.slice(0, 3));
+		} finally {
+			await ctx.close();
+		}
+		// ---- three currencies: the amount still fits (two more boots at four of the sizes) ----
+		if (S.cur)
+			for (const cur of ['JPY', 'BTC']) {
+				const b = await boot(browser, S, `&currency=${cur}`);
+				try {
+					await settle(b.p, S);
+					const d = await signRead(b.p);
+					if (d) {
+						amountFits(`signhud ${S.name} ${cur}`, d);
+						const pr = d.problems.filter((x) => !/press region/.test(x));
+						check(pr.length === 0, `signhud ${S.name} ${cur}: nothing on the scene or the Play`, pr);
+					} else check(false, `signhud ${S.name} ${cur}: __reindeer.sign answers`);
+				} finally {
+					await b.ctx.close();
+				}
+			}
+	}
+}
+
 (async () => {
 	const browser = await chromium.launch({ args: ['--mute-audio'] }); // muted: every probe browser on the owner's Mac
 	try {
@@ -1930,6 +2205,13 @@ async function tailSection(browser) {
 				await runSize(browser, S);
 			} catch (e) {
 				check(false, `${S.name}: ran to the end`, String(e).slice(0, 300));
+			}
+		}
+		if (!ONLY.length || ONLY.includes('signhud')) {
+			try {
+				await signHud(browser);
+			} catch (e) {
+				check(false, 'signhud: ran to the end', String(e).slice(0, 300));
 			}
 		}
 		if (!ONLY.length || ONLY.includes('social')) {

@@ -55,6 +55,14 @@ events (`game/bookEventHandlerMap.ts`). Every decision taken is one line in `doc
   "Frost" (`ui/hudTheme.ts`; read `ui/HUD_THEME.md` for what differs from Manticore). Placement is
   `ui/hud/hudLayout.ts` (mock px, four variants); `portraitBoardBottoms` (line 112) answers the road's `boardRect` in
   the place Manticore's plaque took. `components/HudBeds.svelte` draws the dark canvas beds under the pale glass.
+- THE GAME BAR IN USE is one constant, `HUD_BAR` in `ui/hudTheme.ts` (2026-11-22): `'sign'` is the road sign bar
+  (`ui/sign/`: the diamond Play with its LED border, sign keys, the Fast Lane hexagon, bare bet symbols, plate
+  headers, a Win box shown only on a win and through free spins); `'dock'` is the glass dock above, kept whole for a
+  rollback. The sign bar's places are `ui/sign/signLayout.ts` (Corey's own windows and the rule between them;
+  `tools/sign_layout_test.mjs`), its colors and drawing numbers `SIGN` in `ui/hudTheme.ts`, its lights one 2D canvas
+  per key (`ui/sign/ledBand.ts`: capped at 30 frames a second, paused in a hidden tab). The board and the LED strip
+  are still placed by the dock's rules (`hudLayout.ts`): they did not move with the bar. With the sign bar the
+  desktop strip is taller at 16:9 (`DESKTOP.stripH`) and the upright SKIP button stands under the Fast Lane key.
 - Active highlights use this game's own "Frost" accent (`accent-rgb` in `ui/hudTheme.ts`), never Manticore's gold
   (rule L6).
 - CSS `filter` in the HTML chrome, allowed as shipped (rule R2): only the `.slot-btn` hover and press lift

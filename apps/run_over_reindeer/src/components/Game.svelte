@@ -25,6 +25,8 @@
 	import LoadingScreen from './LoadingScreen.svelte';
 	import Board from './Board.svelte';
 	import HudBeds from './HudBeds.svelte';
+	// (the beds belong to the glass dock: the sign bar's pieces carry their own outlines, ui/hudTheme.ts HUD_BAR)
+	import { HUD_BAR } from '../ui/hudTheme';
 	import Chrome from '../ui/Chrome.svelte';
 	import RoundCard from '../ui/RoundCard.svelte';
 	import SkipButton from './SkipButton.svelte';
@@ -180,7 +182,7 @@
 		     screen's fade, so nothing mounted later can land under it (the conditional mount z order trap). -->
 		{#if context.stateApp.preLoaded}<Board />{/if}
 		<!-- the dark beds under the HUD zones that would sit on snow (components/HudBeds.svelte) -->
-		{#if !context.stateLayout.showLoadingScreen}<HudBeds />{/if}
+		{#if !context.stateLayout.showLoadingScreen && HUD_BAR === 'dock'}<HudBeds />{/if}
 
 		{#if context.stateLayout.showLoadingScreen}
 			<LoadingScreen

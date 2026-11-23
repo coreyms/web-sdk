@@ -5,6 +5,8 @@
 import { LED_BOARD, LED_SIGN, type StripRule } from '../constants';
 import { boardRect, landscapeExtraY, type LayoutKind } from '../layoutSpec';
 import { desktopGeo, hudFrame, landscapeGeo, portraitGeo, readSafeInsets } from '../../ui/hud/hudLayout';
+import { HUD_BAR } from '../../ui/hudTheme';
+import { DESKTOP as SIGN_DESKTOP } from '../../ui/sign/signLayout';
 
 export type Rect = { x: number; y: number; w: number; h: number };
 export type FaceRect = Rect & { dotsW: number; dotsH: number };
@@ -61,6 +63,11 @@ export const scoreboardGeometry = (kind: LayoutKind, vw: number, vh: number, mai
 		const band = dockTop - lane;
 		y = lane + R.topShare * band;
 		h = Math.min(R.heightRoad * k, R.heightShare * band);
+		// THE SIGN BAR (2026-11-22, ui/sign/signLayout.ts DESKTOP.stripH; Corey's desktop layout export, `led`): with the dock
+		// gone from under it the strip stands taller at 16:9 (101 CSS px at 1920 x 1080 for 75.3: 23 dot rows for 16), at the
+		// same place and width. A window whose own rule already gives more (16:10) keeps the game's. The dock's rule is
+		// still what places everything else here (the board and the strip did not move with the bar).
+		if (HUD_BAR === 'sign') h = Math.max(h, SIGN_DESKTOP.stripH * main.scale);
 		hudTop = dockTop;
 		backRoom = y - boardTop;
 		const extra = landscapeExtraY(vh / main.scale);

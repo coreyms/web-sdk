@@ -199,16 +199,23 @@ const expectRule = (p) =>
 			const dock = H.desktopGeo(f, 0).y0 * f.u;
 			const lane = pic.y + 851 * k;
 			const y = lane + 0.15 * (dock - lane);
-			const h = Math.min(125 * k, 0.85 * (dock - lane));
+			let h = Math.min(125 * k, 0.85 * (dock - lane));
+			// (2026-11-22, the sign bar, ui/hudTheme.ts HUD_BAR: with the dock gone from under it the desktop strip stands as tall
+			// as Corey's layout drew it at 16:9, ui/sign/signLayout.ts DESKTOP.stripH master units, read through the dev hook; a
+			// window whose own rule gives more keeps the rule's)
+			const sign = window.__reindeer.hud.bar === 'sign';
+			if (sign) h = Math.max(h, window.__reindeer.sign.his().desktop.stripH * f.fit.scale);
+			// (and what stands under the strip there is the Win box's glass, not the dock)
+			const under = sign ? window.__reindeer.sign.geo().winGlass.y : dock;
 			// (2026-11-20, LED_BOARD.size 'd': the strip as wide as the reel board plus its frame either side, centred on the board;
 			// the frame by the strip's height, the mock's 9 / 8 / 7 / 6)
 			if (window.__reindeer.tune.ledBoard.size === 'd') {
 				const fr = Math.max(6, Math.min(9, 6 + ((h - 53) * 3) / 37));
 				const RB = bl.css;
-				return { cls: f.variant === 'tablet' ? 'tablet' : 'desktop', w: RB.width + 2 * fr, x: RB.x - fr, y, h, hud: dock, board: RB, size: 'd' };
+				return { cls: f.variant === 'tablet' ? 'tablet' : 'desktop', w: RB.width + 2 * fr, x: RB.x - fr, y, h, hud: under, board: RB, size: 'd' };
 			}
 			const w = 0.62 * 1535 * k;
-			return { cls: f.variant === 'tablet' ? 'tablet' : 'desktop', w, x: vw / 2 - w / 2, y, h, hud: dock };
+			return { cls: f.variant === 'tablet' ? 'tablet' : 'desktop', w, x: vw / 2 - w / 2, y, h, hud: under };
 		}
 		if (bl.kind === 'portrait') {
 			const G = H.portraitGeo(f, 0);

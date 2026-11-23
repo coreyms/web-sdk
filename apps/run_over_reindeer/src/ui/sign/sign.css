@@ -1,0 +1,465 @@
+/* THE SIGN BAR'S LOOK (2026-11-22; Corey's approved mocks desktop_hud_r8 to r10 and phone_layout_r2). Every number is a
+   bar px: the plane (.hudp.sg) is drawn in bar px and scaled as a whole (ui/sign/signLayout.ts signScale). No
+   backdrop-filter, no CSS filter, no mask, no blend mode. Animations are transform and opacity only; the LED borders'
+   light is a canvas (ui/sign/ledBand.ts). The one clip is the engraved mark's, cut to the Fast Lane hexagon (the glass
+   dock's key clipped it to its own shape too).
+   Some elements keep the glass dock's class names for the probes and the roaming reindeer's keep-outs (.spin, .stat,
+   .fb, .mp); the rules under "kept names" take the dock's own paint off them. */
+.hudp.sg {
+	font-family: 'Overpass', var(--hud-font);
+}
+.hudp.sg button {
+	-webkit-tap-highlight-color: transparent;
+}
+/* ---- kept names: the dock's paint off ----
+   SPECIFICITY, on purpose: ui/Chrome.svelte fades the bar for a presentation with `.layer.hud-off .hud-group > :not(.keep)`
+   (five classes) and `.layer.hud-deep .hud-group > *` (four). Nothing below that sets opacity or transition may reach
+   four classes on an element those rules fade, or a key would stay up through the fade. So the paint is taken off in
+   two rules: the long one (every state the dock styles) carries no opacity and no transition; opacity is set only by
+   the short ones. */
+.hudp.sg .sgb,
+.hudp.sg .sgb:hover,
+.hudp.sg .sgb:active,
+.hudp.sg .sgb:disabled,
+.hudp.sg .spin.sgb:disabled:not([data-st='halt']),
+.hudp.sg .spin.sgb:active:not(:disabled),
+.hudp.sg .spin.sgb:hover:not(:disabled),
+.hudp.sg .spin.sgb.m-loaded,
+.hudp.sg .spin.sgb.m-feature:disabled,
+.hudp.sg .spin.sgb.m-auto:disabled {
+	position: absolute;
+	display: block;
+	padding: 0;
+	margin: 0;
+	border: 0;
+	border-radius: 0;
+	background: none;
+	box-shadow: none;
+	font: inherit;
+	color: inherit;
+}
+.hudp.sg .sgb {
+	cursor: pointer;
+	/* (the bar's own fade, ui/Chrome.svelte: the return waits 0.3 s, the hide runs at once) */
+	transition: opacity 0.35s ease 0.3s;
+}
+.hudp.sg .sgb:disabled {
+	cursor: default;
+	opacity: 1;
+}
+/* a press pad under a small key (ui/sign/SignHud.svelte): unseen, round, 44 CSS px */
+.hudp.sg .sgpad {
+	position: absolute;
+	border-radius: 50%;
+	pointer-events: auto;
+	cursor: pointer;
+}
+/* THE DIAMONDS (the Play, Auto, Turbo): the button is the diamond itself, a square turned 45 degrees (inline), so the
+   press region is the drawn shape in every browser with nothing cut; its contents stand in the key's box, turned back */
+.hudp.sg .sgb > .s-up {
+	position: absolute;
+	display: block;
+	transform: rotate(-45deg);
+	pointer-events: none;
+}
+.hudp.sg .sgb > svg,
+.hudp.sg .sgb > canvas,
+.hudp.sg .sgb > .s-l,
+.hudp.sg .s-up > svg,
+.hudp.sg .s-up > canvas,
+.hudp.sg .s-up > .s-l {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	display: block;
+	overflow: visible;
+	pointer-events: none;
+}
+/* the glass's layers: a tint per state, the pointer's and the disabled looks */
+.hudp.sg .tint,
+.hudp.sg .hv,
+.hudp.sg .pr,
+.hudp.sg .ds,
+.hudp.sg .dis,
+.hudp.sg .glow {
+	transition: opacity 0.2s ease;
+}
+.hudp.sg .hv,
+.hudp.sg .pr,
+.hudp.sg .ds,
+.hudp.sg .dis,
+.hudp.sg .glow {
+	opacity: 0;
+}
+@media (hover: hover) and (pointer: fine) {
+	.hudp.sg .sgb:hover:not(:disabled) .hv {
+		opacity: 1;
+	}
+}
+.hudp.sg .sgb:active:not(:disabled) .pr {
+	opacity: 1;
+}
+
+/* ---- THE PLAY ---- */
+.hudp.sg .sgp .t-red,
+.hudp.sg .sgp.is-red .t-green {
+	opacity: 0;
+}
+.hudp.sg .sgp.is-red .t-red {
+	opacity: 1;
+}
+.hudp.sg .sgp.is-dim .dis {
+	opacity: 0.38;
+}
+.hudp.sg .sgp .s-words {
+	transition: transform 0.16s ease, opacity 0.18s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+	.hudp.sg .sgp:hover:not(:disabled) .s-words {
+		transform: scale(1.03);
+	}
+}
+.hudp.sg .sgp:active:not(:disabled) .s-words {
+	transform: scale(0.95);
+	transition-duration: 0.06s;
+}
+.hudp.sg .sgp.is-dim .s-words {
+	opacity: 0.35;
+}
+.hudp.sg .sgp .s-faint {
+	opacity: 0.45;
+}
+.hudp.sg .sgp text {
+	font-weight: 900;
+	paint-order: stroke;
+	stroke-linejoin: round;
+}
+.hudp.sg .sgp .s-ring .ib {
+	transition: transform 0.45s cubic-bezier(0.3, 0.8, 0.3, 1);
+}
+.hudp.sg .sgp .s-ring .on {
+	opacity: 0;
+	transition: opacity 0.25s ease;
+}
+.hudp.sg .sgp .s-ring .lit .on {
+	opacity: 1;
+}
+
+/* ---- AUTO AND TURBO (the road sign diamonds) ---- */
+.hudp.sg .sgk:disabled {
+	opacity: 0.55;
+}
+.hudp.sg .sgk .s-in {
+	transition: transform 0.1s ease;
+}
+.hudp.sg .sgk:active:not(:disabled) .s-in {
+	transform: scale(0.94);
+}
+.hudp.sg .sgk .tint {
+	opacity: 0;
+}
+.hudp.sg .sgk[data-t='off'] .t-off,
+.hudp.sg .sgk[data-t='on'] .t-on,
+.hudp.sg .sgk[data-t='hot'] .t-hot,
+.hudp.sg .sgk[data-t='on'] .g-on,
+.hudp.sg .sgk[data-t='hot'] .g-hot {
+	opacity: 1;
+}
+.hudp.sg .sgk .s-icon {
+	position: absolute;
+	overflow: visible;
+	pointer-events: none;
+}
+.hudp.sg .sgk.is-run .s-icon {
+	animation: sg-turn 2.4s linear infinite;
+	transform-origin: 50% 50%;
+}
+@keyframes sg-turn {
+	to {
+		transform: rotate(360deg);
+	}
+}
+.hudp.sg .sgk .kl {
+	position: absolute;
+	transform: translate(-50%, -50%);
+	line-height: 1;
+	white-space: nowrap;
+	pointer-events: none;
+	font-weight: 900;
+	letter-spacing: 0.05em;
+	text-indent: 0.05em;
+}
+.hudp.sg .sgk .s-lv {
+	position: absolute;
+	display: flex;
+	transform: translate(-50%, -50%);
+	pointer-events: none;
+}
+.hudp.sg .sgk .s-lv i {
+	display: block;
+	border-radius: 1px;
+}
+
+/* ---- MENU (the highway sign in his glass, with the outline family's two dark lines) ---- */
+.hudp.sg .sgm,
+.hudp.sg .sgm:hover,
+.hudp.sg .sgm:active,
+.hudp.sg .sgm:disabled {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: center;
+	gap: calc(var(--s) * 0.12);
+	color: #fff;
+	background:
+		linear-gradient(rgba(11, 122, 67, 0.6), rgba(11, 122, 67, 0.6)),
+		linear-gradient(180deg, rgba(29, 42, 58, 0.6), rgba(7, 11, 18, 0.6));
+	border: calc(var(--s) * 0.05) solid #fff;
+	border-radius: calc(var(--s) * 0.14);
+	box-shadow: 0 0 0 max(0.8px, calc(var(--s) * 0.015)) #0d1a2e, inset 0 0 0 max(0.7px, calc(var(--s) * 0.011)) #0a0d12, 0 6px 14px rgba(2, 8, 18, 0.22);
+}
+.hudp.sg .sgm {
+	transition: transform 0.12s ease, opacity 0.35s ease 0.3s;
+}
+.hudp.sg .sgm:active:not(:disabled) {
+	transform: scale(0.94);
+}
+.hudp.sg .sgm.is-active {
+	outline: calc(var(--s) * 0.03) solid rgb(var(--hud-accent-rgb));
+	outline-offset: calc(var(--s) * 0.03);
+}
+@media (hover: hover) and (pointer: fine) {
+	.hudp.sg .sgm:hover::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		background: rgba(255, 255, 255, 0.12);
+	}
+}
+.hudp.sg .sgm .s-mi {
+	position: static;
+	width: calc(var(--s) * 0.3);
+	height: calc(var(--s) * 0.3);
+	flex: none;
+}
+.hudp.sg .sgm .kl {
+	font-weight: 900;
+	font-size: calc(var(--s) * 0.27);
+	letter-spacing: 0.05em;
+	margin-right: -0.05em;
+	line-height: 1;
+	transform: translateY(0.06em);
+	text-shadow: 0 0 2px #05080d, 0 0 5px #05080d;
+}
+
+/* ---- FAST LANE (the hexagon) ---- */
+/* the engraving's colors, as the dock's key gave them to ui/hud/engrave.ts (hud.css .fbtn): the etch takes only the top
+   light and the shadow, so it reads the same in the green glass and in the red; steel while the key is disabled */
+.hudp.sg .sgf {
+	--e-deep: var(--hud-feature-deep-2-rgb);
+	--e-hi: var(--hud-feature-hi-rgb);
+	--e-lt: var(--hud-feature-rim-rgb);
+	--e-g1: var(--hud-mark-g1-rgb);
+	--e-g2: var(--hud-mark-g2-rgb);
+	--e-g3: var(--hud-mark-g3-rgb);
+	--e-g4: var(--hud-mark-g4-rgb);
+	--e-accent: var(--hud-mark-accent-rgb);
+}
+.hudp.sg .sgf:disabled:not(.ante) {
+	--e-deep: var(--hud-key-rgb);
+	--e-hi: var(--hud-key-rim-rgb);
+	--e-lt: var(--hud-ink-rgb);
+	--e-g1: var(--hud-mark-steel-1-rgb);
+	--e-g2: var(--hud-mark-steel-2-rgb);
+	--e-g3: var(--hud-mark-steel-3-rgb);
+	--e-g4: var(--hud-mark-steel-4-rgb);
+}
+.hudp.sg .sgf .t-red,
+.hudp.sg .sgf.ante .t-green {
+	opacity: 0;
+}
+.hudp.sg .sgf.ante .t-red {
+	opacity: 1;
+}
+.hudp.sg .sgf .s-etch {
+	position: absolute;
+	left: 1px;
+	top: 1px;
+	right: 1px;
+	bottom: 1px;
+	pointer-events: none;
+}
+.hudp.sg .sgf .em {
+	position: absolute;
+	inset: 0;
+	transition: opacity 0.15s ease;
+}
+.hudp.sg .sgf .em svg {
+	position: absolute;
+	left: 0;
+	top: 0;
+	display: block;
+	overflow: visible;
+}
+.hudp.sg .sgf .em-off,
+.hudp.sg .sgf:disabled:not(.ante) .em-rest {
+	opacity: 0;
+}
+.hudp.sg .sgf:disabled:not(.ante) .em-off {
+	opacity: 1;
+}
+.hudp.sg .sgf:disabled .ds {
+	opacity: 1;
+}
+.hudp.sg .sgf:disabled .s-ink {
+	opacity: 0.5;
+}
+.hudp.sg .sgf:disabled .band {
+	opacity: 0.78;
+}
+.hudp.sg .sgf .lb {
+	position: absolute;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	transform: translate(-50%, -50%) translateY(0.06em);
+	line-height: 0.94;
+	font-weight: 900;
+	letter-spacing: 0.04em;
+	white-space: nowrap;
+	/* a dark edge all round, so the word reads over the etching (the mock's stroke under the ink) */
+	text-shadow:
+		var(--ol) 0 0 var(--oc),
+		calc(-1 * var(--ol)) 0 0 var(--oc),
+		0 var(--ol) 0 var(--oc),
+		0 calc(-1 * var(--ol)) 0 var(--oc),
+		var(--ol) var(--ol) 0 var(--oc),
+		calc(-1 * var(--ol)) var(--ol) 0 var(--oc),
+		var(--ol) calc(-1 * var(--ol)) 0 var(--oc),
+		calc(-1 * var(--ol)) calc(-1 * var(--ol)) 0 var(--oc);
+}
+.hudp.sg .sgf .lb b {
+	display: block;
+	font-weight: 900;
+	margin-right: -0.04em;
+}
+
+/* ---- THE BET SYMBOLS (bare chevrons) ---- */
+.hudp.sg .sgs .s-in {
+	transition: transform 0.1s ease, opacity 0.12s ease;
+	transform-origin: 50% 50%;
+}
+.hudp.sg .sgs:disabled .s-in {
+	opacity: 0.4;
+}
+.hudp.sg .sgs:active:not(:disabled) .s-in {
+	transform: scale(0.9);
+}
+
+/* ---- THE READOUTS: a sign plate header over an outlined number (Overpass) ---- */
+.hudp.sg .stat.sgr {
+	border-radius: 0;
+	gap: calc(4px * var(--rs, 1));
+	contain: layout style;
+	overflow: visible;
+	font-family: 'Overpass', var(--hud-font);
+}
+/* (the dock lit its WIN readout with a glow of its own: here the Win box is the glass behind it) */
+.hudp.sg .stat.sgr.win,
+.hudp.sg .stat.sgr.win.is-lit,
+.hudp.sg .stat.sgr.win.is-big {
+	background: none;
+	box-shadow: none;
+}
+.hudp.sg .stat.sgr.al-left {
+	align-items: flex-start;
+}
+.hudp.sg .stat.sgr .lbw {
+	--bw: max(1.3px, 0.11em);
+	--ko: max(0.7px, 0.05em);
+	--ki: max(0.5px, 0.04em);
+	display: inline-flex;
+	align-items: center;
+	box-sizing: border-box;
+	height: calc(1.1em + 2 * var(--ki) + 2 * var(--bw));
+	margin: var(--ko);
+	padding: 0 calc(0.42em + var(--ki));
+	font-size: var(--hf, 10.5px);
+	font-weight: 900;
+	line-height: 1;
+	letter-spacing: 0.06em;
+	color: #fff;
+	text-shadow: none;
+	background: linear-gradient(180deg, #288a58, #09673a);
+	border: var(--bw) solid #fff;
+	border-radius: calc(0.24em + var(--bw) / 2);
+	box-shadow: 0 0 0 var(--ko) #0d1a2e, inset 0 0 0 var(--ki) #0a0d12;
+}
+.hudp.sg .stat.sgr .lbw .label,
+.hudp.sg .stat.sgr .lbw .pre {
+	margin: 0 -0.06em 0 0;
+	color: #fff;
+	font-size: inherit;
+	letter-spacing: inherit;
+	transform: translateY(0.06em);
+}
+.hudp.sg .stat.sgr .lbw .pre {
+	margin-right: 0.3em;
+}
+.hudp.sg .stat.sgr .value {
+	font-family: 'Overpass', var(--hud-font);
+	font-weight: 900;
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 0;
+	color: #fff;
+	text-shadow: 0 0 1px #02080f, 1.2px 1.2px 0 #02080f, -1.2px 1.2px 0 #02080f, 1.2px -1.2px 0 #02080f, -1.2px -1.2px 0 #02080f, 0 1.6px 0 #02080f, 0 3px 7px rgba(2, 8, 18, 0.6);
+}
+.hudp.sg .stat.sgr.win.is-lit .value {
+	color: rgb(var(--hud-burst-ink-rgb));
+	text-shadow: 0 0 1px #02080f, 1.2px 1.2px 0 #02080f, -1.2px 1.2px 0 #02080f, 1.2px -1.2px 0 #02080f, -1.2px -1.2px 0 #02080f, 0 0 12px rgba(var(--hud-burst-rgb), 0.8), 0 3px 7px rgba(2, 8, 18, 0.5);
+}
+.hudp.sg .stat.sgr.amt.ante .value {
+	color: rgb(var(--hud-accent-ink-rgb));
+}
+
+/* ---- THE WIN BOX: there only while a win shows and all through free spins; a short rise in and out ---- */
+.sg .sgw {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 0;
+	height: 0;
+	opacity: 0;
+	transform: translateY(12px);
+	transition: opacity 0.2s ease, transform 0.2s ease-in;
+	pointer-events: none;
+}
+.sg .sgw.on {
+	opacity: 1;
+	transform: none;
+	transition: opacity 0.16s ease, transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.25);
+}
+.hudp.sg .sgw .s-glass {
+	position: absolute;
+	box-sizing: border-box;
+	background:
+		radial-gradient(ellipse 90% 70% at 50% 0%, rgba(var(--hud-ink-rgb), 0.1), rgba(var(--hud-ink-rgb), 0) 70%),
+		linear-gradient(180deg, rgba(var(--hud-glass-top-rgb), var(--hud-glass-top-a)), rgba(var(--hud-glass-bottom-rgb), var(--hud-glass-bottom-a)));
+	opacity: 0.85;
+	border: 1px solid rgba(var(--hud-key-rim-rgb), 0.55);
+	box-shadow: inset 0 1px 0 rgba(var(--hud-edge-top-rgb), 0.35), 0 6px 16px rgba(var(--hud-shadow-rgb), 0.45);
+}
+/* (kept through a presentation, as the dock's WIN readout was: it carries `keep`; only the deep hide of the max win
+   screen takes it. Two classes here, so ui/Chrome.svelte's deep hide outranks it) */
+@media (prefers-reduced-motion: reduce) {
+	.sg .sgw,
+	.sg .sgw.on {
+		transform: none;
+	}
+	.hudp.sg .sgk.is-run .s-icon {
+		animation: none;
+	}
+}

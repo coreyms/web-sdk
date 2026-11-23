@@ -12,6 +12,8 @@
 	import { createControls } from './controls.svelte';
 	import ChromeStyles from './ChromeStyles.svelte';
 	import HudStyles from './hud/HudStyles.svelte';
+	import SignStyles from './sign/SignStyles.svelte';
+	import { HUD_BAR } from './hudTheme';
 	import { hudFrame, readSafeInsets, portraitBoardBottoms } from './hud/hudLayout';
 	import { readOdoDev } from './hud/winOdometer';
 	import ChromeLandscape from './ChromeLandscape.svelte';
@@ -65,6 +67,8 @@
 		// house rule: extend __reindeer, never a new global (tools/hud_probe.mjs reads the HUD's scale, the portrait row's
 		// t and the board box the rule placed it under, and drives the game through these)
 		((window as any).__reindeer ??= {}).hud = {
+			/** the game bar in use: 'sign' (ui/sign/, its places under __reindeer.sign) or 'dock' (the glass dock) */
+			bar: HUD_BAR,
 			frame: () => ({ variant: hud.variant, u: hud.u, t: hud.t, gap: hud.gap, board: kind === 'portrait' ? portraitBoardBottoms(vw, vh) : null }),
 			idle: () => context.stateXstateDerived.isIdle(),
 			gates: () => context.stateGame.pressGates,
@@ -120,6 +124,7 @@
 
 <ChromeStyles />
 <HudStyles />
+<SignStyles />
 <!-- ONE PRESS, ONE ROUND (2026-11-18, Corey "Yes"; Manticore Mayhem's fix of harsh review 2026-11-17 M4): the shared
      EnableSpaceHold (hold Space to keep playing) is no longer mounted, so stateBet.isSpaceHold stays false and the bet
      machine's checkSpaceHold never chains a round; SpinHotkey (in place of the shared OnHotkey) ignores the key's
@@ -153,11 +158,11 @@
 >
 	<div class="fit" style:width="{fitWidth}px" style:height="{master.height}px" style:transform="translate({fitLeft}px, {top}px) scale({scale})" style:--fit-scale={scale} style:--vp-extra-bottom="{extraBottom}px" style:--vp-extra-top="{extraTop}px">
 		{#if kind === 'landscape'}
-			<ChromeLandscape {controls} {hud} />
+			<ChromeLandscape {controls} {hud} {vw} {vh} />
 		{:else if kind === 'phone'}
-			<ChromePhone {controls} {hud} />
+			<ChromePhone {controls} {hud} {vw} {vh} />
 		{:else}
-			<ChromePortrait {controls} {hud} />
+			<ChromePortrait {controls} {hud} {vw} {vh} />
 		{/if}
 	</div>
 </div>

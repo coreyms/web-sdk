@@ -21,9 +21,12 @@
 	import HudStep from './hud/HudStep.svelte';
 	import HudReadout from './hud/HudReadout.svelte';
 	import HudMenuPanel from './hud/HudMenuPanel.svelte';
+	import { HUD_BAR } from './hudTheme';
+	import SignHud from './sign/SignHud.svelte';
 
-	type Props = { controls: Controls; hud: HudFrame };
-	const { controls, hud }: Props = $props();
+	// THE GAME BAR IN USE (ui/hudTheme.ts HUD_BAR, 2026-11-22): the sign bar (ui/sign/SignHud.svelte), or the glass dock below
+	type Props = { controls: Controls; hud: HudFrame; vw: number; vh: number };
+	const { controls, hud, vw, vh }: Props = $props();
 	const hs = createHudState(controls);
 	const replay = $derived(controls.isReplay());
 	const rh = $derived(hs.replay());
@@ -49,6 +52,9 @@
      highway sign shows only in a bonus round, with its counter, under it (ui/TitleSign.svelte roundOnly) -->
 <div class="logo" style:left="{title.x}px" style:top="{title.y}px"><TitleSign width={title.width} height={title.height} lines={title.lines} roundOnly plate="phone" /></div>
 
+{#if HUD_BAR === 'sign'}
+	<SignHud {controls} kind="phone" {vw} {vh} safe={hud.safe} />
+{:else}
 <div class="hudp hud-group v-landscape" class:menu-open={stateUi.menuOpen} data-plane="base" style={plane}>
 	<div class="shadow" style:left="{G.cap.x0 + 14}px" style:top="{G.cap.y1 - 14}px" style:width="{G.cap.x1 - G.cap.x0 - 28}px" style:height="28px"></div>
 	<div class="shadow" style:left="{G.kc.x0 + 14}px" style:top="{G.kc.y1 - 14}px" style:width="{G.kc.x1 - G.kc.x0 - 28}px" style:height="28px"></div>
@@ -102,6 +108,7 @@
 		{#if !replay}<HudStep dir={1} {controls} x={K.plus.x} y={K.plus.y} d={K.plus.d} cls="uc" />{/if}
 	</div>
 </div>
+{/if}
 
 <style>
 	/* placed by the layout rule (inline left / top: layoutSpec TITLE) */

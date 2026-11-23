@@ -35,3 +35,22 @@ export const betSlotWidth = (height: number, cap: number) => {
 	}
 	return Math.min(cap, Math.ceil(widest));
 };
+
+// THE SIGN BAR'S WIDEST AMOUNT (ui/sign/, 2026-11-22): betSlotWidth's rule in the sign bar's own face. The widest price
+// the current mode can show over the whole bet menu, in em of the amount's face (`em` measures one string); the caller
+// reserves that width at its type size and seats the two bet symbols either side of it (ui/sign/signLayout.ts
+// seatAmount), so they hold still across bet steps and only re-seat when a mode is armed.
+export const betWidestEm = (em: (text: string) => number) => {
+	const mult = stateBetDerived.activeBetMode()?.costMultiplier ?? 1;
+	let widest = 0;
+	let text = '';
+	for (const o of stateConfig.betAmountOptions) {
+		const t = numberToCurrencyString(o * mult);
+		const w = em(t);
+		if (w > widest) {
+			widest = w;
+			text = t;
+		}
+	}
+	return { em: widest, text };
+};

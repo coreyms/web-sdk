@@ -300,6 +300,71 @@ export const HUD_CONFIG = {
 		round: { size: 200, x: 0, y: -10 },
 	} as FeatureMark | null,
 };
+// ---- THE GAME BAR IN USE (2026-11-22) -------------------------------------------------------------------------------
+/** 'sign' is the road sign bar (ui/sign/, Corey's approved mocks desktop_hud_r8 to r10 and phone_layout_r2: the diamond
+ *  Play with its LED border, the sign keys, the Fast Lane hexagon, bare bet symbols, plate headers); 'dock' is the glass
+ *  dock it replaced (ui/hud/, kept whole for a rollback and for an A/B on the probe host). One constant: the three
+ *  chromes, the canvas beds under the dock (components/HudBeds.svelte) and the desktop LED strip's height
+ *  (game/scoreboard/layout.ts) read it. */
+export const HUD_BAR: 'sign' | 'dock' = 'sign';
+
+/** THE SIGN BAR'S TOKENS: every color and every drawing number of ui/sign/ that is not a place (places and sizes are
+ *  ui/sign/signLayout.ts). From Corey's exports: corey_play_r6 (the Play, locked), corey_hud_r8 (the rest), round 9
+ *  (the etched mark stays etched with a mode on) and round 10 (SPIN). */
+export const SIGN = {
+	navy: '#0d1a2e',
+	black: '#0a0d12',
+	green: '#0b7a43',
+	red: '#c8102e',
+	yellow: '#fccd02',
+	hot: '#ffa300',
+	band: '#f4f8fc',
+	/** his glass: a dark gradient at `a` under a flat tint of the state's color at `t` */
+	glass: { top: '#26384f', bottom: '#0b111a', a: 0.6, t: 0.6, shine: '#e6f2ff' },
+	/** the Play's own darker glass gradient (the mock's play.js) */
+	playGlass: { top: '#1d2a3a', bottom: '#070b12' },
+	/** THE PLAY (a 240 unit box, the diamond's point at 113.6, corner radius 20.45): its band, the navy keyline outside
+	 *  it and the black line inside it, the LED channel between them */
+	play: { V: 113.6, R: 20.45, band: 8.5, keyline: 2.6, inner: 1.1, chOut: 1.3 },
+	/** THE LEDS: how many, the spin chase's light (intensity, halo, reach in LED spacings, core) and its lap in seconds
+	 *  at Turbo 0, 1, 2; the idle twinkle (his round 6 values): intensity, halo, reach, core, how many at once, speed */
+	led: {
+		count: 36,
+		spin: { light: 0.55, halo: 1, reach: 2, core: 8 },
+		lapS: 1.7,
+		rate: [1, 1.7, 2.6],
+		idle: { light: 1, halo: 1, reach: 2, core: 8, count: 5, speed: 2.5 },
+		/** the chase's floor: an LED between two runners */
+		floor: 0.08,
+		/** the frames a second the lights are drawn at: the chase, the twinkle (ui/sign/ledBand.ts) */
+		fps: { chase: 30, idle: 20 },
+		/** the light canvas is never drawn above this many physical px per CSS px, nor wider than this many px */
+		maxDpr: 3,
+		maxPx: 640,
+	},
+	/** the words in the Play (Overpass 900; sizes in the 240 unit box): SPIN (round 10), STOP (60 x 0.68, across -3), the
+	 *  autoplay count (AUTO over the number), the free spins text (SPIN, the number, OF n); `ol` the outline's width */
+	text: {
+		spin: { size: 44.5, ol: 2.6, ls: 0.03, x: 0 },
+		stop: { size: 40.8, ol: 2.6, ls: 0.03, x: -3 },
+		auto: { label: 18, num: 48, ol: 2.9, ls: 0.1 },
+		fs: { label: 18, num: 41, sub: 17.5, ol: 1.9, ls: 0.02 },
+		/** a text box stays inside the band's black line, less 4 */
+		limit: 4,
+	},
+	/** THE FREE SPINS RING: radius, LED radius, the gap between LEDs, the recess's lip; a round starts at 10 spins and a
+	 *  retrigger adds 3 (the books hold 10, 13, 16, 19) */
+	ring: { R: 56, r: 4.5, gap: 2, lip: 1.6 },
+	/** AUTO AND TURBO (candidate C, the road sign): band, keyline and inner line for a key of size 80; the corner
+	 *  rounding as a share of the diamond's width */
+	key: { bw: 4.4, ko: 1.3, ki: 1.0, margin: 2.2, corner: 0.09, content: 0.8, glow: '#ffd23a', glowHot: '#ffb000' },
+	/** THE FAST LANE KEY: its band on his 110 bar px key, the lights with a mode on (the runner's light, the steady glow
+	 *  under it, the speed), the etching's strength */
+	bonus: { band: 7, light: 1, base: 0.35, speed: 1, etch: 1, refH: 110, corner: 0.07 },
+	/** the Win box: its short rise in and out (ms and CSS px at scale 1) */
+	win: { inMs: 280, outMs: 200, rise: 12 },
+} as const;
+
 /** the engraved mark's settings: rest, on, and the sideways circle's place and size (null: the same as the pill's) */
 export type FeatureMark = { rest: EngraveSettings; on: EngraveSettings; off: EngraveSettings | null; round: Pick<EngraveSettings, 'size' | 'x' | 'y'> | null };
 
