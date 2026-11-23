@@ -14,7 +14,8 @@
 	// multiplier gives the total play; `payoutMultiplier` from /bet/replay is in base-play
 	// multiples (the books' payoutMultiplier / 100), so total win = base × multiplier — the same
 	// arithmetic the win counter uses during the round.
-	import { stateBet, stateUrlDerived, type BetToResume } from 'state-shared';
+	import { stateBet, stateModal, stateUrlDerived, type BetToResume } from 'state-shared';
+	import { replayFault } from '../game/replayFault';
 	import { numberToCurrencyString } from '../game/currency';
 	import { fitAmount } from './fitAmount';
 
@@ -43,8 +44,10 @@
 		replayFinished: () => (replayState.phase = 'done'),
 	});
 
-	// the card is the FIRST start only; later replays come from the spin button
-	const open = $derived(stateUrlDerived.replay() && replayState.phase === 'ready' && !context.stateLayout.showLoadingScreen);
+	// the card is the FIRST start only; later replays come from the spin button. NEVER UNDER THE ERROR CARD (2026-11-23,
+	// game/replayGuard.ts): a replay the RGS did not serve, or one whose fetch failed, shows the error card alone (this
+	// card used to stand behind it, reading "Fetching the round").
+	const open = $derived(stateUrlDerived.replay() && replayState.phase === 'ready' && !context.stateLayout.showLoadingScreen && stateModal.modal?.name !== 'error');
 
 	const modeKey = $derived((replayBet?.mode ?? stateBet.activeBetModeKey ?? 'BASE').toUpperCase());
 	const meta = $derived(betModeMeta[modeKey]);
@@ -69,7 +72,8 @@
 	});
 
 	const start = async () => {
-		if (!replayBet) return;
+		// (no round, or one with no book events in it: nothing to play, so nothing starts and nothing is held)
+		if (!replayBet || replayFault(replayBet, true) !== null) return;
 		controls.sound('soundPressMinor');
 		// event '0' = play the round from its first book event. The replay URL's `event` param is
 		// the ROUND identifier (the last path segment of /bet/replay/...), NOT an index into this
