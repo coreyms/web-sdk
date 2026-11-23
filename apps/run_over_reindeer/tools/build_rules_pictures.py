@@ -14,8 +14,9 @@ front rail and the ropes. At rest: no lean, no bob, no bend.
 It WRITES static/assets/symbols/single/{H1_R,H2_R,W_R}.webp (or into --out): the right facing pictures the rules page
 shows (ui/GameInfoModal.svelte pictureOf), at the same 2 px per road px and webp quality as tools/build_assets.py. The
 canvas is the vehicle's own box, grown only where a rider reaches past it (Grandma's head, the tree's top), so the
-vehicle draws at the same size in the page's square tile as before. The _L pictures are not on the page and stay as
-build_assets.py made them.
+vehicle draws at the same size in the page's square tile as before. The _L pictures are not on the page; since
+2026-11-23 build_assets.py no longer writes them (the old ones are in the web-sdk repo's
+_archive/2026-11-23/apps/run_over_reindeer/).
 """
 import argparse
 import json

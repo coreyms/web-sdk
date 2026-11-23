@@ -53,7 +53,8 @@ CHARGE_CLIPS = {
 }
 CHARGE_PREFIX = "roamc"
 # (2026-11-17, the owner after a side by side: half the frames. The sheets' file names carry "roam2" so the first build's
-# roam-<tier>-<n>.webp stay on disk untouched; nothing references them any more.)
+# roam-<tier>-<n>.webp stayed on disk untouched; nothing referenced them, and they were archived on 2026-11-23 to
+# the web-sdk repo's _archive/2026-11-23/apps/run_over_reindeer/static/assets/reindeer/.)
 SHEET_PREFIX = "roam2"
 # the same density rule as the run's side view (tools/build_assets.py RUN_CSS_PER_ROAD, RUN_DRAW_SCALE R)
 CSS_PER_ROAD = {"full": 1.5 * 982 / 1536, "phone": 0.39}

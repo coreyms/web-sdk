@@ -1,5 +1,5 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
-// WATCHES: apps/run_over_reindeer/src/{game/road/superWheel.ts,game/road/wheelPeg.ts,game/road/wildMult.ts,game/superWheelPlan.ts,game/superWheelSpec.ts,ui/WheelGate.svelte,ui/controls.svelte.ts,ui/SquareSpin.svelte,game/bookEventHandlerMap.ts,game/actor.ts,game/utils.ts,game/road/roadBoard.ts,game/road/present.ts,components/Board.svelte};
+// WATCHES: apps/run_over_reindeer/src/{game/road/superWheel.ts,game/road/wheelPeg.ts,game/road/wildMult.ts,game/superWheelPlan.ts,game/superWheelSpec.ts,ui/WheelGate.svelte,ui/controls.svelte.ts,ui/hud/HudSpin.svelte,game/bookEventHandlerMap.ts,game/actor.ts,game/utils.ts,game/road/roadBoard.ts,game/road/present.ts,components/Board.svelte};
 // WATCHES: apps/run_over_reindeer/src/ui/sign/ledBand.ts; __reindeer.sign.lights
 // WATCHES: ; SUPER_WHEEL, AUTO_BONUS_WAIT_MS, WHEEL_SHARES, LED_BOARD.stripOrder, ROUND.betweenSpinsMs, RESUME_TEXT, data-wheel-gate, data-wheel-wait, button.catch, .hudp
 // WATCHES: ; __reindeer.wheel, __reindeer.wheelPegTrace, __reindeer.tune, WILD_MULT, __reindeer.wheelPlan, __reindeer.wheelShow, __reindeer.wheelSet, __reindeer.wheelEnd, __reindeer.wheelAlone, __reindeer.sceneOnly, __reindeer.fixtures, __reindeer.roadSounds, __reindeer.hud, __reindeer.road, __reindeer.freeSpinNow, __reindeer.stockRules

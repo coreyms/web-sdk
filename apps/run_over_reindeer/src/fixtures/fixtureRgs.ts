@@ -17,8 +17,11 @@ import { SHOWCASE_ROUNDS } from './showcaseBooks';
 
 export type FixtureRound = { name: string; mode: 'base' | 'bonus' | 'super'; note: string; payoutMultiplier: number; events: BookEvent[] };
 
-/** every showcase key as a playable round (keys that share a book share its events) */
-export const FIXTURE_ROUNDS: FixtureRound[] = SHOWCASE_ROUNDS.map((r) => ({
+/** every showcase key as a playable round (keys that share a book share its events). Marked pure: this module is imported
+ *  in every build (routes/+layout.svelte) and a top-level call is kept by the bundler unless it is told it has no side
+ *  effects, which shipped every showcase book in the production bundle (audit 2026-11-23; the bundle check now looks for
+ *  sameBookAs). Unused in a production build, the call and the books go. */
+export const FIXTURE_ROUNDS: FixtureRound[] = /* @__PURE__ */ SHOWCASE_ROUNDS.map((r) => ({
 	name: r.name,
 	mode: r.mode,
 	note: `${r.note} (${r.mode} book ${r.sim})`,
@@ -48,7 +51,7 @@ const MULT = 1_000_000; // API amounts are millionths of a unit
 const HOST = 'fixture';
 const START_BALANCE = 1_000 * MULT;
 // the house's 32 level bet ladder, in units (the same one tools/mock_rgs.py serves)
-const BET_LEVELS = [0.01, 0.02, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1, 1.2, 1.4, 1.6, 1.8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 30, 40, 50, 75, 100].map((d) => Math.round(d * MULT));
+const BET_LEVELS = /* @__PURE__ */ [0.01, 0.02, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1, 1.2, 1.4, 1.6, 1.8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 30, 40, 50, 75, 100].map((d) => Math.round(d * MULT));
 /** the wait before each answer, ms (window.__reindeer.fixtures.latency) */
 let latencyMs = 120;
 

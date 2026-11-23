@@ -1,6 +1,6 @@
 <script lang="ts">
 	// THE STEPPER KEYS (Drop 6): minus and plus, small glass circles. Stepping rules and the sub click are the old
-	// StepButton's (ui/betStep.ts): disabled at the end of the bet menu, past what the balance affords, and whenever the
+	// StepButton's (archived 2026-11-23; ui/betStep.ts): disabled at the end of the bet menu, past what the balance affords, and whenever the
 	// bet is locked (a spin, free spins, a held round). Never a neighbour of the Spin (Corey: accidental changes there are
 	// "like stealing in my eyes"): every layout keeps the mock's distance (ui/hud/hudLayout.ts).
 	import { soc } from '../../game/social';

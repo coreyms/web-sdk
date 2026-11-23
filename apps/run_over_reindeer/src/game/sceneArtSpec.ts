@@ -3,6 +3,7 @@
 // road pictures and portal strips of every kit but the day's) with their files, pixel sizes and road px places
 // ([x, y, width, height]), the grass kits' leftover snow candidate (grassSnow) and the billboard logo's sheet (its
 // frames in sheet px, per asset tier).
+// The billboard logo's source: ~/Desktop/Run Over Reindeer/billboard_logo_r2_2026-11-15/logo_billboard_clean.png (the LOCKED sign) and logo_billboard_lamps_off.png.
 export const SCENE_ART = {
 	"units": "road px: pixels of the 1536 x 1024 road picture, (0, 0) its top left corner",
 	"snowDay": {
@@ -655,7 +656,6 @@ export const SCENE_ART = {
 	},
 	"grassSnow": "A",
 	"logoSign": {
-		"source": "~/Desktop/Run Over Reindeer/billboard_logo_r2_2026-11-15/logo_billboard_clean.png (the LOCKED sign) and logo_billboard_lamps_off.png",
 		"size": [
 			1144,
 			1201

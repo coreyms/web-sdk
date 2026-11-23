@@ -268,7 +268,6 @@ def build_sign():
     ph = premul_resize(sheet, (int(round(SW * k)), int(round(SH * k))))
     phone_bytes = save(Image.fromarray(ph, "RGBA"), "logo-sign-phone.webp", SIGN)
     return {
-        "source": "~/Desktop/Run Over Reindeer/billboard_logo_r2_2026-11-15/logo_billboard_clean.png (the LOCKED sign) and logo_billboard_lamps_off.png",
         "size": [W, H],
         "aspect": round(H / W, 5),
         "lamps": lamp_spec,
@@ -279,6 +278,11 @@ def build_sign():
             "phone": {"file": "scene/logo-sign-phone.webp", "width": ph.shape[1], "height": ph.shape[0], "scale": round(k, 6), "bytes": phone_bytes},
         },
     }
+
+
+# where the billboard logo came from: a line of the spec file's header comment, never a field of the runtime object (a
+# field ships in the game's bundle as text; 2026-11-23)
+LOGO_SIGN_SOURCE = "~/Desktop/Run Over Reindeer/billboard_logo_r2_2026-11-15/logo_billboard_clean.png (the LOCKED sign) and logo_billboard_lamps_off.png"
 
 
 def main():
@@ -315,6 +319,7 @@ def main():
         f.write("// road pictures and portal strips of every kit but the day's) with their files, pixel sizes and road px places\n")
         f.write("// ([x, y, width, height]), the grass kits' leftover snow candidate (grassSnow) and the billboard logo's sheet (its\n")
         f.write("// frames in sheet px, per asset tier).\n")
+        f.write(f"// The billboard logo's source: {LOGO_SIGN_SOURCE}.\n")
         f.write(f"export const SCENE_ART = {body} as const;\n")
     for k, v in kit.items():
         print(f"{k}: {v['px']} {v['bytes']} bytes")

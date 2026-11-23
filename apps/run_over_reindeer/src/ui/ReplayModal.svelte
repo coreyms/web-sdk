@@ -8,7 +8,7 @@
 	// from the Discord creators' channel): MODE · BASE PLAY · PLAY MULTIPLIER · TOTAL PLAY, then the
 	// round's MULTIPLIER and TOTAL WIN. Same cream card stock as the Chow Line / Autoplay so it
 	// reads as part of the game, not a browser dialog. While the round plays the card is gone and
-	// the spin button carries a static REPLAY banner (SquareSpin.svelte).
+	// the spin button carries a static REPLAY banner (ui/hud/HudSpin.svelte, ui/sign/SignPlay.svelte).
 	//
 	// Numbers: `amount` in the replay URL is the BASE play (one press at 1×); the mode's cost
 	// multiplier gives the total play; `payoutMultiplier` from /bet/replay is in base-play
