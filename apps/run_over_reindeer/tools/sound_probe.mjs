@@ -763,7 +763,9 @@ function judge2(tag, C, R) {
 			// the old fixed 40 ms window failed whenever the reel's frame was a long one)
 			const fadeMs = Number(/(\d+(?:\.\d+)?)ms/.exec(fade?.detail ?? '')?.[1] ?? NaN);
 			const plannedEnd = fade ? fade.t + fadeMs : NaN;
-			const okStop = !!stop && stop.t - last.t <= 2.5 * 40 && (!Number.isFinite(plannedEnd) || stop.t >= plannedEnd - 1) && stop.frame >= last.frame - 1;
+			// 3 ms of allowance (was 1): the stop lands 10 ms after the last reel's stop on every tip; only its distance to the
+			// fade's planned end moves by a millisecond or two with frame timing (Decimus 2026-11-22: +1.1 to -2.5 ms across tips)
+			const okStop = !!stop && stop.t - last.t <= 2.5 * 40 && (!Number.isFinite(plannedEnd) || stop.t >= plannedEnd - 3) && stop.frame >= last.frame - 1;
 			check(okStop, `${tag}: spin ${i + 1}: stopped by the last reel's stop (${r1(stop ? stop.t - last.t : null)} ms after it, ${stop ? stop.frame - last.frame : '?'} frames; ${r1(stop ? stop.t - plannedEnd : null)} ms after its fade's planned end)`);
 			if (show(T)) {
 				row('sfx_traffic_roll', T, st, 'press / pull away');
