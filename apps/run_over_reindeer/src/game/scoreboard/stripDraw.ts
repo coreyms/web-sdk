@@ -3,7 +3,7 @@
 // Plain 2D canvas drawing, no filter. Strip only: the back board never shows these.
 import { LED_BOARD, LED_SIGN } from '../constants';
 import { SCREENS, SCREEN_NAMES, dissolve, drawText, textW, type LedText } from '../landing/ledScreens';
-import { burst, chaseBorder, drawRow, fireworks, fitCap, noteFlash, oneShot, rowInfo, sprite, type Face } from './scoreboardDraw';
+import { burst, chaseBorder, drawRow, fireworks, fitCap, noteFlash, oneShot, rowDotsNow, rowInfo, sprite, type Face } from './scoreboardDraw';
 import { copyFace } from './ledGrid';
 import { RED_FROM } from '../road/present';
 import { noteIdea } from './ideasKit';
@@ -24,7 +24,7 @@ export type ScatterFace = { count: number; need: number; tickAt: number; fwAt: n
 type CountLay = { icon: number; gap: number; x0: number; textX: number; textY: number; cap: number; iconY: number; str: string };
 const layCache = new Map<string, CountLay>();
 function countLayout(W: number, H: number, need: number): CountLay {
-	const key = `${W}x${H}|${need}`;
+	const key = `${W}x${H}|${need}${rowDotsNow() ? '|.' : ''}`;
 	let r = layCache.get(key);
 	if (r) return r;
 	const m = H >= 20 ? 2 : 1;
@@ -143,6 +143,8 @@ export function showGagShort(F: Face, t: number) {
 
 // ---- THE PRESS SCREEN ON THE EXPANDED BOARD (2026-11-17, Corey approved) ----------------------------------------------------
 /** the explainer screen shown at `T` s (the press screen's own cycle, constants LED_SIGN holdS and transS) */
+/** once round the press screen's screens, ms */
+export const pressCycleMs = () => (LED_SIGN.holdS + LED_SIGN.transS) * 1000 * SCREENS.length;
 export const pressScreenAt = (T: number) => Math.floor(T / (LED_SIGN.holdS + LED_SIGN.transS)) % SCREENS.length;
 /** its name (ledScreens.ts SCREEN_NAMES: face, win, sleigh, car) */
 export const pressScreenNameAt = (T: number) => SCREEN_NAMES[pressScreenAt(T)];

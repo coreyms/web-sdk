@@ -17,7 +17,7 @@
 //             quarter turn at a time, and clear off the strip; he skids to a stop where it stood and the top (red) present,
 //             knocked high, comes down on his antlers
 import { LED_BOARD, LED_SIGN } from '../constants';
-import type { LedText } from '../landing/ledScreens';
+import { lightSag, type LedText } from '../landing/ledScreens';
 import { BULBS, CARTOONS as TODAY, RUN_FH, RUN_FW, art, burst, gallop, snowDots, sprite, vehicleOf, artSize, type ArtName, type Cartoon, type CartoonState, type Face } from './scoreboardDraw';
 import { dotAt, fillP, kOf, ledN } from './ledGrid';
 import { showPressScreens } from './stripDraw';
@@ -398,7 +398,7 @@ export function pressScreensLit(F: Face, T: number, text: LedText) {
 	const sway = tug >= 0 ? Math.sin(tug * Math.PI * 3) * 0.6 * (1 - tug) : 0;
 	const spans = 5;
 	const sp = W / spans;
-	const sag = Math.max(3, H * 0.05);
+	const sag = lightSag(H);
 	const yOf = (x: number) => {
 		const u = (x % sp) / sp;
 		return 2 + 4 * u * (1 - u) * sag * (1 + sway);

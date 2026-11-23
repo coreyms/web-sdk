@@ -14,12 +14,12 @@
 import { LED_BOARD, LED_SIGN } from '../constants';
 import { LED_WILDS } from '../ledWildsSpec';
 import { AMOUNT_OUTLINES, SENTENCE_SIGNS, ledSignCanvas } from '../scoreboard/ledSigns';
-import { blit, blitP, clearP, dotAt, fillP, kOf, ledN, overpassReady, ringPts } from '../scoreboard/ledGrid';
+import { blit, blitP, clearP, dotAt, fillP, kOf, ledN, noteText, overpassReady, ringPts, textAuditOn } from '../scoreboard/ledGrid';
 import { warmGate } from '../scoreboard/warmGate';
 
 export type Cv = HTMLCanvasElement & { ctx: CanvasRenderingContext2D };
 type Ctx = CanvasRenderingContext2D;
-type Grid = { w: number; h: number; d: Uint8Array };
+type Grid = { w: number; h: number; d: Uint8Array; sq?: Uint8Array };
 type Rect = { x: number; y: number; w: number; h: number };
 
 export const mk = (w: number, h: number): Cv => {
@@ -38,7 +38,9 @@ const FONT: Record<string, string[]> = {
 	A: ['.###.', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
 	B: ['####.', '#...#', '#...#', '####.', '#...#', '#...#', '####.'],
 	C: ['.###.', '#...#', '#....', '#....', '#....', '#...#', '.###.'],
-	D: ['####.', '#...#', '#...#', '#...#', '#...#', '#...#', '####.'],
+	// (2026-11-22, wip/ledpitch: D read as O on the board, REINOEER and GRANOMA'S: it was O with two more dots, and at size 2
+	// the rounding took those; now a straight spine with a tapered bowl, its spine's corners kept square at size 2, SQUARE below)
+	D: ['###..', '#..#.', '#...#', '#...#', '#...#', '#..#.', '###..'],
 	E: ['#####', '#....', '#....', '####.', '#....', '#....', '#####'],
 	F: ['#####', '#....', '#....', '####.', '#....', '#....', '#....'],
 	G: ['.###.', '#...#', '#....', '#.###', '#...#', '#...#', '.####'],
@@ -110,19 +112,39 @@ const FONT: Record<string, string[]> = {
 	z: ['.....', '.....', '#####', '...#.', '..#..', '.#...', '#####'],
 };
 
+/** a sign's 5 x 7 dots (the dot font's, else a hand set sentence sign's), or null: the dot font has none */
+export const dotGlyph = (ch: string): string[] | null => FONT[ch] || SENTENCE_SIGNS[ch] || null;
+/** one sign's dots at size 1 or 2 as the lines' masks set them (size 2: doubled and rounded, epx), row by row; null: the dot
+ *  font has none (the amounts' rows on a face of one LED per dot: scoreboardDraw.ts vglyph) */
+export const dotGlyphGrid = (ch: string, s: 1 | 2): { w: number; h: number; d: Uint8Array } | null => {
+	if (!dotGlyph(ch)) return null;
+	const g = grid1(ch);
+	return s === 2 ? epx(g) : g;
+};
+
+/** THE DOTS KEPT SQUARE AT SIZE 2 (2026-11-22): size 2 doubles the 5 x 7 dots and rounds every outer corner (epx). For D and
+ *  B that rounding takes what tells them from O and 8, the square corners of the spine, so those dots ([column, row] of
+ *  the sign) stay whole squares. tools/led_fit_check.mjs holds the look-alike pairs apart at both sizes. */
+const SQUARE: Record<string, [number, number][]> = {
+	D: [[0, 0], [0, 6]],
+	B: [[0, 0], [0, 6]],
+};
 function grid1(str: string): Grid {
-	const gl = [...str].map((ch) => FONT[ch] || SENTENCE_SIGNS[ch] || FONT[' ']);
+	const chars = [...str];
+	const gl = chars.map((ch) => FONT[ch] || SENTENCE_SIGNS[ch] || FONT[' ']);
 	let w = 0;
 	gl.forEach((g, i) => (w += g[0].length + (i ? 1 : 0)));
 	const d = new Uint8Array(w * 7);
+	const sq = new Uint8Array(w * 7);
 	let x = 0;
 	gl.forEach((g, i) => {
 		if (i) x++;
 		const gw = g[0].length;
 		for (let r = 0; r < 7; r++) for (let c = 0; c < gw; c++) if (g[r][c] === '#') d[r * w + x + c] = 1;
+		for (const [c, r] of SQUARE[chars[i]] ?? []) sq[r * w + x + c] = 1;
 		x += gw;
 	});
-	return { w, h: 7, d };
+	return { w, h: 7, d, sq };
 }
 function epx(g: Grid): Grid {
 	const W = g.w;
@@ -134,6 +156,12 @@ function epx(g: Grid): Grid {
 		for (let x = 0; x < W; x++) {
 			const P = at(x, y), A = at(x, y - 1), B = at(x + 1, y), Cc = at(x - 1, y), D = at(x, y + 1);
 			let e0 = P, e1 = P, e2 = P, e3 = P;
+			// (a dot kept square: SQUARE above)
+			if (g.sq?.[y * W + x]) {
+				const i = y * 2 * OW + x * 2;
+				o[i] = o[i + 1] = o[i + OW] = o[i + OW + 1] = P;
+				continue;
+			}
 			if (Cc === A && Cc !== D && A !== B) e0 = A;
 			if (A === B && A !== Cc && B !== D) e1 = B;
 			if (D === Cc && D !== B && Cc !== A) e2 = Cc;
@@ -179,6 +207,7 @@ let SCALES = [6, 5, 4, 3, 2, 1];
 export const setScreenScaleMax = (n: number) => {
 	if (SCALES[0] !== n) SCALES = Array.from({ length: n }, (_, i) => n - i);
 };
+export const screenScaleMaxNow = () => SCALES[0];
 const maskCache = new Map<string, Cv>();
 // big figures (3 and up): a heavy sans drawn at the dot size and snapped, as an LED controller rasterizes a font
 function vecMask(str: string, s: number): Cv {
@@ -386,6 +415,7 @@ export function drawText(g: Ctx, str: string, x: number, y: number, s: number, f
 	// (the finer grid: the line's mask made for the face's own density, drawn at its own size, its corner on a whole LED)
 	const k = kOf(g);
 	const m = maskAt(str, s, k);
+	if (textAuditOn()) noteText({ canvas: g.canvas, str, x, y, w: m.width / k, h: m.height / k, s, kind: 'text', dots: k === 1 && s < 3 });
 	if (typeof fill === 'string' && !post) {
 		const key = `${str}|${s}|${fill}|${k}`;
 		let c = solidCache.get(key);
@@ -464,7 +494,10 @@ function layoutText(blocks: Block[], maxW: number, maxH: number): Laid {
 }
 function layoutText0(blocks: Block[], maxW: number, maxH: number): Laid {
 	let best: Laid | null = null;
-	for (let level = 0; level < 4; level++) {
+	// (level 4, 2026-11-22, the smallest dot rule's small faces: the smallest sizes once more with the lines a dot closer and
+	// the blocks' gap cut, tried only where nothing else fits the height)
+	for (let level = 0; level < 5; level++) {
+		const tight = level === 4;
 		const out: Laid['lines'] = [];
 		let y = 0;
 		let ok = true;
@@ -476,9 +509,9 @@ function layoutText0(blocks: Block[], maxW: number, maxH: number): Laid {
 				ok = false;
 				return;
 			}
-			if (bi) y += b.gap ?? 5;
+			if (bi) y += tight ? Math.max(3, Math.round((b.gap ?? 5) * 0.6)) : (b.gap ?? 5);
 			lines.forEach((ln, li) => {
-				if (li) y += lineGap(s);
+				if (li) y += lineGap(s) - (tight ? 1 : 0);
 				out.push({ text: ln, s, color: b.color, y, w: textW(ln, s), h: 7 * s });
 				y += 7 * s;
 			});
@@ -489,6 +522,12 @@ function layoutText0(blocks: Block[], maxW: number, maxH: number): Laid {
 	}
 	return best || { lines: [], h: 0 };
 }
+/** THE LIGHT STRING ALONG THE TOP OF THE PRESS SCREEN (game/scoreboard/ambient.ts pressScreensLit draws it): how far its
+ *  loops sag (dots), and the rows from the face's top it and its bulbs take at rest, a clear row under them included (0:
+ *  no string). The strike screens keep their words under it (2026-11-22: on the smallest dot rule's small faces the words
+ *  filled the face's height and the bulbs sat on the headline). */
+export const lightSag = (H: number) => Math.max(3, H * 0.05);
+export const lightRows = (H: number) => (LED_BOARD.ideas.pressLights ? Math.ceil(lightSag(H)) + 5 : 0);
 function drawLayout(g: Ctx, lay: Laid, x: number, y: number, w: number, align: 'left' | 'center') {
 	for (const ln of lay.lines) drawText(g, ln.text, align === 'left' ? x : x + (w - ln.w) / 2, y + ln.y, ln.s, ln.color);
 }
@@ -721,7 +760,8 @@ function screenWin(g: Ctx, W: number, H: number, t: number, T: LedText) {
 			}
 		const ts = textW(top, 2) <= W - 2 * ins - 4 ? 2 : 1;
 		const nw = textW(num, s);
-		const by = ins + 4;
+		// (under the light string along the top, lightRows: its bulbs sat on WIN UP TO on an upright board)
+		const by = Math.max(ins + 4, lightRows(H));
 		drawText(g, top, (W - textW(top, ts)) / 2, by, ts, C.white);
 		const ny = by + 7 * ts + Math.max(4, s);
 		drawText(g, num, (W - nw) / 2, ny, s, goldFill, ph < 0.55 ? shine(ph / 0.55) : null);
@@ -1002,12 +1042,21 @@ export function strikeLayout(W: number, H: number, kind: 'sleigh' | 'car', TX: L
 	let ty: number;
 	let tw: number;
 	if (!tall) {
-		const pw = Math.round(clamp(W - 166, W * 0.36, W * 0.46));
-		P = { x: 3, y: 3, w: pw, h: H - 6 };
-		tx = P.x + P.w + 6;
-		tw = W - tx - 4;
-		lay = layoutText(blocks, tw, H - 8);
-		ty = Math.round((H - lay.h) / 2);
+		// (2026-11-22, the smallest dot rule's small wide faces, 136 x 69 on a phone held sideways: where the words do not fit
+		// beside the road, the road gives them width, two dots at a time down to 0.28 of the face, until they do)
+		// The words stay under the light string (lightRows) where the face has the rows for it.
+		let pw = Math.round(clamp(W - 166, W * 0.36, W * 0.46));
+		const top = lightRows(H);
+		const room = Math.min(H - 8, H - 4 - top);
+		for (;;) {
+			P = { x: 3, y: 3, w: pw, h: H - 6 };
+			tx = P.x + P.w + 6;
+			tw = W - tx - 4;
+			lay = layoutText(blocks, tw, room);
+			if ((lay.lines.length && lay.h <= room) || pw - 2 < W * 0.28) break;
+			pw -= 2;
+		}
+		ty = Math.max(Math.min(top, H - 4 - lay.h), Math.round((H - lay.h) / 2));
 	} else {
 		tw = W - 8;
 		lay = layoutText(blocks, tw, Math.round(H * 0.46));
@@ -1200,6 +1249,7 @@ export const setFaceClear = (rows: number) => {
 	FACE_CLEAR = v;
 	faceLayCache.clear();
 };
+export const faceClearNow = () => FACE_CLEAR;
 function faceReset() {
 	faceLayCache.clear();
 	patchCache.clear();

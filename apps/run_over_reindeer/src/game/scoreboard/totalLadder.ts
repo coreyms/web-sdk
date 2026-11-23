@@ -18,13 +18,18 @@ import { dotAt, ledN } from './ledGrid';
 import { box, clamp, ease, lerp, noteIdea, type Ctx } from './ideasKit';
 
 const dot = dotAt;
+/** the least dots between two rung labels */
+const LABEL_GAP = 2;
 /** the rungs' colors, in the tiers' order (Big green, Super blue, Mega red, Epic purple, Max gold) */
 const RUNG_COLS = ['#36ff74', '#4aa8ff', '#ff3a2e', '#d36bff', '#ffd23a'];
 
+/** the least band the ladder draws in: the fuse 4 rows down, the lamps 3 under it and 3 tall, a label of 7 two under them,
+ *  a clear row and the border's */
+const LADDER_BAND = 21;
 type Lay = { band: number; Hm: number; title: string; tts: number; cap: number; G: number; y0: number; numY: number };
 /** today's Total Win layout (showTotalScene's): the title over the amount above the bottom band */
-function totalLay(W: number, H: number, s: Show): Lay {
-	const band = Math.round(H * LED_BOARD.scenes.band);
+function totalLay(W: number, H: number, s: Show, minBand = 0): Lay {
+	const band = Math.max(Math.round(H * LED_BOARD.scenes.band), Math.min(minBand, Math.round(H * 0.4)));
 	const Hm = H - band;
 	const title = s.title ?? 'TOTAL WIN';
 	const tts = titleScale(title, fitScale(title, W - 16, Hm * 0.2, [5, 4, 3, 2, 1]), W, Hm * 0.4);
@@ -126,7 +131,9 @@ export function ladderTotal(F: Face, s: Show) {
 	const H = F.dotsH;
 	const t = sceneT(s);
 	g.clearRect(0, 0, W, H);
-	const L = totalLay(W, H, s);
+	// (2026-11-22, the smallest dot rule's short faces, under 96 dots tall: the band keeps the rows its fuse, lamps and a
+	// 7 dot label take, LADDER_BAND, where the face's share of it is less; the label's foot was under the border at 69 dots)
+	const L = totalLay(W, H, s, LADDER_BAND);
 	const since = s.t - s.countEnd;
 	const landed = since >= 0;
 	const X = s.x;
@@ -180,6 +187,19 @@ export function ladderTotal(F: Face, s: Show) {
 	const ly = fy + 3;
 	const play = s.amount / X;
 	const rec: { bar: number; label: string; lit: boolean; x: number; box: { x0: number; x1: number; y0: number; y1: number } }[] = [];
+	// THE LABELS' PLACES: each under its rung; on a narrow face (the smallest dot rule's, under about 170 dots across, where
+	// 150X and 7,777X met) moved along only as far as keeps them LABEL_GAP dots apart and inside the border
+	const labs = bars.map(rungLabel);
+	const lw = labs.map((l) => textW(l, M.z));
+	const lx = labs.map((_, i) => Math.round(rx[i] - lw[i] / 2));
+	for (let i = n - 1, right = W - 2; i >= 0; i--) {
+		if (lx[i] + lw[i] > right) lx[i] = right - lw[i];
+		right = lx[i] - LABEL_GAP;
+	}
+	for (let i = 0, left = 2; i < n; i++) {
+		if (lx[i] < left) lx[i] = left;
+		left = lx[i] + lw[i] + LABEL_GAP;
+	}
 	bars.forEach((b, i) => {
 		// (the time each rung was reached: on the pacer the bar a segment ends on; the cap's rung as the count lands)
 		const at = X >= b * (1 - 1e-9) ? Math.min(reachOf(s, b * play), s.countEnd) : Infinity;
@@ -188,8 +208,8 @@ export function ladderTotal(F: Face, s: Show) {
 		const col = lit ? (blink ? '#ffffff' : RUNG_COLS[i % RUNG_COLS.length]) : '#3a1612';
 		box(g, rx[i] - lampW - 1, ly, lampW, lampH, col);
 		box(g, rx[i] + 1, ly, lampW, lampH, col);
-		const lab = rungLabel(b);
-		drawText(g, lab, Math.round(rx[i] - textW(lab, M.z) / 2), ly + lampH + 2, M.z, lit ? RUNG_COLS[i % RUNG_COLS.length] : '#5a6170');
+		const lab = labs[i];
+		drawText(g, lab, lx[i], ly + lampH + 2, M.z, lit ? RUNG_COLS[i % RUNG_COLS.length] : '#5a6170');
 		if (lit && s.t - at < 450) burst(g, rx[i], ly + 1, (s.t - at) / 450, Math.round(L.band * 0.5));
 		// the board flashes as a rung lights (LED_BOARD.strobe.ladderFlash: soft, a fade of the wash at softStrength)
 		const wash = lit ? oneShot('ladderFlash', s.t - at, 120) : 0;
@@ -200,7 +220,7 @@ export function ladderTotal(F: Face, s: Show) {
 			g.fillRect(0, 0, W, H);
 			g.globalAlpha = 1;
 		}
-		rec.push({ bar: b, label: lab, lit, x: Math.round(rx[i]), box: { x0: Math.round(rx[i] - textW(lab, M.z) / 2), x1: Math.round(rx[i] - textW(lab, M.z) / 2) + textW(lab, M.z), y0: ly + lampH + 2, y1: ly + lampH + 2 + 7 * M.z } });
+		rec.push({ bar: b, label: lab, lit, x: Math.round(rx[i]), box: { x0: lx[i], x1: lx[i] + lw[i], y0: ly + lampH + 2, y1: ly + lampH + 2 + 7 * M.z } });
 	});
 	// the reindeer runs the fuse (hops at a rung)
 	const rh = M.rh;

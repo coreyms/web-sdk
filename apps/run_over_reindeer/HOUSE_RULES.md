@@ -62,7 +62,9 @@ events (`game/bookEventHandlerMap.ts`). Every decision taken is one line in `doc
   No masks or Pixi filters exist in this app (rule R9).
 - Touch (rule L4): drawn portrait keys from 34 px (`ROW6`, `hudLayout.ts` line 63), hit area grown to 44 CSS px by
   `.hit::after` (`ui/hud/hud.css` lines 77 to 83).
-- `game/scoreboard/layout.ts` reads the window on every layout pass (line 4, rule L3).
+- `game/scoreboard/layout.ts` reads the window on every layout pass (line 4, rule L3). Its faces are then laid out for the
+  renderer's resolution by the smallest dot rule (`ledPitchGeo`, under Win presentation); `scoreboard.ts` asks again every
+  frame, since the resolution settles after a resize.
 - Scenes: Snow or Dark (`ui/hud/SceneSwitch.svelte`, `game/sceneChoice.ts`); a choice applies when the board is at rest.
 
 ## Road motion (rules G1, G2)
@@ -101,6 +103,33 @@ events (`game/bookEventHandlerMap.ts`). Every decision taken is one line in `doc
   so its first frame draws from the caches. A new picture maker calls `warmGate()` first, before it touches a shared
   canvas or a cache. `tools/led_warm_check.mjs` proves the cards dot for dot the same either way;
   `led_board_probe.mjs` section `hitch` (`__reindeer.cardFrames`) measures the frames round each card.
+- THE LED BOARD'S DOT COUNT FOLLOWS THE WINDOW (the smallest dot rule, 2026-11-22, `LED_BOARD.pitch`; Corey: "It must be
+  recongizeable as an LED board at all sizes for phone and Desktop, not the mini player", his pick from the mock
+  `led_dot_size_r1_2026-11-22`). `game/scoreboard/layout.ts` `ledPitchGeo` lays both faces out again for the renderer's
+  resolution: a dot is at least 2.5 CSS px on the desktop and tablet layouts and 2 on phones, never under the board's own
+  before the rule, a whole number of renderer pixels; the face is whole dots centred in its housing; the grille's hole is
+  made for exactly that size (`scoreboard.ts` `makeGrille` `exact`: no 16 px tile shrunk with mipmaps, which was the blur).
+  There is no fixed 362 across: every layout works from the live grid (`F.dotsW`, `F.dotsH`), as it always did on phones.
+  - The finer words (`LED_BOARD.density`, 1.5 dots per layout dot) stay only where the face still holds 1.5 x the layout's
+    dots (2560 x 1440 at 2x); everywhere else one dot per layout dot and the 5 x 7 dot font.
+  - THE DOT FONT STEP (`scoreboardDraw.ts` `setRowDots`, `dotRowCap`, `dotRowCap2`): on such a face an amount or line under
+    14 dots tall is the 5 x 7 font, under 21 that font at size 2, and only from 21 the heavy face (drawn small it is blobs).
+    A new line of words uses `drawText` or `drawRow` and gets this for free; never rasterize a font by hand.
+  - THE STRIP keeps the board's dots where that leaves it `stripMinRows` (8) rows; on a short strip (the desktop at
+    1200 x 675 and under) its own dots step down a renderer pixel at a time until it has them. A face of one dot per layout
+    dot under 11 rows draws no chase border, bulbs or hazard stripes (`BORDER_MIN_ROWS`): the rows are the words'.
+  - The mini player (a window under `miniShort` 300 CSS px on its short side: Stake's 400 x 225 popout) keeps the grid
+    before the rule. The 800 x 450 popout is a phone held sideways and takes the rule.
+  - A RESIZE NEVER REBUILDS A SHOW IN ONE FRAME (`LED_BOARD.warm.regrid`, `scoreboard.ts` `ensureFaces`, `regridHolds`): while
+    a show is up the faces keep their dots, stretched to the new place, and the show is drawn ahead for the new grid in the
+    cards' 3 ms a frame budget; the board changes grid when that is done (4 s at most). A card made ahead and still to come
+    is made again for the new grid. Layout numbers kept per board (`setBoardPitch`, `setRowDots`, `setFaceClear`) are set
+    with the faces and swapped round a draw for another grid (`withGrid`): a new one goes in `boardNumbers`.
+  - The 5 x 7 font's look-alikes are held apart by a node check (D is no longer O with two more dots; D and B keep square
+    spine corners at size 2, `ledScreens.ts` `SQUARE`). Proofs, node only: `tools/led_fit_check.mjs` (every card and strip
+    message at 18 windows and each screen density: inside its face, no two lines over each other, nothing under the press
+    screen's light string, no heavy face under 9 LEDs; the font pairs), `tools/led_warm_check.mjs` section 5 (the grid made
+    ahead, dot for dot). In a browser: `led_board_probe.mjs` sections `rule` and `density`, `__reindeer.scoreboardLeds()`.
 - Not built yet (README): win tiers and the big-win count-up, the max win scene. When they land they follow the
   recipe's house pacing and max win standard.
 

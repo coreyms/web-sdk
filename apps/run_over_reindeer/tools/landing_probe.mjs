@@ -5,7 +5,7 @@
 // WATCHES: apps/run_over_reindeer/src/{game/landingBoard.ts,game/scene/logoSign.ts,game/sceneArtSpec.ts,game/gpuWarm.ts,game/road/roadFeatures.ts,game/scoreboard/ledGrid.ts,game/scoreboard/scoreboard.ts,game/scoreboard/ambient.ts};
 // WATCHES: apps/run_over_reindeer/{static/assets/audio/music.json,static/assets/audio/sounds.json,static/assets/symbols/symbols-phone.json,static/assets/symbols/symbols.json};
 // WATCHES: ; data-resume-card, data-resume, __reindeer.atRest, __reindeer.board, __reindeer.boardLayout, __reindeer.fixtures, __reindeer.gameType, __reindeer.led
-// WATCHES: ; __reindeer.gpuWarm, GPU_WARM, LED_BOARD.density, __reindeer.scoreboard, __reindeer.scoreboardFace
+// WATCHES: ; __reindeer.gpuWarm, GPU_WARM, LED_BOARD.density, LED_BOARD.pitch, __reindeer.scoreboard, __reindeer.scoreboardFace
 // WATCHES: apps/run_over_reindeer/src/game/scenePrefetch.ts; prefetchOtherSceneSet
 // WATCHES: ; __reindeer.ledFreeze, __reindeer.road, __reindeer.scene, __reindeer.tune, LED_SIGN, SCENE_ART, SCREENS, data-title-sign, .landing
 // WATCHES: ; SCREEN_NAMES, LED_SIGN.face, LED_SIGN.text
@@ -54,13 +54,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // dots: the page's grid where the face keeps the page's size (null: worked out from the layout's rule, checked loosely)
 const SIZES = [
-	// (ledK: the LED board's LEDs per dot at that size, constants LED_BOARD.density, 2026-11-19: 1.5 at every size here)
-	{ name: 'desktop', vp: { width: 1440, height: 900 }, dpr: 2, phone: false, dots: [362, 143], pitch: 2.49, ledK: 1.5 },
-	{ name: 'wide', vp: { width: 1920, height: 1080 }, dpr: 1, phone: false, dots: [362, 143], pitch: 3.31, ledK: 1.5 },
-	{ name: 'landscape', vp: { width: 844, height: 390 }, dpr: 3, phone: true, hudColumns: true, ledK: 1.5 },
-	{ name: 'portrait', vp: { width: 390, height: 844 }, dpr: 3, phone: true, resume: true, dots: [257, 221], throttle: true, upright: true, ledK: 1.5 },
-	{ name: 'short', vp: { width: 390, height: 620 }, dpr: 3, phone: true, dots: [257, 167], upright: true, ledK: 1.5 },
-	{ name: 'phone402', vp: { width: 402, height: 874 }, dpr: 3, phone: true, upright: true, ledK: 1.5 },
+	// (ledK: the LED board's LEDs per layout dot at that size: 1 at every size here since the smallest dot rule, 2026-11-22,
+	// constants LED_BOARD.pitch; it was 1.5, LED_BOARD.density)
+	{ name: 'desktop', vp: { width: 1440, height: 900 }, dpr: 2, phone: false, dots: [362, 143], pitch: 2.49, ledK: 1 },
+	{ name: 'wide', vp: { width: 1920, height: 1080 }, dpr: 1, phone: false, dots: [362, 143], pitch: 3.31, ledK: 1 },
+	{ name: 'landscape', vp: { width: 844, height: 390 }, dpr: 3, phone: true, hudColumns: true, ledK: 1 },
+	{ name: 'portrait', vp: { width: 390, height: 844 }, dpr: 3, phone: true, resume: true, dots: [257, 221], throttle: true, upright: true, ledK: 1 },
+	{ name: 'short', vp: { width: 390, height: 620 }, dpr: 3, phone: true, dots: [257, 167], upright: true, ledK: 1 },
+	{ name: 'phone402', vp: { width: 402, height: 874 }, dpr: 3, phone: true, upright: true, ledK: 1 },
 ].filter((s) => !ONLY.length || ONLY.includes(s.name));
 const POSE_SIDES = { 0: ['H2', 'L1', 'H4', 'L3'], 4: ['L2', 'H3', 'L4', 'L5'] };
 const NEXT = [
@@ -212,20 +213,25 @@ async function boardPress(p, S, tag, errs) {
 	check([0, 4].every((r) => JSON.stringify(a.board[r]) === JSON.stringify(POSE_SIDES[r])), `${tag}: reels 1 and 5 hold the eight ordinary symbols once each`, a.board);
 	const html = await p.evaluate(() => !!document.querySelector('.landing .pressText'));
 	check(!html, `${tag}: the HTML press line steps aside for the strip's line`);
-	const s0 = await p.evaluate(() => ({ s: window.__reindeer.scoreboard(), led: window.__reindeer.led(), dimWant: window.__reindeer.tune.ledBoard.dim.alpha, logo: window.__reindeer.scene()?.logo?.css ?? null, face: window.__reindeer.scoreboardFace('strip'), rule: { ...window.__reindeer.tune.ledBoard.density } }));
+	const s0 = await p.evaluate(() => ({ s: window.__reindeer.scoreboard(), led: window.__reindeer.led(), dimWant: window.__reindeer.tune.ledBoard.dim.alpha, logo: window.__reindeer.scene()?.logo?.css ?? null, face: window.__reindeer.scoreboardFace('strip'), rule: { ...window.__reindeer.tune.ledBoard.density }, pitchRule: { ...window.__reindeer.tune.ledBoard.pitch } }));
 	const s = s0.s;
 	check(!s0.led, `${tag}: no separate billboard (one board)`);
 	check(s.show?.kind === 'press' && s.back.visible && Math.abs(s.back.offset) < 0.5 && s.press.up, `${tag}: the game's LED back board is up and seated (expanded: offset ${s.back.offset}, the press show ${s.show?.phase})`, { show: s.show, back: s.back });
 	check(Math.abs(s.dim.alpha - s0.dimWant) < 0.01, `${tag}: the scene behind is dimmed as a big win dims it (${s.dim.alpha}, a big win's ${s0.dimWant})`);
 	check(s.stripPick?.item === 'entry' && s.press.ready && s0.face.lit > 20, `${tag}: PRESS ANYWHERE TO CONTINUE runs on the strip as its top item (${s.stripPick?.item}, ${s0.face.lit} dots lit)`);
-	// THE FINER GRID (2026-11-19, constants LED_BOARD.density): the board's LEDs per dot by the rule (1.5 where an LED stays at
-	// least minDevicePx device px at the renderer's resolution, else 1; every size here gets 1.5), both faces at it, the
-	// strip's and the back board's LEDs its dots x k, the dot pitch (CSS px) the layout's as before
+	// THE DOTS (THE SMALLEST DOT RULE since 2026-11-22, constants LED_BOARD.pitch, the game's own readout scoreboard().leds; the
+	// finer grid of 2026-11-19 where the rule leaves it): the rule placed the grid at the renderer's resolution, a dot at least
+	// the layout class's floor in CSS px and a whole number of the renderer's pixels, both faces at the LEDs per layout dot
+	// the size expects, the strip's and the back board's LEDs their layout dots x k
 	const dn = s.density;
 	const DR = s0.rule;
-	const wantK = !!dn && DR.on && (s.pitch * dn.ratio) / DR.k >= DR.minDevicePx ? DR.k : 1;
+	const LD = s.leds;
+	const floor = s.cls === 'portrait' || s.cls === 'phone' ? s0.pitchRule.phoneCss : s0.pitchRule.desktopCss;
+	const wholePx = (v) => Math.abs(v - Math.round(v)) < 0.01;
+	const wantK = LD?.back.k ?? null;
+	check(!!LD && LD.ruled && LD.back.pitchCss >= floor - 0.001 && wholePx(LD.back.pitchPx) && wholePx(LD.strip.pitchPx), `${tag}: THE SMALLEST DOT RULE placed the board's grid: a dot ${LD?.back.pitchCss} CSS px = ${LD?.back.pitchPx} renderer px (the floor ${floor}), ${LD?.back.across} x ${LD?.back.down} dots`, LD);
 	const sf = s0.face;
-	check(!!dn && Math.abs(dn.ratio - S.dpr) < 0.01 && dn.k === wantK && (S.ledK === undefined || dn.k === S.ledK) && dn.strip === dn.k && dn.back === dn.k && dn.faceRoots.strip === 1 && dn.faceRoots.back === 1 && sf.k === dn.k && sf.ledW === Math.round(sf.W * dn.k) && sf.ledH === Math.round(sf.H * dn.k), `${tag}: the board's grid: ${dn?.k} LEDs per dot (the rule: pitch ${s.pitch} x ${dn?.ratio} / ${DR.k} = ${dn ? Math.round(((s.pitch * dn.ratio) / DR.k) * 100) / 100 : '-'} device px against ${DR.minDevicePx}${S.ledK !== undefined ? `; want ${S.ledK}` : ''}), the strip ${sf.W} x ${sf.H} dots in ${sf.ledW} x ${sf.ledH} LEDs, the back board ${dn?.backLeds}, both faces at one density`, { dn, sf: { W: sf.W, H: sf.H, k: sf.k, ledW: sf.ledW, ledH: sf.ledH } });
+	check(!!dn && Math.abs(dn.ratio - S.dpr) < 0.01 && dn.k === wantK && (S.ledK === undefined || dn.k === S.ledK) && dn.strip === dn.k && dn.back === dn.k && dn.faceRoots.strip === 1 && dn.faceRoots.back === 1 && sf.k === dn.k && sf.ledW === Math.round(sf.W * dn.k) && sf.ledH === Math.round(sf.H * dn.k), `${tag}: the board's grid: ${dn?.k} LEDs per dot (the density rule's ${DR.k} only where the face still holds that many times the layout's dots${S.ledK !== undefined ? `; want ${S.ledK}` : ''}), the strip ${sf.W} x ${sf.H} dots in ${sf.ledW} x ${sf.ledH} LEDs, the back board ${dn?.backLeds}, both faces at one density`, { dn, sf: { W: sf.W, H: sf.H, k: sf.k, ledW: sf.ledW, ledH: sf.ledH } });
 	// the screens advance (driven by hand 100 ms at a time: 4 screens of LED_SIGN holdS + transS since the face screen,
 	// 2026-11-21, the face first: ledScreens.ts SCREEN_NAMES)
 	const seen = await p.evaluate(() => {

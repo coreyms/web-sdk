@@ -13,7 +13,7 @@
 import { LED_BOARD } from '../constants';
 import { drawText, textW, type Cv } from '../landing/ledScreens';
 import { clearP, copyFace, copyP, dotAt, fillP, kOf, ledN, mkFace } from './ledGrid';
-import { BULBS, boardTitle, chaseBorder, drawFit, drawRow, fitCap, lineInk, rowInfo, sparkles, sprite, type Face } from './scoreboardDraw';
+import { BULBS, boardTitle, chaseBorder, drawFit, drawRow, fitCap, lineInk, rowCapEff, rowDotsNow, rowInfo, sparkles, sprite, type Face } from './scoreboardDraw';
 
 type Ctx = CanvasRenderingContext2D;
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -147,7 +147,9 @@ const heavyW = (str: string, cap: number) => rowInfo(str, cap).w;
 /** the sentence in the heavy face: the largest cap whose lines (at most `maxLines`) fit `w` and whose block fits `h` */
 function fitHeavy(str: string, w: number, h: number, maxLines: number, capMax: number) {
 	const words = str.split(/\s+/).filter(Boolean);
-	for (let cap = Math.max(5, Math.floor(capMax)); cap >= 5; cap--) {
+	for (let cap = Math.max(rowDotsNow() ? 7 : 5, Math.floor(capMax)); cap >= 5; cap--) {
+		// (the dot font step, scoreboardDraw.ts: a cap the dot font's glyphs do not fill is not a size of its own)
+		if (rowCapEff(cap) !== cap) continue;
 		const lines: string[] = [];
 		let cur = '';
 		let ok = true;
@@ -236,9 +238,10 @@ export function drawLayoutC(g: Ctx, W: number, H: number, t: number, head: Expla
 	const arrangements: [string, string][][] = wide && !total && variant !== 'C2' && split.length > words0.length ? [words0, split] : [words0];
 	const c2 = variant === 'C2' && wide && !total;
 	const pn = presentFor(head);
-	const minCap = X.minCap;
+	// (the dot font step: the 5 x 7 font's own size is a reading size by itself)
+	const minCap = rowDotsNow() ? 7 : X.minCap;
 	// (the search runs once per board size and text: the plan is kept, each frame only draws it)
-	const key = `${W}x${H}|${variant}|${num}|${words0.map((w) => w[0]).join('/')}|${sentence}|${X.maxLinesC}|${X.minCap}|${X.readShare}|${X.margin}`;
+	const key = `${W}x${H}|${variant}|${num}|${words0.map((w) => w[0]).join('/')}|${sentence}|${X.maxLinesC}|${minCap}|${X.readShare}|${X.margin}`;
 	let best: Plan | null = planCache.get(key) ?? null;
 	const consider = (score: number, draw: Plan['draw']) => {
 		if (!best || score > best.score) best = { score, draw };

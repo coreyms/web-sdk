@@ -9,6 +9,10 @@
 //   the decorations (chase borders, rules, sparkles, single dots, scan lines, the sweep's edge) are DEFINED IN LEDS: every
 //                size, gap and period is a whole number of LEDs (ledN: n dots -> round(n x K) LEDs, the same everywhere on
 //                the face), set on the LED lattice (fillP), so a one dot border is the same width all round
+// SINCE 2026-11-22 THE SMALLEST DOT RULE (constants LED_BOARD.pitch, layout.ts ledPitchGeo) places the grid: the dot count
+// follows the window, and the finer grid stays only where the face still holds k times the layout's dots. densityFor below
+// is the board's own density before that rule: what the rule starts from, and the grid of the mini player and of the rule
+// switched off.
 // THE RULE (densityFor): the finer grid only where an LED stays at least LED_BOARD.density.minDevicePx device pixels; else
 // today's grid. Decided once per layout (the pitch) and renderer resolution (Board passes it), for both faces together.
 // Plain 2D canvas (no filter, shader, mask, blur or blob: URL); nothing here allocates per step.
@@ -31,6 +35,18 @@ export function densityFor(pitchCss: number, deviceRatio: number): number {
 	if (!R.on || !(k > 1) || !(pitchCss > 0) || !(deviceRatio > 0)) return 1;
 	return (pitchCss * deviceRatio) / k >= R.minDevicePx ? k : 1;
 }
+
+/** THE WORDS AS DRAWN (the node check tools/led_fit_check.mjs; null in the game: one comparison per line drawn): every line
+ *  of words a program draws, on which canvas, its string, its box in that canvas's dots (the top left corner as asked for,
+ *  the mask's or the row's width, its height), its dot scale or cap, and which face drew it ('text': the 5 x 7 sizes and the
+ *  heavy titles, landing/ledScreens.ts drawText; 'row': the amounts' rows, scoreboardDraw.ts drawRow) */
+export type TextNote = { canvas: object; str: string; x: number; y: number; w: number; h: number; s: number; kind: 'text' | 'row'; dots: boolean };
+let textAudit: ((n: TextNote) => void) | null = null;
+export const setTextAudit = (fn: ((n: TextNote) => void) | null) => {
+	textAudit = fn;
+};
+export const textAuditOn = () => textAudit !== null;
+export const noteText = (n: TextNote) => textAudit?.(n);
 
 /** whether Overpass at a weight is in (a mask or glyph made before it is would keep a fallback face: it is then made again
  *  on the next step, not kept); a weight not in yet is asked for once (game/boot.svelte.ts loads Bold and Heavy first) */

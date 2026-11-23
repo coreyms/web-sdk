@@ -4,6 +4,7 @@
 // window on every layout pass (never cached: the house rule that keeps rotation working).
 import { LED_BOARD, LED_SIGN, type StripRule } from '../constants';
 import { boardRect, landscapeExtraY, type LayoutKind } from '../layoutSpec';
+import { densityFor } from './ledGrid';
 import { desktopGeo, hudFrame, landscapeGeo, portraitGeo, readSafeInsets } from '../../ui/hud/hudLayout';
 
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -25,7 +26,12 @@ export type ScoreboardGeo = {
 	hudTop: number;
 	/** the road picture's place: its corner (CSS px) and CSS px per road px */
 	road: { ox: number; oy: number; k: number };
+	/** THE DOTS AS BUILT (ledPitchGeo; absent: the geometry before the rule was applied): per face its LEDs per layout dot, an
+	 *  LED's pitch in CSS px and in the renderer's pixels (`px` whole when snapped), and whether the smallest dot rule placed
+	 *  it (false: the mini player and the rule switched off, the grid of LED_BOARD.density) */
+	led?: { ruled: boolean; ratio: number; floor: number; back: LedFaceGrid; strip: LedFaceGrid };
 };
+export type LedFaceGrid = { k: number; css: number; px: number; snapped: boolean };
 
 type Main = { x: number; y: number; width: number; height: number; scale: number };
 type Place = { scale: number; x: number; y: number };
@@ -136,4 +142,59 @@ export const scoreboardGeometry = (kind: LayoutKind, vw: number, vh: number, mai
 		sc: backH / 420,
 	};
 	return { cls, W: vw, H: vh, pitch: p, f, ol, strip: { box: { x, y, w, h }, face: stripFace, housing: stripHousing, cap }, back, dim, hudTop, road: { ox, oy, k } };
+};
+
+/** THE SMALLEST DOT RULE (constants LED_BOARD.pitch; Corey 2026-11-22, the mock led_dot_size_r1_2026-11-22's `propose`, value
+ *  for value): the geometry of scoreboardGeometry with both faces laid out again for a renderer at `ratio` pixels per CSS px.
+ *  The housings keep their place and width; the dot pitch is the larger of the layout class's floor and the board's own
+ *  before the rule, a whole number of renderer pixels; the dots across and down follow from it by the same formulas as
+ *  before (THE STRIP and THE BACK BOARD above), each face made of whole dots and centred in its place. Pure arithmetic. */
+export const ledPitchGeo = (g: ScoreboardGeo, ratio: number): ScoreboardGeo => {
+	const P = LED_BOARD.pitch;
+	const r = ratio > 0 ? ratio : 1;
+	// (the board's own dots before the rule: the density rule's, ledGrid.ts densityFor)
+	const kT = densityFor(g.pitch, r);
+	const ledT = g.pitch / kT;
+	const today = { k: kT, css: ledT, px: ledT * r, snapped: false };
+	if (!P.on || Math.min(g.W, g.H) < P.miniShort) return { ...g, led: { ruled: false, ratio: r, floor: 0, back: today, strip: today } };
+	const phone = g.cls === 'portrait' || g.cls === 'phone';
+	const floor = phone ? P.phoneCss : P.desktopCss;
+	const f = g.f;
+	const faceW = g.strip.face.w;
+	const dots0 = g.strip.face.dotsW;
+	const minPx = Math.max(1, Math.round(P.minPx));
+	// the board's pitch: the floor, never under the board's own, a whole number of renderer pixels
+	const nB = P.snap ? Math.max(minPx, Math.ceil(floor * r - 1e-6), Math.round(ledT * r)) : 0;
+	const ledB = P.snap ? nB / r : Math.max(floor, ledT);
+	// the words (one for both faces: the board's): the finer ones only where the face still holds 1.5 x the layout's dots
+	const K = LED_BOARD.density;
+	const k = P.words === 'auto' ? (K.on && K.k > 1 && Math.floor(faceW / ledB + 1e-6) >= K.k * dots0 - 2 ? K.k : 1) : P.words > 1 && K.on ? K.k : 1;
+	// THE STRIP'S OWN DOTS: the board's, stepped down a renderer pixel at a time until the strip has its rows
+	const roomS = g.strip.box.h - 2.7 * f;
+	const rowsAt = (led: number) => Math.floor(roomS / (led * k) + 1e-6);
+	let nS = nB;
+	let ledS = ledB;
+	if (P.snap) {
+		while (nS > minPx && rowsAt(nS / r) < P.stripMinRows) nS -= 1;
+		ledS = nS / r;
+	} else if (rowsAt(ledS) < P.stripMinRows) ledS = Math.max(Math.min(ledS, ledT), roomS / (P.stripMinRows * k));
+	const sn = (v: number) => (P.snap ? Math.round(v * r) / r : v);
+	const lay = (led: number, room: number, least: number) => {
+		let pl = led * k;
+		const dotsW = Math.max(20, Math.floor(faceW / pl + 1e-6));
+		// (not snapped: the face keeps its whole width, its dots stretched to it, as before the rule)
+		if (!P.snap) pl = faceW / dotsW;
+		const dotsH = Math.max(least, Math.floor(room / pl + 1e-6));
+		const w = P.snap ? Math.round(dotsW * k) * led : dotsW * pl;
+		const h = P.snap ? Math.round(dotsH * k) * led : dotsH * pl;
+		return { dotsW, dotsH, w, h, x: sn(g.strip.face.x + (faceW - w) / 2), css: P.snap ? led : pl / k };
+	};
+	const S = lay(ledS, roomS, 7);
+	const strip = { ...g.strip, face: { x: S.x, y: sn(g.strip.face.y), w: S.w, h: S.h, dotsW: S.dotsW, dotsH: S.dotsH }, housing: { ...g.strip.housing, h: S.h + 2.7 * f } };
+	const B = lay(ledB, g.back.backH - 2.7 * f, 10);
+	const hh = B.h + 2.7 * f;
+	const by = g.strip.box.y - hh + f * 0.5;
+	const back = { ...g.back, face: { x: B.x, y: sn(by + 1.7 * f), w: B.w, h: B.h, dotsW: B.dotsW, dotsH: B.dotsH }, housing: { ...g.back.housing, y: by, h: hh } };
+	const grid = (css: number): LedFaceGrid => ({ k, css, px: css * r, snapped: P.snap });
+	return { ...g, pitch: B.css * k, strip, back, led: { ruled: true, ratio: r, floor, back: grid(B.css), strip: grid(S.css) } };
 };
