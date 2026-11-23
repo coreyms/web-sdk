@@ -145,7 +145,7 @@
 	<!-- full-screen continue target -->
 	{#if !resume || assetsFailed}<button class="press-target" aria-label={assetsFailed ? 'Retry loading' : 'Continue'} disabled={pressed || (!ready && !assetsFailed)} onclick={press}></button>{/if}
 
-	<div class="hudp scene-pick" style:transform="translate({pickPlace.x}px, {pickPlace.y}px) scale({pickPlace.u})" style:width="{pick.w}px" style:height="{pick.h}px">
+	<div class="hudp scene-pick" style:transform="translate({pickPlace.x}px, {pickPlace.y}px) scale({pickPlace.u})" style:--pick-hit="{44 / pickPlace.u}px" style:width="{pick.w}px" style:height="{pick.h}px">
 		<div class="mp is-open {pick.cls}" style:left="0px" style:top="0px" style:width="{pick.w}px" style:height="{pick.h}px">
 			<div class="mpsh" style:top="0px" style:height="{pick.h}px"></div>
 			<div class="spf"></div>
@@ -238,6 +238,19 @@
 		height: 26px;
 		font-size: 11px;
 		letter-spacing: 0.1em;
+	}
+	/* THE PILLS' PRESS HEIGHT (2026-11-23, the probe host: drawn 73 x 29 at 440 x 742, pressed 59 x 30): each pill keeps
+	   its drawn size and gets an unseen, square cornered press area as wide as itself and at least 44 CSS px tall round
+	   its middle (44 over the panel's scale, in the panel's own px: --pick-hit). The three stand side by side with the
+	   row's gap between them, so they never meet; over and under them the area lies on the panel's own word and foot. */
+	.scene-pick :global(.sp-pill)::after {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 50%;
+		width: 100%;
+		height: max(100%, var(--pick-hit, 44px));
+		transform: translateY(-50%);
 	}
 	.scene-pick .nar :global(.sp-msec) {
 		gap: 4px;

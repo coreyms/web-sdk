@@ -282,4 +282,18 @@
 	.no:active {
 		transform: translateY(1px);
 	}
+	/* THE PRESS HEIGHT (2026-11-23, the 44 px rule): Yes and No are 40 CSS px tall on most phones (SKIP_HUD.prompt.button
+	   minH); each keeps its drawn size and gets an unseen press area as wide as itself and at least 44 CSS px tall round
+	   its middle. They stand side by side with the row's gap between them, so the two never meet; the 2 px over and
+	   under them are the prompt's own gap and padding. */
+	.yes::after,
+	.no::after {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 50%;
+		width: 100%;
+		height: max(100%, 44px);
+		transform: translateY(-50%);
+	}
 </style>

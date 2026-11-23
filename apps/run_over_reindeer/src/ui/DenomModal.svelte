@@ -56,7 +56,9 @@
 	const CARD_MAX = 880;
 	const cardWidth = $derived(Math.min(CARD_MAX, vw - 2 * MARGIN));
 	// touch: 44 CSS px rows everywhere a finger can reach them; only the tiny popout drops below
-	const rowH = $derived(tiny ? 30 : 44);
+	// (2026-11-23, the 44 px press rule: `tiny` is also a 320 px wide phone, whose rows were 30 px. Only the popout, a
+	// window under 300 px tall, has the short rows now; a phone's are 44, and its columns are never under 44 px wide)
+	const rowH = $derived(vh < 300 ? 30 : 44);
 	// THE CUT (2026-11-22, the small sizes fix, Corey "AO Yes"): the grid's height was a share of the window, so a row
 	// could show half cut (the fourth at 400 x 225: 117 px of room, rows of 30 and gaps of 6). It is a whole number of rows
 	// now, the most that fit in that share (at least one), and while rows lie below it a small chevron on the well's
@@ -100,7 +102,8 @@
 	};
 	const cols = $derived.by(() => {
 		let best = 1;
-		for (let c = 2; c <= 8; c++) if (fontFor(c) >= COMFORT) best = c;
+		const most = vh < 300 ? 8 : Math.max(1, Math.min(8, Math.floor((usable + GAP) / (44 + GAP))));
+		for (let c = 2; c <= most; c++) if (fontFor(c) >= COMFORT) best = c;
 		return best;
 	});
 	// 9 px is the hard floor the review set for modal text; the comfort walk above keeps the real
@@ -213,6 +216,18 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+	}
+	/* THE CLOSE KEY'S PRESS AREA (2026-11-23, the probe host: drawn 30 x 30 on a phone, pressed 30 x 30): the key keeps
+	   its drawn size and gets an unseen press area of 44 x 44 CSS px round its middle. It reaches into the card's own
+	   padding and the gap over the amounts, never onto an amount (the well's 6 px padding keeps them clear). */
+	.x::after {
+		content: '';
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		width: max(100%, 44px);
+		height: max(100%, 44px);
+		transform: translate(-50%, -50%);
 	}
 	.x:hover {
 		box-shadow:

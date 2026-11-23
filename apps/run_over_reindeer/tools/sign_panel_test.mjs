@@ -1,5 +1,6 @@
 // @ts-nocheck: a node test script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/ui/{FeatureMenu.svelte,fastLaneBox.ts,BetAdjuster.svelte}; flLay, flScale, FL_BOX, --fl-s, ::after
+// WATCHES: apps/run_over_reindeer/src/{ui/LandingScreen.svelte,ui/DenomModal.svelte,ui/NoticeModal.svelte,ui/ReplayModal.svelte,ui/ResumeCard.svelte,components/SkipButton.svelte}; --pick-hit, rowH, hudFrame, SKIP_HUD.prompt
 // WATCHES: apps/run_over_reindeer/src/ui/{hudTheme.ts,sign/signPanelLayout.ts,sign/signLayout.ts,sign/signZones.ts,sign/SignMenuPanel.svelte,AutoplayModal.svelte}; SIGN_PANEL, signPanelTokens, MENU_PANEL, menuPanelPlace, menuPanelHeight, menuClass, autoClass, AUTO, autoGeometry, AUTO_SUB_MIN, lowInner, chipW, subLine
 // THE SIGN PANELS' LAYOUT TEST (2026-11-23, wip/signmenus): node only, no browser. It runs the Menu pop-out's own place
 // rule (src/ui/sign/signPanelLayout.ts) against the sign bar's own layout (src/ui/sign/signLayout.ts: where the Menu key
@@ -29,6 +30,14 @@
 //        ui/BetAdjuster.svelte): 44 CSS px
 //        the Menu pop-out's GAME INFO row, pills, mute keys and sliders' rows (signPanelLayout.ts MENU_PANEL at the
 //        pop-out's scale): 44 CSS px
+//  11. THE SAME RULE ON THE OTHER PANELS (2026-11-23, the probe host: the press screen's Scene pills pressed 59 x 30 at
+//      440 x 742, the bet list's close key 30 x 30), at the same touch windows, each read from its own source:
+//        the press screen's Scene pills (ui/LandingScreen.svelte, at the dock frame's scale, ui/hud/hudLayout.ts hudFrame)
+//        the bet list's close key (44 x 44), its rows (44 px on every phone: 30 only on Popout S) and its columns (never
+//        more than fit at 44 px each); its "more" tab takes no press (the list scrolls under the finger)
+//        the notice's key and the replay card's key (their own height rules, worked out for the window)
+//        the resume card's two keys (the card at its own scale), the skip prompt's Yes and No, the Fast Lane's amount
+//        keys and close key (the menu's own touch target rule)
 //   9. THE AUTOPLAY CARD'S PRICE LINES (the small sizes fix, tools/fast_lane_probe.mjs ONLY=smallsizes asserts "every spin
 //      count with its price line" in a browser): at that section's nine windows and the real phone frames, with the
 //      card's own widths (signPanelLayout.ts autoGeometry) and the bundled Overpass's advances
@@ -193,6 +202,66 @@ line(P.autoClass({ compact: false, portrait: false, vh: 675, drop: true }) === '
 		const C = M[mc];
 		const pillW = ((M.w - 2 * (M.band + C.pad) - 2 * 7) / 3) * mp.k;
 		line(mc === 'touch' && Math.min(M.info, C.pill, C.mute, C.slider) * mp.k >= 43.99 && pillW >= 44, `${tag}: the Menu pop-out's GAME INFO row (${r1(M.info * mp.k)}), pills (${r1(pillW)} x ${r1(C.pill * mp.k)}), mute keys (${r1(C.mute * mp.k)}) and sliders' rows (${r1(C.slider * mp.k)}) are 44 CSS px or more`);
+	}
+}
+// THE SAME RULE ON THE OTHER PANELS (11)
+{
+	const F = await import(pathToFileURL(join(APP, 'src', 'ui', 'fastLaneBox.ts')).href);
+	const H = await import(pathToFileURL(join(APP, 'src', 'ui', 'hud', 'hudLayout.ts')).href);
+	const src = (f) => readFileSync(join(APP, 'src', f), 'utf8');
+	const [LS, DM, NM, RM, RC, SK, FM, CN] = ['ui/LandingScreen.svelte', 'ui/DenomModal.svelte', 'ui/NoticeModal.svelte', 'ui/ReplayModal.svelte', 'ui/ResumeCard.svelte', 'components/SkipButton.svelte', 'ui/FeatureMenu.svelte', 'game/constants.ts'].map(src);
+	const has = (text, re) => re.test(text);
+	const num = (text, re) => Number((text.match(re) ?? [])[1]);
+	// what each source says
+	const PILL = { h: num(LS, /\.scene-pick :global\(\.sp-pill\) \{\n\t\theight: (\d+)px/), nar: num(LS, /\.scene-pick \.nar :global\(\.sp-pill\) \{\n\t\theight: (\d+)px/) };
+	const pillRule = has(LS, /\.scene-pick :global\(\.sp-pill\)::after \{[^}]*width: 100%;[^}]*height: max\(100%, var\(--pick-hit, 44px\)\);/) && has(LS, /style:--pick-hit="\{44 \/ pickPlace\.u\}px"/);
+	const closeRule = has(DM, /\n\t\.x::after \{[^}]*width: max\(100%, 44px\);[^}]*height: max\(100%, 44px\);/);
+	const rowRule = has(DM, /const rowH = \$derived\(vh < 300 \? 30 : 44\);/) && has(DM, /const most = vh < 300 \? 8 : Math\.max\(1, Math\.min\(8, Math\.floor\(\(usable \+ GAP\) \/ \(44 \+ GAP\)\)\)\);/);
+	const moreInert = has(DM, /\.more \{[^}]*pointer-events: none;/);
+	const noticeRule = has(NM, /\.ok \{[^}]*height: max\(30px, min\(46px, 14vmin\)\);/);
+	const replayRule = has(RM, /\.go \{[^}]*min-height: max\(28px, min\(44px, 14vmin\)\);/);
+	const RKEY = { go: num(RC, /\.card\.compact \.go \{\n\t\theight: (\d+)px/), no: num(RC, /\.card\.compact \.no \{\n\t\theight: (\d+)px/), goBig: num(RC, /\n\t\.go \{[^}]*?height: (\d+)px/), noBig: num(RC, /\n\t\.no \{[^}]*?height: (\d+)px/) };
+	const resumeRule = has(RC, /\.go::after,\n\t\.no::after \{[^}]*width: 100%;[^}]*height: max\(100%, calc\(44px \/ var\(--s, 1\)\)\);/) && has(RC, /style:--s=\{s\}/);
+	const SKIP_MIN = { w: num(CN, /button: \{ w: [\d.]+, h: [\d.]+, minW: (\d+), minH: \d+ \}/), h: num(CN, /button: \{ w: [\d.]+, h: [\d.]+, minW: \d+, minH: (\d+) \}/), gap: num(CN, /gap: \{ share: [\d.]+, min: (\d+) \}/) };
+	const skipRule = has(SK, /\.yes::after,\n\t\.no::after \{[^}]*width: 100%;[^}]*height: max\(100%, 44px\);/);
+	const STEP = num(FM, /\.up \.step,\n\t\.side \.step \{\n\t\twidth: (\d+)px/);
+	const stepRule = has(FM, /\.step::after,\n\t\.lvl button::after,\n\t\.close::after \{[^}]*width: max\(100%, calc\(44px \/ var\(--fl-s, 1\)\)\);\n\t\theight: max\(100%, calc\(44px \/ var\(--fl-s, 1\)\)\);/);
+	line(pillRule && PILL.h > 0 && PILL.nar > 0, `the press screen's Scene pills (${PILL.h} px, ${PILL.nar} on the narrow panel) each have a press area as wide as the pill and 44 px over the panel's scale tall`);
+	line(closeRule && rowRule && moreInert, `the bet list: a 44 x 44 press area on its close key, 44 px rows and columns of 44 px or more off Popout S, a "more" tab that takes no press`, JSON.stringify({ closeRule, rowRule, moreInert }));
+	line(noticeRule && replayRule, `the notice's key and the replay card's key keep their height rules (up to 46 and 44 px; 44 or more from a 315 px short side)`);
+	line(resumeRule && RKEY.go >= 44 && RKEY.no >= 44, `the resume card's keys (${RKEY.no} and ${RKEY.go} px, ${RKEY.noBig} and ${RKEY.goBig} on the large card) have a press area 44 px over the card's scale tall`, JSON.stringify(RKEY));
+	line(skipRule && SKIP_MIN.w >= 44 && SKIP_MIN.gap > 0, `the skip prompt's Yes and No (${SKIP_MIN.w} x ${SKIP_MIN.h} px at least, ${SKIP_MIN.gap} apart) have a press area as wide as the key and 44 px tall`, JSON.stringify(SKIP_MIN));
+	line(stepRule && STEP > 0, `the Fast Lane's amount keys (${STEP} px in the menu's px) and close key have a press area 44 px over the menu's scale each way`);
+	const TOUCH = [[390, 844], [440, 742], [413, 586], [425, 812], [375, 667], [360, 640], [390, 620], [320, 568], [768, 1024], [844, 390], [832, 376], [812, 375], [800, 450], [736, 414], [667, 375], [640, 360], [568, 320], [932, 430]];
+	for (const [vw, vh] of TOUCH) {
+		const kind = kindOf(vw, vh);
+		const tag = `${vw}x${vh} touch`;
+		const vmin = Math.min(vw, vh) / 100;
+		// the press screen's Scene pills, at the dock frame's scale
+		const hf = H.hudFrame({ kind, phone: Math.min(vw, vh) <= 480, vw, vh, safe: { t: 0, r: 0, b: 0, l: 0 } });
+		const pill = hf.variant === 'tablet' || hf.variant === 'landscape' ? PILL.nar : PILL.h;
+		line(pillRule && Math.max(pill, 44 / hf.u) * hf.u >= 43.99, `${tag}: the Scene pills are drawn ${r1(pill * hf.u)} px tall (the ${hf.variant} panel at ${hf.u.toFixed(3)}), pressed ${r1(Math.max(pill, 44 / hf.u) * hf.u)}`);
+		// the notice and the replay card, by their own rules
+		const notice = Math.max(30, Math.min(46, 14 * vmin));
+		const replay = Math.max(28, Math.min(44, 14 * vmin));
+		line(notice >= 44 && replay >= 44, `${tag}: the notice's key is ${r1(notice)} px tall, the replay card's ${r1(replay)}`);
+		// the bet list: rows and the narrowest column it can choose (the card's own geometry: its margin, padding, well)
+		const narrowCard = vw < 560;
+		const tiny = vh < 300 || vw < 360;
+		const tight = tiny || narrowCard || vh < 460;
+		const usable = Math.min(880, vw - 2 * (narrowCard ? 8 : 14)) - 2 * (narrowCard ? 10 : 14) - 2 * ((tight ? 2 : 3) + 6) - 4;
+		const most = Math.max(1, Math.min(8, Math.floor((usable + 6) / (44 + 6))));
+		line(rowRule && (usable - 6 * (most - 1)) / most >= 44, `${tag}: the bet list's rows are 44 px tall and its columns ${r1((usable - 6 * (most - 1)) / most)} px wide or more (${most} at most)`);
+		// the resume card (compact under 560 wide or 420 tall), at its own scale, and at 0.8 of it (a tall card on a short window)
+		const compact = vw < 560 || vh < 420;
+		for (const k of [1, 0.8]) {
+			const s = Math.min(1, (vw - 24) / (compact ? 340 : 470)) * k;
+			const h = compact ? Math.min(RKEY.go, RKEY.no) : Math.min(RKEY.goBig, RKEY.noBig);
+			line(Math.max(h, 44 / s) * s >= 43.99, `${tag}: the resume card's keys are drawn ${r1(h * s)} px tall (scale ${s.toFixed(3)}), pressed ${r1(Math.max(h, 44 / s) * s)}`);
+		}
+		// the skip prompt and the Fast Lane's amount keys
+		const fl = F.flScale(F.flLay(vw, vh), vw, vh);
+		line(skipRule && Math.max(SKIP_MIN.h, 44) >= 44 && F.flLay(vw, vh) !== 'desk' && Math.max(STEP, 44 / fl) * fl >= 43.99, `${tag}: the skip prompt's keys press 44 px tall or more; the Fast Lane's amount keys are drawn ${r1(STEP * fl)} px, pressed ${r1(Math.max(STEP, 44 / fl) * fl)}`);
 	}
 }
 // THE AUTOPLAY CARD'S PRICE LINES AND START (9): the card's own widths, the bundled face's advances (every digit a 0
