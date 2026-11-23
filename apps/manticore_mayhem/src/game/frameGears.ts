@@ -35,7 +35,15 @@ export const frameGears = { links: 0 };
 /** BoardFrame: the chain's true travel as drawn this tick (links): its haul offset plus every whole tile it has folded
  *  off the haul's base. (2026-11-22, Decimus's first run: the travel was first rebuilt here from the offset alone, one
  *  tile at a time; a press is folded off two tiles at once, so the HTML gears turned back two links at the end of every
- *  press. BoardFrame now counts the tiles itself and nothing is guessed.) */
+ *  press. BoardFrame now counts the tiles itself and nothing is guessed.)
+ *
+ *  THE TRAVEL CAN RUN BACK, and then the wheels really do: when the War Standard leaves (the first free spin of a
+ *  feature starting, and the feature's return to the base game) components/WarBanner.svelte hide() runs the chain back
+ *  2 links over 500 ms (game/banner/spec.ts BANNER.chains.backLinks, backMs: "the run back on its exit"). BoardFrame
+ *  plays that run on the chain and picks the wheels' frames from it, so the frame's own wheels turn back those 2 links,
+ *  and the HTML gears turn back with them: the same number, the same frames. It is not bookkeeping: when the run is
+ *  done its 2 links are folded off the base like any other and the travel stays where the run left it
+ *  (tools/gear_layout_test.mjs, the haul). */
 export const frameGearsAt = (links: number) => {
 	if (links === frameGears.links) return;
 	frameGears.links = links;

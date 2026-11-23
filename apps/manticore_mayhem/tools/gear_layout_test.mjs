@@ -18,6 +18,8 @@
 //     logo by the stills' boxes), a 34 px bottom safe area, a sweep of phone windows, the chain's turning, its switch
 //   - the sideways phone (SIDEWAYS, sidewaysLayout): his chain from the frame's wheel at 874 x 402, the moves from his
 //     export, the Play's size at 852 x 393, 844 x 390, 812 x 425 and 667 x 375, the stills' boxes, safe areas, a sweep
+//   - the War Standard's run back (2 links, at a feature's first free spin and at its return to the base game): a real
+//     run of the chain that the gears follow with the frame's wheels, with no jump when it is folded off
 //   - the switch: desktop windows get the gear bar, the two popouts and every phone keep the dock, one constant rolls back
 import { registerHooks } from 'node:module';
 import { existsSync } from 'node:fs';
@@ -167,20 +169,25 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 			let moving = 0;
 			for (let i = live.length - 1; i >= 0; i--) {
 				const p = live[i];
+				if (t < p.t0) continue;
 				const u = Math.max(0, Math.min(1, (t - p.t0) / p.ms));
 				if (u >= 1) {
 					const m = (((base + p.links) % 2) + 2) % 2;
 					wound += base + p.links - m;
 					base = m;
 					live.splice(i, 1);
-				} else moving += p.links * backOut(u);
+				} else moving += p.links * (p.ease === 'inOut' ? 0.5 - 0.5 * Math.cos(Math.PI * u) : backOut(u));
 			}
 			F.frameGearsAt(wound + base + moving);
 		}
 		off();
 		let back = 0;
-		for (let i = 1; i < seen.length; i++) back = Math.min(back, seen[i] - seen[i - 1]);
-		return { travel: F.frameGears.links - start, back, calls: seen.length };
+		let jump = 0;
+		for (let i = 1; i < seen.length; i++) {
+			back = Math.min(back, seen[i] - seen[i - 1]);
+			jump = Math.max(jump, Math.abs(seen[i] - seen[i - 1]));
+		}
+		return { travel: F.frameGears.links - start, back, jump, calls: seen.length, seen };
 	};
 	for (const [tag, ms] of [['turbo 0', 1280], ['turbo 1', 1280 / 2.2], ['turbo 2', 1280 / 4]]) {
 		const r = play([{ t0: 80, ms, links: 4 }], 1000 / 60);
@@ -188,6 +195,67 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	}
 	const two = play([{ t0: 0, ms: 320, links: 4 }, { t0: 150, ms: 320, links: 4 }, { t0: 700, ms: 900, links: 1.4 }], 250);
 	check('the haul: two presses on top of each other and a War Standard run of 1.4 links, at 4 frames a second (a hitch): 9.4 links', near(two.travel, 9.4, 1e-9) && two.back > -0.5, `travel ${two.travel.toFixed(4)}`);
+}
+
+// ---- 4b2. the War Standard's run back (components/WarBanner.svelte hide(): BANNER.chains.backLinks -2 over backMs 500,
+// a sine in and out), at a feature's first free spin and at its return to the base game: a real run of the chain, so
+// the gears turn back its 2 links with the frame's wheels, smoothly, and the fold at its end moves nothing ----
+{
+	const F = await import('../src/game/frameGears.ts');
+	const backOut = (t) => --t * t * ((1.2 + 1) * t + 1.2) + 1;
+	const play = (runs, dt) => {
+		const start = F.frameGears.links;
+		let base = 1.0;
+		let wound = start - base;
+		F.frameGearsAt(wound + base);
+		const live = runs.map((p) => ({ ...p }));
+		const seen = [];
+		const off = F.onFrameGears((l) => seen.push(l - start));
+		for (let t = 0; live.length; t += dt) {
+			let moving = 0;
+			for (let i = live.length - 1; i >= 0; i--) {
+				const p = live[i];
+				if (t < p.t0) continue;
+				const u = Math.max(0, Math.min(1, (t - p.t0) / p.ms));
+				if (u >= 1) {
+					const m = (((base + p.links) % 2) + 2) % 2;
+					wound += base + p.links - m;
+					base = m;
+					live.splice(i, 1);
+				} else moving += p.links * (p.ease === 'inOut' ? 0.5 - 0.5 * Math.cos(Math.PI * u) : backOut(u));
+			}
+			F.frameGearsAt(wound + base + moving);
+		}
+		off();
+		let jump = 0;
+		for (let i = 1; i < seen.length; i++) jump = Math.max(jump, Math.abs(seen[i] - seen[i - 1]));
+		return { travel: F.frameGears.links - start, jump, seen };
+	};
+	const back = play([{ t0: 0, ms: 500, links: -2, ease: 'inOut' }], 1000 / 60);
+	check('the haul: the War Standard\'s run back turns the gears back its 2 links, a sine in and out over 500 ms, never more than 0.11 link a frame, and nothing moves when it is folded off', near(back.travel, -2, 1e-9) && back.jump < 0.11 && back.seen.every((v) => v <= 1e-9 && v >= -2 - 1e-9), `travel ${back.travel.toFixed(4)}, largest step ${back.jump.toFixed(3)}`);
+	// a feature as the haul sees it: the trigger's press, the banner's run in, its run back at the first free spin, eight
+	// reveals, the banner's second run back at the return to the base game, the next press
+	const feature = [{ t0: 0, ms: 1280, links: 4 }, { t0: 1500, ms: 950, links: 3, ease: 'inOut' }, { t0: 3000, ms: 500, links: -2, ease: 'inOut' }];
+	for (let i = 0; i < 8; i++) feature.push({ t0: 4000 + i * 1500, ms: 1280, links: 4 });
+	feature.push({ t0: 16500, ms: 500, links: -2, ease: 'inOut' }, { t0: 17500, ms: 1280, links: 4 });
+	const fr = play(feature, 1000 / 60);
+	check('the haul: through a whole feature (the press, the banner\'s run, its two runs back, eight reveals) the travel is the sum of the runs, 39 links, and its only backward runs are the banner\'s two, 2 links each', near(fr.travel, 4 + 3 - 2 + 32 - 2 + 4, 1e-9) && (() => {
+		// the backward runs: each fall of the travel under its own high, until it is past that high again, deeper than
+		// a press's own overshoot coming back (0.23 link)
+		const runs = [];
+		let top = fr.seen[0];
+		let deep = 0;
+		for (const v of fr.seen) {
+			if (v >= top) {
+				if (deep > 0.25) runs.push(deep);
+				top = v;
+				deep = 0;
+			} else deep = Math.max(deep, top - v);
+		}
+		if (deep > 0.25) runs.push(deep);
+		// (a run back that starts from a press's overshoot is that much deeper: up to 0.23 link)
+		return runs.length === 2 && runs.every((r) => r > 1.98 && r < 2.3);
+	})(), `travel ${fr.travel.toFixed(3)}`);
 }
 
 // ---- 4c. THE UPRIGHT PHONE (src/ui/gear/gearLayout.ts UPRIGHT, uprightLayout) ----
