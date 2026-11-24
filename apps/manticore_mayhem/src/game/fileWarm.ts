@@ -31,7 +31,7 @@ export const isWarm = (url: string): boolean => warmed.has(url);
 
 type Priority = 'high' | 'low' | 'auto';
 /** `priority`: a value, or asked at each try (a background file a round takes over goes on at normal priority) */
-export type WarmOptions = { retries: number; retryMs: readonly number[]; priority?: Priority | (() => Priority); onTry?: (url: string, ok: boolean, bytes: number) => void };
+export type WarmOptions = { retries: number; retryMs: readonly number[]; priority?: Priority | (() => Priority); onTry?: (url: string, ok: boolean, bytes: number, priority: Priority) => void };
 const later = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** one try: the body read to its end (text: as text, for a sheet's json) */
@@ -71,8 +71,10 @@ const tryOnce = async (url: string, text: boolean, priority: WarmOptions['priori
 
 const withTries = async (url: string, text: boolean, o: WarmOptions, keys: readonly string[] = [url]): Promise<{ ok: boolean; body: string }> => {
 	for (let i = 0; ; i += 1) {
-		const r = await tryOnce(url, text, typeof o.priority === 'function' ? o.priority() : o.priority, keys);
-		o.onTry?.(url, r.ok, r.bytes);
+		// (the priority this try was ASKED at: a record made at the try's end must not read a flag that changed meanwhile)
+		const asked = (typeof o.priority === 'function' ? o.priority() : o.priority) ?? 'auto';
+		const r = await tryOnce(url, text, asked, keys);
+		o.onTry?.(url, r.ok, r.bytes, asked);
 		if (r.ok) return r;
 		if (i >= o.retries) return r;
 		await later(o.retryMs[Math.min(i, o.retryMs.length - 1)] ?? 0);

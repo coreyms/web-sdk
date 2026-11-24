@@ -167,10 +167,11 @@ const opts = (g: Group, by: By): WarmOptions => ({
 	retries: 0,
 	retryMs: EPIC_LOAD.retryMs,
 	priority: () => (urgent ? 'auto' : 'low'),
-	onTry: (url: string, ok: boolean, bytes: number) => {
+	onTry: (url: string, ok: boolean, bytes: number, asked: string) => {
 		g.bytes += bytes;
 		if (!import.meta.env.DEV) return;
-		fileLog.push({ url: url.split('/').pop()!.split('?')[0], ok, bytes, at: Math.round(now()), by: urgent ? 'round' : by, priority: urgent ? 'auto' : 'low' });
+		// (by what it was ASKED at: a round's line that runs on after its round has ended asks at low, as the background does)
+		fileLog.push({ url: url.split('/').pop()!.split('?')[0], ok, bytes, at: Math.round(now()), by: asked === 'auto' ? 'round' : 'background', priority: asked });
 		if (fileLog.length > 200) fileLog.shift();
 	},
 });
