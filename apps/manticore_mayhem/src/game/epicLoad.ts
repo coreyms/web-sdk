@@ -38,6 +38,8 @@
 // the Epic flames (handed to the scene) only while the forecast says they can be up within EPIC_LOAD.holdCapMs (the
 // bytes the line has left up to them at the measured rate, plus EPIC_LOAD.hold.decodeMs a sheet): epicPlan holdDecision.
 // With them in, nothing is awaited. When the forecast says no, no hold at all.
+// THE INTRO'S CHOICE (epicIntroLate, asked once as the intro shows): when the forecast already says 'late' and the War
+// Standard's Epic cloth is not in, the intro takes the plaque at once (no 4 s wait for the cloth) and the press is not held.
 //
 // NO MID ROUND SWAP (epicFeatureStart, at the intro's press after the hold): if his Epic look is not up then, the round
 // keeps the look on show to its end (creature.keepOut: the mode's ask is dropped and the Epic look is let go); the next
@@ -414,6 +416,9 @@ type Round = {
 	/** when the entrance asked: relight (the trigger beat's), intro (the intro screen), press (the intro's press) */
 	asked: Record<string, number>;
 	hold: { at: number; end: number; decision: HoldDecision } | null;
+	/** THE INTRO'S CHOICE (epicIntroLate): the plaque at once, the cloth not waited for, because the forecast said 'late'
+	 *  as the intro was asked (at: performance.now(); eta: the forecast's ms then, null when none could be made) */
+	introLate: { at: number; eta: number | null; decision: HoldDecision } | null;
 	/** his Epic look named ahead (performance.now(); 0: not), up (lookIn), the feature's start, kept out for the round */
 	prepared: number;
 	lookInAt: number;
@@ -451,6 +456,7 @@ const startRound = (signal: EpicSignal, via: Round['via']): Round => {
 		atSignal: Object.fromEntries(plan.map((name) => [name, groupDone(name) ? (name === 'flames' && !flamesIn ? 'decoding' : 'in') : groups[name].state])),
 		asked: {},
 		hold: null,
+		introLate: null,
 		prepared: 0,
 		lookInAt: 0,
 		featureAt: 0,
@@ -564,11 +570,34 @@ const holdRound = (mode: string): Round | null => {
 	const r = round;
 	return EPIC_LOAD.on && mode === 'epic' && r && r.signal.feature === 'book' && !r.doneAt ? r : null;
 };
+/** THE INTRO'S CHOICE (components/ModePlaque.svelte, as an Epic intro is asked, before the War Standard is tried): true
+ *  when the War Standard's Epic cloth (or its glyphs) is not in yet AND the forecast already says his look and the flames
+ *  cannot be up inside holdCapMs (THE HOLD's 'late'). The intro then takes the plaque at once instead of waiting up to 4 s
+ *  for the cloth (WarBanner texFor), so the press comes as promptly as on a good line. The round keeps that 'late': its
+ *  press is not held either (epicHoldNeeded), and the look on show stays (NO MID ROUND SWAP). Decided once a round.
+ *  With the cloth in, or a forecast that says hold (or go), false: nothing changes. Nothing is fetched or reprioritized */
+export const epicIntroLate = (mode: string): boolean => {
+	const r = holdRound(mode);
+	if (!r) return false;
+	if (r.introLate) return true;
+	if (filesOf('intro').every((f) => isWarm(f.url))) return false;
+	const t = now();
+	const eta = forecast(r);
+	const decision = holdDecision(needs(r), t, t, EPIC_LOAD.holdCapMs, eta);
+	if (decision !== 'late') return false;
+	r.introLate = { at: t, eta: Number.isFinite(eta) ? Math.round(eta) : null, decision };
+	return true;
+};
 /** an Epic intro's press must wait now (false: offer it at once, as always; nothing is awaited then) */
 export const epicHoldNeeded = (mode: string): boolean => {
 	const r = holdRound(mode);
 	if (!r) return false;
 	const t = now();
+	// (the intro already went to the plaque on a 'late' forecast: the press is not held, the round's decision stands)
+	if (r.introLate) {
+		if (!r.hold) r.hold = { at: t, end: t, decision: 'late' };
+		return false;
+	}
 	const decision = holdDecision(needs(r), t, t, EPIC_LOAD.holdCapMs, forecast(r));
 	// (the forecast says it cannot make it: no hold at all, recorded as such)
 	if (decision !== 'hold' && decision !== 'go' && !r.hold) r.hold = { at: t, end: t, decision };
@@ -610,7 +639,8 @@ const summary = (r: Round): string => {
 	});
 	const asked = Object.entries(r.asked).map(([k, t]) => `${k} +${rel(r.signalAt, t)}`);
 	const hold = r.hold ? `hold ${Math.round(r.hold.end - r.hold.at)} ms (${r.hold.decision})` : 'no hold';
-	return `round ${r.n} (${r.via}${r.fallback ? ', fallback' : ''}): ${parts.join('; ')} | asked ${asked.join(', ') || 'nothing'} | ${hold}${r.keptOut ? ' | Epic look kept out for the round' : ''} | ${(r.bytes / 1e6).toFixed(2)} MB in the round`;
+	const intro = r.introLate ? ` | intro plaque at once +${rel(r.signalAt, r.introLate.at)} (late, cloth not in)` : '';
+	return `round ${r.n} (${r.via}${r.fallback ? ', fallback' : ''}): ${parts.join('; ')} | asked ${asked.join(', ') || 'nothing'} | ${hold}${intro}${r.keptOut ? ' | Epic look kept out for the round' : ''} | ${(r.bytes / 1e6).toFixed(2)} MB in the round`;
 };
 if (import.meta.env.DEV && typeof window !== 'undefined') {
 	const hook = ((window as unknown as { __manticore?: Record<string, unknown> }).__manticore ??= {});
@@ -640,6 +670,8 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
 						askedRel: Object.fromEntries(Object.entries(r.asked).map(([k, t]) => [k, rel(r.signalAt, t)])),
 						lookInRel: rel(r.signalAt, r.lookInAt),
 						featureRel: rel(r.signalAt, r.featureAt),
+						/** THE INTRO'S CHOICE: ms from the signal the plaque was taken at once on a 'late' forecast (null: not) */
+						introLateRel: r.introLate ? rel(r.signalAt, r.introLate.at) : null,
 						summary: summary(r),
 					})),
 				}),

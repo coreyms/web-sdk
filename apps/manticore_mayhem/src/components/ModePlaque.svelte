@@ -35,7 +35,7 @@
 	import { awaitPlaqueAssets } from '../game/assetGate';
 	import { stingerPlaque } from './StingerPlaque.svelte';
 	import { warBanner } from './WarBanner.svelte';
-	import { epicAsked, epicFeatureStart, epicHold, epicHoldNeeded } from '../game/epicLoad';
+	import { epicAsked, epicFeatureStart, epicHold, epicHoldNeeded, epicIntroLate } from '../game/epicLoad';
 	import ArtAmount from './ArtAmount.svelte';
 	import PressToContinue from './PressToContinue.svelte';
 
@@ -100,8 +100,10 @@
 				// THE WAR STANDARD BANNER (components/WarBanner.svelte, 2026-11-14): the feature intro unrolls from the frame's
 				// pole; the same gate as before (a press, or the hold while auto bonuses run). Its spin count is drawn live,
 				// its rules are baked: a book whose tile cap they do not say keeps the plaque or the plain plate below.
+				// An Epic whose cloth is not in while the forecast already says 'late' takes the plaque at once instead of
+				// waiting up to 4 s for the cloth (game/epicLoad.ts epicIntroLate; its press is not held either).
 				const banner = warBanner.flow;
-				if (banner?.ready() && banner.introMatches(event.intro.mode, event.intro.tileCap)) {
+				if (banner?.ready() && banner.introMatches(event.intro.mode, event.intro.tileCap) && !epicIntroLate(event.intro.mode)) {
 					const shown = await banner.intro({ mode: event.intro.mode, totalFs: event.intro.totalFs });
 					if (shown) {
 						await introGate(event.intro.mode, event.holdMs);
