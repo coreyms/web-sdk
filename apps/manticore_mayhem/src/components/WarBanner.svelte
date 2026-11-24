@@ -15,6 +15,8 @@
 		/** the feature intro: resolves once the press gate may open (true), or false at once when the cloth could not be
 		 *  shown (its texture failed): the caller keeps its plaque / plain screen */
 		intro: (o: { mode: StingerMode; totalFs: number }) => Promise<boolean>;
+		/** the mode's intro cloth and its glyphs are decoded and on the GPU NOW (intro would show it without a wait) */
+		introUp: (mode: StingerMode) => boolean;
 		/** the wrap up: TOTAL WIN, the count of the book's amount, resolves when the count has landed (true), or false at
 		 *  once when the cloth could not be shown. `tier` = the total's own tier (its clip on the impact when `sound`) */
 		wrap: (o: { amount: number; tier: number; mode: StingerMode; spins: number; durationMs: number; sound: boolean }) => Promise<boolean>;
@@ -516,6 +518,7 @@
 	const flow: WarBannerFlow = {
 		ready: () => built,
 		introMatches: (mode, tileCap) => built && tileCapOk(mode, tileCap),
+		introUp: (mode) => built && !!res && !!res.tex && res.tier === bannerTierOf(mode) && res.content === 'intro',
 		intro: async ({ mode, totalFs }) => {
 			if (!built) return false;
 			const tier = bannerTierOf(mode);
