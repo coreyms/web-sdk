@@ -163,6 +163,13 @@ loop, every move book driven).
 - The creature's big sheets are decoded in a same-origin module worker (`game/creatureDecode.worker.ts`) and uploaded
   in strips (`game/stripUpload.ts`): `CREATURE.upload = { on: true, gapMs: 300, pollMs: 100, strips: 'all', bands: 8 }`
   (constants line 3809). Measured Safari worst frame 42 to 44 ms, Chrome 18 ms.
+- THE EPIC'S FILES (constants `EPIC_LOAD`, `game/epicLoad.ts`, pure parts `game/epicPlan.ts`, node test
+  `tools/epic_load_test.mjs`): nothing of the Epic is in start-up. A background line fetches its groups (intro, creature,
+  flames, attacks) one file at a time at priority low once start-up is over, the landing is passed and no round is in
+  flight; into the HTTP cache only, except the flames, decoded and uploaded at rest only. A round that reaches the Epic
+  first takes over at normal priority; the intro's press holds at most `holdCapMs` (2.5 s) and only while the files can be
+  up inside it; a round whose Epic look is not up at the feature's start keeps the look on show (`creature.keepOut`).
+  Dev hook `__manticore.epicLoad()`; `?epicbg=0` / `?epicbg=hold` (DEV); probe `tools/manticore/epic_load_probe.js`.
 - Raw Pixi layers (flames, sky, scene) join the stage through `getContextParent().addToParent(...)`; their headers state
   the house rules they keep (no filters, no texture created after the files land: `game/flames.ts` line 17,
   `game/scene.ts` line 45, `game/sky.ts` line 41).

@@ -3890,16 +3890,38 @@ export const CREATURE = {
  *  THE HOLD (components/ModePlaque.svelte): an Epic intro's press is not offered until his Epic idle sheet is up and the
  *  Epic flames are in (or failed, or `holdCapMs` have passed): the banner hangs meanwhile and he stays in the look on
  *  show. With the files in, it costs nothing: the press comes when it always did.
- *  ROLLBACK: on false (and 'epic' back in CREATURE.lookLoad.prefetchLooks): the Epic loads with every session again. */
+ *  ROLLBACK: on false (and 'epic' back in CREATURE.lookLoad.prefetchLooks): the Epic loads with every session again.
+ *
+ *  THE BACKGROUND LINE (Corey "ej1", after the Linux host's proof of ef545de0: on Fast 3G the Epic idle sheet landed
+ *  24.6 s after the signal, the press was held the full 8 s and he swapped to the Epic look mid-round): "Load the Epic
+ *  files quietly in the background once the game is up and sitting idle. Startup stays fast, which was the point, and
+ *  the files are there long before any Epic. The hold stays only as a short safety net." The same groups in the same
+ *  order (`background`), started once start-up loading is over (the deferred phase, the armoury's menu core and the
+ *  turning medallion, components/Game.svelte), the landing press is passed and no round is in flight, after
+ *  `background.restMs` of that. One file at a time at fetch priority low; no new file while a round's play request is on
+ *  the wire or the creature's Super prefetch runs. Into the HTTP cache only, except the Epic flames, which are decoded and
+ *  uploaded AT REST only (game/epicLoad.ts THE DECODE RULE). The round that reaches the Epic takes over from wherever the
+ *  line got to, at normal priority (the on demand path above: the FALLBACK).
+ *  ROLLBACK: background.on false: ef545de0's on demand path alone (holdCapMs then wants its 8000 back). */
 export const EPIC_LOAD = {
 	on: true,
 	order: ['intro', 'creature', 'flames', 'attacks'],
 	retries: 2,
 	retryMs: [600, 2000],
-	/** the longest the Epic intro's press waits for his Epic idle sheet and the Epic flames, from the moment it would show */
-	holdCapMs: 8000,
+	/** THE HOLD's cap (was 8000 with on demand alone): the longest the Epic intro's press waits for his Epic idle sheet and
+	 *  the Epic flames, from the moment it would show. Held only while they can still be up inside it (`hold` below) */
+	holdCapMs: 2500,
 	/** how often the hold looks again */
 	pollMs: 100,
+	/** THE HOLD's forecast: hold only while (the bytes the line still has to fetch up to the last file the press waits for)
+	 *  at the rate measured over the last `rateWindowMs`, plus `decodeMs` for each of those sheets not yet up, fits in what
+	 *  is left of holdCapMs. No rate measured and bytes left: no hold. decodeMs is an estimate of a 2 MB sheet's decode and
+	 *  upload once its bytes are in (his strips, CREATURE.upload; the flames in one go); the DEV record shows the real one */
+	hold: { rateWindowMs: 3000, decodeMs: 1000 },
+	/** THE BACKGROUND LINE (see above). restMs: the quiet after the start conditions first hold (the landing's fade and the
+	 *  entrance roar play out first); pollMs: how often a paused line looks again; retryMs: a pass whose group failed is run
+	 *  again that long after it, once per entry, then left until a round needs it (bounded) */
+	background: { on: true, restMs: 2000, pollMs: 250, retryMs: [10_000, 30_000, 90_000] },
 } as const;
 /** which of CREATURE.place a layout takes */
 export type CreatureSpot = keyof typeof CREATURE.place;

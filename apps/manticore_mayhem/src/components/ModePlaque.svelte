@@ -35,7 +35,7 @@
 	import { awaitPlaqueAssets } from '../game/assetGate';
 	import { stingerPlaque } from './StingerPlaque.svelte';
 	import { warBanner } from './WarBanner.svelte';
-	import { epicAsked, epicHold, epicHoldNeeded } from '../game/epicLoad';
+	import { epicAsked, epicFeatureStart, epicHold, epicHoldNeeded } from '../game/epicLoad';
 	import ArtAmount from './ArtAmount.svelte';
 	import PressToContinue from './PressToContinue.svelte';
 
@@ -59,14 +59,16 @@
 	let resolveGate: (() => void) | null = $state(null);
 
 	// THE EPIC'S HOLD (game/epicLoad.ts, constants EPIC_LOAD): an Epic intro's press is offered once his Epic look and the
-	// Epic flames are up (or one failed, or EPIC_LOAD.holdCapMs have passed); the screen stays up meanwhile. Asked
-	// synchronously: with them in, nothing is awaited and the press comes exactly when it always did
+	// Epic flames are up (or one failed, or EPIC_LOAD.holdCapMs have passed, or the forecast says they cannot be up inside
+	// it); the screen stays up meanwhile. Asked synchronously: with them in, nothing is awaited and the press comes exactly
+	// when it always did
 	const epicReady = (mode: StingerMode | undefined): Promise<unknown> | null => {
 		if (!mode) return null;
 		epicAsked('press');
 		return epicHoldNeeded(mode) ? epicHold(mode) : null;
 	};
-	/** a feature intro's gate: a press, or the hold while auto bonuses run; the Epic's hold first */
+	/** a feature intro's gate: a press, or the hold while auto bonuses run; the Epic's hold first. Once it is passed the
+	 *  feature starts: an Epic whose look is not up keeps the look on show for the round (NO MID ROUND SWAP) */
 	const introGate = async (mode: StingerMode, holdMs: number | undefined) => {
 		if (!autoBonusesRunning()) {
 			const held = epicReady(mode);
@@ -77,6 +79,7 @@
 			const held = epicReady(mode);
 			if (held) await held;
 		}
+		epicFeatureStart(mode);
 	};
 
 	const dismiss = () => {

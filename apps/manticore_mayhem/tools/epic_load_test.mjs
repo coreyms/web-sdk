@@ -13,6 +13,9 @@
 //     where the courtyard has none
 //   - THE HOLD's state machine: files in at once (go, no hold), late files (hold, then go), a failed file (two retries,
 //     then fallback), a file that never comes (capped at holdCapMs)
+//   - THE BACKGROUND LINE (Corey "ej1"): the start event, one file at a time and never beside play, bounded retries, THE
+//     DECODE RULE, the hold's forecast (no hold when the files cannot be up inside the cap: the proof's Fast 3G numbers),
+//     and what of the wiring a node test can read in the sources
 import { registerHooks } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -223,7 +226,8 @@ const late = simulate({ inAt: 3000 });
 check(late.decision === 'go' && late.waited === 2000 && late.timeline.slice(0, -1).every((d) => d === 'hold'), 'late files: the press holds until they are up (2,000 ms here), then go', { waited: late.waited, decision: late.decision });
 const retried = simulate({ fails: 1, askAt: 100 });
 check(retried.decision === 'go' && retried.g.tries === 2 && retried.events.join() === '300:retry', 'one failed try: retried after the first retry delay, then in', retried);
-const failedAll = simulate({ fails: RETRIES + 1, askAt: 100 });
+// (asked 1.5 s into the line: the last of the three tries fails 3.5 s in, inside the 2.5 s cap from the ask)
+const failedAll = simulate({ fails: RETRIES + 1, askAt: 1500 });
 check(failedAll.decision === 'fallback' && failedAll.g.state === 'failed' && failedAll.g.tries === RETRIES + 1 && failedAll.events.filter((e) => e.endsWith('retry')).length === RETRIES, `a file that fails every try: ${RETRIES} retries, then fallback (the look on show stays; the press is offered)`, failedAll.events);
 check(failedAll.waited < CAP, 'the fallback comes as soon as the last try failed, never after the cap', failedAll.waited);
 const never = simulate({ never: true });
@@ -249,6 +253,97 @@ check(never.decision === 'capped' && never.waited === CAP, `a file that never co
 	check(g.state === 'ready' && g.tries === 1 && P.markTryFailed(g, 20, 2) === 'failed' && g.state === 'ready', 'a ready group stays ready: a later start or failure changes nothing (once in, in for the session)');
 }
 check(P.retryDelay(1, RETRY_MS) === RETRY_MS[0] && P.retryDelay(2, RETRY_MS) === RETRY_MS[1] && P.retryDelay(9, RETRY_MS) === RETRY_MS[RETRY_MS.length - 1], 'the retry delays are EPIC_LOAD.retryMs in turn');
+
+// ---- THE BACKGROUND LINE and THE SAFETY NET (Corey "ej1"; constants EPIC_LOAD.background, EPIC_LOAD.hold) -------------
+// COPY OF src/game/constants.ts:EPIC_LOAD.hold and EPIC_LOAD.background: read from the file so a change is seen
+const HOLD = /\n\thold: \{ rateWindowMs: (\d+), decodeMs: (\d+) \}/.exec(block);
+const BG = /\n\tbackground: \{ on: (true|false), restMs: (\d+), pollMs: (\d+), retryMs: (\[[^\]]*\]) \}/.exec(block);
+check(!!HOLD && !!BG, 'EPIC_LOAD.hold and EPIC_LOAD.background are where this test reads them');
+const DECODE_MS = Number(HOLD?.[2] ?? 1000);
+const WINDOW_MS = Number(HOLD?.[1] ?? 3000);
+const BG_RETRY = JSON.parse((BG?.[4] ?? '[]').replace(/_/g, ''));
+check(BG?.[1] === 'true', 'the background line is on');
+check(CAP >= 2000 && CAP <= 3000, `the hold is a short safety net: holdCapMs ${CAP} is 2 to 3 s (was 8,000 with on demand alone)`, CAP);
+check(BG_RETRY.length > 0 && BG_RETRY.length <= 5 && BG_RETRY.every((ms, i) => ms > 0 && (i === 0 || ms >= BG_RETRY[i - 1])), 'the background retries are bounded and back off', BG_RETRY);
+
+// the start event
+{
+	const at = { on: true, startupAt: 100, landingAt: 200, busy: false, restFrom: 300 };
+	const R = Number(BG?.[2] ?? 2000);
+	check(!P.backgroundMayStart(at, 300 + R - 1, R) && P.backgroundMayStart(at, 300 + R, R), `the start event: start-up over, landing passed, no round in flight, for restMs (${R} ms)`);
+	check(!P.backgroundMayStart({ ...at, startupAt: 0 }, 1e9, R), 'never before start-up loading is over');
+	check(!P.backgroundMayStart({ ...at, landingAt: 0 }, 1e9, R), 'never before the landing press (a replay has none: never)');
+	check(!P.backgroundMayStart({ ...at, busy: true }, 1e9, R), 'never while a round is in flight');
+	check(!P.backgroundMayStart({ ...at, restFrom: 0 }, 1e9, R), 'never without a rest that has begun');
+	check(!P.backgroundMayStart({ ...at, on: false }, 1e9, R), 'off: never');
+}
+// one file at a time, never competing with play
+check(P.backgroundMayFetch({ urgent: false, request: false, busy: false, prefetching: false }), 'at rest: the next background file starts');
+check(!P.backgroundMayFetch({ urgent: false, request: true, busy: false, prefetching: false }), 'a play request on the wire: no new background file');
+check(!P.backgroundMayFetch({ urgent: false, request: false, busy: true, prefetching: false }), 'a round playing: no new background file');
+check(!P.backgroundMayFetch({ urgent: false, request: false, busy: false, prefetching: true }), "the creature's Super prefetch running: no new background file (one at a time)");
+check(P.backgroundMayFetch({ urgent: true, request: true, busy: true, prefetching: true }), "a round that needs the Epic: its line never waits (the fallback, at normal priority)");
+// bounded retries
+check(BG_RETRY.every((ms, i) => P.backgroundRetryAfter(i, BG_RETRY) === ms) && P.backgroundRetryAfter(BG_RETRY.length, BG_RETRY) === null, 'a failed pass is run again retryMs[n] later, then left (bounded)');
+{
+	const g = P.newGroupState();
+	P.markStart(g, 0);
+	P.markTryFailed(g, 1, 0);
+	P.resetFailed(g);
+	check(g.state === 'waiting' && g.tries === 0 && g.failedAt === 0, 'a failed group is tried afresh by a later pass or a round');
+	const r = P.newGroupState();
+	P.markReady(r, 5);
+	P.resetFailed(r);
+	check(r.state === 'ready', 'a ready group is never reset');
+}
+
+// THE DECODE RULE
+check(P.decodeAllowed({ epicRound: false, featureStarted: false, atRest: true }), 'no Epic round, at rest: the flames may be decoded and uploaded');
+check(!P.decodeAllowed({ epicRound: false, featureStarted: false, atRest: false }), 'no Epic round, a spin or a win show in flight: never');
+check(P.decodeAllowed({ epicRound: true, featureStarted: false, atRest: false }), "an Epic round before its feature starts (the trigger, the intro): his upload turn, as a look a book names always loads");
+check(!P.decodeAllowed({ epicRound: true, featureStarted: true, atRest: false }), 'an Epic round once its feature started: never (at rest after it)');
+
+// THE FORECAST and the hold's new rule
+const f = (total, got, warm, need) => ({ total, got, warm, need });
+check(JSON.stringify(P.bytesBeforeNeeds([f(100, 0, true, false), f(2000, 500, false, true), f(3000, 0, false, false)])) === JSON.stringify({ bytes: 1500, sheets: 1 }), 'the bytes left run to the last needed file, the files after it do not count');
+check(JSON.stringify(P.bytesBeforeNeeds([f(300, 0, false, false), f(2000, 0, false, true), f(900, 0, false, false), f(1000, 0, false, true)])) === JSON.stringify({ bytes: 4200, sheets: 2 }), 'a file ahead of a need on the line counts (one file at a time)');
+check(P.bytesBeforeNeeds([f(2000, 0, true, true), f(3000, 0, false, false)]).bytes === 0, 'every need in: no bytes left');
+check(Math.abs(P.rateOf([{ t: 100, bytes: 1000 }, { t: 2900, bytes: 2000 }], 3000, 3000) - 1) < 1e-9, 'the rate: bytes in the window over the window (1 byte per ms)');
+check(P.rateOf([{ t: 100, bytes: 1000 }], 5000, 3000) === 0, 'nothing in the window: no rate');
+check(Math.abs(P.rateOf([{ t: 2900, bytes: 500 }], 3000, 3000, 2500) - 1) < 1e-9, 'a line that started inside the window counts from its start');
+check(P.etaOf(0, 0, 2, DECODE_MS) === 2 * DECODE_MS && P.etaOf(100, 0, 1, DECODE_MS) === Infinity && P.etaOf(1000, 1, 1, DECODE_MS) === 1000 + DECODE_MS, 'the forecast: bytes over rate plus decodeMs a sheet; bytes and no rate: not to be expected');
+{
+	const loading = () => {
+		const g = P.newGroupState();
+		P.markStart(g, 0);
+		return g;
+	};
+	// THE PROOF'S NUMBERS (the Linux host, ef545de0): Fast 3G is 1.44 Mbit/s, 180 bytes per ms; his Epic idle sheet is 2.15 MB
+	const fast3g = 1.44e6 / 8 / 1000;
+	const eta3g = P.etaOf(2.15e6, fast3g, 1, DECODE_MS);
+	check(P.holdDecision([loading()], 0, 0, CAP, eta3g) === 'late', `Fast 3G, his idle sheet not started: ${Math.round(eta3g)} ms forecast, no hold at all (ef545de0 held 8 s and still missed)`, eta3g);
+	check(P.holdDecision([loading()], 0, 0, CAP, P.etaOf(0, 0, 1, DECODE_MS)) === 'hold', "the sheet in, his decode and upload left: hold (they come inside the cap)");
+	check(P.holdDecision([loading()], 0, 0, CAP, P.etaOf(100e3, fast3g, 1, DECODE_MS)) === 'hold', 'the last 100 kB on Fast 3G: hold');
+	check(P.holdDecision([loading()], 0, 1500, CAP, 1200) === 'late', 'a hold whose forecast slips past the cap ends at once');
+	check(P.holdDecision([loading()], 0, CAP, CAP, 0) === 'capped', 'never longer than the cap');
+	const done = P.newGroupState();
+	P.markReady(done, 1);
+	check(P.holdDecision([done], 0, 0, CAP, Infinity) === 'go', 'everything up (the background line did it): go, no hold, whatever the forecast');
+}
+// the window used for the rate is a sane length
+check(WINDOW_MS >= 1000 && WINDOW_MS <= 10000, 'the rate window is 1 to 10 s', WINDOW_MS);
+
+// SOURCE CHECKS (what a node test can see of the wiring): the start event's two calls, the fetch priority, the decode rule
+const epicSrc = readFileSync(join(here, '../src/game/epicLoad.ts'), 'utf8');
+const gameSrc = readFileSync(join(here, '../src/components/Game.svelte'), 'utf8');
+const plaqueSrc = readFileSync(join(here, '../src/components/ModePlaque.svelte'), 'utf8');
+check(/loadCoinFlip\(renderer\)\)\s*\.then\(epicStartupDone\)/.test(gameSrc), 'start-up over is called after the turning medallion, the last start-up load');
+check((gameSrc.match(/epicLandingPassed\(\)/g) ?? []).length === 2, 'the landing press and the resume card both pass the landing');
+check(/priority: \(\) => \(urgent \? 'auto' : 'low'\)/.test(epicSrc), "background files at priority low, a round's at normal priority");
+check(/epicFeatureStart\(mode\);\n\t\};/.test(plaqueSrc), "the feature's start is marked once the intro's gate is passed");
+check((epicSrc.match(/await untilDecodeOk\(\)/g) ?? []).length === 2 && /if \(!decodeOk\(\)\) return;/.test(epicSrc), 'the flames are decoded and uploaded only under the decode rule (before the decode, before and inside the upload turn)');
+check(!/creaturePrepareEpic\(\)/.test(epicSrc.slice(epicSrc.indexOf('const runBackground'), epicSrc.indexOf('const bgTick'))), 'the background line never names his Epic look (nothing of his goes to the GPU ahead)');
+check(/import\.meta\.env\.DEV && typeof window !== 'undefined'\) \{\n\tconst hook/.test(epicSrc), 'the DEV record only under import.meta.env.DEV');
 
 console.log(`${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

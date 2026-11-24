@@ -243,6 +243,8 @@ export class Creature {
 	private want: CreatureLook = CREATURE.looks.base;
 	/** the look of a feature that is coming, by what said so (the round's book, an armed buy): loaded ahead, not shown */
 	private readonly ahead: { book: CreatureLook | null; buy: CreatureLook | null } = { book: null, buy: null };
+	/** NO MID ROUND SWAP (game/epicLoad.ts epicFeatureStart): a look kept out until the mode leaves it, `as` shown instead */
+	private keptOut: { look: CreatureLook; as: CreatureLook } | null = null;
 	private fadeAt = -1;
 	private appearAt = -1;
 	private shown = 0;
@@ -600,7 +602,13 @@ export class Creature {
 	// ---- the look ----
 	/** the game's mode (the scene's family): the look it shows */
 	mode(family: keyof typeof CREATURE.looks): void {
-		const look = CREATURE.looks[family];
+		let look: CreatureLook = CREATURE.looks[family];
+		// (a look kept out for the round stays out while the mode asks for it; the mode leaving it ends that)
+		if (this.keptOut && look === this.keptOut.look) look = this.keptOut.as;
+		else if (this.keptOut) {
+			this.note('keptOut', { look: this.keptOut.look, end: true });
+			this.keptOut = null;
+		}
 		if (look === this.want) return;
 		this.want = look;
 		this.note('want', look);
@@ -623,6 +631,27 @@ export class Creature {
 		if (this.look === look || this.next === look) return true;
 		return this.has(look, 'idle') && !!this.shadows.idle;
 	}
+	/** NO MID ROUND SWAP (game/epicLoad.ts epicFeatureStart, constants EPIC_LOAD): `look` is not up when its feature starts,
+	 *  so he keeps the look on show until the mode leaves `look` (the feature's end): the mode's ask for it is dropped, it
+	 *  is no longer loaded ahead, and what of it is in is let go (as for any look nothing names). True when kept out;
+	 *  false when it is on show or crossing over already (nothing to keep out) or he shows nothing */
+	keepOut(look: CreatureLook): boolean {
+		if (!this.look || this.look === look || this.next === look) return false;
+		this.keptOut = { look, as: this.look };
+		if (this.ahead.book === look) this.ahead.book = null;
+		if (this.ahead.buy === look) this.ahead.buy = null;
+		if (this.want === look) {
+			this.want = this.look;
+			this.note('want', this.look);
+		}
+		this.note('keptOut', { look, as: this.look });
+		if (!this.uses(look)) this.onLookFree?.(look);
+		return true;
+	}
+	/** the look kept out for this round (null: none) */
+	get keptOutLook(): CreatureLook | null {
+		return this.keptOut?.look ?? null;
+	}
 	/** a waiting cheer's voice has been played without him (Epic's sfx_roar_win by the plaque): it starts silent */
 	cheerVoicedWithout(): void {
 		if (this.pendingCheer) this.cheerVoiced = true;
@@ -641,6 +670,8 @@ export class Creature {
 	/** A LOOK AHEAD OF ITS MODE: `why` says a feature with this look is coming (null: it no longer is). The loader starts
 	 *  it; nothing on show changes. A look no longer named by anything is let go, unless it is drawn or wanted */
 	prepare(why: 'book' | 'buy', look: CreatureLook | null): void {
+		// (a look kept out for the round is not loaded ahead either)
+		if (look && this.keptOut?.look === look) look = null;
 		const before = this.prepared;
 		this.ahead[why] = look === this.want ? null : look;
 		const now = this.prepared;
@@ -1813,6 +1844,7 @@ export class Creature {
 			drawn: { body: this.bodyNode.visible, shadow: this.shadowNode.visible, bodyAlpha: this.bodyNode.alpha, shadowAlpha: this.shadowNode.alpha },
 			want: this.want,
 			prepared: this.prepared,
+			keptOut: this.keptOut?.look ?? null,
 			loaded: Object.fromEntries((Object.keys(this.looks) as CreatureLook[]).map((l) => [l, Object.keys(this.looks[l]!)])),
 			shared: {
 				shadow: !!this.shadows.idle,

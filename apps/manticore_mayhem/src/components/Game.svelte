@@ -22,6 +22,7 @@
 	import { loadArmouryCore } from '../game/armouryLoad';
 	import { loadCoinFlip } from '../game/coinFlip';
 	import { creatureDeferredDone } from '../game/creatureLoad';
+	import { epicLandingPassed, epicStartupDone } from '../game/epicLoad';
 	import { renderResolutionCap, renderResolutionFor } from '../game/deviceTier';
 	import { RENDER_RESIZE } from '../game/constants';
 	import { boot, reportPreload } from '../game/boot.svelte';
@@ -119,11 +120,13 @@
 		// everything else is in, so it is never in front of anything that loaded before it (game/armouryLoad.ts)
 		// ...and when it is in, every deferred group is: the creature's prefetch may start (game/creatureLoad.ts)
 		// ...then THE TURNING MEDALLION (the Max Win rain's and the plaque's coins, game/coinFlip.ts): flat W.png until it is in
+		// ...and with that start-up loading is over: the Epic's background line may start at rest (game/epicLoad.ts)
 		if (context.stateApp.loaded) {
 			const renderer = context.stateApp.pixiApplication?.renderer as PIXI.Renderer | undefined;
 			void loadArmouryCore()
 				.then(creatureDeferredDone)
-				.then(() => loadCoinFlip(renderer));
+				.then(() => loadCoinFlip(renderer))
+				.then(epicStartupDone);
 		}
 	});
 
@@ -309,6 +312,7 @@
 			onchoose={() => {
 				landing.pressedAt = performance.now();
 				landingPressed = true;
+				epicLandingPassed();
 			}}
 		/>
 	{:else if context.stateLayout.showLoadingScreen && !stateUrlDerived.replay()}
@@ -316,6 +320,7 @@
 			onpress={() => {
 				landing.pressedAt = performance.now();
 				landingPressed = true;
+				epicLandingPassed();
 			}}
 		/>
 	{/if}

@@ -66,10 +66,11 @@
 //                  the old look is let go only the new one's idle sheet is on the GPU beside it. A look no longer coming (the buy disarmed, the book played out) is let go as usual
 //   NOT READY      if the look is still not in when the feature shows, he stays in the look on show, never hidden,
 //                  and the two cross over when its idle sheet is up, exactly as before
-// THE EPIC (2026-11-25, Corey "CI. Yes"; constants EPIC_LOAD, game/epicLoad.ts): no longer prefetched (the Epic is only
-// spun into since its buy left, 2026-11-21). A book with an Epic in it hands his Epic look to game/epicLoad.ts, which
-// fetches its idle and roar sheets into the HTTP cache after the Epic intro's banner files and only then names the look
-// ahead (creaturePrepareEpic): from there it loads as every look named by a book does. A sheet this loader asks for while
+// THE EPIC (2026-11-25, Corey "CI. Yes"; constants EPIC_LOAD, game/epicLoad.ts): not in this prefetch (the Epic is only
+// spun into since its buy left, 2026-11-21). game/epicLoad.ts's background line fetches its files into the HTTP cache
+// once the game is at rest (Corey "ej1"; it waits while this prefetch runs: one background file at a time). A book with
+// an Epic in it hands his Epic look to game/epicLoad.ts, which names the look ahead once its idle sheet is in the cache
+// (creaturePrepareEpic): from there it loads as every look named by a book does. A sheet this loader asks for while
 // game/fileWarm.ts is still fetching it waits for that fetch (no second download beside it).
 import * as PIXI from 'pixi.js';
 

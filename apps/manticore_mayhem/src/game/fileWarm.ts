@@ -4,7 +4,21 @@
 // WHILE A FILE IS ON ITS WAY here, a system that wants it waits for it (warmWait) instead of starting a second download
 // beside it: game/creatureLoad.ts fetchSheet and components/WarBanner.svelte's cloth and glyph loads ask first.
 // Each file has `retries` more tries, `retryMs` apart. Never rejects.
+// THE METER (THE HOLD's forecast, game/epicLoad.ts): every chunk read here is a sample (its time and size), and each file's
+// bytes in so far are kept by URL (a sheet's picture under its json's URL as well), so the hold can say how many bytes
+// are left and at what rate they come.
 import { imageOfSheet } from './stripUpload';
+
+/** every chunk read, oldest first (performance.now(), bytes); the last 400 */
+export const warmSamples: { t: number; bytes: number }[] = [];
+/** bytes in so far per URL, this try (a sheet's json URL: its json and its picture together) */
+const received = new Map<string, number>();
+export const warmReceived = (url: string): number => received.get(url) ?? 0;
+const tally = (keys: readonly string[], bytes: number) => {
+	for (const k of keys) received.set(k, (received.get(k) ?? 0) + bytes);
+	warmSamples.push({ t: performance.now(), bytes });
+	if (warmSamples.length > 400) warmSamples.splice(0, 200);
+};
 
 /** every file on its way, by URL (a sheet's json is listed until its picture is in too) */
 const inFlight = new Map<string, Promise<boolean>>();
@@ -15,16 +29,25 @@ const warmed = new Set<string>();
 export const warmWait = (url: string): Promise<unknown> => inFlight.get(url) ?? Promise.resolve();
 export const isWarm = (url: string): boolean => warmed.has(url);
 
-export type WarmOptions = { retries: number; retryMs: readonly number[]; priority?: 'high' | 'low' | 'auto'; onTry?: (url: string, ok: boolean, bytes: number) => void };
+type Priority = 'high' | 'low' | 'auto';
+/** `priority`: a value, or asked at each try (a background file a round takes over goes on at normal priority) */
+export type WarmOptions = { retries: number; retryMs: readonly number[]; priority?: Priority | (() => Priority); onTry?: (url: string, ok: boolean, bytes: number) => void };
 const later = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** one try: the body read to its end (text: as text, for a sheet's json) */
-const tryOnce = async (url: string, text: boolean, priority: WarmOptions['priority']): Promise<{ ok: boolean; body: string; bytes: number }> => {
+const tryOnce = async (url: string, text: boolean, priority: WarmOptions['priority'], keys: readonly string[]): Promise<{ ok: boolean; body: string; bytes: number }> => {
+	// (a new try counts from 0: what an earlier try of this URL read is taken off every tally it went into)
+	const mine = `try#${url}`;
+	const before = received.get(mine) ?? 0;
+	for (const k of keys) received.set(k, Math.max(0, (received.get(k) ?? 0) - before));
+	received.set(mine, 0);
+	const own = [...keys, mine];
 	try {
 		const res = await fetch(url, { priority: priority ?? 'auto' } as RequestInit);
 		if (!res.ok) return { ok: false, body: '', bytes: 0 };
 		if (text) {
 			const body = await res.text();
+			tally(own, body.length);
 			return { ok: true, body, bytes: body.length };
 		}
 		let bytes = 0;
@@ -34,17 +57,21 @@ const tryOnce = async (url: string, text: boolean, priority: WarmOptions['priori
 				const { done, value } = await reader.read();
 				if (done) break;
 				bytes += value.byteLength;
+				tally(own, value.byteLength);
 			}
-		} else bytes = (await res.arrayBuffer()).byteLength;
+		} else {
+			bytes = (await res.arrayBuffer()).byteLength;
+			tally(own, bytes);
+		}
 		return { ok: true, body: '', bytes };
 	} catch {
 		return { ok: false, body: '', bytes: 0 };
 	}
 };
 
-const withTries = async (url: string, text: boolean, o: WarmOptions): Promise<{ ok: boolean; body: string }> => {
+const withTries = async (url: string, text: boolean, o: WarmOptions, keys: readonly string[] = [url]): Promise<{ ok: boolean; body: string }> => {
 	for (let i = 0; ; i += 1) {
-		const r = await tryOnce(url, text, o.priority);
+		const r = await tryOnce(url, text, typeof o.priority === 'function' ? o.priority() : o.priority, keys);
 		o.onTry?.(url, r.ok, r.bytes);
 		if (r.ok) return r;
 		if (i >= o.retries) return r;
@@ -52,12 +79,12 @@ const withTries = async (url: string, text: boolean, o: WarmOptions): Promise<{ 
 	}
 };
 
-/** one file into the cache (true: it is in) */
-export const warmFile = (url: string, o: WarmOptions): Promise<boolean> => {
+/** one file into the cache (true: it is in). `sheet`: the json URL whose picture this is (its bytes count there too) */
+export const warmFile = (url: string, o: WarmOptions, sheet?: string): Promise<boolean> => {
 	if (warmed.has(url)) return Promise.resolve(true);
 	const have = inFlight.get(url);
 	if (have) return have;
-	const p = withTries(url, false, o).then((r) => {
+	const p = withTries(url, false, o, sheet ? [url, sheet] : [url]).then((r) => {
 		if (r.ok) warmed.add(url);
 		return r.ok;
 	});
@@ -81,7 +108,7 @@ export const warmSheet = (jsonUrl: string, o: WarmOptions): Promise<boolean> => 
 		} catch {
 			return false;
 		}
-		if (image && !(await warmFile(imageOfSheet(jsonUrl, image), o))) return false;
+		if (image && !(await warmFile(imageOfSheet(jsonUrl, image), o, jsonUrl))) return false;
 		warmed.add(jsonUrl);
 		return true;
 	})();

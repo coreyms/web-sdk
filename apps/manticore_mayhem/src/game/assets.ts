@@ -689,8 +689,9 @@ export const SCENE_LATE: Record<string, { type: string; src: string }> = {};
 
 // THE EPIC'S OWN FILES (2026-11-25, constants EPIC_LOAD, game/epicLoad.ts): the landscape scene's Epic flame clip is
 // registered in NO boot (neither here nor in SCENE_LATE), so neither the deferred phase nor the shared loader's last batch
-// fetches it; game/epicLoad.ts loads it from here on the round whose book reaches the Epic (its feature, or a win plaque
-// that stops on EPIC: THE EPIC FIRE SET). Until it is in, the braziers burn the mode's own clip, as they always did
+// fetches it; game/epicLoad.ts loads it from here: its background line once start-up is over and the game is at rest
+// (Corey "ej1"), or the round whose book reaches the Epic first (its feature, or a win plaque that stops on EPIC: THE
+// EPIC FIRE SET). Until it is in, the braziers burn the mode's own clip, as they always did
 // before a clip was in. EPIC_LOAD.on false: it stays where it was (the deferred group flameEpic below).
 export const EPIC_LATE_KEYS = ['sceneFlameEpic'] as const;
 export const EPIC_LATE: Record<string, { type: string; src: string }> = {};
