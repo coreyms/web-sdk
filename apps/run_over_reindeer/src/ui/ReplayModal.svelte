@@ -325,7 +325,7 @@
 		font-size: clamp(9px, 2.4vmin, 11.5px);
 		font-weight: 500;
 		color: var(--faint);
-		margin-top: -4px;
+		margin-top: 7px; /* clear of START REPLAY's drop edge (was -4px: the first line touched it, Decimus stills 2026-11-24) */
 	}
 
 	/* ── compact (phone sideways / portrait): the clamps above already carry the type sizes, so
