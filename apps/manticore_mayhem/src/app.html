@@ -4,6 +4,8 @@
 		<meta charset="utf-8" />
 		<title>Manticore Unleashed</title>
 		<link rel="icon" type="image/png" href="%sveltekit.assets%/favicon.png" />
+		<link rel="preload" as="font" type="font/woff2" crossorigin href="%sveltekit.assets%/assets/fonts/ui/splash-sora.7179d3b1.woff2" />
+		<link rel="preload" as="font" type="font/woff2" crossorigin href="%sveltekit.assets%/assets/fonts/ui/splash-outfit.93ecf21c.woff2" />
 		
 		<!-- Stake checklist: main frame must not scroll, double-tap/pinch zoom disabled on mobile -->
 		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
@@ -58,20 +60,27 @@
 			   Reduced motion (@media prefers-reduced-motion): no dot, no turn, no shine; the rings breathe, the lines and the
 			   wordmark fade in, the shipped 450 ms fade out. Only transform, opacity and stroke-dashoffset animate: no
 			   filter, no images, no requests. The fonts need no re-subset: every new string is A-Z, space and "·".
+			   2026-11-24, THE TWO SPLASH FONTS ARE FILES NOW (Corey, testing on Engine: "it looks like we are missing fonts ...
+			   Look at Games on the loader screen"; his network panel showed both data:font/woff2 requests refused). Stake's
+			   content security policy has no data: font source, so the inlined subsets never loaded there and the splash drew
+			   in the system font. The same two subsets, byte for byte, are now static/assets/fonts/ui/splash-sora.<hash>.woff2
+			   and splash-outfit.<hash>.woff2 (the hash is in the name: /assets is served immutable), preloaded from the head.
+			   font-display: block keeps the text unseen until its face is in (a few hundred bytes over 1 KB and 2 KB).
+			   Never inline a font, picture or sound as data: or blob: in this shell again.
 			   ──────────────────────────────────────────────────────────────────────────────────────── */
 			@font-face {
 				font-family: 'AMSoraSplash';
 				font-style: normal;
 				font-weight: 100 900;
 				font-display: block;
-				src: url(data:font/woff2;base64,d09GMgABAAAAAAQMAA8AAAAAB1gAAAO0AAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGhYbIBwqBmA/U1RBVCoAbBEICoRkg3sBNgIkAyQLFAAEIAWDQAcgG9YFCJ4Fucm8SszkIhfTC6NW4uF5u77OfVWtegM5wtLKxlH/NdBYKNwQjKav36/tP3HH1NK57UO9HQ0SQ7ZKFo20DPlz1IcqXAFgAHjBu+fnr6n3yO/bibX4iVSty78NLIpwfGDLpKLzs6X4cDbTvJ8ew1GqmsupnySWVVACwwBJKDSFQGUaE2rHnScXgaOEgQAOL+BB47yJzjwOM6ChweYynV7MwiS106HAHt5LHK0+tmWEQfnp8Rp4sZet4uP1P1O+q0E8gzQhfY9Z6EJoCoxDYRraJafEkIIkIBrFLICEAuPQp99hOBQYQ4Iu2cssv5iULLQ1kOwbvKfd7VY3ucE1riiYoEIMNBK0wBgg43X8DygBIUlCuONHjMizh42vTxg1flyuDT8sHzG8rGqHVoeXod9D3S6rOp2qUpOHPnkmVj/9cTU8bhz3aKfd68Xqfj/n1UsertqdzobxQFPEWDoYtVetem0e9soTM3Mtp2e2eCUTh0hVsfrt9ptSrlWRy+PaPePEbYquP3lC5+ChL/qxuvd51f60Y1X3s+O6HVpdZFlVX8sOCgx94JGpU6uj82H5iHykfm61+/fpulXjrl3V+P7Febdf+dBtQzON/zr56MutdyPzkrnD515uc7T3bdufT5yje2rO3Kcmz3F1yv6lU/Yuw7Wy+r1burebLNonVhy00YvG7kbtV4y+8bzt6DvHjIPW67pPmJp5+vOQ+Wg2XejUbLulgP7vn8/bH77byTn86KMVmz9vt+B3vy9i/ODu07+/d+DYsXzF9JQn3K7ZcskpM1OnteGRXMUmRblOzeapPX2xYPR6yQn63rKKadsSj+ciF6soW++2CKONw0+vqDlp5X3fdftd+eCVN6y78cP5Jzsnb+z0w40rJ/5vXu3m3dTnz7lizKGlR6/cZ+QOm04HLDMAEEj8M/H7Y0Zu+U+zKH6DH8pTLsH2xsSek9e/XyvKZ1GXZNe3r6mNGVDEPAWNZlirOMlS8aPd073LfzqULl1p+9iRID1sTjyrTNsBgZYTse2HXVUsJGr6+eiibOF2IhSmuUXJCC+jwnI//SWLaqb4I+umxThKMCyW+hQNY2JLA7JythTERcUgi3q16rSxWEwgbC9gfYGfxayCrISwoFLrQ3g3xkHR9VStQzlF7WrUiIpjGxFQLSgrrUaxuFBlM2hMIDKYgcrG4yGbMLqlX1ZKyLywKCLFr6BetdrdvA7TZkwb0lFDVwXLuKAoPrTPgvZlWNFfrBWVpDNig2s5AA==) format('woff2');
+				src: url('./assets/fonts/ui/splash-sora.7179d3b1.woff2') format('woff2');
 			}
 			@font-face {
 				font-family: 'AMOutfitSplash';
 				font-style: normal;
 				font-weight: 100 900;
 				font-display: block;
-				src: url(data:font/woff2;base64,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) format('woff2');
+				src: url('./assets/fonts/ui/splash-outfit.93ecf21c.woff2') format('woff2');
 			}
 
 			#am-splash {
