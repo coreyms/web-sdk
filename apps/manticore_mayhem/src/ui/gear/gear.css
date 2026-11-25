@@ -159,7 +159,7 @@
 .hudp.v-gear .spin .cnt.long {
 	font-size: var(--g-count);
 	color: rgb(var(--hud-accent-cream-rgb));
-	text-shadow: 0 0 1px #0b0703, 1.5px 1.5px 0 #0b0703, -1.5px 1.5px 0 #0b0703, 1.5px -1.5px 0 #0b0703, -1.5px -1.5px 0 #0b0703, 0 2px 4px rgba(var(--hud-shadow-rgb), 0.6);
+	text-shadow: 0 0 1px #0b0703, 1.5px 0 0 #0b0703, 1.39px 0.57px 0 #0b0703, 1.06px 1.06px 0 #0b0703, 0.57px 1.39px 0 #0b0703, 0 1.5px 0 #0b0703, -0.57px 1.39px 0 #0b0703, -1.06px 1.06px 0 #0b0703, -1.39px 0.57px 0 #0b0703, -1.5px 0 0 #0b0703, -1.39px -0.57px 0 #0b0703, -1.06px -1.06px 0 #0b0703, -0.57px -1.39px 0 #0b0703, 0 -1.5px 0 #0b0703, 0.57px -1.39px 0 #0b0703, 1.06px -1.06px 0 #0b0703, 1.39px -0.57px 0 #0b0703, 0 2px 4px rgba(var(--hud-shadow-rgb), 0.6);
 }
 .hudp.v-gear .spin.m-feature .cnt {
 	color: #fff;
@@ -169,7 +169,7 @@
 	letter-spacing: 0.16em;
 	margin-right: -0.16em;
 	margin-top: calc(var(--g-sub) * 0.35);
-	text-shadow: 0 0 1px #0b0703, 1px 1px 0 #0b0703, -1px 1px 0 #0b0703, 1px -1px 0 #0b0703, -1px -1px 0 #0b0703;
+	text-shadow: 0 0 1px #0b0703, 1px 0 0 #0b0703, 0.92px 0.38px 0 #0b0703, 0.71px 0.71px 0 #0b0703, 0.38px 0.92px 0 #0b0703, 0 1px 0 #0b0703, -0.38px 0.92px 0 #0b0703, -0.71px 0.71px 0 #0b0703, -0.92px 0.38px 0 #0b0703, -1px 0 0 #0b0703, -0.92px -0.38px 0 #0b0703, -0.71px -0.71px 0 #0b0703, -0.38px -0.92px 0 #0b0703, 0 -1px 0 #0b0703, 0.38px -0.92px 0 #0b0703, 0.71px -0.71px 0 #0b0703, 0.92px -0.38px 0 #0b0703;
 }
 .hudp.v-gear .spin.m-feature .sub {
 	color: var(--ring);
@@ -565,15 +565,15 @@
 	letter-spacing: 0.24em;
 	margin-right: -0.24em;
 	color: rgb(var(--hud-label-rgb));
-	text-shadow: 0 0 1px var(--g-ink), 1px 1px 0 var(--g-ink), -1px 1px 0 var(--g-ink), 1px -1px 0 var(--g-ink), -1px -1px 0 var(--g-ink), 0 2px 4px rgba(2, 8, 18, 0.6);
+	text-shadow: 0 0 1px var(--g-ink), 1px 0 0 var(--g-ink), 0.92px 0.38px 0 var(--g-ink), 0.71px 0.71px 0 var(--g-ink), 0.38px 0.92px 0 var(--g-ink), 0 1px 0 var(--g-ink), -0.38px 0.92px 0 var(--g-ink), -0.71px 0.71px 0 var(--g-ink), -0.92px 0.38px 0 var(--g-ink), -1px 0 0 var(--g-ink), -0.92px -0.38px 0 var(--g-ink), -0.71px -0.71px 0 var(--g-ink), -0.38px -0.92px 0 var(--g-ink), 0 -1px 0 var(--g-ink), 0.38px -0.92px 0 var(--g-ink), 0.71px -0.71px 0 var(--g-ink), 0.92px -0.38px 0 var(--g-ink), 0 2px 4px rgba(2, 8, 18, 0.6);
 }
 .hudp.v-gear .stat .value {
 	color: #fff;
-	text-shadow: 0 0 1px var(--g-ink), 1.2px 1.2px 0 var(--g-ink), -1.2px 1.2px 0 var(--g-ink), 1.2px -1.2px 0 var(--g-ink), -1.2px -1.2px 0 var(--g-ink), 0 1.6px 0 var(--g-ink), 0 3px 7px rgba(2, 8, 18, 0.6);
+	text-shadow: 0 0 1px var(--g-ink), 1.2px 0 0 var(--g-ink), 1.11px 0.46px 0 var(--g-ink), 0.85px 0.85px 0 var(--g-ink), 0.46px 1.11px 0 var(--g-ink), 0 1.2px 0 var(--g-ink), -0.46px 1.11px 0 var(--g-ink), -0.85px 0.85px 0 var(--g-ink), -1.11px 0.46px 0 var(--g-ink), -1.2px 0 0 var(--g-ink), -1.11px -0.46px 0 var(--g-ink), -0.85px -0.85px 0 var(--g-ink), -0.46px -1.11px 0 var(--g-ink), 0 -1.2px 0 var(--g-ink), 0.46px -1.11px 0 var(--g-ink), 0.85px -0.85px 0 var(--g-ink), 1.11px -0.46px 0 var(--g-ink), 0 3px 7px rgba(2, 8, 18, 0.6);
 }
 .hudp.v-gear .stat.win.is-lit .value {
 	color: rgb(var(--hud-burst-ink-rgb));
-	text-shadow: 0 0 1px var(--g-ink), 1.2px 1.2px 0 var(--g-ink), -1.2px 1.2px 0 var(--g-ink), 1.2px -1.2px 0 var(--g-ink), -1.2px -1.2px 0 var(--g-ink), 0 0 12px rgba(var(--hud-burst-rgb), 0.8), 0 3px 7px rgba(2, 8, 18, 0.5);
+	text-shadow: 0 0 1px var(--g-ink), 1.2px 0 0 var(--g-ink), 1.11px 0.46px 0 var(--g-ink), 0.85px 0.85px 0 var(--g-ink), 0.46px 1.11px 0 var(--g-ink), 0 1.2px 0 var(--g-ink), -0.46px 1.11px 0 var(--g-ink), -0.85px 0.85px 0 var(--g-ink), -1.11px 0.46px 0 var(--g-ink), -1.2px 0 0 var(--g-ink), -1.11px -0.46px 0 var(--g-ink), -0.85px -0.85px 0 var(--g-ink), -0.46px -1.11px 0 var(--g-ink), 0 -1.2px 0 var(--g-ink), 0.46px -1.11px 0 var(--g-ink), 0.85px -0.85px 0 var(--g-ink), 1.11px -0.46px 0 var(--g-ink), 0 0 12px rgba(var(--hud-burst-rgb), 0.8), 0 3px 7px rgba(2, 8, 18, 0.5);
 }
 .hudp.v-gear .stat.win.is-lit .lbw {
 	color: rgb(var(--hud-burst-hi-rgb));
