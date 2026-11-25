@@ -577,6 +577,12 @@
 }
 /* the upright phone's Win number: hud.css gives it text-shadow: inherit and its own lit glow, which left it with no
  * ink outline beside Balance and the amount (found 2026-11-25); it takes the same outline here, its colors stay hud.css's */
+/* the phone's Win box is 2.5 px shorter than its number on the upright phone, and hud.css's paint containment on every
+ * .stat trimmed the outline's bottom edge there (Corey 2026-11-25: "those numbers are cut off on the bottom"; Decimus
+ * pinned it to contain: paint). This one box keeps layout and style containment and drops paint. */
+.hudp.v-gear .stat.pt.win {
+	contain: layout style;
+}
 .hudp.v-gear .stat.pt.win .value {
 	text-shadow: 0 0 1px var(--g-ink), 1.2px 0 0 var(--g-ink), 1.11px 0.46px 0 var(--g-ink), 0.85px 0.85px 0 var(--g-ink), 0.46px 1.11px 0 var(--g-ink), 0 1.2px 0 var(--g-ink), -0.46px 1.11px 0 var(--g-ink), -0.85px 0.85px 0 var(--g-ink), -1.11px 0.46px 0 var(--g-ink), -1.2px 0 0 var(--g-ink), -1.11px -0.46px 0 var(--g-ink), -0.85px -0.85px 0 var(--g-ink), -0.46px -1.11px 0 var(--g-ink), 0 -1.2px 0 var(--g-ink), 0.46px -1.11px 0 var(--g-ink), 0.85px -0.85px 0 var(--g-ink), 1.11px -0.46px 0 var(--g-ink), 0 3px 7px rgba(2, 8, 18, 0.6);
 }
