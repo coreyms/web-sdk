@@ -56,6 +56,14 @@ export const setScenePreset = (name: ScenePresetName, fadeMs = 0) => {
  *  (the book's trigger, game/bookEventHandlerMap.ts) */
 export const sceneHooks: { prefetch: (name: ScenePresetName) => void } = { prefetch: () => {} };
 
+/** THE SCENE SETTING DURING AUTOPLAY (2026-11-24, Corey: "the Light Dark Mode Options are offered during auto-play, but it
+ *  doesn't take effect until autoplay stops. Can we make it happen after the next spin and continue auto-play?"). An
+ *  autoplay run is never at rest, so a change of set asked during one used to wait for the run's end. The run now holds
+ *  its next spin for the change (game/bonusStockRules.ts autoSpinPause, rule 5): `open` is true while it holds, and
+ *  components/Board.svelte takes the set up then as it does at rest (every other condition of its own still stands);
+ *  `settled` is the board's "the scene wanted is on screen, whole" (it fills it). */
+export const sceneGap: { open: boolean; settled: () => boolean } = { open: false, settled: () => true };
+
 /** THE TUNE PANEL'S Scene buttons (staging too): ask for a preset by hand (the next change of the round's mode asks again) */
 export const sceneDev = { show: (name: ScenePresetName) => (stateScene.want = name) };
 

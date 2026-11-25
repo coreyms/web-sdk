@@ -22,6 +22,12 @@
 //      all through it. autoSpinPause(), called by the autoplay machine between two rounds (game/actor.ts
 //      onAutoSpinPause, packages/utils-xstate createIntermediateMachineAutoBet), just before it asks whether spins are
 //      left: a stop pressed during the pause ends the run there.
+//   5. THE SCENE SETTING DURING A RUN (2026-11-24, Corey: "Can we make it happen after the next spin and continue
+//      auto-play?"). A change of the Scene setting (Snow, Dark, or the device's own with Auto) asked while autoplay runs
+//      is taken up between two rounds: the run holds its next spin while the scene cross-fades (about a quarter of a
+//      second with the set in the browser's cache), then plays on. Never during a bonus round. The run's stop is live
+//      through the hold, and the hold has an end of its own (SCENE_GAP), so it can never strand a run: a change that
+//      cannot be taken in this gap is tried again in the next one. sceneChangeGap(), in autoSpinPause.
 // To carry it to another game on the same kit: copy this file, call bonusEntered() where the game enters a bonus round
 // (its trigger and its resume rebuild), bonusLeft() once the wrap-up is cleared, roundStarting() at the press of a new
 // round (actor onNewGameStart), and pass autoSpinPause as createPrimaryMachines' onAutoSpinPause. Presentation and
@@ -31,6 +37,8 @@ import { waitForTimeout } from 'utils-shared/wait';
 
 import { eventEmitter } from './eventEmitter';
 import { stateGame, stateGameDerived } from './stateGame.svelte';
+import { setFor } from './sceneChoice';
+import { sceneGap, stateScene } from './stateScene.svelte';
 
 /** rule 4: the pause between a cleared wrap-up and the next automatic spin, real ms at every turbo level */
 export const AUTOPLAY_RESUME_PAUSE_MS = 1000;
@@ -46,6 +54,7 @@ const log = {
 	exits: [] as { at: number; from: number; to: number; auto: boolean }[],
 	pauses: [] as { clearedAt: number; waitFrom: number; until: number; endedAt: number; counterAfter: number; frames: number[] }[],
 	starts: [] as { at: number; owed: boolean }[],
+	sceneGaps: [] as { at: number; ms: number; taken: boolean; settled: boolean; set: string; counterAfter: number }[],
 };
 
 /** rules 1 and 3: a bonus round is entered (its trigger, or a resumed round's rebuild) */
@@ -108,8 +117,55 @@ export const roundStarting = () => {
 	resumeAt = null;
 };
 
-/** rule 4: the autoplay machine's pause before its next round (game/actor.ts onAutoSpinPause) */
+/** rule 5: how long the run holds for a change of scene set, real ms. `takeMs`: for the board to take the set up (its next
+ *  frame, when nothing of its own is in the way); `settleMs`: for the scene to be on screen whole (its pieces in, the fade
+ *  done) */
+export const SCENE_GAP = { takeMs: 1500, settleMs: 6000 };
+
+/** the next frame drawn, or 50 ms on a page that draws none (hidden) */
+const nextFrame = () =>
+	new Promise<void>((resolve) => {
+		let done = false;
+		const end = () => {
+			if (done) return;
+			done = true;
+			resolve();
+		};
+		void waitForTimeout(50).then(end);
+		if (typeof requestAnimationFrame !== 'undefined') requestAnimationFrame(end);
+	});
+
+/** rule 5: the Scene setting asks for the other set and a run is on: hold the next spin while the board takes it up */
+const sceneChangeGap = async () => {
+	const pending = () => setFor(stateScene.choice, stateScene.dark) !== stateScene.set;
+	const running = () => stateBet.autoSpinsCounter > 0;
+	if (!running() || !pending() || stateUrlDerived.replay()) return;
+	const t0 = performance.now();
+	let taken = false;
+	sceneGap.open = true;
+	try {
+		while (running() && pending() && performance.now() - t0 < SCENE_GAP.takeMs) await nextFrame();
+		taken = !pending();
+		if (taken) {
+			// (two frames: the scene wanted turns to the new set's with the board's own effect, then the swap sees it)
+			await nextFrame();
+			await nextFrame();
+			const t1 = performance.now();
+			while (running() && !sceneGap.settled() && performance.now() - t1 < SCENE_GAP.settleMs) await nextFrame();
+		}
+	} finally {
+		sceneGap.open = false;
+		if (import.meta.env.DEV) log.sceneGaps.push({ at: t0, ms: performance.now() - t0, taken, settled: sceneGap.settled(), set: stateScene.set, counterAfter: stateBet.autoSpinsCounter });
+	}
+};
+
+/** rules 4 and 5: the autoplay machine's pause before its next round (game/actor.ts onAutoSpinPause) */
 export const autoSpinPause = async () => {
+	await resumePause();
+	await sceneChangeGap();
+};
+
+const resumePause = async () => {
 	const until = resumeAt;
 	resumeAt = null;
 	if (until === null) return;
@@ -125,6 +181,6 @@ export const autoSpinPause = async () => {
 if (import.meta.env.DEV && typeof window !== 'undefined') {
 	// house rule: extend __reindeer, never a new global
 	Object.assign(((window as unknown as { __reindeer?: Record<string, unknown> }).__reindeer ??= {}), {
-		stockRules: () => ({ pauseMs: AUTOPLAY_RESUME_PAUSE_MS, resumeAt, entries: [...log.entries], exits: [...log.exits], pauses: [...log.pauses], starts: [...log.starts], turbo: stateGame.turboLevel, base: stateGame.baseTurboLevel, hurry: stateGame.hurryLevel, counter: stateBet.autoSpinsCounter, stopFree: stateGame.autoStopOnFreeGames, gameType: stateGame.gameType }),
+		stockRules: () => ({ pauseMs: AUTOPLAY_RESUME_PAUSE_MS, resumeAt, entries: [...log.entries], exits: [...log.exits], pauses: [...log.pauses], starts: [...log.starts], sceneGaps: [...log.sceneGaps], turbo: stateGame.turboLevel, base: stateGame.baseTurboLevel, hurry: stateGame.hurryLevel, counter: stateBet.autoSpinsCounter, stopFree: stateGame.autoStopOnFreeGames, gameType: stateGame.gameType }),
 	});
 }

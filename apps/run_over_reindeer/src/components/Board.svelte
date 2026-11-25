@@ -70,7 +70,7 @@
 	import { LANE_FLOW, LED_BOARD, LED_SIGN, LINE_WIN, LOGO_SIGN, ROAD_MOTION, ROUND, STRIKE, SUPER_WHEEL, TUNE, motionFor } from '../game/constants';
 	import { SuperWheel, setWheelMipmapper, wheelMemory, type WheelGeo } from '../game/road/superWheel';
 	import { buildWheelPlan } from '../game/superWheelPlan';
-	import { sceneHooks, setSceneChoice, stateScene } from '../game/stateScene.svelte';
+	import { sceneGap, sceneHooks, setSceneChoice, stateScene } from '../game/stateScene.svelte';
 	import { homePreset, presetForMode, type ScenePreset, type ScenePresetName } from '../game/scenePresets';
 	import { setFor, type SceneChoice } from '../game/sceneChoice';
 	import { LogoSign } from '../game/scene/logoSign';
@@ -477,6 +477,7 @@
 	});
 	const sceneTex = swap.tex;
 	sceneHooks.prefetch = (name) => void swap.prefetch(name);
+	sceneGap.settled = () => swap.settled();
 	// A ROUND LEFT OPEN INSIDE A BONUS (the session's resumed bet): its scene is asked for from the moment the bet is known,
 	// so its pieces load behind the press screen and the resumed free spins come up in their night; the round's own mode
 	// takes over once its snapshot has rebuilt it (game/bookEventHandlerMap.ts createBonusSnapshot)
@@ -510,7 +511,9 @@
 		const target = setFor(stateScene.choice, stateScene.dark);
 		sceneSetWait = null;
 		if (target === stateScene.set) return;
-		if (stateGame.busy || !context.stateXstateDerived.isIdle()) sceneSetWait = 'a round is running';
+		// (BETWEEN TWO AUTOPLAY ROUNDS, 2026-11-24: the run is holding its next spin for this change, stateScene.svelte.ts
+		// sceneGap; the machine is not idle then, the board is)
+		if (stateGame.busy || (!context.stateXstateDerived.isIdle() && !sceneGap.open)) sceneSetWait = 'a round is running';
 		else if (stateGame.bonusMode || stateGame.gameType === 'freegame') sceneSetWait = 'a bonus round';
 		else if (stateGame.roundCard) sceneSetWait = 'a card is up';
 		// (THE PRESS SCREEN's own expanded board is not one of those: a press on the press screen's switch changes the scene
