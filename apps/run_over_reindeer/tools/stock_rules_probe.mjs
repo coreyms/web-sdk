@@ -1,6 +1,7 @@
 // @ts-nocheck: a node probe script, not app code (svelte-check picks up .mjs files)
 // WATCHES: apps/run_over_reindeer/src/{game/bonusStockRules.ts,game/actor.ts,ui/controls.svelte.ts,ui/hud/HudKey.svelte}, packages/utils-xstate/src/**;
 // WATCHES: ; data-resume-card, data-resume
+// WATCHES: apps/run_over_reindeer/src/{components/Board.svelte,game/stateScene.svelte.ts}; sceneGap, sceneChangeGap, SCENE_GAP, sceneGaps, __reindeer.sceneSetting, __reindeer.sceneSwap, __reindeer.sceneSwapHold, data-scene-choice
 // WATCHES: ; __reindeer.stockRules, __reindeer.fixtures, __reindeer.hud, __reindeer.atRest, AUTOPLAY_RESUME_PAUSE_MS, bonusEntered, bonusLeft, autoSpinPause
 // WATCHES: ; baseTurboLevel, turboLevel, autoStopOnFreeGames, autoPlayBonuses, data-l, data-round-card, .hudp, .fold-row, .go, button.catch, .hud-held
 // WATCHES: apps/run_over_reindeer/src/{ui/SpinHotkey.svelte,ui/Chrome.svelte}; isSpaceHold
@@ -10,7 +11,7 @@
 // THE STOCK RULES PROBE (game/bonusStockRules.ts, 2026-11-18): turbo and autoplay around a bonus round, the owner's
 // standing rule for all his games. Every pause and level is read from the game (__reindeer.stockRules: the module's own
 // AUTOPLAY_RESUME_PAUSE_MS and its log), never copied here. Sections (ONLY=entry,buy,resume,pause,stopbonus,stoppause,
-// stopspin,stopfree,autocards,space):
+// stopspin,stopfree,autocards,space,scene):
 //   entry      a natural Free Spins round from base turbo 0, 1 and 2 (set with the Turbo key): the level is 0 from the
 //              entry on and the key shows it; the player raises it to 2 inside the round; after the wrap-up the base
 //              level comes back (key and state), and the next entry is 0 again
@@ -28,6 +29,11 @@
 //              wait for the press; ON (base 1, 0): the entry continues after ROUND.autoplayMs and the wrap-up
 //              ROUND.wrapAutoHoldMs after its amount lands; a stop in the pause after it, no automatic spin
 //   space      one press, one round (ui/SpinHotkey.svelte): a tap 1 round; held 6 s with auto-repeat 1; without 1
+//   scene      rule 5 (2026-11-24): the Scene setting pressed in the menu while an autoplay round runs. The set changes in
+//              the hold after that round (stockRules().sceneGaps: taken, settled), the next spin starts only after the
+//              hold with no fade running, the run's count goes on one by one; Dark then Snow, at 1440x900 base turbo 0
+//              and 2, at 390x844, and with the browser's cache off; asked during a bonus round it waits for the round's
+//              end; the Auto key or the Spin pressed during the hold ends the run, no spin follows, the Spin key plays
 // In every section: nothing strands (every paying round played has its end-round, the game comes back idle and at
 // rest with no card up) and no page error.
 //   NODE_PATH=$HOME/.npm/_npx/e41f203b7505f1fb/node_modules APP=http://localhost:3015 [ONLY=a,b] node tools/stock_rules_probe.mjs
@@ -72,8 +78,8 @@ const autoLive = (p) =>
 		return { ok: !k.disabled && pe !== 'none' && !!at && (at === k || k.contains(at)), disabled: k.disabled, pe, hit: at === k || k.contains(at), op: Math.round(op * 100) / 100, hudOff };
 	});
 
-async function boot(browser, tag) {
-	const ctx = await browser.newContext({ viewport: VP, deviceScaleFactor: 1 });
+async function boot(browser, tag, { vp = VP, noCache = false } = {}) {
+	const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1 });
 	// every RGS call the game makes, with its time (the fixture RGS answers inside the page: wrapped after it installs)
 	await ctx.addInitScript(() => {
 		window.__rgsCalls = [];
@@ -91,21 +97,28 @@ async function boot(browser, tag) {
 		}, 5);
 	});
 	const p = await ctx.newPage();
+	if (noCache) {
+		const cdp = await ctx.newCDPSession(p);
+		await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
+		// SCENE_NET_KBPS=1600 (by hand): the cache-off case on a slow line too, to read the hold's length there
+		const kbps = Number(process.env.SCENE_NET_KBPS || 0);
+		if (kbps > 0) await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 150, downloadThroughput: (kbps * 1000) / 8, uploadThroughput: (kbps * 1000) / 8 });
+	}
 	const errs = [];
 	p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
 	p.on('console', (m) => {
 		if (m.type() === 'error' && !/favicon/.test(m.text())) errs.push('console: ' + m.text().slice(0, 200));
 	});
 	await p.goto(`${APP}/?lang=en&sessionID=stock${tag}${Date.now()}`, { waitUntil: 'domcontentloaded' });
-	await ready(p);
+	await ready(p, vp);
 	return { ctx, p, errs };
 }
 
-async function ready(p) {
+async function ready(p, vp = VP) {
 	for (let i = 0; i < 160; i++) {
 		const ok = await p.evaluate(() => !!(window.__reindeer?.atRest?.() && window.__reindeer.hud && window.__reindeer.stockRules && document.querySelector('.hudp') && !document.querySelector('.landing'))).catch(() => false);
 		if (ok) break;
-		if (i % 2 === 1) await p.mouse.click(VP.width / 2, VP.height / 2).catch(() => {});
+		if (i % 2 === 1) await p.mouse.click(vp.width / 2, vp.height / 2).catch(() => {});
 		await sleep(600);
 	}
 	await sleep(1000);
@@ -625,6 +638,201 @@ async function sectionAutoCards(browser) {
 	await ctx.close();
 }
 
+/** RULE 5, THE SCENE SETTING DURING A RUN (2026-11-24, Corey: "Can we make it happen after the next spin and continue
+ *  auto-play?"; game/bonusStockRules.ts sceneChangeGap). A watcher in the page keeps every change of the set in use, of
+ *  the run's count and of the round starts, frame by frame; each round's start is kept with the swap as it stood in the
+ *  first frame drawn after it. */
+const HOME = { snow: 'snowDay', grass: 'grassDay' };
+const MENU = '[role="dialog"][aria-label="Menu"].is-open';
+const sceneWatch = (p) =>
+	p.evaluate(() => {
+		const W = (window.__sg = { changes: [], starts: [], press: null });
+		document.addEventListener(
+			'click',
+			(e) => {
+				const k = e.target?.closest?.('[data-scene-choice]');
+				if (k) W.press = { at: performance.now(), choice: k.dataset.sceneChoice, atRest: window.__reindeer.atRest(), idle: window.__reindeer.hud.idle(), counter: window.__reindeer.stockRules().counter, set: window.__reindeer.sceneSetting().set };
+			},
+			true,
+		);
+		let last = null;
+		const tick = () => {
+			const R = window.__reindeer;
+			const sr = R.stockRules();
+			const f = { at: performance.now(), set: R.sceneSetting().set, attr: document.documentElement.hasAttribute('data-scene-fade'), counter: sr.counter, type: sr.gameType, starts: sr.starts.length, gaps: sr.sceneGaps.length };
+			if (last && f.starts !== last.starts) {
+				const sw = R.sceneSwap();
+				W.starts.push({ ...f, startAt: sr.starts[sr.starts.length - 1].at, fade: sw.fade, shown: sw.shown, want: sw.want });
+			}
+			if (!last || f.set !== last.set || f.counter !== last.counter || f.type !== last.type || f.attr !== last.attr) W.changes.push(f);
+			last = f;
+			requestAnimationFrame(tick);
+		};
+		requestAnimationFrame(tick);
+	});
+const SG = (p) => p.evaluate(() => ({ ...window.__sg, sr: window.__reindeer.stockRules(), setting: window.__reindeer.sceneSetting(), now: performance.now() }));
+const until = async (p, fn, arg, maxMs) => {
+	const t0 = Date.now();
+	while (Date.now() - t0 < maxMs) {
+		if (await p.evaluate(fn, arg).catch(() => false)) return true;
+		await sleep(40);
+	}
+	return false;
+};
+/** press a choice of the menu's Scene switch right after a round's start (the menu is opened first, closed after) */
+async function pressSceneInRound(p, choice, { inBonus = false } = {}) {
+	await p.click('[data-hud="menu-key"]', { timeout: 5000 });
+	const open = await until(p, (m) => !!document.querySelector(`${m} [data-scene-choice]`), MENU, 4000);
+	if (!open) return { open: false };
+	const n = await p.evaluate(() => window.__reindeer.stockRules().starts.length);
+	// (a base round: just after its start, so the press lands with the round running; a bonus round: any moment of it)
+	if (!inBonus) await until(p, (k) => window.__reindeer.stockRules().starts.length > k, n, 30000);
+	await p.evaluate(() => (window.__sg.press = null));
+	await p.click(`${MENU} [data-scene-choice="${choice}"]`, { timeout: 5000 });
+	const press = await p.evaluate(() => window.__sg.press);
+	await p.click('[data-hud="menu-key"]').catch(() => {});
+	return { open: true, press };
+}
+/** one change asked in a run that is on: the hold that takes it, the spin after it, the count */
+async function sceneChangeInRun(p, tag, choice, target) {
+	const g0 = (await SR(p)).sceneGaps.length;
+	const pr = await pressSceneInRound(p, choice);
+	check(pr.open && !!pr.press && pr.press.choice === choice && !pr.press.atRest && pr.press.counter > 0 && pr.press.set !== target, `${tag}: ${choice} pressed in the menu with a round of the run going (not at rest, ${pr.press?.counter} spins left, set ${pr.press?.set})`, pr);
+	if (!pr.press) return null;
+	const took = await until(p, (k) => window.__reindeer.stockRules().sceneGaps.slice(k).some((g) => g.taken), g0, 60000);
+	// two more rounds of the run after the hold
+	const s1 = (await SR(p)).starts.length;
+	await until(p, (k) => window.__reindeer.stockRules().starts.length >= k + 2 || window.__reindeer.stockRules().counter === 0, s1, 60000);
+	const w = await SG(p);
+	const gaps = w.sr.sceneGaps.slice(g0);
+	const g = gaps.find((x) => x.taken);
+	check(took && !!g && g.settled && g.set === target && w.setting.set === target, `${tag}: the set is ${target} after a hold of the run (sceneGaps: taken ${g?.taken}, settled ${g?.settled}, set ${g?.set}, ${g ? g.ms.toFixed(1) : '?'} ms; ${gaps.indexOf(g)} holds before it gave up)`, { gaps, setting: w.setting });
+	if (!g) return null;
+	const flip = w.changes.find((c) => c.at > pr.press.at && c.set === target);
+	const early = w.changes.filter((c) => c.at > pr.press.at && c.at < g.at && c.set === target);
+	check(!!flip && early.length === 0 && flip.at >= g.at - 1 && flip.at <= g.at + g.ms + 20, `${tag}: the set stays ${pr.press.set} to the end of the round pressed in (${(g.at - pr.press.at).toFixed(0)} ms), and turns inside the hold (${flip ? (flip.at - g.at).toFixed(1) : '?'} ms into it)`, { flip, early: early.slice(0, 3), g });
+	const roundsBetween = w.sr.starts.filter((s) => s.at > pr.press.at && s.at < g.at).length;
+	check(roundsBetween === 0, `${tag}: taken in the first pause after the round pressed in (${roundsBetween} more rounds started before the hold)`, gaps);
+	const next = w.starts.find((s) => s.startAt > g.at);
+	check(!!next && next.startAt >= g.at + g.ms - 1 && !next.fade && next.shown === HOME[target] && next.want === HOME[target], `${tag}: the next spin starts ${next ? (next.startAt - (g.at + g.ms)).toFixed(1) : '?'} ms after the hold ends, the scene ${next?.shown} whole and no fade running in its first frame`, { next, g });
+	const run = w.starts.filter((s) => s.startAt > pr.press.at - 1);
+	const steps = run.slice(1).map((s, i) => run[i].counter - s.counter);
+	check(run.length >= 3 && steps.every((d) => d === 1) && g.counterAfter > 0, `${tag}: the run plays on with its count intact (${run.map((s) => s.counter).join(', ')} at the starts from the round after the press; ${g.counterAfter} left at the hold's end)`, { steps });
+	console.log(`  INFO ${tag}: HOLD ${g.ms.toFixed(1)} ms for ${choice} (${target}); data-scene-fade on the root at the next start's frame: ${next?.attr}`);
+	return g;
+}
+/** end a run that is on, by its own key, and come to rest */
+async function endRun(p) {
+	if ((await SR(p)).counter > 0) await p.click('.hudp button[aria-label="Autoplay"]').catch(() => {});
+	return settle(p);
+}
+async function sectionScene(browser) {
+	// A. DARK THEN SNOW IN ONE RUN: desktop at base turbo 0 and 2, the upright phone, and with the browser's cache off
+	for (const C of [
+		{ name: '1440x900 base 0', vp: VP, L: 0 },
+		{ name: '1440x900 base 2 (turbo)', vp: VP, L: 2 },
+		{ name: '390x844 base 0', vp: { width: 390, height: 844 }, L: 0 },
+		{ name: '1440x900 base 0, cache off', vp: VP, L: 0, noCache: true },
+	]) {
+		const tag = `scene in a run, ${C.name}`;
+		const { ctx, p, errs } = await boot(browser, 'scene', { vp: C.vp, noCache: !!C.noCache });
+		await sceneWatch(p);
+		check(await setBaseTurbo(p, C.L), `${tag}: base turbo ${C.L} set`);
+		const pf = await p.evaluate(() => window.__reindeer.scenePrefetch?.());
+		console.log(`  INFO ${tag}: the other set's prefetch at the start: ${JSON.stringify(pf).slice(0, 300)}`);
+		const first = (await p.evaluate(() => window.__reindeer.sceneSetting())).set;
+		const order = first === 'snow' ? [['dark', 'grass'], ['snow', 'snow']] : [['snow', 'snow'], ['dark', 'grass']];
+		await startAuto(p);
+		for (const [choice, target] of order) await sceneChangeInRun(p, tag, choice, target);
+		const sr = await SR(p);
+		check(sr.counter > 0, `${tag}: the run is still on after both changes (${sr.counter} spins left)`);
+		await endRun(p);
+		await noStrand(p, tag, errs);
+		await ctx.close();
+	}
+	// B. ASKED DURING A BONUS ROUND: nothing until the round is over, then the first hold that can take it
+	{
+		const tag = 'scene in a run, asked in a bonus round';
+		const { ctx, p, errs } = await boot(browser, 'scenebonus');
+		await sceneWatch(p);
+		const sr0 = await SR(p);
+		const e0 = sr0.entries.length;
+		const x0 = sr0.exits.length;
+		await p.evaluate(() => window.__reindeer.fixtures.next('natural_free_spins'));
+		await startAuto(p, { autoBonuses: true });
+		const inBonus = await until(p, (k) => window.__reindeer.stockRules().entries.length > k && window.__reindeer.stockRules().gameType === 'freegame', e0, 90000);
+		await sleep(1500);
+		const g0 = (await SR(p)).sceneGaps.length;
+		let pr = await pressSceneInRound(p, 'dark', { inBonus: true }).catch((e) => ({ open: false, err: String(e).slice(0, 200) }));
+		const byMenu = !!pr.press;
+		if (!byMenu) {
+			// the menu is not to be had in the round: the setting's own hook, as the switch sets it
+			const at = await p.evaluate(() => (window.__reindeer.sceneChoice('dark'), performance.now()));
+			pr = { open: false, press: { at, choice: 'dark' }, why: pr };
+		}
+		const typeAtPress = (await SR(p)).gameType;
+		check(inBonus && typeAtPress === 'freegame', `${tag}: Dark asked ${byMenu ? 'in the menu' : 'by the setting hook (the menu did not open in the round)'} during the free spins, the run on`, { inBonus, typeAtPress, pr });
+		// the player raises the round's speed to keep the probe short (rule 2)
+		for (let i = 0; i < 4 && (await turboKey(p)) !== 2; i++) {
+			await p.click('.hudp button[aria-label^="Turbo"]').catch(() => {});
+			await sleep(120);
+		}
+		const out = await until(p, (k) => window.__reindeer.stockRules().exits.length > k, x0, 200000);
+		const took = await until(p, (k) => window.__reindeer.stockRules().sceneGaps.slice(k).some((g) => g.taken), g0, 40000);
+		const s1 = (await SR(p)).starts.length;
+		await until(p, (k) => window.__reindeer.stockRules().starts.length >= k + 2 || window.__reindeer.stockRules().counter === 0, s1, 60000);
+		const w = await SG(p);
+		const exit = w.sr.exits[x0];
+		const gaps = w.sr.sceneGaps.slice(g0);
+		const g = gaps.find((x) => x.taken);
+		const early = w.changes.filter((c) => c.at > pr.press.at && c.at < (exit?.at ?? Infinity) && c.set === 'grass');
+		check(out && !!exit && early.length === 0 && gaps.every((x) => x.at >= exit.at - 1), `${tag}: the set stays snow through the whole round, no hold inside it (${gaps.length} holds, the first ${gaps[0] ? (gaps[0].at - exit.at).toFixed(0) : '?'} ms after the wrap-up cleared)`, { early: early.slice(0, 3), gaps, exit });
+		check(took && !!g && g.settled && g.set === 'grass' && w.setting.set === 'grass', `${tag}: taken after the round, in hold ${gaps.indexOf(g) + 1} after it (${g ? g.ms.toFixed(1) : '?'} ms, ${g ? (g.at - exit.at).toFixed(0) : '?'} ms after the wrap-up cleared; holds that gave up first: ${gaps.slice(0, Math.max(0, gaps.indexOf(g))).map((x) => x.ms.toFixed(0)).join(', ') || 'none'})`, { gaps, setting: w.setting });
+		const next = g ? w.starts.find((s) => s.startAt > g.at) : null;
+		check(!!next && next.startAt >= g.at + g.ms - 1 && !next.fade && next.shown === 'grassDay' && g.counterAfter > 0, `${tag}: the run plays on after it: the next spin ${next ? (next.startAt - (g.at + g.ms)).toFixed(1) : '?'} ms after the hold, grassDay whole, no fade, ${g?.counterAfter} spins left`, { next, g });
+		await endRun(p);
+		await noStrand(p, tag, errs);
+		await ctx.close();
+	}
+	// C. A STOP DURING THE HOLD (the fade is held where it starts, so the hold lasts): the Auto key, then the Spin
+	for (const how of ['auto', 'spin']) {
+		const tag = `scene in a run, ${how === 'spin' ? 'the Spin' : 'the Auto key'} pressed during the hold`;
+		const sel = how === 'spin' ? '.hudp button.spin' : '.hudp button[aria-label="Autoplay"]';
+		const { ctx, p, errs } = await boot(browser, `scenestop${how}`);
+		await sceneWatch(p);
+		const K = await p.evaluate(async () => (await import('/src/game/bonusStockRules.ts')).SCENE_GAP);
+		await p.evaluate(() => window.__reindeer.sceneSwapHold(true));
+		await startAuto(p);
+		const g0 = (await SR(p)).sceneGaps.length;
+		const pr = await pressSceneInRound(p, 'dark');
+		const turned = await until(p, () => window.__reindeer.sceneSetting().set === 'grass', null, 60000);
+		await sleep(400);
+		const mid = await p.evaluate(() => ({ gaps: window.__reindeer.stockRules().sceneGaps.length, counter: window.__reindeer.stockRules().counter, fade: !!window.__reindeer.sceneSwap().fade, starts: window.__reindeer.stockRules().starts.length, plays: window.__reindeer.fixtures.log().plays.length }));
+		const live = how === 'spin' ? await p.evaluate((q) => { const k = document.querySelector(q); return { ok: !!k && !k.disabled }; }, sel) : await autoLive(p);
+		check(!!pr.press && turned && mid.gaps === g0 && mid.fade && mid.counter > 0, `${tag}: the hold is on 400 ms after the set turned (the fade held, no record of its end yet, ${mid.counter} spins left)`, { mid, pr });
+		check(live.ok, `${tag}: the key is live during the hold`, live);
+		await p.click(sel, { timeout: 5000 }).catch(() => {});
+		const ended = await until(p, (k) => window.__reindeer.stockRules().sceneGaps.length > k, g0, 3000);
+		const g = (await SR(p)).sceneGaps[g0];
+		check(ended && !!g && g.taken && g.counterAfter === 0 && g.ms < K.settleMs - 1000, `${tag}: the press ends the run and the hold with it (${g ? g.ms.toFixed(0) : '?'} ms, well inside its own end of ${K.takeMs} + ${K.settleMs} ms; counter ${g?.counterAfter})`, g);
+		await p.evaluate(() => window.__reindeer.sceneSwapHold(false));
+		await sleep(3000);
+		const after = await p.evaluate(() => ({ counter: window.__reindeer.stockRules().counter, starts: window.__reindeer.stockRules().starts.length, plays: window.__reindeer.fixtures.log().plays.length, set: window.__reindeer.sceneSetting().set, sw: window.__reindeer.sceneSwap() }));
+		check(after.counter === 0 && after.starts === mid.starts && after.plays === mid.plays, `${tag}: no spin follows in the 3 s after (starts ${mid.starts} to ${after.starts}, plays ${mid.plays} to ${after.plays})`, { mid, after: { ...after, sw: undefined } });
+		check(after.set === 'grass' && !after.sw.fade && after.sw.shown === 'grassDay', `${tag}: the scene finishes its change to grassDay once the fade runs (${after.sw.shown}, fade ${after.sw.fade ? 'on' : 'off'})`);
+		const rest = await settle(p, 30000);
+		const key = await p.evaluate(() => { const k = document.querySelector('.hudp button.spin'); return !!k && !k.disabled; });
+		await p.click('.hudp button.spin', { timeout: 5000 }).catch(() => {});
+		const played = await until(p, (k) => window.__reindeer.fixtures.log().plays.length === k + 1, after.plays, 5000);
+		check(rest && key && played, `${tag}: at rest after it, the Spin key enabled, and its press plays one round`, { rest, key, played });
+		await settle(p);
+		const fin = await p.evaluate(() => ({ plays: window.__reindeer.fixtures.log().plays.length, counter: window.__reindeer.stockRules().counter }));
+		check(fin.plays === after.plays + 1 && fin.counter === 0, `${tag}: one round only, no run (plays ${after.plays} to ${fin.plays})`);
+		await noStrand(p, tag, errs);
+		await ctx.close();
+	}
+}
+
 const browser = await chromium.launch({ args: ['--mute-audio'] });
 try {
 	if (want('entry')) await sectionEntry(browser);
@@ -637,6 +845,7 @@ try {
 	if (want('stopfree')) await sectionStopFree(browser);
 	if (want('autocards')) await sectionAutoCards(browser);
 	if (want('space')) await sectionSpace(browser);
+	if (want('scene')) await sectionScene(browser);
 } catch (e) {
 	fail++;
 	console.log('FAIL probe error', e?.stack ?? e);
