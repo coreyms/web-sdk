@@ -700,9 +700,9 @@ async function sceneChangeInRun(p, tag, choice, target) {
 	check(pr.open && !!pr.press && pr.press.choice === choice && !pr.press.atRest && pr.press.counter > 0 && pr.press.set !== target, `${tag}: ${choice} pressed in the menu with a round of the run going (not at rest, ${pr.press?.counter} spins left, set ${pr.press?.set})`, pr);
 	if (!pr.press) return null;
 	const took = await until(p, (k) => window.__reindeer.stockRules().sceneGaps.slice(k).some((g) => g.taken), g0, 60000);
-	// two more rounds of the run after the hold
-	const s1 = (await SR(p)).starts.length;
-	await until(p, (k) => window.__reindeer.stockRules().starts.length >= k + 2 || window.__reindeer.stockRules().counter === 0, s1, 60000);
+	// three rounds of the run started after the press (the page's own list of starts: a count read from here could
+	// land on either side of the spin that follows the hold by a fraction of a millisecond)
+	await until(p, (at) => window.__sg.starts.filter((s) => s.startAt > at - 1).length >= 3 || window.__reindeer.stockRules().counter === 0, pr.press.at, 90000);
 	const w = await SG(p);
 	const gaps = w.sr.sceneGaps.slice(g0);
 	const g = gaps.find((x) => x.taken);
