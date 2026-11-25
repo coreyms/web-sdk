@@ -582,7 +582,7 @@
 }
 .hudp.v-gear .stat.pt.win.is-lit .value,
 .hudp.v-gear .stat.pt.win.sb.is-lit .value {
-	text-shadow: 0 0 1px var(--g-ink), 1.2px 0 0 var(--g-ink), 1.11px 0.46px 0 var(--g-ink), 0.85px 0.85px 0 var(--g-ink), 0.46px 1.11px 0 var(--g-ink), 0 1.2px 0 var(--g-ink), -0.46px 1.11px 0 var(--g-ink), -0.85px 0.85px 0 var(--g-ink), -1.11px 0.46px 0 var(--g-ink), -1.2px 0 0 var(--g-ink), -1.11px -0.46px 0 var(--g-ink), -0.85px -0.85px 0 var(--g-ink), -0.46px -1.11px 0 var(--g-ink), 0 -1.2px 0 var(--g-ink), 0.46px -1.11px 0 var(--g-ink), 0.85px -0.85px 0 var(--g-ink), 1.11px -0.46px 0 var(--g-ink), 0 0 12px rgba(var(--hud-burst-rgb), 0.8), 0 3px 7px rgba(2, 8, 18, 0.5);
+	text-shadow: 0 0 1px var(--g-ink), 1.2px 0 0 var(--g-ink), 1.11px 0.46px 0 var(--g-ink), 0.85px 0.85px 0 var(--g-ink), 0.46px 1.11px 0 var(--g-ink), 0 1.2px 0 var(--g-ink), -0.46px 1.11px 0 var(--g-ink), -0.85px 0.85px 0 var(--g-ink), -1.11px 0.46px 0 var(--g-ink), -1.2px 0 0 var(--g-ink), -1.11px -0.46px 0 var(--g-ink), -0.85px -0.85px 0 var(--g-ink), -0.46px -1.11px 0 var(--g-ink), 0 -1.2px 0 var(--g-ink), 0.46px -1.11px 0 var(--g-ink), 0.85px -0.85px 0 var(--g-ink), 1.11px -0.46px 0 var(--g-ink), var(--hud-pt-burst-shadow);
 }
 .hudp.v-gear .stat.win.is-lit .lbw {
 	color: rgb(var(--hud-burst-hi-rgb));
