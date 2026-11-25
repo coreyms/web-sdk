@@ -445,11 +445,16 @@
 	font-variant-numeric: tabular-nums;
 	letter-spacing: 0;
 	color: #fff;
-	text-shadow: 0 0 1px #02080f, 1.2px 1.2px 0 #02080f, -1.2px 1.2px 0 #02080f, 1.2px -1.2px 0 #02080f, -1.2px -1.2px 0 #02080f, 0 1.6px 0 #02080f, 0 3px 7px rgba(2, 8, 18, 0.6);
+	/* AN EVEN RIM (2026-11-24, Corey, from a 3x still and his 4K screen: "We should fix it the uneven outlines"). The rim
+	   was four corner copies 1.2 px out plus one copy 1.6 px straight down: thick at the corners and under each stroke,
+	   thin and notched on the straight sides, plainest on a dense screen. It is now sixteen copies on a 1.2 px circle
+	   (--sg-rim), the same thickness all the way round every stroke; the soft drop shadow under it is kept. */
+	--sg-rim: 1.2px 0px 0 #02080f, 1.11px 0.46px 0 #02080f, 0.85px 0.85px 0 #02080f, 0.46px 1.11px 0 #02080f, 0px 1.2px 0 #02080f, -0.46px 1.11px 0 #02080f, -0.85px 0.85px 0 #02080f, -1.11px 0.46px 0 #02080f, -1.2px 0px 0 #02080f, -1.11px -0.46px 0 #02080f, -0.85px -0.85px 0 #02080f, -0.46px -1.11px 0 #02080f, -0px -1.2px 0 #02080f, 0.46px -1.11px 0 #02080f, 0.85px -0.85px 0 #02080f, 1.11px -0.46px 0 #02080f;
+	text-shadow: 0 0 1px #02080f, var(--sg-rim), 0 3px 7px rgba(2, 8, 18, 0.6);
 }
 .hudp.sg .stat.sgr.win.is-lit .value {
 	color: rgb(var(--hud-burst-ink-rgb));
-	text-shadow: 0 0 1px #02080f, 1.2px 1.2px 0 #02080f, -1.2px 1.2px 0 #02080f, 1.2px -1.2px 0 #02080f, -1.2px -1.2px 0 #02080f, 0 0 12px rgba(var(--hud-burst-rgb), 0.8), 0 3px 7px rgba(2, 8, 18, 0.5);
+	text-shadow: 0 0 1px #02080f, var(--sg-rim), 0 0 12px rgba(var(--hud-burst-rgb), 0.8), 0 3px 7px rgba(2, 8, 18, 0.5);
 }
 .hudp.sg .stat.sgr.amt.ante .value {
 	color: rgb(var(--hud-accent-ink-rgb));
