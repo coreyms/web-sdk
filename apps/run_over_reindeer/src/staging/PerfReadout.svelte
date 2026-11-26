@@ -10,7 +10,8 @@
 	// live under .ror-perf).
 	//
 	// This game's own line: the column characters' sheets (game/road/columnClips.ts clipMemory): the density in use,
-	// the sheet px per CSS px it gives, the `?rescap=` that picked it and the MB loaded now.
+	// the sheet px per CSS px it gives, the `?rescap=` that picked it and the MB loaded now. And the line amounts' pictures
+	// (game/road/winLabelText.ts aheadMemory, 2026-11-26): how many, their textures' MB, the canvases held, `?labeldensity=`.
 	//
 	// Cost: the measuring is src/staging/perfMeter.ts (one rAF listener, no allocation). This component only
 	// reads it on a ONE SECOND timer and writes the DOM then. The box takes taps only on itself.
@@ -20,6 +21,7 @@
 	import { PHONE_TIER, renderResolutionCap } from '../game/deviceTier';
 	import { STAGING } from '../game/staging';
 	import { clipMemory } from '../game/road/columnClips';
+	import { aheadMemory } from '../game/road/winLabelText';
 	import { meter, startMeter, stopMeter, watchCanvas, recentMedianMs, currentMinute, finishedMinutes, worst, WORST_MIN_MS, MARK_LOOKBACK_MS, verdictOf, LONG_FACTOR, MINUTES_KEPT, type MinuteRow, type Verdict } from './perfMeter';
 
 	/** how often the box is redrawn, ms */
@@ -40,6 +42,7 @@
 		worstLine: string;
 		draw: Record<string, string | number | boolean | null>;
 		columns: ReturnType<typeof clipMemory>;
+		labels: ReturnType<typeof aheadMemory>;
 	};
 	let snap = $state<Snapshot | null>(null);
 	/** on a narrow screen the open box would cover the top of the board for the whole session: it starts
@@ -136,6 +139,7 @@
 				build: STAGING ? 'staging' : 'dev',
 			},
 			columns: clipMemory(),
+			labels: aheadMemory(),
 		};
 	};
 
@@ -165,6 +169,7 @@
 				visibilityChanges: s.visibilityChanges,
 				draw: s.draw,
 				columns: s.columns,
+				labels: s.labels,
 				device,
 			},
 			null,
@@ -243,6 +248,7 @@
 			<div class="line">viewport {snap.draw.viewportCss}, screen {snap.draw.screenCss}, in iframe: {snap.draw.inIframe ? 'yes' : 'no'}</div>
 			<div class="line">phone tier: {snap.draw.phoneTier ? 'yes' : 'no'}, art {snap.draw.artTier}</div>
 			<div class="line">columns: density {snap.columns.density} ({snap.columns.size}), {snap.columns.sheetPxPerCss ?? '?'} sheet px per CSS px, rescap {snap.columns.rescap ?? 'none'}, {snap.columns.totalMb} MB loaded{snap.columns.note ? `; ${snap.columns.note}` : ''}</div>
+			<div class="line">line amounts: {snap.labels.textures} textures of {snap.labels.labels} labels, {snap.labels.gpuMB} MB; {snap.labels.canvasesHeld} canvases held, {snap.labels.canvasMB} MB; density {snap.labels.density}</div>
 			<div class="line small">{device.gpuRenderer ?? 'GPU unknown'}; max texture {device.maxTextureSize ?? '?'}, AA samples {device.antialiasSamples ?? '?'}</div>
 			<div class="line small">{device.model ? `${device.model}, ` : ''}{device.uaPlatform ?? ''} {device.platformVersion ?? ''} cores {device.cores ?? '?'}, memory {device.deviceMemoryGB ?? '?'} GB</div>
 			<div class="line small ua">{device.userAgent}</div>

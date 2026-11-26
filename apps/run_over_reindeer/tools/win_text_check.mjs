@@ -10,8 +10,11 @@
 //      their words and places) are the old Text's exactly, so a browser draws the same pixels
 //   2. THE SAME QUAD AND SIZE: the texture frame (the quad the sprite draws, about the same anchor) is the Text's frame, and
 //      the size it reports (textWidth, textHeight; getBounds) is the Text's .width and .height
-//   3. ONE CANVAS PER LABEL: the same AheadText given new words draws on its own canvas again (cleared where it drew last),
-//      the picture again the old Text's; a shorter amount never makes a new canvas, a longer one grows it once
+//   3. THE SHARED CANVASES (2026-11-26): a label given new words, with others drawn between on the same scratch canvases,
+//      draws the old Text's picture each time over a cleared canvas; its texture's size follows the rule (the next 64 px
+//      step, grown past it, made again smaller at half its width or less); 48 labels hold at most three canvases; each
+//      upload is a canvas of exactly the texture's size holding that label's words; a drawing drawn over is drawn again
+//      before it is sent; a new style lets the texture go; a lost context draws a shown label again; the switch's numbers
 //   4. THE PIECES: a label needs its draw, then its upload, then nothing; new words need both again
 //   5. WHEN EACH SHOWS: a line with no multiplier shows its win as its wire is complete, a multiplier line its plain amount
 //      then and its win at the punch (labelDues; drawSlam's own thresholds)
@@ -178,39 +181,105 @@ for (const c of cases) {
 check(bad1.length === 0 && compared === cases.length * uniq.length, `1. the picture: the same drawing calls as the old Text's for all ${compared} (${uniq.length} amounts x 2 styles x 2 label scales x 3 resolutions)`, bad1.slice(0, 4));
 check(bad2.length === 0, `2. the quad and the size: the texture frame, the reported width and height and the bounds are the Text's, all ${compared}`, bad2.slice(0, 4));
 
-// 3: one canvas per label, reused
+// 3: the shared scratch canvases (2026-11-26, winLabelText.ts THE MEMORY): no canvas per label, the texture's size by the rule
 {
 	const S = W.slamLabelStyles(phoneScale);
 	const a = new W.AheadText(S.shadow);
-	const order = ['$1,234.50', '$0.40', '12.40 GC', '¥77,770', '$12,345,678.90', '$2.50'];
+	const order = ['$1,234.50', '$0.40', '12.40 GC', '¥77,770', '$12,345,678.90', '$2.50', '$0.10'];
 	const bad = [];
-	const madeAt = [];
-	let lastPx = null;
-	for (const text of order) {
-		const before = canvasesMade;
-		a.text = text;
-		a.step(3);
-		const ck = a.canvasForCheck();
-		madeAt.push(canvasesMade - before);
+	const sizes = [];
+	const want = [];
+	let model = null;
+	// (what each scratch canvas held last, so every clear can be checked against it)
+	const lastOn = new Map();
+	const drawOn = (t, res) => {
+		t.step(res);
+		const ck = t.canvasForCheck();
 		const log = ck.canvas.ctx.log;
-		// (the clear of what it drew last comes before Pixi's painter, over exactly that)
 		const lastReset = log.map((e, i) => (e[0] === 'scale' && log[i - 1]?.[0] === 'resetTransform' ? i - 1 : -1)).filter((i) => i >= 0).pop();
 		const clear = log.slice(0, lastReset).filter((e) => e[0] === 'clearRect').pop();
-		// (a grown canvas is a new one: nothing to clear)
-		if (lastPx && madeAt[madeAt.length - 1] === 0 && (!clear || clear[3] !== lastPx[0] || clear[4] !== lastPx[1])) bad.push({ text, clear, lastPx });
+		const prev = lastOn.get(ck.canvas);
+		// (a canvas new or resized since is clear already; else the clear covers exactly what it held)
+		const resized = prev && (prev.cw !== ck.canvas.width || prev.ch !== ck.canvas.height);
+		if (prev && !resized && (!clear || clear[3] !== prev.w || clear[4] !== prev.h)) bad.push({ text: t.text, clear, prev });
+		lastOn.set(ck.canvas, { w: ck.w, h: ck.h, cw: ck.canvas.width, ch: ck.canvas.height });
+		const picture = drawing(log);
+		log.length = 0;
+		return { ck, picture };
+	};
+	for (const text of order) {
+		a.text = text;
+		const mine = drawOn(a, 3);
+		// a fresh label drawn after it on the shared canvases: the same picture (a Text's)
 		const fresh = new W.AheadText(S.shadow);
 		fresh.text = text;
-		fresh.step(3);
-		if (!same(drawing(log), drawing(fresh.canvasForCheck().canvas.ctx.log))) bad.push({ text, why: 'differs from a fresh label' });
+		const theirs = drawOn(fresh, 3);
+		if (!mine.picture || !same(mine.picture, theirs.picture)) bad.push({ text, why: 'differs from a fresh label' });
 		fresh.destroy({ texture: true, textureSource: true });
-		lastPx = [ck.w, ck.h];
-		ck.canvas.ctx.log.length = 0;
+		// the rule, worked out apart: made when none, grown past the words, made again when they need half its width or less
+		const { w, h } = W.textPixelSize(text, new PIXI.TextStyle(S.shadow), 3);
+		const fitW = Math.ceil(w / 64) * 64;
+		if (!model || model.w < w || model.h < h || fitW <= model.w * W.SHRINK_SHARE) model = { w: fitW, h };
+		want.push(`${model.w}x${model.h}`);
+		const held = a.held();
+		sizes.push(held ? `${held.w}x${held.h}` : 'none');
 	}
-	// (canvases made per text, the label's own: the first makes one; only the 12,345,678.90 grows it; the shorter ones none)
-	const own = madeAt;
-	check(bad.length === 0, `3. one label given new words six times: cleared over what it drew last (a grown canvas is new), the picture a fresh label's (a Text's) each time`, bad.slice(0, 3));
-	check(own[0] === 1 && own.slice(1).filter((m) => m > 0).length === 1 && own[4] === 1, `3. its canvas made once and grown once (for the longest amount), never for a shorter one (${own.join(', ')})`, own);
+	check(bad.length === 0, `3. one label given new words ${order.length} times, a fresh label drawn between on the same shared canvases: each canvas cleared over exactly what it held (or new), the picture a fresh label's (a Text's) each time`, bad.slice(0, 3));
+	check(same(sizes, want) && new Set(sizes).size >= 3, `3. its texture by the rule: made at the next 64 px step, grown only past it, made again smaller only at half its width or less (${sizes.join(', ')})`, { sizes, want });
 	a.destroy({ texture: true, textureSource: true });
+}
+// 3: 48 labels (12 slots of four) hold no canvas of their own; each upload is of a scratch canvas exactly the texture's size,
+// holding that label's drawing; between uploads every source points at the 1 x 1 blank
+{
+	const uploads = [];
+	W.setAheadTextHost({ resolution: () => 3, upload: (src) => uploads.push({ rw: src.resource.width, rh: src.resource.height, w: src.pixelWidth, h: src.pixelHeight, last: src.resource.ctx?.log.filter((e) => e[0] === 'fillText').pop()?.[1] }) });
+	const S = W.slamLabelStyles(phoneScale);
+	const labs = [];
+	for (let i = 0; i < 48; i++) {
+		const t = new W.AheadText(i % 2 ? S.shadow : S.face);
+		t.text = `$${(i * 37.25).toFixed(2)}`;
+		labs.push(t);
+	}
+	const madeBefore = W.aheadCanvasesMade();
+	for (const t of labs) t.ensure(3);
+	const m = W.aheadMemory();
+	const wrong = uploads.filter((u, i) => u.rw !== u.w || u.rh !== u.h || u.last !== labs[i].text);
+	const blankAfter = labs.filter((t) => t.texture.source.resource.width !== 1).length;
+	check(uploads.length === 48 && wrong.length === 0 && blankAfter === 0, `3. 48 labels sent: each upload a scratch canvas of exactly its texture's size holding its own words, every source on the 1 x 1 blank after (${uploads.length} uploads, ${wrong.length} wrong)`, wrong.slice(0, 2));
+	check(m.canvasesHeld <= 3 && W.aheadCanvasesMade() - madeBefore <= 3 && m.textures >= 48, `3. the canvases held: ${m.canvasesHeld} (at most two scratch and the blank) for ${m.textures} textures (${m.gpuMB} MB), ${W.aheadCanvasesMade() - madeBefore} made for these 48`, m);
+	// a drawing another label has drawn over is not sent: drawn again first, then sent with its own words (after an amount, a
+	// shadow and another amount, the first one's scratch has been taken whatever the sizes: two canvases, two heights)
+	const [p, x, y] = [labs[0], labs[1], labs[2]];
+	p.text = '$9,999.99';
+	x.text = '$8,888.88';
+	y.text = '$7.77';
+	const seq = [p.step(3), x.step(3), y.step(3), p.need(3), p.step(3), p.need(3)];
+	uploads.length = 0;
+	p.step(3);
+	check(same(seq, ['draw', 'draw', 'draw', 'draw', 'draw', 'send']) && uploads.length === 1 && uploads[0].last === '$9,999.99', `3. drawn over on the shared canvas before its upload: it needs its draw again, and its upload holds its own words (${JSON.stringify(seq)}, sent ${uploads[0]?.last})`);
+	// a new style lets the old texture go at once
+	const r = labs[4];
+	const had = !!r.held();
+	r.setStyle(W.slamLabelStyles(1).face);
+	check(had && r.held() === null && r.need(3) === 'draw', `3. a new style: its texture goes at once, drawn again at the new size when next shown`);
+	// a lost context: a label shown is drawn and sent again at once, a hidden one waits for its draw
+	const shown = labs[6];
+	const hidden = labs[8];
+	hidden.visible = false;
+	uploads.length = 0;
+	W.aheadContextChanged();
+	check(shown.ready(3) && uploads.some((u) => u.last === shown.text) && hidden.need(3) === 'draw', `3. a WebGL context back: a label on screen drawn and sent again at once, one hidden flagged to draw (${uploads.length} sent)`);
+	for (const t of labs) t.destroy({ texture: true, textureSource: true });
+	W.setAheadTextHost(null);
+	check(W.aheadMemory().labels === 0, `3. a destroyed label leaves the readout`);
+}
+
+// 3: the staging switch's resolution: 3 per CSS px of the largest size on screen, never above the renderer's
+{
+	const up = W.screenLabelResolution(0.255, 1.35, 3);
+	const side = W.screenLabelResolution(0.337, 1.35, 3);
+	const desk = W.screenLabelResolution(0.7, 1.35, 2);
+	check(Math.abs(up - 1.03) < 1e-9 && Math.abs(side - 1.36) < 1e-9 && desk === 2 && W.LABEL_SCREEN_DENSITY === false, `3. ?labeldensity=screen: ${up} upright, ${side} sideways (road scale 0.255, 0.337, peak 1.35), held to the renderer's ${desk}; off here (no staging tools)`);
 }
 
 // 4: the pieces of work

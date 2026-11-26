@@ -101,13 +101,13 @@
 	import { garlandMemory, loadGarland, setGarlandMipmapper } from '../game/road/garland';
 	import { brawlForBook, brawlRoundEnd } from '../game/road/brawlCloud';
 	import { clipMemory, setClipRebatch, setClipUploader, setClipView } from '../game/road/columnClips';
-	import { compareWithText, setAheadTextHost, slamLabelStyles } from '../game/road/winLabelText';
+	import { aheadContextChanged, aheadMemory, compareWithText, setAheadTextHost, slamLabelStyles } from '../game/road/winLabelText';
 	import { loadRunViews, runMemory, setRunMipmapper } from '../game/road/reindeerRun';
 	import { loadRoamFrames, roamMemory, setRoamMipmapper } from '../game/road/roamFrames';
 	import { roamDev, type RoamZone } from '../game/road/roam';
 	import { ROAM_AREAS, ROAM_AREAS_DEFAULT, ROAM_EDIT } from '../game/roamPaths';
 	import { loadPresent, presentMemory, presentTrace, presentWheelDone, setPresentMipmapper } from '../game/road/present';
-	import { perfMarks } from '../game/staging';
+	import { perfMarks, STAGING } from '../game/staging';
 	import type { SoundEffectName } from '../game/sound';
 	import { COLUMN_CLIPS } from '../game/columnClipSpec';
 	import { LANDING_POSE, landingColumns } from '../game/landingBoard';
@@ -810,6 +810,14 @@
 		// THE LINE AMOUNTS MADE AHEAD (game/road/winLabelText.ts, constants LINE_WIN.slam.ahead): the resolution a Text is drawn
 		// at, and the call that puts a label's picture on the GPU in the frame the lights choose (never through prepare)
 		setAheadTextHost(app ? { resolution: () => app.renderer.resolution, upload: (source) => (app.renderer as PIXI.Renderer).texture.initSource(source) } : null);
+		// their pictures are kept only on the GPU (2026-11-26, winLabelText.ts THE MEMORY): when a lost WebGL context comes back,
+		// they are drawn again. Added after Pixi's own systems, so it runs once the texture system has let the old ones go
+		const aheadContext = { contextChange: () => aheadContextChanged() };
+		const runners = (app?.renderer as unknown as { runners?: { contextChange?: { add: (o: object) => void; remove: (o: object) => void } } } | undefined)?.runners;
+		runners?.contextChange?.add(aheadContext);
+		// the labels' memory for a staging build's tester (the dev server has __reindeer.winLabelMemory): a constant false and
+		// dropped in a production build (game/staging.ts; the bundle check's marker __rorLabelMemory)
+		if (STAGING && typeof window !== 'undefined') (window as unknown as Record<string, unknown>).__rorLabelMemory = aheadMemory;
 		// the seated drivers' animation sheets the same way (game/road/seatedClips.ts)
 		setSeatUploader(app ? (texture) => app.renderer.prepare.upload(texture) : null);
 		// before a character's sheet is unloaded, every batch is rebuilt (game/road/columnClips.ts release): toggling an
@@ -911,6 +919,7 @@
 		return () => {
 			// Equivalent to onDestroy(); Leave this comment for searching.
 			app?.ticker.remove(tick);
+			runners?.contextChange?.remove(aheadContext);
 			led?.destroy();
 			led = null;
 			logo?.destroy();
@@ -1328,6 +1337,9 @@
 			/** THE LINE AMOUNTS MADE AHEAD (constants LINE_WIN.slam.ahead, game/road/winLabelText.ts): this win's label pictures,
 			 *  and the counts since the page loaded (pieces made ahead, pictures made on the frame they showed) */
 			winLabels: () => road.winLightsSnapshot().labels,
+			/** THE LABELS' MEMORY (2026-11-26, winLabelText.ts aheadMemory): the labels alive, their textures by size and MB, the
+			 *  shared canvases held and the counts (textures made, grown, shrunk, let go for a new style, lost with the context) */
+			winLabelMemory: () => aheadMemory(),
 			/** the same words drawn both ways on this renderer (a PIXI.Text's picture and an AheadText's): quads, sizes, pixels;
 			 *  `scale` the label scale (1; null: the upright phone's, as road.showWin works it out) */
 			winTextCompare: (texts: string[], scale: number | null = 1) => {

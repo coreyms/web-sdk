@@ -30,7 +30,7 @@ import * as PIXI from 'pixi.js';
 import { LINE_WIN } from '../constants';
 import { WIN_LIGHTS_ART } from '../winLightsSpec';
 import { NumberLabel } from './roadFeatures';
-import { AheadText, aheadResolution, labelDues, slamTextStyle } from './winLabelText';
+import { AheadText, aheadResolution, LABEL_SCREEN_DENSITY, labelDues, screenLabelResolution, slamTextStyle } from './winLabelText';
 import { buildStrand, type StrandNail, type StrandOpts } from './winLightsPath';
 
 const L = LINE_WIN.lights;
@@ -593,6 +593,9 @@ export class WinLights {
 		const placed: { x: number; y: number; w: number; h: number }[] = [];
 		const timed: { r: { x: number; y: number; w: number; h: number }; from: number; to: number }[] = [];
 		this.slamOpts = slam && amounts ? slam : null;
+		// (a new label scale, the phone turned or the road's scale changed it: every slot's labels take it now, so the
+		// textures of slots this win does not use go too instead of staying at the old size; winLabelText.ts header, 2)
+		if (this.slamOpts) for (const s of this.slots) if (s.lab) this.restyle(s.lab, this.slamOpts.scale);
 		this.slam = this.slamOpts ? slamSchedule(this.active, pace, this.slamOpts.phone, this.active === 1 && (lines[0]?.multiplier ?? 1) > 1) : null;
 		const plan = (this.plan = this.slam ?? lightsSchedule(this.active, pace));
 		for (let k = 0; k < this.active; k++) {
@@ -702,7 +705,7 @@ export class WinLights {
 			return;
 		}
 		if (!A.on || !this.ahead.length) return;
-		const res = aheadResolution();
+		const res = this.labelRes();
 		const t0 = performance.now();
 		let did = 0;
 		// (each picture finished, drawn then sent, before the next is started)
@@ -721,15 +724,30 @@ export class WinLights {
 	}
 	/** a label picture that shows now: made now if it is not yet (counted: the readout's dueNow) */
 	private showNow(t: AheadText) {
-		const res = aheadResolution();
+		const res = this.labelRes();
 		if (t.ready(res)) return;
 		this.aheadStats.dueNow += 1;
 		t.ensure(res);
 	}
 	/** DEV / probes: the labels' pictures of this win (when each shows, ready or not) and the counts since the page loaded */
 	aheadSnapshot() {
-		const res = aheadResolution();
-		return { on: X.ahead.on, budgetMs: X.ahead.budgetMs, res, left: this.ahead.filter((j) => !j.text.ready(res)).length, jobs: this.ahead.map((j) => ({ due: Math.round(j.due * 10) / 10, ...j.text.info() })), ...this.aheadStats };
+		const res = this.labelRes();
+		return { on: X.ahead.on, budgetMs: X.ahead.budgetMs, res, density: LABEL_SCREEN_DENSITY ? 'screen' : 'road', left: this.ahead.filter((j) => !j.text.ready(res)).length, jobs: this.ahead.map((j) => ({ due: Math.round(j.due * 10) / 10, ...j.text.info(res) })), ...this.aheadStats };
+	}
+	/** THE LABELS' RESOLUTION (texture px per road px): the renderer's, as a PIXI.Text is drawn; with the staging switch
+	 *  `?labeldensity=screen` (winLabelText.ts header) screenPxPerCss per CSS px at the label's largest size on screen: the
+	 *  amount layer's scale on screen times the slam's peak swell, never above the renderer's */
+	private labelRes(): number {
+		const r = aheadResolution();
+		if (!LABEL_SCREEN_DENSITY) return r;
+		const wt = this.amountLayer.worldTransform;
+		return screenLabelResolution(Math.hypot(wt.a, wt.b), this.labelPeak(), r);
+	}
+	/** the largest the slam ever draws a label (drawSlam): the pop's swell (1 + amount.swell, today 1.35), the punch
+	 *  (1 + 0.3 x strength) and the squash's stretch (1 + 0.4 x (0.45 x strength x 0.5 + 0.2)) */
+	private labelPeak(): number {
+		const st = X.strength;
+		return Math.max(1 + L.amount.swell, 1 + 0.3 * st, 1 + 0.4 * (0.45 * st * 0.5 + 0.2));
 	}
 
 	/** when each nail of a line comes and goes, ms into the line: the start nail as the line starts (before its cord) until
@@ -1213,12 +1231,18 @@ export class WinLights {
 			s.lab = lab;
 		}
 		const lab = s.lab;
-		// (a resize to or from the phone's size: the sizes again)
-		if (lab.plain.fontSize !== size) {
-			for (const t of [lab.plain, lab.win]) t.setStyle(style(X.amountFill, A.stroke, edge));
-			for (const t of [lab.plainSh, lab.winSh]) t.setStyle(style(0x000000, 0x000000, edge + X.shadow.extra * scale));
-		}
+		this.restyle(lab, scale);
 		return lab;
+	}
+	/** (a resize to or from the phone's size: the sizes again; an AheadText lets its old texture go as its style is set) */
+	private restyle(lab: SlamLabel, scale: number) {
+		const A = L.amount;
+		const size = A.size * scale;
+		if (lab.plain.fontSize === size) return;
+		const edge = A.strokeWidth * scale;
+		const style = (fill: number, stroke: number, width: number) => slamTextStyle(size, fill, stroke, width);
+		for (const t of [lab.plain, lab.win]) t.setStyle(style(X.amountFill, A.stroke, edge));
+		for (const t of [lab.plainSh, lab.winSh]) t.setStyle(style(0x000000, 0x000000, edge + X.shadow.extra * scale));
 	}
 
 	/** DEV / probes: each line as drawn now */
