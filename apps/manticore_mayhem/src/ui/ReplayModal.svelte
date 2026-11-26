@@ -25,7 +25,11 @@
 	import ModalShell from './ModalShell.svelte';
 	import { replayState } from './replayState.svelte';
 	import { replayRoundUsable } from './replayRound';
-	import { awaitDeferredAssets } from '../game/assetGate';
+	import { awaitReplayNeeds, replayLoad } from '../game/replayLoad.svelte';
+	import { loadGate } from '../game/loadGate.svelte';
+	import { bootSizes } from '../game/assetStamp';
+	import { LANDING_BAR } from '../game/introCards';
+	import { sound } from '../game/sound';
 
 	type Props = { controls: Controls; master: { width: number; height: number }; scale: number; left: number; top: number; compact?: boolean };
 	const { controls, master, scale, left, top, compact = false }: Props = $props();
@@ -59,8 +63,35 @@
 		replayFinished: () => (replayState.phase = 'done'),
 	});
 
-	// the card is the FIRST start only; later replays come from the spin button
-	const open = $derived(stateUrlDerived.replay() && replayState.phase === 'ready' && !context.stateLayout.showLoadingScreen);
+	// the card is the FIRST start only; later replays come from the spin button. It stays up (or comes back) while a press
+	// waits for the round's files: its loading sign (below) is then in START REPLAY's place
+	const open = $derived(stateUrlDerived.replay() && (replayState.phase === 'ready' || replayLoad.waiting) && !context.stateLayout.showLoadingScreen);
+
+	// THE LOADING SIGN (2026-11-26, constants REPLAY_LOAD): START REPLAY pressed before the round's own files and the audio
+	// are in (game/replayLoad.svelte.ts awaitReplayNeeds). Never a still board with nothing on it: the card stays up and the
+	// button gives way to the landing screen's bar and its words (LANDING_BAR: the splash's segmented red bar, "LOADING ·
+	// N%"), plain HTML and CSS. N counts the bytes START waits for: those files as the gate lands them (they are its first
+	// groups), a feature round's banner motion once in, and the audio, by bytes as the landing screen weighs it. It never
+	// slips back.
+	const SEG = LANDING_BAR.segments;
+	const SEGS = Array.from({ length: SEG }, (_, i) => i);
+	const AUDIO_BYTES = bootSizes.audio;
+	const rawPct = $derived.by(() => {
+		const need = replayLoad.needBytes;
+		const files = replayLoad.neededIn ? need : Math.min(loadGate.doneBytes, need);
+		const motion = replayLoad.motionIn ? replayLoad.motionBytes : 0;
+		const audio = sound.isReady ? AUDIO_BYTES : sound.progress * AUDIO_BYTES;
+		return Math.round((100 * (files + motion + audio)) / Math.max(1, need + replayLoad.motionBytes + AUDIO_BYTES));
+	});
+	let highWater = $state(0);
+	$effect(() => {
+		const p = rawPct;
+		untrack(() => {
+			if (p > highWater) highWater = p;
+		});
+	});
+	const pct = $derived(Math.min(100, Math.max(rawPct, highWater)));
+	const lit = $derived(Math.min(SEG, Math.floor((pct * SEG) / 100)));
 
 	const modeKey = $derived((replayBet?.mode ?? stateBet.activeBetModeKey ?? 'BASE').toUpperCase());
 	const meta = $derived(betModeMeta[modeKey]);
@@ -90,7 +121,7 @@
 	});
 
 	const start = async () => {
-		if (!replayBet || replayState.phase === 'failed') return;
+		if (!replayBet || replayState.phase === 'failed' || replayLoad.waiting) return;
 		controls.sound('soundPressMinor');
 		// event '0' = play the round from its first book event. The replay URL's `event` param is
 		// the ROUND identifier (the last path segment of /bet/replay/...), NOT an index into this
@@ -100,9 +131,12 @@
 		// upper case whatever the URL said (mode=bonus and mode=BONUS are the same round): the mode table,
 		// the labels and the handlers all key on the upper-case RGS name
 		if (replayBet.mode) stateBet.activeBetModeKey = replayBet.mode.toUpperCase();
+		// THE REPLAY'S OWN FILES (2026-11-26, constants REPLAY_LOAD; game/replayNeeds.ts has the wait table): only what this
+		// round draws and the audio, at once when they are in, else with the loading sign up, never longer than the cap.
+		// Until then this waited for the WHOLE deferred phase or 30 s (game/assetGate.ts awaitDeferredAssets), with the card
+		// gone and the board standing still. The round itself is started exactly as before, once.
+		await awaitReplayNeeds();
 		replayState.phase = 'playing';
-		// a replayed bonus draws the deferred assets (game/assets.ts) from its first event
-		await awaitDeferredAssets();
 		context.eventEmitter.broadcast({ type: 'resumeBet' });
 	};
 	replayState.start = start;
@@ -134,7 +168,16 @@
 			{/if}
 
 			<div class="tear"></div>
-			<button class="slot-btn go" disabled={!replayBet} onclick={start}>START REPLAY</button>
+			{#if replayLoad.waiting}
+				<div class="go wait" role="status" aria-live="polite">
+					<div class="wbar" aria-hidden="true">
+						{#each SEGS as i (i)}<i class:on={i < lit}></i>{/each}
+					</div>
+					<div class="wtext">LOADING · {pct}%</div>
+				</div>
+			{:else}
+				<button class="slot-btn go" disabled={!replayBet} onclick={start}>START REPLAY</button>
+			{/if}
 			<div class="cap">{soc('Watching only. Nothing is wagered. Speed, sound and game info still work.', 'Watching only. No play amount is used. Speed, sound and game info still work.')}</div>
 		</div>
 	</div>
@@ -319,6 +362,49 @@
 		   lime (harsh review 2026-10-20 must-fix 7; Corey 2026-10-21 "2, 3, 5, and 7 are obvious fixes") */
 		background: linear-gradient(180deg, var(--ui-gold), var(--ui-amber));
 		box-shadow: 0 5px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+	}
+	/* THE LOADING SIGN in START REPLAY's place (same box, so the card does not jump): the landing screen's segmented bar
+	   (ui/LandingScreen.svelte .gbar: the splash's red, skewed segments lit whole) and its readout. No filters. */
+	.wait {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 4px;
+		padding: 6px 16px;
+		background: var(--ui-glass-well);
+		border: 1px solid var(--ui-rule);
+		box-shadow: none;
+	}
+	.wbar {
+		--accent: #e32400;
+		display: flex;
+		gap: 3px;
+		width: min(100%, 300px);
+		height: 12px;
+		padding: 3px;
+		box-sizing: border-box;
+		border-radius: 5px;
+		background: rgba(0, 0, 0, 0.6);
+		box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.07);
+		transform: skewX(-14deg);
+	}
+	.wbar i {
+		flex: 1;
+		border-radius: 2px;
+		background: rgba(255, 255, 255, 0.06);
+		transition: background-color 140ms ease-out;
+	}
+	.wbar i.on {
+		background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 55%, #fff), var(--accent) 55%, color-mix(in oklab, var(--accent) 70%, #000));
+	}
+	.wtext {
+		font-family: var(--ui-font, inherit);
+		font-size: clamp(10px, 2.6vmin, 12px);
+		font-weight: 700;
+		letter-spacing: 1.5px;
+		color: var(--ui-ink-2);
+		font-variant-numeric: tabular-nums;
 	}
 	.go:active:not(:disabled) {
 		transform: translateY(2px);

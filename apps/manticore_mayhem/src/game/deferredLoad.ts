@@ -189,26 +189,34 @@ const until = (ok: () => boolean): Promise<void> =>
 	});
 let gate: Promise<void> | null = null;
 /** the gate (see the header): started once, when the Pixi preload is in (components/Game.svelte). `audioReady`: the
- *  audio the landing screen waits on is in (game/sound.ts sound.isReady). Resolves when it has settled; never rejects. */
-export const loadGate = (app: AppState, audioReady: () => boolean): Promise<void> => {
+ *  audio the landing screen waits on is in (game/sound.ts sound.isReady). Resolves when it has settled; never rejects.
+ *  `replay` (a replay only, game/replayLoad.svelte.ts): the same files in the order its round needs them (game/replayNeeds.ts
+ *  replayGateOrder), started at once beside the audio (a replay waits for both, so the link is used from the card's first
+ *  moment), and `onGroup` told as each group has landed or failed. Not given: the gate exactly as before. */
+export const loadGate = (app: AppState, audioReady: () => boolean, replay?: { order: Group[]; onGroup: (name: string) => void }): Promise<void> => {
 	gate ??= (async () => {
 		const mode = modeFor();
 		// the probe's old single batch has no gate: PRESS waits for the audio alone, as before plan D
 		if (mode === 'legacy') return;
 		await deferHold();
+		const order = replay?.order ?? GATE_ORDER;
 		// LOAD_GATE.besideAudioFiles 0: the gate starts only once the audio is in
-		if (mode !== 'parallel' && LOAD_GATE.besideAudioFiles <= 0) await until(audioReady);
+		if (mode !== 'parallel' && LOAD_GATE.besideAudioFiles <= 0 && !replay) await until(audioReady);
 		deferredLog.gate.start = gateState.startedAt = performance.now();
-		gateState.files = GATE_ORDER.reduce((n, g) => n + g.keys.length, 0) + 1; // + the plaque's data files
+		gateState.files = order.reduce((n, g) => n + g.keys.length, 0) + 1; // + the plaque's data files
 		const onFile = (bytes: number, ok: boolean) => {
 			gateState.doneBytes += bytes;
 			gateState.filesDone += 1;
 			if (!ok) gateState.failed += 1;
 		};
-		const limit = () => (audioReady() ? Infinity : Math.max(1, LOAD_GATE.besideAudioFiles as number));
+		const limit = () => (replay || audioReady() ? Infinity : Math.max(1, LOAD_GATE.besideAudioFiles as number));
 		try {
-			if (mode === 'parallel') await Promise.all(GATE_ORDER.map((g: Group) => loadGroup(app, g.name, g.keys, { onFile })));
-			else for (const g of GATE_ORDER) await loadGroup(app, g.name, g.keys, { limit, onFile });
+			if (mode === 'parallel') await Promise.all(order.map((g: Group) => loadGroup(app, g.name, g.keys, { onFile }).then(() => replay?.onGroup(g.name))));
+			else
+				for (const g of order) {
+					await loadGroup(app, g.name, g.keys, { limit, onFile });
+					replay?.onGroup(g.name);
+				}
 		} catch {
 			/* whatever is missing is left to the shared loader's batch */
 		}

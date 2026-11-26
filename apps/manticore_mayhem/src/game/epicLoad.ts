@@ -515,6 +515,25 @@ export const epicBookArrived = (signal: EpicSignal): void => {
 	if (!signal.feature && !signal.plaque) return;
 	startRound(signal, signal.feature ?? 'plaque');
 };
+/** A REPLAY (game/replayLoad.svelte.ts, 2026-11-26): its whole book is known while its card is up, before START REPLAY. A
+ *  round that reaches the Epic has its groups fetched into the HTTP cache from the moment the files START waits for are in,
+ *  one file at a time at low priority, as the background line fetches them (a replay never starts that line: it has no
+ *  landing press). Nothing is decoded ahead: THE DECODE RULE waits for the round. When the round plays, its own line
+ *  (epicBookArrived) joins these jobs and asks the rest at normal priority, exactly as on any Epic round. Once. */
+let replayAheadAsked = false;
+export const epicReplayAhead = (events: readonly EpicBookLike[]): void => {
+	if (!EPIC_LOAD.on || replayAheadAsked) return;
+	const signal = epicSignalOfBook(events);
+	if (!signal.feature && !signal.plaque) return;
+	replayAheadAsked = true;
+	void (async () => {
+		for (const name of epicGroupsFor(signal, ORDER, flamesHere())) {
+			// (the round's own line has them from here)
+			if (urgent) return;
+			await runGroup(name, 'background');
+		}
+	})();
+};
 /** the round has played out (game/utils.ts playBet): its record is closed (DEV: the summary line); the background line
  *  goes on (or starts, once the rest has lasted) */
 export const epicRoundDone = (): void => {

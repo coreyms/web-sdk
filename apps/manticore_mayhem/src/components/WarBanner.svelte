@@ -90,6 +90,7 @@
 	import { STINGER_TIERS } from '../game/stinger/types';
 	import { BANNER, BANNER_GLYPHS, BANNER_TEXTURES, bannerTierOf, type BannerClass, type BannerContent, type BannerTier } from '../game/banner/spec';
 	import { loadBannerMotion } from '../game/banner/motion';
+	import { replayFilesFirst } from '../game/replayLoad.svelte';
 	import { BannerView } from '../game/banner/view';
 	import { featureScreens } from '../game/featurePacing';
 	import { hudWinOdometer } from '../game/hudWin.svelte';
@@ -601,7 +602,10 @@
 
 	onMount(() => {
 		warBanner.flow = flow;
-		loadBannerMotion()
+		// A REPLAY (game/replayLoad.svelte.ts): the banner's motion (1.35 MB) goes after the files START REPLAY waits for, never
+		// in front of them; at once everywhere else, as before. (Until it is in, a feature's intro takes the plaque.)
+		replayFilesFirst()
+			.then(loadBannerMotion)
 			.then((m) => {
 				motion = m;
 				motionReady = true;
