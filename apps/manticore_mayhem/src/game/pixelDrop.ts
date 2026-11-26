@@ -21,10 +21,9 @@
 //
 // WHEN THE GPU COPY IS GONE (a lost WebGL context, an explicit unload): Pixi asks the uploader for a NEW texture. It
 // allocates it empty and the picture is fetched again (the same address: the HTTP cache answers), decoded as Pixi's loader
-// decodes it, set back as the resource and uploaded; then let go again. After a restored context every dropped picture is
-// fetched again at once, not only when drawn (RESTORE_AT_ONCE at a time, the ones on show moved to the head of the line),
-// so a plaque that comes up a few seconds later finds its letters in. Until its picture is back a texture is blank: the
-// readout's `blank` counts the ones blank NOW, `blankEver` every time it happened. A scene released at a turn of the device keeps its dropped sources on the GPU instead of
+// decodes it, set back as the resource and uploaded; then let go again. After a restored context the pictures come back in
+// THE ORDER below (contextRestored): what the stage draws first, then his sheets, then what is mounted but hidden. Until its
+// picture is back a texture is blank: the readout's `blank` counts the drawn ones blank NOW, `blankEver` every time. A scene released at a turn of the device keeps its dropped sources on the GPU instead of
 // unloading them (game/scene.ts release), so a turn never takes this path.
 //
 // THE READOUT (DEV and staging builds only, never Stake's: STAGING_TOOLS): `__manticore.memory()` (installed by
@@ -65,8 +64,6 @@ const state = {
 	restores: 0,
 	/** LIFETIME: times a GPU copy had to be made again while its picture was not there (each drawn blank until restored) */
 	blankEver: 0,
-	/** NOW: the sources with a GPU copy and no pixels in it, waiting for their picture (the readout's `blank`) */
-	blankNow: new Set<PIXI.TextureSource>(),
 	failed: 0,
 	contextRestores: 0,
 	/** the restore line: the sources waiting, the ones on show first (see restore) */
@@ -170,25 +167,71 @@ const restoreOne = async (s: PIXI.TextureSource): Promise<void> => {
 	}
 };
 
-/** THE LOST CONTEXT (WebGL context lost, then restored: Pixi has made every GPU copy anew, empty until uploaded): every
- *  other system that keeps pixels of its own hears it here (game/creatureLoad.ts makes his strip sheets again) */
-const contextListeners: (() => void)[] = [];
-export const whenContextRestored = (fn: () => void): void => {
+/** the textures every display object on the stage holds, in draw order: the ones drawn now (visible all the way up,
+ *  not transparent) and the ones mounted but hidden (a plaque waiting for its win, the night layers by day) */
+const stageSources = (): { shown: PIXI.TextureSource[]; hidden: PIXI.TextureSource[] } => {
+	const shown = new Set<PIXI.TextureSource>();
+	const hidden = new Set<PIXI.TextureSource>();
+	const stage = (state.renderer as unknown as { lastObjectRendered?: PIXI.Container } | null)?.lastObjectRendered;
+	const walk = (node: PIXI.Container, on: boolean) => {
+		const here = on && node.visible && node.alpha > 0 && node.renderable !== false;
+		const t = (node as unknown as { texture?: PIXI.Texture }).texture;
+		if (t instanceof PIXI.Texture && t.source && !t.source.destroyed) (here ? shown : hidden).add(t.source);
+		for (const child of node.children ?? []) walk(child as PIXI.Container, here);
+	};
+	if (stage) walk(stage, true);
+	for (const x of shown) hidden.delete(x);
+	return { shown: [...shown], hidden: [...hidden] };
+};
+/** a source has no pixels on the GPU right now: a dropped picture whose GPU copy is gone or was made blank and not filled
+ *  yet, or one of his strip sheets made again empty after a lost context (game/stripUpload.ts `lost`) */
+const blankNow = (x: PIXI.TextureSource): boolean => {
+	if (x.destroyed) return false;
+	const onGpu = !!state.sys?._glTextures[x.uid];
+	if (isStandIn(x.resource)) return !onGpu || !!(x as unknown as { mmBlank?: boolean }).mmBlank;
+	if ((x as unknown as { lost?: boolean }).lost) return true;
+	const r = x.resource as unknown as { px?: Uint8Array | null } | null;
+	return !!r && typeof r === 'object' && 'px' in r && !onGpu && !r.px;
+};
+
+/** THE LOST CONTEXT (WebGL context lost, then restored: Pixi has made every GPU copy anew, empty until uploaded). THE
+ *  ORDER (Decimus on ca10c3d3: with every dropped picture and his sheets fetched at once, the board's symbol sheets came
+ *  back behind them, the board a third black for up to 10 s on a throttled line, where the pictures drawn alone came back
+ *  in 0.4 s): first every picture the stage DRAWS now (the board, the bar's canvas art, the frame, the scene, the logo),
+ *  RESTORE_AT_ONCE at a time; when those are in (or after BOARD_CAP_MS) the listeners hear it (game/creatureLoad.ts makes
+ *  his sheets again: shadow and idle first); then, HIDDEN_AFTER_MS later, the pictures mounted but hidden (a plaque waiting
+ *  for its win, the night layers by day). A picture not on the stage at all comes back when it is first drawn, as any
+ *  picture drawn blank does: it goes to the head of the line */
+const BOARD_CAP_MS = 3000;
+const HIDDEN_AFTER_MS = 1500;
+const contextListeners: ((boardBack: Promise<void>) => void)[] = [];
+/** `fn` hears a restored context, with a promise that resolves once the pictures drawn now are back (THE ORDER) */
+export const whenContextRestored = (fn: (boardBack: Promise<void>) => void): void => {
 	contextListeners.push(fn);
 };
+const later = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 const contextRestored = (): void => {
 	state.contextRestores += 1;
-	// (every GPU copy is gone: the old "blank now" set means nothing any more; what is drawn blank joins it again)
-	state.blankNow.clear();
-	// every dropped picture comes back, before it is next drawn (the ones drawn this frame are moved to the head)
-	if (state.sys) for (const s of state.sys.managedTextures) if (isStandIn(s.resource) && !s.destroyed) restore(s);
+	const { shown, hidden } = stageSources();
+	const drawn = shown.filter((x) => isStandIn(x.resource));
+	// (in draw order; a picture drawn blank meanwhile still goes to the head)
+	for (const x of drawn) restore(x);
+	const t0 = performance.now();
+	const boardBack = (async () => {
+		while (drawn.some((x) => !x.destroyed && isStandIn(x.resource) && state.restoring.has(x)) && performance.now() - t0 < BOARD_CAP_MS) await later(50);
+	})();
 	for (const fn of contextListeners) {
 		try {
-			fn();
+			fn(boardBack);
 		} catch {
 			/* one system's failure does not stop the others */
 		}
 	}
+	void boardBack
+		.then(() => later(HIDDEN_AFTER_MS))
+		.then(() => {
+			for (const x of hidden) if (!x.destroyed && isStandIn(x.resource)) restore(x);
+		});
 };
 
 /** the upload method of a dropped source: the GPU copy stays as it is; a new one (its old copy gone) is made empty and
@@ -203,7 +246,7 @@ const droppedUploader: Uploader = {
 		glTexture.width = w;
 		glTexture.height = h;
 		state.blankEver += 1;
-		state.blankNow.add(source);
+		(source as unknown as { mmBlank?: boolean }).mmBlank = true;
 		restore(source, true);
 	},
 };
@@ -232,7 +275,7 @@ export const installPixelDrop = (renderer: PIXI.Renderer | undefined): void => {
 		id: 'image',
 		upload(source, glTexture, gl, webGLVersion) {
 			image.upload(source, glTexture, gl, webGLVersion);
-			state.blankNow.delete(source);
+			(source as unknown as { mmBlank?: boolean }).mmBlank = false;
 			if (isBitmap(source.resource)) {
 				if (!(source as unknown as { mmUnloadHooked?: boolean }).mmUnloadHooked) {
 					(source as unknown as { mmUnloadHooked?: boolean }).mmUnloadHooked = true;
@@ -316,8 +359,15 @@ const installReadout = (renderer: PIXI.Renderer, sys: TexSys): void => {
 			restores: state.restores,
 			// NOW: sources with a GPU copy and no pixels in it, waiting for their picture (0 = nothing drawn blank); the
 			// creature's strip sheets made again after a lost context are in `strips.lost`
-			blank: [...state.blankNow].filter((x) => !x.destroyed).length,
-			blankNames: [...state.blankNow].filter((x) => !x.destroyed).map((x) => fileOf(addressOf(x))),
+			// NOW, true to the screen: the sources the stage draws (visible all the way up) with no pixels on the GPU right
+			// now (a dropped picture not back yet, his strip sheets made again empty), atlases and mipmapped sheets alike;
+			// `blankHidden` the same for what is mounted but hidden
+			...(() => {
+				const { shown, hidden } = stageSources();
+				const b = shown.filter(blankNow);
+				const h = hidden.filter(blankNow);
+				return { blank: b.length, blankNames: b.map((x) => fileOf(x.label || addressOf(x)) || `uid ${x.uid}`), blankHidden: h.length, blankHiddenNames: h.map((x) => fileOf(x.label || addressOf(x)) || `uid ${x.uid}`) };
+			})(),
 			/** LIFETIME: how many times a GPU copy was made blank (each then restored) */
 			blankEver: state.blankEver,
 			restoring: state.restoring.size,

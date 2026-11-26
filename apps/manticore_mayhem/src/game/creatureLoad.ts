@@ -204,14 +204,18 @@ const unloadSheet = async (url: string): Promise<void> => {
 let restripRun = 0;
 /** the URLs being made again after a lost context (not yet up) */
 const restriping = new Set<string>();
-const restripAll = async (): Promise<void> => {
+const restripAll = async (boardBack: Promise<void>): Promise<void> => {
 	const run = ++restripRun;
+	// (THE ORDER, game/pixelDrop.ts contextRestored: the pictures the stage draws come back first; his sheets would take
+	// the same line's bandwidth and decode time, so he waits for them)
 	const look = creature.look;
 	const first = [CREATURE_SHARED.shadow, ...(look ? CREATURE_FILES[look].idle : [])];
 	const own = look ? Object.values(CREATURE_FILES[look]).flat() : [];
 	const urls = [...stripSheets.keys()];
 	const order = [...first.filter((u) => urls.includes(u)), ...own.filter((u) => urls.includes(u) && !first.includes(u)), ...urls.filter((u) => !first.includes(u) && !own.includes(u))];
 	for (const url of order) restriping.add(url);
+	await boardBack;
+	if (run !== restripRun) return;
 	for (const url of order) {
 		if (run !== restripRun) return;
 		const entry = stripSheets.get(url);
@@ -238,7 +242,7 @@ const restripAll = async (): Promise<void> => {
 		}
 	}
 };
-whenContextRestored(() => void restripAll());
+whenContextRestored((boardBack) => void restripAll(boardBack));
 creature.notUp = (look, clip) => restriping.size > 0 && CREATURE_FILES[look][clip].some((url) => restriping.has(url));
 /** DEV / staging readout: the sheets still being made again after a lost context */
 export const creatureRestriping = (): number => restriping.size;
@@ -761,6 +765,8 @@ export const creatureHandOverPrepare = (level = 0, capped = false): void => {
 	const ws = wins[from];
 	if (ws) ws.want = [...keepWins];
 	void winJob(sweepWins);
+	// (and the TOTAL WIN's own clip, if the feature's run had not loaded it yet, loads now, before its plaque asks)
+	if (keepWins.length) void drainWins(from);
 	void Promise.race([thinBody(from), wait(CREATURE.upload.sweptWaitMs)]).then(ahead, ahead);
 };
 /** resolves once he can cross to the base look on the very frame the scene does: in his idle (or not drawn at all) with
