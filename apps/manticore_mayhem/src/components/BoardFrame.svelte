@@ -60,8 +60,7 @@
 	import { boardKick, chainFx, gustFx, gustPulse, gustStart, runEase, shoveForeground, type ChainGust, type ChainRun } from '../game/featureFx';
 	import { stagingHaulLinks, stagingHaulMs, stagingHaulOver } from '../game/staging';
 	import { sceneLight } from '../game/scene';
-	import { loadFrameNightLate } from '../game/deferredLoad';
-	import { replayLayoutArt } from '../game/replayLoad.svelte';
+	import { loadFrameNightLate, loadLayoutLate } from '../game/deferredLoad';
 	import { bannerBackSlot, boardPlateSlot, boardPlaqueSlot, frameLight } from '../game/boardPlateSlot';
 	import { FRAME_PINION, FRAME_WHEEL, frameGearsAt, pinionRing, ringAt } from '../game/frameGears';
 
@@ -191,15 +190,46 @@
 	const boardScale = $derived(context.stateGameDerived.boardLayout().scale);
 	/** canvas px per master px (the MainContainer's scale): the foreground's shove is handed over in canvas px */
 	const masterScale = $derived(context.stateLayoutDerived.mainLayout().scale);
+	// ANOTHER LAYOUT'S PIECE UNTIL THIS LAYOUT'S IS IN (2026-11-26; Corey: "Channging screen sizes breaks it"). The three
+	// layouts' frame, chain tile and gears are ONE painting at three densities in ONE render space: the frame's crop and
+	// size are the same in every layout (game/boardArtSpec.ts frame: crop 42,148, size 1965 x 1646; only the texture's own
+	// size differs, and every plate is drawn scaled to that box), and each layout's gear loops and chain columns carry
+	// their own boxes in that same space (BOARD_ART.relight.layouts, BOARD_ART.chains). So a piece of a layout that is in,
+	// drawn by ITS OWN boxes, lands exactly where this layout's would: the same picture, only softer while it is upscaled.
+	// A turn to a layout whose art is still coming (game/deferredLoad.ts loadLayoutLate) therefore keeps a whole frame
+	// instead of a bare black board, and each piece is swapped for this layout's own the moment it lands. The densest
+	// layout's piece first (landscape, phone, portrait). The night and fire set the same way, so the scene's night never
+	// waits on this layout's own night set when another's is in. A texture already let go is never picked.
+	const BY_DENSITY: LayoutKind[] = ['landscape', 'phone', 'portrait'];
+	const live = (t: PIXI.Texture | undefined): t is PIXI.Texture => !!t && !t.destroyed && !!t.source && !t.source.destroyed;
+	const firstOf = (assets: Record<string, PIXI.Texture> | undefined, k: LayoutKind, name: string): { tex: PIXI.Texture; from: LayoutKind } | null => {
+		for (const x of [k, ...BY_DENSITY.filter((y) => y !== k)]) {
+			const tex = assets?.[`${name}_${x}`];
+			if (live(tex)) return { tex, from: x };
+		}
+		return null;
+	};
+	const gearsOf = (assets: Record<string, PIXI.Texture> | undefined, k: LayoutKind, set: GearSet): { table: PIXI.Texture[][]; from: LayoutKind } | null => {
+		for (const x of [k, ...BY_DENSITY.filter((y) => y !== k)]) {
+			const table = gearTable(assets, x, set);
+			if (table && live(table[0]?.[0])) return { table, from: x };
+		}
+		return null;
+	};
 	const textures = $derived.by(() => {
 		const assets = context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
+		const chains = firstOf(assets, kind, 'boardChains');
+		const gears = { day: gearsOf(assets, kind, 'day'), night: gearsOf(assets, kind, 'night'), fire: gearsOf(assets, kind, 'fire') };
 		return {
-			frame: assets?.[`boardFrame_${kind}`],
-			chains: assets?.[`boardChains_${kind}`],
+			frame: firstOf(assets, kind, 'boardFrame')?.tex,
+			chains: chains?.tex,
+			/** the layout whose chain columns and gear boxes the pieces drawn are cut to (this one, or the fallback's) */
+			chainsFrom: chains?.from ?? kind,
 			shadow: assets?.[`boardShadow_${kind}`],
-			night: assets?.[`boardFrameNight_${kind}`],
-			fire: assets?.[`boardFrameFire_${kind}`],
-			gears: { day: gearTable(assets, kind, 'day'), night: gearTable(assets, kind, 'night'), fire: gearTable(assets, kind, 'fire') },
+			night: firstOf(assets, kind, 'boardFrameNight')?.tex,
+			fire: firstOf(assets, kind, 'boardFrameFire')?.tex,
+			gears: { day: gears.day?.table ?? null, night: gears.night?.table ?? null, fire: gears.fire?.table ?? null },
+			gearsFrom: { day: gears.day?.from ?? kind, night: gears.night?.from ?? kind, fire: gears.fire?.from ?? kind } as Record<GearSet, LayoutKind>,
 			ring: assets?.gearRing,
 			ringSmall: assets?.gearRingSmall,
 		};
@@ -207,8 +237,9 @@
 	// the other layouts' night sets are not registered at boot: this layout's is fetched the first time it shows
 	$effect(() => {
 		void loadFrameNightLate(context.stateApp, kind);
-		// A REPLAY turned to this layout before the shared loader's last batch is in: its day art now (game/replayLoad.svelte.ts)
-		replayLayoutArt(kind);
+		// ...and its day art (frame, chains, gears, plaque) when the game did not boot in it: at once, ahead of the queue
+		// (game/deferredLoad.ts loadLayoutLate; nothing at a fixed size)
+		void loadLayoutLate(context.stateApp, kind);
 	});
 
 	/** a set's loops for a layout: per part (the tool's draw order) its frames in order, from the atlas's frame names;
@@ -517,9 +548,11 @@
 			const table = set === 'day' || nightSet ? t.gears[set] : null;
 			gear.tables[set] = table;
 			if (!table) continue;
-			// each loop's own box of the render (a whole number of the plate's texture px), through the registration
+			// each loop's own box of the render (a whole number of the plate's texture px), through the registration: the
+			// box of the layout the loop was cut for (this one, or the fallback's, above)
+			const from = RL.layouts[t.gearsFrom[set]];
 			RL.parts.forEach((part, i) => {
-				const box = spec.gears[part].box;
+				const box = from.gears[part].box;
 				const tex = table[i][0];
 				const at = r.map(box[0], box[1]);
 				gearSprites[set][i].position.set(at.x, at.y);
@@ -558,7 +591,7 @@
 			shadowDaySprite.visible = lit.shadowDayAlpha > 0;
 		} else shadowSprite.visible = shadowDaySprite.visible = false;
 		if (t.chains) {
-			layoutStrips(k, r.map, t.chains);
+			layoutStrips(t.chainsFrom, r.map, t.chains);
 			chainsReady = true;
 			dirty = true;
 		} else chainsReady = false;
@@ -876,6 +909,11 @@
 				return {
 					kind: k,
 					ready: { frame: frameSprite.texture !== PIXI.Texture.EMPTY, chains: chainsReady, gears: !!gear.tables.day, night: nightSet, shadow: shadowSprite.visible },
+					/** which layout's piece each part draws (another layout's while this one's is coming: the fallback above) */
+					from: (() => {
+						const a = context.stateApp.loadedAssets as Record<string, PIXI.Texture> | undefined;
+						return { frame: firstOf(a, kind, 'boardFrame')?.from ?? null, chains: textures.chainsFrom, gears: { ...textures.gearsFrom }, night: firstOf(a, kind, 'boardFrameNight')?.from ?? null };
+					})(),
 					/** every ancestor of the art that clips: a mask would cut the gear teeth and finials that stand
 					 *  outside the housing outline (board_v5j and v5l); the art is to be clipped by the screen alone */
 					clippedBy: { frame: clippedBy(frameSprite), chains: clippedBy(strips.L.mesh) },

@@ -101,7 +101,8 @@
 			if (p > highWater) highWater = p;
 		});
 	});
-	const pct = $derived(Math.min(100, Math.max(rawPct, highWater)));
+	// (99 at most: the sign is up only while something is still coming, the layout's board art included, game/replayLoad)
+	const pct = $derived(Math.min(99, Math.max(rawPct, highWater)));
 	const lit = $derived(Math.min(SEG, Math.floor((pct * SEG) / 100)));
 
 	const modeKey = $derived((replayBet?.mode ?? stateBet.activeBetModeKey ?? 'BASE').toUpperCase());

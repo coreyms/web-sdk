@@ -37,7 +37,7 @@
 //           The symbol pay popup's ten tile pictures (components/SymbolPopup.svelte) are asked for at that same moment.
 import * as PIXI from 'pixi.js';
 
-import assets, { DEFERRED_ORDER, FRAME_NIGHT_LATE, GATE_ORDER, PLAQUE_ATLAS_KEYS, SCENE_AT_BOOT, SCENE_KEYS, SCENE_LATE, STINGER_DATA_URLS, UNREACHABLE_ASSETS, gateFileBytes } from './assets';
+import assets, { BOOT_LAYOUT, DEFERRED_ORDER, FRAME_NIGHT_KEYS, FRAME_NIGHT_LATE, GATE_ORDER, PLAQUE_ATLAS_KEYS, SCENE_AT_BOOT, SCENE_KEYS, SCENE_LATE, STINGER_DATA_URLS, UNREACHABLE_ASSETS, gateFileBytes } from './assets';
 import { fileBytes } from './assetStamp';
 import { markPlaqueAssetsReady } from './assetGate';
 import { loadCreatureBoot, releaseCreatureRest } from './creatureLoad';
@@ -137,6 +137,8 @@ const bytesOfUrl = (url: string): number => {
 const loadGroup = async (app: AppState, name: string, keys: string[], opts: GroupOptions = {}) => {
 	const table = assets as unknown as Record<string, Entry>;
 	if (!keys.length) return; // an empty group (the cheaper variant's scatter sheets while they are in the gate)
+	// a layout turned to whose board art is on its way goes first (loadLayoutLate below; never at a fixed size)
+	if (layoutLate.busy) await layoutLate.busy;
 	const log = (deferredLog.groups[name] = { start: performance.now(), end: 0, keys: keys.length, failed: 0 });
 	const data = name === 'plaque' ? loadStingerData(STINGER_DATA_URLS) : null;
 	const extra = data
@@ -347,6 +349,60 @@ export const loadFrameNightLate = (app: AppState, kind: string): Promise<void> =
 		log.end = performance.now();
 	})().catch(() => {});
 	return frameNightLate[kind];
+};
+
+// ---- THE BOARD ART OF A LAYOUT THE GAME DID NOT BOOT IN (2026-11-26) ------------------------------------------------------
+// Corey: "Channging screen sizes breaks it, and that's an issue." (Decimus, Slow 4G: a game booted in the phone master and
+// taken to full screen drew its board on a bare black square, no frame, chains or gears, for 150 to 167 s, in a replay and
+// in a normal session alike.) Only the boot layout's board art is in the start-up art (game/assets.ts atBoot). The other
+// layouts' day art (frame, chain tile, gears, plaque, its crest and shadow) came in the shared loader's LAST batch, after
+// the whole deferred phase; and on a phone tier device whose screen is small, the landscape frame, chains and gears are
+// not registered at all (game/assets.ts UNREACHABLE_ASSETS) and were only watched for once that phase was over
+// (watchUnreachable, armed at the end of loadDeferredInOrder): so none of them was even asked for before then.
+// Now components/BoardFrame.svelte calls this for the layout on show: for any layout but the boot one, its day art (the
+// unregistered ones included) is asked for AT ONCE, each file published as it lands, and the deferred phase's next group
+// waits until they are in (loadGroup above: `layoutLate.busy`), so they go ahead of everything still queued here. (A file
+// the shared loader's own last batch has already asked for is that same request: Pixi's cache hands it back.) Until a
+// piece is in, BoardFrame draws the piece of a layout that is in (the same painting at another density, in the same render
+// space). The night and fire sets keep their own on demand load (loadFrameNightLate). At a fixed size nothing here runs:
+// the boot layout returns at once.
+export const layoutLate = { busy: null as Promise<void> | null, pending: 0, asked: {} as Record<string, number> };
+const LAYOUT_HOLD_MS = 20_000;
+const layoutLateDone: Record<string, Promise<void>> = {};
+export const loadLayoutLate = (app: AppState, kind: string): Promise<void> => {
+	if (kind === BOOT_LAYOUT) return Promise.resolve();
+	layoutLateDone[kind] ??= (async () => {
+		const table = assets as unknown as Record<string, Entry & { preload?: boolean }>;
+		const night = new Set(FRAME_NIGHT_KEYS(kind as 'landscape' | 'phone' | 'portrait'));
+		const mine = (key: string) => key.endsWith(`_${kind}`) && !night.has(key);
+		const entries: [string, Entry][] = [
+			...Object.entries(table).filter(([key, entry]) => mine(key) && !entry.preload),
+			...Object.entries(UNREACHABLE_ASSETS).filter(([key]) => mine(key)),
+		];
+		if (!entries.length) return;
+		const log = (deferredLog.groups[`layout_${kind}`] = { start: performance.now(), end: 0, keys: entries.length, failed: 0 });
+		layoutLate.asked[kind] = log.start;
+		layoutLate.pending += entries.length;
+		const work = Promise.all(
+			entries.map(async ([key, entry]) => {
+				const textures = await loadOne(key, entry);
+				layoutLate.pending -= 1;
+				// each piece as it lands (BoardFrame and BoardPlaque draw what is in); a failure is left to the shared
+				// loader's batch, which has the retries
+				if (textures) app.loadedAssets = { ...app.loadedAssets, ...textures };
+				else log.failed += 1;
+			}),
+		).then(() => {
+			log.end = performance.now();
+		});
+		// (the queue waits for them at most LAYOUT_HOLD_MS: a hung request never stops the deferred phase)
+		const busy = Promise.race([work, new Promise<void>((resolve) => setTimeout(resolve, LAYOUT_HOLD_MS))]).finally(() => {
+			if (layoutLate.busy === busy) layoutLate.busy = null;
+		});
+		layoutLate.busy = busy;
+		await work;
+	})().catch(() => {});
+	return layoutLateDone[kind];
 };
 
 if (import.meta.env.DEV && typeof window !== 'undefined') {

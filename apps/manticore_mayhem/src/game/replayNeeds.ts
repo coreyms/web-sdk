@@ -53,11 +53,11 @@
 //   the drop, idle and win sheets of symbols the  NOT NEEDED          after the round's own, with the rest of the gate
 //     round never shows; the plaque's set when it
 //     shows none; the other label caps
-//   another layout's board day art (frame,        NOT NEEDED unless   in the shared loader's last batch; a replay turned to
-//     chains, gears, plaque)                      the replay is       that layout (the mini player to full screen) fetches
-//                                                 turned to it        that layout's set at once (game/replayLoad.svelte.ts
-//                                                                     replayLayoutArt); until it lands the board stands
-//                                                                     without its frame, as a normal first spin would
+//   another layout's board day art (frame,        MUST WAIT (capped)  any session turned to that layout (the mini player to
+//     chains, gears, plaque)                      when the replay is  full screen) fetches it at once, ahead of the queue
+//                                                 turned to it before (game/deferredLoad.ts loadLayoutLate), and the board
+//                                                 START, else NOT     draws another layout's pieces until it lands
+//                                                 NEEDED              (components/BoardFrame.svelte)
 //   the Armoury, the symbol popup's tiles, the    NOT NEEDED         never in front: the very end of the deferred phase,
 //     turning medallion, the other layouts' art                       as in play (components/Game.svelte)
 //   the Epic's background line                    NOT NEEDED          never starts in a replay (it needs the landing
