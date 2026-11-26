@@ -37,7 +37,7 @@
 	import { onMount } from 'svelte';
 
 	import { getContext } from '../game/context';
-	import { awaitPlaqueAssets } from '../game/assetGate';
+	import { PLAQUE_BEAT_WAIT_MS, awaitPlaqueAssets } from '../game/assetGate';
 	import { STINGER_PLAQUE } from '../game/constants';
 	import { WIN_TIER_SOUND, WIN_TIER_STAGES, tierIndexOfAlias } from '../game/winLevelMap';
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
@@ -94,7 +94,8 @@
 			// the win's own tier, 0 Big .. 4 Max, whichever ladder it is on (a free spin's ladder opens on Super, index 1)
 			const tier = tierIndexOfAlias(winLevelData.alias);
 			// the plaque's atlases are deferred assets
-			await awaitPlaqueAssets();
+			// (at most PLAQUE_BEAT_WAIT_MS: a set that is not in by then gives the plain screen, game/assetGate.ts)
+			await awaitPlaqueAssets(PLAQUE_BEAT_WAIT_MS);
 			const flow = stingerPlaque.flow;
 			if (flow?.ready()) {
 				viaPlaque = true;
@@ -148,8 +149,11 @@
 </script>
 
 {#if show && !viaPlaque}
+	<!-- the dim covers the whole canvas, in canvas px outside the master box (2026-11-26: inside MainContainer it covered
+	     the master's 16:9 box only, so a window of another shape kept undimmed strips with hard edges, Corey's 2000 x 1457
+	     still); the plaque's own scene dim has always been the whole canvas (components/StingerPlaque.svelte) -->
+	<Rectangle {...context.stateLayoutDerived.canvasSizes()} backgroundColor={0x05060a} alpha={dim.current} />
 	<MainContainer>
-		<Rectangle width={master.width} height={master.height} backgroundColor={0x05060a} alpha={dim.current} />
 		{#if plain && title}
 			<ArtAmount text={title} height={master.height * 0.09} x={master.width / 2} y={master.height * 0.44} maxWidth={master.width * 0.8} tint={0xe0b64a} />
 		{/if}

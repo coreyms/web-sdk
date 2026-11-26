@@ -32,7 +32,7 @@
 	import { FRAME, HUD as HUD_SLOTS, layoutKind as kindOf, boardCenterX, boardCenterY, frameFor } from '../game/layoutSpec';
 	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
-	import { awaitPlaqueAssets } from '../game/assetGate';
+	import { PLAQUE_BEAT_WAIT_MS, awaitPlaqueAssets } from '../game/assetGate';
 	import { stingerPlaque } from './StingerPlaque.svelte';
 	import { warBanner } from './WarBanner.svelte';
 	import { epicAsked, epicFeatureStart, epicHold, epicHoldNeeded, epicIntroLate, epicIntroShown } from '../game/epicLoad';
@@ -96,7 +96,8 @@
 			gated = event.gated;
 			context.stateGame.plaque = { title: event.title, sub: event.sub };
 			if (event.intro && event.gated) {
-				await awaitPlaqueAssets();
+				// (at most PLAQUE_BEAT_WAIT_MS: a set that is not in by then gives the plain screen, game/assetGate.ts)
+				await awaitPlaqueAssets(PLAQUE_BEAT_WAIT_MS);
 				epicAsked('intro');
 				// THE WAR STANDARD BANNER (components/WarBanner.svelte, 2026-11-14): the feature intro unrolls from the frame's
 				// pole; the same gate as before (a press, or the hold while auto bonuses run). Its spin count is drawn live,

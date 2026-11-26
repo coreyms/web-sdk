@@ -29,7 +29,7 @@
 	import { getContext } from '../game/context';
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
 	import { BONUS_MODE_LABEL, STINGER_PLAQUE } from '../game/constants';
-	import { awaitPlaqueAssets } from '../game/assetGate';
+	import { PLAQUE_BEAT_WAIT_MS, awaitPlaqueAssets } from '../game/assetGate';
 	import { WIN_TIER_SOUND, WIN_TIER_STAGES_END_FEATURE, winLevelMap } from '../game/winLevelMap';
 	import { stingerPlaque } from './StingerPlaque.svelte';
 	import { warBanner } from './WarBanner.svelte';
@@ -65,7 +65,8 @@
 
 	context.eventEmitter.subscribeOnMount({
 		freeSpinOutroShow: async () => {
-			await awaitPlaqueAssets();
+			// (at most PLAQUE_BEAT_WAIT_MS: a set that is not in by then gives the plain screen, game/assetGate.ts)
+			await awaitPlaqueAssets(PLAQUE_BEAT_WAIT_MS);
 			// the line needs the session's recap (bonusEnd wrote it just before this)
 			viaPlaque = !!context.stateGame.sessionRecap && !!stingerPlaque.flow?.ready();
 			viaBanner = !!context.stateGame.sessionRecap && !!warBanner.flow?.ready();
@@ -162,8 +163,11 @@
 </script>
 
 {#if show}
+	<!-- the dim covers the whole canvas, in canvas px outside the master box (2026-11-26: inside MainContainer it covered
+	     the master's 16:9 box only, so a window of another shape kept undimmed strips with hard edges, Corey's 2000 x 1457
+	     still); the plaque's own scene dim has always been the whole canvas (components/StingerPlaque.svelte) -->
+	<Rectangle {...context.stateLayoutDerived.canvasSizes()} backgroundColor={0x05060a} alpha={dim.current} />
 	<MainContainer>
-		<Rectangle width={master.width} height={master.height} backgroundColor={0x05060a} alpha={dim.current} />
 		<ArtAmount
 			text={recap ? BONUS_MODE_LABEL[recap.mode] : 'FREE SPINS'}
 			height={master.height * 0.06}

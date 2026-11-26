@@ -36,6 +36,17 @@ export const markPlaqueAssetsReady = () => {
 	resolvePlaque();
 };
 
+/** HOW LONG A PLAQUE SCREEN AT ITS BEAT WAITS (a win, a feature's intro, its wrap up; 2026-11-26). Corey, a replay on Slow
+ *  4G: "waiting a long time for the stinger to load but eventually got the fallback": the board sat dimmed with nothing
+ *  on it for up to PLAQUE_WAIT_MS. The 30 s wait dates from before THE GATE (2026-10-09, when the plaque's set rode behind
+ *  the symbol sheets); since first-minute plan D a normal session's first round waits for the gate, the plaque's set
+ *  first (PRESS ANYWHERE has no cap, constants LOAD_GATE), and a resumed round waits for the set itself before it starts
+ *  (components/ResumeBet.svelte keeps PLAQUE_WAIT_MS). So a beat finds the set missing only where the round started
+ *  without it: a replay whose START cap ran out on a slow link (constants REPLAY_LOAD), or a gate past its 90 s stall.
+ *  There the plain screen is the honest answer, at once, not after a dimmed half minute. The plaque screens are its
+ *  only users; nothing is fetched differently. */
+export const PLAQUE_BEAT_WAIT_MS = 1_000;
+
 /** Resolves once the plaque's atlases are in (or after `timeoutMs`: the caller then shows its plain screen). */
 export const awaitPlaqueAssets = (timeoutMs = PLAQUE_WAIT_MS): Promise<void> =>
 	isPlaqueReady ? Promise.resolve() : Promise.race([plaqueReady, new Promise<void>((resolve) => setTimeout(resolve, timeoutMs))]);

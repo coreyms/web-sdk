@@ -244,7 +244,8 @@
 	// never turned). Until its day set is in, the flat sky colour under its wash shows (no placeholder crop since 2026-10-28)
 	$effect(() => {
 		if (!enabled || which === SCENE_AT_BOOT) return;
-		void loadSceneLate(context.stateApp);
+		// (the set the mode on show draws comes straight after the day set: the sunset for a Bonus, else the night set)
+		void loadSceneLate(context.stateApp, untrack(() => (family === 'bonus' ? 'sunset' : 'night')));
 	});
 
 	// THE FOREGROUND KICK: the shove BoardFrame hands over (canvas px) goes to both scenes (the one not showing costs

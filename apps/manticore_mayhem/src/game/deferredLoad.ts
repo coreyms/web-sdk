@@ -311,7 +311,7 @@ const watchUnreachable = (app: AppState) => {
 // then the night set, then the sunset (the Bonus's backdrop). Once; a file that fails leaves the flat sky colour standing
 // (the placeholder crop that stood in until 2026-10-28 is gone: Corey, "Oh those shouldn't be in the game at all anymore").
 let sceneLate: Promise<void> | null = null;
-export const loadSceneLate = (app: AppState): Promise<void> => {
+export const loadSceneLate = (app: AppState, first: 'night' | 'sunset' = 'night'): Promise<void> => {
 	const group = async (name: string, all: readonly string[]) => {
 		// the keys both scenes list (the sky's atlas, the birds, the bats) are the boot scene's: already registered, never
 		// fetched here (components/Background.svelte gives a sky whatever of them lands after its scene)
@@ -336,10 +336,17 @@ export const loadSceneLate = (app: AppState): Promise<void> => {
 	// upright painting is another crop and composition (cover fitted to 16:9 it is a blurred middle band, its pillars
 	// off the board's registration), and the creature stands on the scene's own floor (he is drawn in it), so neither
 	// stands in cleanly; the placeholder crops left the game for the same reason (Corey 2026-10-28).
+	// THE MODE ON SHOW NEXT (2026-11-26, Corey: a turn in free spins showed the day scene for a long time): after the day set,
+	// the set the mode on show draws (`first`: the sunset for a Bonus, else the night set), and it too goes ahead of the
+	// queue; the other set after it, as before. A game turned at rest keeps the old order (night, then sunset).
 	if (!sceneLate) {
 		const day = group('sceneDay', late.day);
 		holdQueue(day);
-		sceneLate = day.then(() => group('sceneNight', late.night)).then(() => group('sceneSunset', late.sunset)).then(flames).catch(() => {});
+		const [a, b] = first === 'sunset' ? (['sceneSunset', 'sceneNight'] as const) : (['sceneNight', 'sceneSunset'] as const);
+		const set = (name: 'sceneNight' | 'sceneSunset') => group(name, name === 'sceneNight' ? late.night : late.sunset);
+		const next = day.then(() => set(a));
+		holdQueue(next);
+		sceneLate = next.then(() => set(b)).then(flames).catch(() => {});
 	}
 	return sceneLate;
 };
