@@ -25,7 +25,8 @@
 	import ModalShell from './ModalShell.svelte';
 	import { replayState } from './replayState.svelte';
 	import { replayRoundUsable } from './replayRound';
-	import { awaitReplayNeeds, replayGatePlan, replayLoad } from '../game/replayLoad.svelte';
+	import { awaitReplayNeeds, replayGatePlan, replayLoad, replayRetried } from '../game/replayLoad.svelte';
+	import { REPLAY_LOAD } from '../game/constants';
 	import { loadGate } from '../game/loadGate.svelte';
 	import { bootSizes } from '../game/assetStamp';
 	import { LANDING_BAR } from '../game/introCards';
@@ -94,15 +95,19 @@
 		const audio = sound.isReady ? AUDIO_BYTES : sound.progress * AUDIO_BYTES;
 		return Math.round((100 * (pre + files + motion + audio)) / Math.max(1, PRELOAD_BYTES + need + replayLoad.motionBytes + AUDIO_BYTES));
 	});
+	// ONCE THE GAME IS DRAWN the sign also counts the time toward REPLAY_LOAD.capMs, and shows the larger of the two: on a
+	// slow link the round starts when that cap runs out (Decimus, Slow 4G: the bar sat at 32 to 38 % and then vanished as
+	// the round started), so the bar now reaches its end as the round starts. Still never backwards.
+	const timePct = $derived(replayLoad.capFrom ? Math.min(100, (100 * Math.max(0, replayLoad.tick - replayLoad.capFrom)) / REPLAY_LOAD.capMs) : 0);
 	let highWater = $state(0);
 	$effect(() => {
-		const p = rawPct;
+		const p = Math.max(rawPct, Math.round(timePct));
 		untrack(() => {
 			if (p > highWater) highWater = p;
 		});
 	});
 	// (99 at most: the sign is up only while something is still coming, the layout's board art included, game/replayLoad)
-	const pct = $derived(Math.min(99, Math.max(rawPct, highWater)));
+	const pct = $derived(Math.min(99, Math.max(rawPct, Math.round(timePct), highWater)));
 	const lit = $derived(Math.min(SEG, Math.floor((pct * SEG) / 100)));
 
 	const modeKey = $derived((replayBet?.mode ?? stateBet.activeBetModeKey ?? 'BASE').toUpperCase());
@@ -148,11 +153,24 @@
 		// Until then this waited for the WHOLE deferred phase or 30 s (game/assetGate.ts awaitDeferredAssets), with the card
 		// gone and the board standing still. The round itself is started exactly as before, once.
 		// (and the game drawn: the round's handlers mount with it, so START never sends the round before they can take it)
-		await awaitReplayNeeds(() => !context.stateLayout.showLoadingScreen);
+		await awaitReplayNeeds(
+			() => !context.stateLayout.showLoadingScreen,
+			() => context.stateApp,
+		);
 		replayState.phase = 'playing';
 		context.eventEmitter.broadcast({ type: 'resumeBet' });
 	};
 	replayState.start = start;
+	// TAP TO RETRY (the start-up art is stuck, game/replayLoad.svelte.ts `stalled`): what the landing screen offers. A file
+	// the loader gave up is fetched again by the loader's own retry (stateApp.retryFailedAssets) and the bar comes back; a
+	// file that is only held cannot be asked again from here, so the page reloads (the replay link opens anew).
+	const retry = () => {
+		controls.sound('soundPressMinor');
+		if (replayLoad.stalled === 'failed' && context.stateApp.retryFailedAssets) {
+			context.stateApp.retryFailedAssets();
+			replayRetried();
+		} else location.reload();
+	};
 </script>
 
 <ModalShell {open} onclose={() => {}} {master} {scale} {left} {top} dim="rgba(0,0,0,0.55)" blur={6} zIndex={4}>
@@ -181,7 +199,10 @@
 			{/if}
 
 			<div class="tear"></div>
-			{#if replayLoad.waiting}
+			{#if replayLoad.waiting && replayLoad.stalled}
+				<!-- the landing screen's own words for a start-up file that will not come (ui/LandingScreen.svelte) -->
+				<button class="slot-btn go" onclick={retry}>CONNECTION PROBLEM · TAP TO RETRY</button>
+			{:else if replayLoad.waiting}
 				<div class="go wait" role="status" aria-live="polite">
 					<div class="wbar" aria-hidden="true">
 						{#each SEGS as i (i)}<i class:on={i < lit}></i>{/each}

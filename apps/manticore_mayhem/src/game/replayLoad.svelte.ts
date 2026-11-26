@@ -48,6 +48,16 @@ export const replayLoad = $state({
 	waiting: false,
 	/** the last wait ended at REPLAY_LOAD.capMs, not with the files in */
 	capped: false,
+	/** THE START-UP ART IS STUCK while START waits for the game to be drawn (awaitReplayNeeds part 1): 'failed' the shared
+	 *  loader gave a file up after its own retries (stateApp.failedAssets, as the landing screen's CONNECTION PROBLEM),
+	 *  'held' no file of it has landed for REPLAY_LOAD.stallMs, or it is not all in REPLAY_LOAD.preGameMs after the
+	 *  press. The card then offers TAP TO RETRY in place of the bar (ui/ReplayModal.svelte); it clears by itself if the
+	 *  art moves again. '' otherwise */
+	stalled: '' as '' | 'failed' | 'held',
+	/** performance.now() the game was drawn during a wait (0: not yet), and the wait's clock (written every poll): the
+	 *  sign counts the cap's time from the first, so it reaches its end as the round starts (ui/ReplayModal.svelte) */
+	capFrom: 0,
+	tick: 0,
 });
 
 let plan: { needs: ReplayNeeds; order: ReplayGroup[]; needed: string[] } | null | undefined;
@@ -136,10 +146,22 @@ const POLL_MS = 100;
  *    2. the files the round waits for (a feature round's banner motion with them), the audio (ready on a decode error
  *       too) and the board art of the layout on show, or REPLAY_LOAD.capMs after the later of the press and the game
  *       being drawn. */
-export const awaitReplayNeeds = async (gameUp: () => boolean): Promise<void> => {
+/** the start-up art's state, as the shared loader publishes it (stateApp): its progress, 0 to 100, and the keys it gave up */
+type StartUp = { loadingProgress: number; failedAssets: readonly string[] };
+/** a retry from the card (ui/ReplayModal.svelte TAP TO RETRY): the stall's clock starts again */
+let stallFrom = 0;
+export const replayRetried = (): void => {
+	stallFrom = performance.now();
+	replayLoad.stalled = '';
+};
+export const awaitReplayNeeds = async (gameUp: () => boolean, startUp: () => StartUp): Promise<void> => {
 	const t0 = performance.now();
 	replayLoad.pressedAt = t0;
 	replayLoad.capped = false;
+	replayLoad.capFrom = 0;
+	replayLoad.stalled = '';
+	stallFrom = t0;
+	let progress = -1;
 	// (no plan: the gate was started without one; its settling is the end of its files)
 	// (layoutLate.pending: the board art of a layout the replay was turned to before START, game/deferredLoad.ts
 	// loadLayoutLate: the round never starts on a board waiting for its frame, though BoardFrame draws another layout's)
@@ -149,8 +171,20 @@ export const awaitReplayNeeds = async (gameUp: () => boolean): Promise<void> => 
 		let capFrom = 0;
 		await new Promise<void>((resolve) => {
 			const look = () => {
-				if (!gameUp()) return void setTimeout(look, POLL_MS);
-				capFrom ||= performance.now();
+				const now = (replayLoad.tick = performance.now());
+				if (!gameUp()) {
+					// NEVER A DEAD END (Decimus, a start-up file held 100 s or failed: the bar stopped at 24 % and nothing
+					// followed). The round cannot be sent before the game is drawn, so this part waits on, but says so.
+					const s = startUp();
+					if (s.loadingProgress !== progress) {
+						progress = s.loadingProgress;
+						stallFrom = now;
+					}
+					replayLoad.stalled = s.failedAssets.length ? 'failed' : now - stallFrom >= REPLAY_LOAD.stallMs || now - t0 >= REPLAY_LOAD.preGameMs ? 'held' : '';
+					return void setTimeout(look, POLL_MS);
+				}
+				replayLoad.stalled = '';
+				capFrom ||= replayLoad.capFrom = now;
 				if (filesIn()) return resolve();
 				if (performance.now() - capFrom >= REPLAY_LOAD.capMs) {
 					replayLoad.capped = true;
@@ -161,6 +195,7 @@ export const awaitReplayNeeds = async (gameUp: () => boolean): Promise<void> => 
 			look();
 		});
 		replayLoad.waiting = false;
+		replayLoad.stalled = '';
 	}
 	replayLoad.waitedMs = Math.round(performance.now() - t0);
 	if (STAGING_TOOLS) perfMark(replayLoad.capped ? 'replay:capped' : 'replay:start');

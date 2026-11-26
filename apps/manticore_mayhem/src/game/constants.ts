@@ -4205,8 +4205,17 @@ export const LOAD_GATE = {
 //   capMs   the longest START REPLAY waits, real ms from the press. Past it the round starts anyway and each piece still
 //           missing falls back as on a normal first spin: static symbol tiles until a sheet lands, the shared win look,
 //           the plain win screen after the plaque's own wait. A failed or hung file can never keep the round from starting.
+//   stallMs, preGameMs   BEFORE THE GAME IS DRAWN (the card and START come before the start-up art since 2026-11-26): the
+//           round cannot be sent until the game's handlers exist, so that part has no cap that starts it. Instead, when
+//           no start-up file has landed for stallMs, or the art is not all in preGameMs after the press, or the shared
+//           loader gave a file up after its own three retries, the card's bar gives way to the landing screen's own
+//           CONNECTION PROBLEM · TAP TO RETRY (a given-up file: the loader's retry of it, as the landing screen does; a
+//           held one: a reload). It clears by itself if the art moves again. (Slow 4G draws the game 24 to 40 s after
+//           the press, Decimus: preGameMs leaves it room.)
 export const REPLAY_LOAD = {
 	capMs: 20_000,
+	stallMs: 30_000,
+	preGameMs: 90_000,
 } as const;
 
 // THE IN-GAME PRESS ANYWHERE TO CONTINUE (fonts r2, Corey 2026-10-17 14:01, option 1): Cinzel 700, the display face, in
