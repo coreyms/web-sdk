@@ -258,6 +258,10 @@
 				onloaded={() => {
 					context.stateLayout.showLoadingScreen = false;
 					warmGpu();
+					// A REPLAY (src/app.html #am-splash.am-replay): the splash's backdrop has stood under the round card since the
+					// first paint; the game is drawn now (this is the fade through black's darkest moment), so it leaves with the
+					// splash's own exit
+					if (stateUrlDerived.replay()) window.__amSplash?.done();
 				}}
 			/>
 		{:else}

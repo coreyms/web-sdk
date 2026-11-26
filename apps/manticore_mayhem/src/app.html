@@ -99,6 +99,19 @@
 				transition: opacity 450ms linear;
 				pointer-events: none;
 			}
+			/* A REPLAY LINK (2026-11-26, Corey on Slow 4G: "I get a black screen for a long period of time before anything
+			   shows up. We should immediately show the replay card, and ideally a background"): the splash's own backdrop
+			   alone (its dark ground and the drifting sand: no file, painted with this HTML), from the first paint until the
+			   canvas has drawn the game. The PolyMath mark, the bar and the lines stay out (the round card is the first
+			   thing a replay shows). It sits over the canvas and under the game's HTML (the HUD layer is z 20, the card's
+			   layer z 60), takes no pointer, and leaves with the splash's own exit (components/Game.svelte calls done()). */
+			#am-splash.am-replay {
+				z-index: 10;
+				pointer-events: none;
+			}
+			#am-splash.am-replay .stage {
+				display: none;
+			}
 			#am-splash::after {
 				content: '';
 				position: absolute;
@@ -491,7 +504,9 @@ h</s></b></i></em></div>
 			     setAssets(loaded, total)  bytes of the landing assets (src/game/boot.svelte.ts)
 			     done()                    leave (no earlier than MIN_MS, never mid first flip): the exit, removed at 740 ms
 			                               (reduced motion: the 450 ms fade, removed at 520)
-			     hideNow()                 remove instantly (?replay=true)
+			     hideNow()                 remove instantly
+			   A replay link (?replay=true) keeps the backdrop alone under the game's HTML (#am-splash.am-replay above);
+			   components/Game.svelte calls done() once the canvas has drawn the game.
 			   __AM_BOOT is written into build/index.html by scripts/prune-build.mjs; in `vite dev`
 			   it is absent and the whole bundle phase is skipped (vite injects its own module). */
 			(function () {
@@ -710,9 +725,13 @@ h</s></b></i></em></div>
 					}, { passive: true });
 				}
 
-				/* a replay link is a recording: the round card is the first thing it shows */
+				/* a replay link is a recording: the round card is the first thing it shows, over the backdrop alone (until
+				   2026-11-26 the splash was removed here, and the page stayed black until the card: 42 s on Slow 4G) */
 				try {
-					if (new URLSearchParams(location.search).get('replay') === 'true') api.hideNow();
+					if (new URLSearchParams(location.search).get('replay') === 'true') {
+						el.classList.add('am-replay');
+						stopExtras();
+					}
 				} catch (e) {}
 
 				/* ── bundle phase ──────────────────────────────────────────────────────────────────
