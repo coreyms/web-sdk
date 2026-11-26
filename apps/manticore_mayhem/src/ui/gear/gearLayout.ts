@@ -39,7 +39,7 @@
 // filled its screens keep today's glass dock exactly as it is (ui/hud/hudLayout.ts).
 //
 // Pure: no DOM, no runes. tools/gear_layout_test.mjs sweeps it in node.
-import { FRAME, MASTER, frameFor, landscapeExtraY, landscapeTallFrame, registrationOf, type LayoutKind, type PortraitScene } from '../../game/layoutSpec';
+import { FRAME, MASTER, frameFor, midOn, midView, registrationOf, type LayoutKind, type PortraitScene } from '../../game/layoutSpec';
 import { PORTRAIT, portraitBoardBottoms } from '../hud/hudLayout';
 import { BOARD_ART } from '../../game/boardArtSpec';
 import { LOGO, LOGO_KEY } from '../../game/constants';
@@ -225,7 +225,12 @@ export const SIDEWAYS: SidewaysTable = {
  *  2026-11-23: the height was 340, which left the real frames of a phone browser with the dock (an iPhone 17 Pro in
  *  Safari sideways under a host bar, 874 x 338; an iPhone SE, 667 x 325 and 667 x 331). The rule itself fits them, home
  *  indicator strip and all (tools/gear_layout_test.mjs sweeps the survey's frames), so the floor is now 320; under it
- *  (667 x 311, 859 x 308, the 256 px tall frames) the dock stays: not judged on a device at that height. */
+ *  (667 x 311, 859 x 308, the 256 px tall frames) the dock stays: not judged on a device at that height.
+ *  2026-11-26 (THE NO DOCK RULE, barKind): no floor of its own while the middle windows' rule is on (game/layoutSpec.ts
+ *  MID.on; this floor is its rollback). The rule itself decides, by the same checks as every other sideways window
+ *  (44 px press boxes, the 9 px text floor, the home indicator strip): it fits 667 x 311, 859 x 308, 748 x 256,
+ *  808 x 256 and 568 x 320; where it does not (Popout S, 400 x 225: no chain fits right of the board) the dock is all
+ *  that is left (tools/gear_layout_test.mjs lists them). */
 export const SIDEWAYS_MIN = { vw: 640, vh: 320 } as const;
 /** every text of the bar a player must read is at least this many CSS px (2026-11-23) */
 export const TEXT_FLOOR = 9;
@@ -245,10 +250,10 @@ export const TABLES: { desktop: DesktopTable; sideways: SidewaysTable | null; up
  *  says so: the Armoury 31 px off the window) */
 export const UPRIGHT_MIN_VW = 360;
 
-/** a desktop window smaller than this keeps the dock (Stake's two popouts, 800 x 450 and 400 x 225; its Laptop size,
- *  1024 x 576, is the smallest window the desktop table was checked at), and so does one where the rule would have to
- *  draw the gears under `gears` of their 1920 x 1080 size to fit them beside the frame's wheel (0.565 at 1024 x 576; a
- *  small window near 4:3, where the board is at its largest against the window: an iPad held sideways, 1024 x 768) */
+/** UNTIL 2026-11-26 a desktop window smaller than this kept the dock (its Laptop size, 1024 x 576, is the smallest window
+ *  the desktop table was checked at), and so did one where the rule would have to draw the gears under `gears` of their
+ *  1920 x 1080 size to fit them beside the frame's wheel (0.565 at 1024 x 576; an iPad held sideways, 1024 x 768). THE
+ *  NO DOCK RULE (barKind) draws the gears there too, smaller; this is kept for the node test's record only. */
 export const DESKTOP_MIN = { vw: 900, vh: 500, gears: 0.55 } as const;
 
 /** THE SWITCH: which bar a screen draws. kind is the chrome's (game/layoutSpec.ts layoutKind): 'landscape' is every
@@ -262,13 +267,26 @@ export const sidewaysSafe = (v: Pick<BarView, 'safe' | 'touch'>): Safe => {
 	const s = v.safe ?? { t: 0, r: 0, b: 0, l: 0 };
 	return v.touch ? { ...s, b: Math.max(s.b, SIDEWAYS.homeStrip) } : s;
 };
+// THE NO DOCK RULE (2026-11-26, Corey: "We should always use the Gear layout since this older UI Bar was rejected by
+// Stake before. So if there is a resolution that doesn't support the gear. We should put the gear elements in the same
+// places."). Every desktop window draws the gear bar: at ratio 1.3 and over the desktop rule at every size (it was
+// held to 900 x 500 and to gears over 0.55 of their size, DESKTOP_MIN, and a smaller window or one near 4:3, an iPad
+// held sideways, kept the dock: there the gears are simply drawn smaller, never a press box under 44 px), and every
+// window under 1.3 whose short side is over 480 is a desktop window now (game/layoutSpec.ts MID): the desktop rule in
+// the wide style, the row under the board below MID.rowUnder (midRowLayout). Phones keep their own rules; the
+// sideways rule has no size gate of its own any more (SIDEWAYS_MIN), and where a phone's rule finds no layout at all
+// (barWhy) the dock is all that is left: tools/gear_layout_test.mjs lists every such frame and why.
 export const barKind = (v: BarView, mode: 'gear' | 'dock' = GAME_BAR): 'gear' | 'dock' => {
 	if (mode === 'dock') return 'dock';
-	if (v.kind === 'landscape') return TABLES.desktop && v.vw >= DESKTOP_MIN.vw && v.vh >= DESKTOP_MIN.vh && desktopLayout(v.vw, v.vh).scale.gears >= DESKTOP_MIN.gears ? 'gear' : 'dock';
+	// (MID.on false, the rollback: the old floor, DESKTOP_MIN)
+	if (v.kind === 'landscape') return TABLES.desktop && (midOn() || (v.vw >= DESKTOP_MIN.vw && v.vh >= DESKTOP_MIN.vh && desktopLayout(v.vw, v.vh).scale.gears >= DESKTOP_MIN.gears)) ? 'gear' : 'dock';
 	if (v.kind === 'phone') return TABLES.sideways && sidewaysLayout(v.vw, v.vh, sidewaysSafe(v)) ? 'gear' : 'dock';
-	// upright: phones from UPRIGHT_MIN_VW wide where the train fits; a tablet held upright keeps the dock
+	// upright: phones from UPRIGHT_MIN_VW wide where the train fits (every portrait window is a phone since the middle
+	// windows' rule, a short side over 480 being the desktop; with MID.on false a tablet held upright keeps the dock)
 	return TABLES.upright && v.phone && v.vw >= UPRIGHT_MIN_VW && uprightLayout(v.vw, v.vh, v.safeBottom ?? 0) ? 'gear' : 'dock';
 };
+/** which gear bar a desktop window draws: the desktop rule, or the row under the board (game/layoutSpec.ts MID) */
+export const deskBar = (vw: number, vh: number): 'desktop' | 'row' => (midView(vw, vh).band === 'row' ? 'row' : 'desktop');
 
 // ---- the scene a desktop window draws (CSS px), from the game's own layout numbers -----------------------------------
 /** COPY OF ui/ClockStrip.svelte: the POLYMATH GAMES line, master units (right 14, top 10, 12 px type; its width as
@@ -279,8 +297,10 @@ const sceneOf = (vw: number, vh: number) => {
 	const fit = Math.min(vw / M.width, vh / M.height);
 	const left = (vw - M.width * fit) / 2;
 	const top = (vh - M.height * fit) / 2;
-	const extra = landscapeExtraY(vh / fit);
-	const reg = registrationOf(landscapeTallFrame(extra));
+	// the board and the top line's lift: today's at ratio 1.3 and over, the middle windows' under it (game/layoutSpec.ts MID)
+	const V = midView(vw, vh);
+	const extra = V.lift;
+	const reg = registrationOf(V.frame);
 	const css = (p: { x: number; y: number }) => ({ x: left + p.x * fit, y: top + p.y * fit });
 	const w = css(reg.map(FRAME_WHEEL.center.R[0], FRAME_WHEEL.center.R[1]));
 	const boardK = reg.m * fit;
@@ -327,6 +347,8 @@ const circleInBox = (c: { cx: number; cy: number; R: number }, r: Box) => {
 export const SPIN_LINE_MIN = 0.75;
 const spinLine = (line: number, k: number) => Math.max(SPIN_LINE_MIN, line * k);
 
+/** the desktop bar's smallest words, CSS px: the hub's small word under its count and the small gears' word */
+const DESK_WORD = { sub: 8.5, word: 9.5 } as const;
 /** the smallest side a press box may have, CSS px (house rule L4) */
 export const MIN_PRESS = 44;
 /** the gears stay this far inside the window */
@@ -397,7 +419,10 @@ export const desktopLayout = (vw: number, vh: number, T: DesktopTable = DESKTOP)
 	}
 	// the small word under the hub's count: the larger size where the first would be under subMin px
 	const subBig = T.text.sub * kGears < T.text.subMin;
-	const text = { count: T.text.count * kGears, sub: (subBig ? T.text.subBig : T.text.sub) * kGears, subBig, spin: T.text.spin * kGears, word: T.text.word * kGears };
+	// (2026-11-26, THE NO DOCK RULE: the windows that kept the dock until now draw the gears smaller, 0.32 of their size
+	// at the least, and their words would be 6 to 7 px; the hub's small word is never drawn under 8.5 px nor the small
+	// gears' under 9.5, the least any window that drew the gear bar before had, so those windows are unchanged)
+	const text = { count: T.text.count * kGears, sub: Math.max(DESK_WORD.sub, (subBig ? T.text.subBig : T.text.sub) * kGears), subBig, spin: T.text.spin * kGears, word: Math.max(DESK_WORD.word, T.text.word * kGears) };
 	return {
 		table: 'desktop' as const,
 		vw, vh, fit: S.fit, u, h, tablet, wide, area: { x: areaX, w: areaW },
@@ -424,7 +449,10 @@ export const desktopLayout = (vw: number, vh: number, T: DesktopTable = DESKTOP)
 
 /** the desktop gear bar for a screen, or null where barKind() says dock */
 export const gearBarLayout = (v: BarView, mode: 'gear' | 'dock' = GAME_BAR): GearBarLayout | null =>
-	barKind(v, mode) === 'gear' && v.kind === 'landscape' ? seatBar(desktopLayout(v.vw, v.vh), v.present) : null;
+	barKind(v, mode) === 'gear' && v.kind === 'landscape' && deskBar(v.vw, v.vh) === 'desktop' ? seatBar(desktopLayout(v.vw, v.vh), v.present) : null;
+/** the middle windows' row under the board for a screen (game/layoutSpec.ts MID), or null (another bar) */
+export const midBarLayout = (v: BarView, mode: 'gear' | 'dock' = GAME_BAR): MidRowLayout | null =>
+	barKind(v, mode) === 'gear' && v.kind === 'landscape' && deskBar(v.vw, v.vh) === 'row' ? seatBar(midRowLayout(v.vw, v.vh), v.present) : null;
 /** the upright phone's gear bar for a screen, or null where barKind() says dock */
 /** THE SCENE AN UPRIGHT PHONE DRAWS UNDER THE TRAIN (ui/gear/uprightScene.ts), in the canvas's master units, or null
  *  where barKind() says dock (the shipped scene). ui/gear/uprightSceneSource.ts hands it to game/layoutSpec.ts. */
@@ -476,7 +504,7 @@ export type Seating = {
 	/** the drawn pieces that never mesh (the standards hang from the logo) */
 	hangers: Piece[];
 };
-type Seatable = { table: 'desktop' | 'upright' | 'sideways'; gears: Record<string, GearCircle>; box: Record<Piece, Box>; press?: Record<Piece, Box>; seat: Seating; train: Record<string, GearCircle> };
+type Seatable = { table: 'desktop' | 'upright' | 'sideways' | 'mid'; gears: Record<string, GearCircle>; box: Record<Piece, Box>; press?: Record<Piece, Box>; seat: Seating; train: Record<string, GearCircle> };
 /** THE BAR FOR THE KEYS A PAGE DRAWS: the solved layout with its absent keys gone and the rest seated (see above).
  *  All keys present: the layout itself. */
 export const seatBar = <L extends Seatable>(L: L, present: Present = ALL_PRESENT): L => {
@@ -495,13 +523,13 @@ export const seatBar = <L extends Seatable>(L: L, present: Present = ALL_PRESENT
 	}
 	/** key `id` takes slot `slot`: the slot's gear and boxes */
 	const sit = (id: TrainGear, slot: TrainGear, parent: string, neighbors: string[]) => {
-		gears[id] = { ...F[slot], ...(L.table === 'upright' ? { parent } : {}) } as GearCircle;
+		gears[id] = { ...F[slot], ...(L.table === 'upright' || L.table === 'mid' ? { parent } : {}) } as GearCircle;
 		box[id] = L.box[slot];
 		if (press && L.press) press[id] = L.press[slot];
 		as[id] = slot;
 		mesh[id] = neighbors;
 	};
-	if (L.table === 'upright') {
+	if (L.table === 'upright' || L.table === 'mid') {
 		const ids = (['auto', 'menu', 'arm'] as const).filter((id) => id === 'menu' || present[id]);
 		const slots = ['auto', 'menu', 'arm'] as const;
 		ids.forEach((id, i) => sit(id, slots[i], i ? ids[i - 1] : 'play', [i ? ids[i - 1] : 'play', ...(ids[i + 1] ? [ids[i + 1]] : [])]));
@@ -570,7 +598,7 @@ const noSide = (why: string): null => {
 };
 export const sidewaysLayout = (vw: number, vh: number, safe: Safe = { t: 0, r: 0, b: 0, l: 0 }, T: SidewaysTable = SIDEWAYS) => {
 	sidewaysWhy.last = '';
-	if (vw < SIDEWAYS_MIN.vw || vh < SIDEWAYS_MIN.vh) return noSide(`the window is under ${SIDEWAYS_MIN.vw} x ${SIDEWAYS_MIN.vh}`);
+	if (!midOn() && (vw < SIDEWAYS_MIN.vw || vh < SIDEWAYS_MIN.vh)) return noSide(`the window is under ${SIDEWAYS_MIN.vw} x ${SIDEWAYS_MIN.vh}`);
 	const M = MASTER.phone;
 	const fit = Math.min(vw / M.width, vh / M.height);
 	const left = (vw - M.width * fit) / 2;
@@ -752,7 +780,7 @@ export const sidewaysLayout = (vw: number, vh: number, safe: Safe = { t: 0, r: 0
 		/** the clear px from the foot of Win's number down to Balance's box */
 		winToBal: readGap + winAir,
 		fitW: { win: box.win.w - 6, bal: box.bal.w - 6, amt: how === 'row' ? Math.min(amt.w - 4, up.x - dn.x - 0.32 * T.arrow - 2) : amt.w - 4 },
-		text: { label: T.text.label, number: T.amt.number, bal: num.bal, win: num.win, word, spin: (T.text.spin * hubR) / hub0, spinInk: spinLine(T.text.spinInk, hubR / hub0), count: Math.max(13, (14.4 * hubR) / hub0), sub: Math.max(TEXT_FLOOR, (6.5 * hubR) / hub0), hub0 },
+		text: { label: T.text.label, number: T.amt.number, bal: num.bal, win: num.win, word, spin: Math.max(TEXT_FLOOR, (T.text.spin * hubR) / hub0), spinInk: spinLine(T.text.spinInk, hubR / hub0), count: Math.max(13, (14.4 * hubR) / hub0), sub: Math.max(TEXT_FLOOR, (6.5 * hubR) / hub0), hub0 },
 		scene: { boardK, plate, logo, cells },
 		/** the top line's studio name (ui/ClockStrip.svelte, right side) as the dock draws it, and whether the Play covers it */
 		chainTop: logo.y + logo.h * 0.965,
@@ -1167,6 +1195,206 @@ const uprightSolve = (vw: number, vh: number, safeBottom: number, T: UprightTabl
 		/** the scene under the train (ui/gear/uprightScene.ts): the board's scale, the logo's bottom edge, the frame plate's
 		 *  top, and what the rule did (the common share u, the board against the shipped one, the lift, the Manticore) */
 		scene: { boardK, logoBottom: SC.logo.bottom, plateTop: fitTop + registrationOf(SC.frame).map(BOARD_ART.frame.portrait.crop[0], BOARD_ART.frame.portrait.crop[1]).y * fit, u: SC.u, board: SC.board, lift: SC.lift, artTop: SC.artTop, creature: { ...SC.creature }, logo: { ...SC.logo }, shippedBand: SC.shipped.band },
+	};
+};
+
+// ---- THE MIDDLE WINDOWS' ROW (2026-11-26; game/layoutSpec.ts MID) -------------------------------------------------------
+// Corey's 783 x 783 and 640 x 783 (corey_placements_r2_2026-11-26.json): "controls in one row under the board: Armoury,
+// Menu, Auto, Spin gear, Turbo; Win just above the left of the row; Balance bottom left, Spin amount bottom right".
+// ONE RULE, for every desktop window under MID.rowUnder (1.12):
+//   ORDER  the upright phone's train exactly (UPRIGHT.chain's topology, Corey 2026-11-26: "What I don't want to do is
+//          move the order of the buttons"): the Play on the window's center line (the board's), Turbo meshed on its
+//          right, and on its left a chain each meshed only with the next: Auto, Menu, the Armoury. Every gear takes the
+//          board's own tooth for this window (UPRIGHT.tooth x this board's scale over his), as on the upright phone.
+//   ANGLES his 640 x 783: Turbo on the Play at 82 degrees, Auto, Menu and the Armoury each at 275 on the one before (a
+//          row rising a little to each side). Where Balance under the chain's left end or the amount's row under Turbo
+//          would meet a gear, that side's angles turn up (to 300 at most) by the least that clears.
+//   SIZES  the band's (layoutSpec MID.row: the Play 110 and the four small gears 64 at a 783 tall window, Corey: "should
+//          be about the same size on each"), a step smaller (3 percent, down to 0.7) only where a piece has no place.
+//   BAND   the Play's top 1 px under the spin amount plaque's sprite box, its bottom never under the window's edge less 4.
+//   READOUTS real text, the upright phone's kind (a word over a number), sized with the band (10 and 19 px at 783 tall,
+//          never under 9 and 15): Balance at the bottom left; the amount between < and > at the bottom right (their
+//          44 px press boxes, never within gapSpin of the Play's press region); Win left of the plaque over the chain's
+//          left end (his place), else over Balance.
+// The scene over it (the board, the logo at the top left, the Manticore on the floor or perched) is layoutSpec MID's.
+export const MID_ROW = {
+	chain: { turbo: 82, auto: 275, menu: 275, arm: 275 },
+	/** how far the chain's angles may turn up to clear a readout, degrees from the row's own */
+	tiltMax: 25,
+	clear: 0.6,
+	/** gears and readouts stay this far inside the window (CSS px); a readout's box this far over the bottom edge */
+	edge: 4,
+	read: { side: 6, bottom: 6 },
+	text: { label: 10, number: 19, labelMin: 9, numberMin: 15 },
+	arrow: 26.67,
+	gapSpin: 8,
+	shrinkMin: 0.7,
+} as const;
+export type MidRowLayout = NonNullable<ReturnType<typeof midRowSolve>>;
+export const midWhy = { last: '' };
+const midKeptRow = new Map<string, MidRowLayout>();
+/** THE ROW for a desktop window under MID.rowUnder (CSS px). Always an answer: where even the smallest step leaves a
+ *  piece without its place, that step is drawn and midWhy.last says what is out of place (the node test fails on it). */
+export const midRowLayout = (vw: number, vh: number): MidRowLayout => {
+	const key = `${Math.round(vw * 100)}|${Math.round(vh * 100)}`;
+	const hit = midKeptRow.get(key);
+	if (hit) return hit;
+	const L = midRowSolve(vw, vh);
+	if (midKeptRow.size >= 32) midKeptRow.delete(midKeptRow.keys().next().value as string);
+	midKeptRow.set(key, L);
+	return L;
+};
+const midRowSolve = (vw: number, vh: number) => {
+	midWhy.last = '';
+	const V = midView(vw, vh);
+	const T = MID_ROW;
+	const U = UPRIGHT;
+	const train = V.train ?? { play: 110, small: 64, band: 122, k: 1 };
+	const boardK = registrationOf(V.frame).m * V.fit;
+	const tooth = { pitch: (U.tooth.pitch * boardK) / U.tooth.boardK, height: (U.tooth.height * boardK) / U.tooth.boardK };
+	const gearOf = (across: number, min: number) => {
+		let g = matchedTo(across, tooth.pitch, tooth.height, 8);
+		while (2 * g.R < min) g = matchedTo(2 * g.R + tooth.pitch / 2, tooth.pitch, tooth.height, g.teeth + 1);
+		return g;
+	};
+	const top = V.plaque.y + V.plaque.h;
+	const plate = V.plaque.y;
+	const k = train.k;
+	const text = { label: Math.max(T.text.labelMin, T.text.label * k), number: Math.max(T.text.numberMin, T.text.number * k) };
+	const boxH = text.label + 1 + text.number + 4;
+	const readW = Math.max(READ_MIN, 6.83 * text.number + 6);
+	const amtW = 4.77 * text.number + 6;
+	const tb = (c: { x: number; y: number }): Box => ({ x: c.x - MIN_PRESS / 2, y: c.y - MIN_PRESS / 2, w: MIN_PRESS, h: MIN_PRESS });
+	type Try = { gears: Record<TrainGear, TrainCircle>; box: Record<'win' | 'bal' | 'amt', Box>; down: Box; up: Box; winAt: string; f: number; bad: string };
+	const attempt = (f: number): Try => {
+		const P = gearOf(train.play * f, 0);
+		const S = gearOf(Math.max(U.small.min, train.small * f), MIN_PRESS);
+		let cy = top + 1 + P.R;
+		if (cy + P.R > vh - T.edge) cy = vh - T.edge - P.R;
+		const play: TrainCircle = { cx: vw / 2, cy, R: P.R, pitchR: P.pitchR, teeth: P.teeth, parent: null, deg: 0 };
+		const on = (p: TrainCircle, parent: TrainGear, a: number): TrainCircle => {
+			const d = p.pitchR + S.pitchR + T.clear;
+			return { cx: p.cx + d * Math.sin(deg(a)), cy: p.cy - d * Math.cos(deg(a)), R: S.R, pitchR: S.pitchR, teeth: S.teeth, parent, deg: a };
+		};
+		const inWin = (c: TrainCircle) => c.cx - c.R >= T.edge && c.cx + c.R <= vw - T.edge && c.cy + c.R <= vh - T.edge && c.cy - c.R >= plate;
+		// the readouts at the bottom: Balance at the left, the amount between its arrows at the right
+		const bal: Box = { x: T.read.side, y: vh - T.read.bottom - boxH, w: readW, h: boxH };
+		const rowY = vh - T.read.bottom - MIN_PRESS / 2;
+		const up = tb({ x: vw - T.read.side - MIN_PRESS / 2, y: rowY });
+		const down = tb({ x: up.x - amtW - MIN_PRESS / 2, y: rowY });
+		const amt: Box = { x: down.x + MIN_PRESS, y: vh - T.read.bottom - boxH, w: amtW, h: boxH };
+		const clearOf = (c: TrainCircle, b: Box, gap = 1) => circleToBox(c, b) >= gap;
+		// Turbo: his angle, turned up until the amount's row is clear of it
+		let turbo: TrainCircle | null = null;
+		for (const a of toward(T.chain.turbo, T.chain.turbo - T.tiltMax, 1)) {
+			const c = on(play, 'play', a);
+			if (inWin(c) && [down, up, amt].every((b) => clearOf(c, b))) {
+				turbo = c;
+				break;
+			}
+		}
+		// the chain: his angles, turned up together until Balance is clear of it
+		let chain: { auto: TrainCircle; menu: TrainCircle; arm: TrainCircle } | null = null;
+		for (const a of toward(T.chain.auto, T.chain.auto + T.tiltMax, 1)) {
+			const auto = on(play, 'play', a);
+			const menu = on(auto, 'auto', a);
+			const arm = on(menu, 'menu', a);
+			const all = [auto, menu, arm];
+			if (all.every(inWin) && all.every((c) => clearOf(c, bal)) && Math.hypot(menu.cx - play.cx, menu.cy - play.cy) >= menu.R + play.R + 1) {
+				chain = { auto, menu, arm };
+				break;
+			}
+		}
+		const fallback = { auto: on(play, 'play', T.chain.auto), menu: on(on(play, 'play', T.chain.auto), 'auto', T.chain.menu), arm: on(on(on(play, 'play', T.chain.auto), 'auto', T.chain.menu), 'menu', T.chain.arm) };
+		const gears: Record<TrainGear, TrainCircle> = { play, turbo: turbo ?? on(play, 'play', T.chain.turbo), ...(chain ?? fallback) };
+		let bad = !turbo ? 'the amount\'s row meets Turbo' : !chain ? 'Balance meets the chain, or the chain leaves the window' : '';
+		if (!bad && (circleToBox(play, down) < T.gapSpin || circleToBox(play, up) < T.gapSpin)) bad = 'an arrow within 8 px of the Play';
+		if (!bad && (down.x < bal.x + bal.w + 2 || [down, up, amt].some((b) => !clearOf(play, b)))) bad = 'the amount\'s row meets Balance or the Play';
+		// Win: left of the plaque, standing on the chain's left end (his place); else over Balance at the left
+		const G = Object.values(gears);
+		const winRight = Math.min(V.plaque.x - 4, play.cx - play.R - 2);
+		let win: Box | null = null;
+		let winAt = 'left of the plaque, over the chain';
+		const w = Math.min(readW, winRight - T.read.side);
+		if (w >= READ_MIN) {
+			const x = Math.max(T.read.side, (T.read.side + winRight - w) / 2);
+			const under = G.filter((c) => c.cx + c.R > x && c.cx - c.R < x + w).map((c) => c.cy - Math.sqrt(Math.max(0, c.R * c.R - Math.max(0, Math.max(x - c.cx, c.cx - (x + w))) ** 2)));
+			const y = Math.max(plate + 1, Math.min(...under, bal.y) - 2 - boxH);
+			const b = { x, y, w, h: boxH };
+			if (G.every((c) => clearOf(c, b)) && !boxesMeet(b, bal)) win = b;
+		}
+		if (!win) {
+			winAt = 'over Balance';
+			const b = { x: T.read.side, y: bal.y - 2 - boxH, w: readW, h: boxH };
+			if (b.y >= plate + 1 && G.every((c) => clearOf(c, b))) win = b;
+		}
+		if (!win) {
+			win = { x: T.read.side, y: bal.y - 2 - boxH, w: readW, h: boxH };
+			bad ||= 'Win has no place clear of the gears';
+		}
+		return { gears, box: { win, bal, amt }, down, up, winAt, f, bad };
+	};
+	let best: Try | null = null;
+	for (let f = 1; f >= T.shrinkMin - 1e-9; f -= 0.03) {
+		const t = attempt(f);
+		if (!best) best = t;
+		if (!t.bad) {
+			best = t;
+			break;
+		}
+		best = t;
+	}
+	const placed = best as Try;
+	midWhy.last = placed.bad;
+	const { gears } = placed;
+	const play = gears.play;
+	const box = { ...placed.box } as Record<Piece, Box>;
+	const press = {} as Record<Piece, Box>;
+	press.down = placed.down;
+	press.up = placed.up;
+	for (const id of ['down', 'up'] as const) {
+		const t = press[id];
+		box[id] = { x: t.x + (t.w - T.arrow) / 2, y: t.y + (t.h - T.arrow) / 2, w: T.arrow, h: T.arrow };
+	}
+	for (const id of ['play', 'auto', 'turbo', 'menu', 'arm'] as const) {
+		const c = gears[id];
+		box[id] = press[id] = { x: c.cx - c.R, y: c.cy - c.R, w: 2 * c.R, h: 2 * c.R };
+	}
+	for (const id of ['win', 'bal', 'amt'] as const) press[id] = box[id];
+	const hubR = play.R * U.play.hub;
+	const hub0 = matchedTo(U.play.across, U.tooth.pitch, U.tooth.height, 8).R * U.play.hub;
+	// THE LONG LABELS (FREE SPINS WIN, BASE AMOUNT) tracked as tight as the box needs (the upright phone's rule)
+	const labelW = (l: { em: number; n: number }, track: number) => (l.em + l.n * track) * text.label;
+	const trackFor = (l: { em: number; n: number }, avail: number) => Math.max(U.label.trackMin, Math.min(U.label.track, (avail / text.label - l.em) / l.n));
+	const winTrack = trackFor(U.label.win, box.win.w - 2 * U.label.pad);
+	const balTrack = trackFor(U.label.bal, box.bal.w - 2 * U.label.pad);
+	const fit = { win: box.win.w - 6, bal: box.bal.w - 6, amt: Math.min(box.amt.w - 4, press.up.x - press.down.x - 0.32 * T.arrow - 2) };
+	return {
+		table: 'mid' as const,
+		vw, vh, fit: V.fit,
+		/** the train's scale against the band's sizes (1: MID.row's sizes x k), and the band's own k */
+		k: placed.f, kBand: k,
+		safeBottom: 0,
+		band: { top, floor: vh, plate },
+		/** the top of the bar (THE ARMOURY's tablet and portrait layouts end above it: ui/armoury/Armoury.svelte measure) */
+		hudTop: Math.min(box.win.y, ...Object.values(gears).map((c) => c.cy - c.R)),
+		tooth,
+		gears,
+		train: gears as Record<string, GearCircle>,
+		seat: { present: ALL_PRESENT, as: { auto: 'auto', menu: 'menu', arm: 'arm', turbo: 'turbo' }, mesh: { auto: ['play', 'menu'], menu: ['auto', 'arm'], arm: ['menu'], turbo: ['play'] }, hangers: [] } as Seating,
+		hubR,
+		box,
+		press,
+		fitW: fit,
+		label: {
+			win: { track: winTrack, box: { x: box.win.x + box.win.w / 2 - labelW(U.label.win, winTrack) / 2, y: box.win.y, w: labelW(U.label.win, winTrack), h: text.label + 2 } },
+			bal: { track: balTrack, box: { x: box.bal.x + box.bal.w / 2 - labelW(U.label.bal, balTrack) / 2, y: box.bal.y, w: labelW(U.label.bal, balTrack), h: text.label + 2 } },
+		},
+		where: { win: placed.winAt, bal: 'bottom left', amt: 'bottom right' },
+		gapSpin: Math.min(circleToBox(play, press.down), circleToBox(play, press.up)),
+		text: { label: text.label, number: text.number, spin: (U.text.spin * hubR) / hub0, spinInk: spinLine(U.text.spinInk, hubR / hub0), count: Math.max(15, (U.text.count * hubR) / hub0), sub: Math.max(TEXT_FLOOR, (U.text.sub * hubR) / hub0), hub0 },
+		/** the scene over the row (game/layoutSpec.ts MID): the board's scale, its art and plaque boxes, the band, perched or not */
+		scene: { boardK, art: { ...V.art }, plaque: { ...V.plaque }, perch: V.perch, band: V.band, r: V.r, logo: V.logo ? { ...V.logo } : null },
 	};
 };
 

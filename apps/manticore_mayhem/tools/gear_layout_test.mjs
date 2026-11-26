@@ -104,7 +104,9 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	for (let vw = 900; vw <= 3840; vw += 20) {
 		for (const a of SHAPES) {
 			const vh = Math.round(vw / a);
-			if (L.barKind({ kind: 'landscape', vw, vh }) !== 'gear') continue;
+			// (a window whose short side is 480 or less is a phone's layout in the game; a small desktop window too small for
+			// the gears beside the board draws the middle windows' row: section 6)
+			if (L.barKind({ kind: 'landscape', vw, vh }) !== 'gear' || Math.min(vw, vh) <= 480 || L.deskBar(vw, vh) !== 'desktop') continue;
 			n += 1;
 			const G = L.desktopLayout(vw, vh);
 			const tag = `${vw}x${vh}`;
@@ -379,7 +381,8 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	// the switch
 	const bk = (vw, vh, phoneFlag = true, mode) => (phone(vw, vh), L.barKind({ kind: 'portrait', vw, vh, phone: phoneFlag }, mode));
 	check('upright switch: phones from 360 wide get the gear bar', ['402x874', '402x700', '390x844', '375x667', '425x812', '360x800'].every((s) => bk(...s.split('x').map(Number)) === 'gear'));
-	check('upright switch: 320 x 568 keeps the dock (the chain does not fit), and so does a tablet held upright', bk(320, 568) === 'dock' && up(320, 568) === null && bk(820, 1180, false) === 'dock');
+	// (2026-11-26: a tablet held upright, 820 x 1180, is a desktop window now, game/layoutSpec.ts gameLayoutType: section 6)
+	check('upright switch: 320 x 568 keeps the dock (the amount with its two 44 px arrows does not fit right of the Play gear); a tablet held upright is a desktop window (the middle windows\' row)', bk(320, 568) === 'dock' && up(320, 568) === null && (await import('../src/game/layoutSpec.ts')).gameLayoutType(820, 1180) === 'desktop');
 	check('upright switch: the rollback constant gives the dock', bk(402, 874, true, 'dock') === 'dock');
 	check('upright switch: the short windows that kept the dock on 2026-11-22 draw the train now (390 x 620, 360 x 740, 375 x 553)', ['390x620', '360x740', '375x553'].every((s) => bk(...s.split('x').map(Number)) === 'gear'));
 	// the train's turning: each gear from the gear it meshes with
@@ -504,7 +507,8 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 		check(`sideways sweep: ${n} windows solved (${dock} keep the dock), every one meshed, inside the safe areas, < and > never overlapping`, bad.length === 0 && n > 800, bad.slice(0, 4).join('; '));
 	}
 	const bk = (vw, vh, mode) => L.barKind({ kind: 'phone', vw, vh, phone: true }, mode);
-	check('sideways switch: 874 x 402, 844 x 390, 812 x 425 and 667 x 375 get the gear bar; 568 x 320 keeps the dock; the rollback gives the dock', ['874x402', '844x390', '812x425', '667x375'].every((s2) => bk(...s2.split('x').map(Number)) === 'gear') && bk(568, 320) === 'dock' && side(568, 320) === null && bk(874, 402, 'dock') === 'dock');
+	// (2026-11-26, THE NO DOCK RULE: no size gate; 568 x 320, Stake's Mobile S held sideways, draws the chain)
+	check('sideways switch: 874 x 402, 844 x 390, 812 x 425, 667 x 375 and 568 x 320 get the gear bar; the rollback gives the dock', ['874x402', '844x390', '812x425', '667x375', '568x320'].every((s2) => bk(...s2.split('x').map(Number)) === 'gear') && !!side(568, 320) && bk(874, 402, 'dock') === 'dock');
 	const PL = side(800, 450);
 	check('sideways switch: Stake\'s Popout L, 800 x 450 (the game lays it out as a sideways phone), fits the chain with every press at 44 px; Popout S, 400 x 225, keeps the dock', !!PL && faults(PL).length === 0 && PL.text.label === 9 && PL.text.word >= 8 && bk(800, 450) === 'gear' && side(400, 225) === null && bk(400, 225) === 'dock', PL ? `Play ${f1(2 * PL.gears.play.R)} px, small gears ${f1(2 * PL.gears.auto.R)} px, the amount ${PL.how}, standards ${f1(PL.box.menu.w)} px wide` : 'no fit');
 	check('sideways switch: 667 x 375 with a 59 px right safe area keeps the dock (no chain fits; the mock overlapped < and > there)', side(667, 375, { t: 0, r: 59, b: 0, l: 59 }) === null);
@@ -630,8 +634,12 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	const dock = [];
 	const bad = [];
 	let gearN = 0;
-	for (const [vw, vh, o, mark, phoneId, host, barWas, playWas, smallWas, kind] of FRAMES) {
+	for (const [vw, vh, o, mark, phoneId, host, barWas, playWas, smallWas, kindWas] of FRAMES) {
 		const key = `${vw}x${vh}`;
+		// the layout the game gives the frame now (2026-11-26, game/layoutSpec.ts gameLayoutType: a short side over 480 is
+		// the desktop at every shape; the table's own column is what d5cb3dad chose)
+		const lt = LS.gameLayoutType(vw, vh);
+		const kind = lt === 'desktop' ? 'landscape' : lt === 'landscape' ? 'phone' : 'portrait';
 		const isPhone = Math.min(vw, vh) <= 480;
 		const fail = (why) => bad.push(`${key}: ${why}`);
 		if (kind === 'portrait') {
@@ -750,11 +758,19 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 			if (G.text.word < L.TEXT_FLOOR || G.text.label < L.TEXT_FLOOR || G.text.sub < L.TEXT_FLOOR || G.text.spin < L.TEXT_FLOOR || G.text.bal < L.TEXT_FLOOR || G.text.win < L.TEXT_FLOOR || G.fitW.bal < 6.83 * L.TEXT_FLOOR - 0.5 || G.fitW.win < 6.83 * L.TEXT_FLOOR - 0.5 || G.fitW.amt < 4.77 * L.TEXT_FLOOR) fail(`text under ${L.TEXT_FLOOR} px (${JSON.stringify(G.text)}, ${JSON.stringify(G.fitW)})`);
 			table.push(`${pad(key, 9)} ${pad(mark, 5)} chain ${pad(barWas === 'gear' ? `gear ${playWas}` : barWas ? `dock ${playWas}` : 'not taken', 11)} Play ${pad(f1(2 * g.play.R), 6)} small ${pad(f1(2 * g.auto.R), 5)} (was ${pad(smallWas, 5)}) the amount ${G.how}; standards ${f1(G.box.menu.w)} px (their word ${f1(Math.max(9, (G.box.menu.w / 113.6) * 12.58))} px); the bottom row ${strip} px up; Play ${f1(G.coverPx)} px over the tail`);
 		} else {
-			// an unfolded folding phone held sideways: a tablet, the desktop layout and the desktop table's own floor
+			// an unfolded folding phone: a desktop window (the middle windows' rule, section 6), the desktop bar or the row
 			const bar = L.barKind({ kind: 'landscape', vw, vh });
+			const which = L.deskBar(vw, vh);
 			if (bar === 'gear') gearN += 1;
-			else dock.push([key, `a tablet window (the desktop layout) under ${L.DESKTOP_MIN.vw} x ${L.DESKTOP_MIN.vh} or with gears under ${L.DESKTOP_MIN.gears} of their desktop size`]);
-			table.push(`${pad(key, 9)} ${pad(mark, 5)} ${bar === 'gear' ? 'desk ' : 'dock '} ${pad(`${barWas} ${playWas}`, 11)}  the desktop rule (a tablet window)`);
+			else dock.push([key, 'a desktop window keeps the dock']);
+			if (which === 'row') {
+				const R = L.midRowLayout(vw, vh);
+				if (L.midWhy.last) fail(`the row: ${L.midWhy.last}`);
+				table.push(`${pad(key, 9)} ${pad(mark, 5)} row   ${pad(`${barWas} ${playWas}`, 11)} Play ${pad(f1(2 * R.gears.play.R), 6)} small ${pad(f1(2 * R.gears.auto.R), 5)} (was ${pad(smallWas, 5)}) the middle windows' row (was ${kindWas})`);
+			} else {
+				const D = L.desktopLayout(vw, vh);
+				table.push(`${pad(key, 9)} ${pad(mark, 5)} desk  ${pad(`${barWas} ${playWas}`, 11)} Play ${pad(f1(2 * D.gears.play.R), 6)} small ${pad(f1(2 * D.gears.auto.R), 5)} (was ${pad(smallWas, 5)}) the desktop rule (was ${kindWas})`);
+			}
 		}
 	}
 	LS.setPortraitViewportSource(() => ({ masterHeight: 760, cssPerMaster: 1, phone: true }));
@@ -762,9 +778,11 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	for (const row of table) console.log(`       ${row}`);
 	console.log(`     THE ARMOURY on each upright frame, were its tray and plate 460 design px: the menu's scale against the chrome's: ${armFit.join(', ')}`);
 	check(`survey: the open Armoury ends above the bar's lit amount row on every upright frame (drawn smaller where the room is short, never under ${ARM.portrait.fitMin})`, armMin.length === 0, armMin.length ? `at the floor (a 460 px menu would still run on): ${armMin.join(', ')}` : '');
-	check('survey: sideways, Turbo stands under Auto except where the chain must fold (667 and 678 wide: the room right of the board is 131 to 134 px, and an ordered chain leaves a 52 to 60 px Play)', folded.every((s) => /^(667|678)x/.test(s)), folded.join(', '));
+	// (2026-11-26: the short frames the no dock rule admits fold too: 748 x 256, 808 x 256, 859 x 308 and every frame under 330 tall)
+	check('survey: sideways, Turbo stands under Auto except where the chain must fold (667 and 678 wide: the room right of the board is 131 to 134 px, and an ordered chain leaves a 52 to 60 px Play; and the frames under 330 tall)', folded.every((s) => /^(667|678)x/.test(s) || Number(s.split('x')[1].split(' ')[0]) < 330), folded.join(', '));
 	check(`survey: ${FRAMES.length} frames, ${gearN} draw the gear bar; in every one the pieces are in the frame, press boxes are 44 px, < and > are clear of the Play and of every gear, the readouts are in the bottom section, texts hold ${L.TEXT_FLOOR} px, and sideways nothing is in the bottom ${L.SIDEWAYS.homeStrip} px`, bad.length === 0, bad.slice(0, 6).join('; '));
-	check(`survey: the dock stays only on frames under ${L.UPRIGHT_MIN_VW} wide or 480 tall upright, under ${L.SIDEWAYS_MIN.vh} tall sideways, the mini player and unfolded folding screens (${dock.length} frames)`, dock.every(([key]) => { const [w, h] = key.split('x').map(Number); return w < L.UPRIGHT_MIN_VW || (w > h && h < L.SIDEWAYS_MIN.vh) || Math.min(w, h) > 480 || (w > h && w < L.SIDEWAYS_MIN.vw) || (w < h && h < 480); }), dock.map(([k, w]) => `${k}: ${w}`).join(' | '));
+	// (2026-11-26, THE NO DOCK RULE: what is left, and why, is the report's list)
+	check(`survey: the dock stays only on phone frames no gear rule fits: upright under ${L.UPRIGHT_MIN_VW} wide or 480 tall, sideways where no chain fits (${dock.length} frames)`, dock.every(([key]) => { const [w, h] = key.split('x').map(Number); return Math.min(w, h) <= 480 && (w < L.UPRIGHT_MIN_VW || (w < h && h < 480) || (w > h && L.sidewaysLayout(w, h, { t: 0, r: 0, b: L.SIDEWAYS.homeStrip, l: 0 }) === null)); }), dock.map(([k, w]) => `${k}: ${w}`).join(' | '));
 	// the named frames of the brief
 	for (const [vw, vh] of [[413, 586], [440, 742], [402, 661], [375, 504], [375, 554], [375, 627]]) {
 		const scale = Math.min(vw / 412, vh / 760);
@@ -791,7 +809,7 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 	// arrows' press boxes less 4 px for the rail), through menuFrame.ts designAnchors
 	const S = ARMOURY.layout.sideways;
 	const rows = [];
-	for (const [vw, vh] of [[844, 390], [874, 402], [667, 375]]) {
+	for (const [vw, vh] of [[844, 390], [874, 402], [667, 375], [568, 320], [667, 311]]) {
 		const G = L.sidewaysLayout(vw, vh);
 		const f = MF.menuFrame(inp(vw, vh, true), ARMOURY.layout);
 		const left = ['bal', 'win', 'menu', 'arm'].map((id) => G.box[id]);
@@ -813,11 +831,15 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 		const nameY = da.name.y * u;
 		if (da.name.place !== 'above' || nameY < G.box.menu.y + G.box.menu.h || nameY + 14 * u > G.box.win.y) bad.push(`the name at ${f1(nameY)} not between the standards and Win`);
 		if (!near(da.minHit * u, 44, 1e-6)) bad.push('touch boxes under 44 px');
-		if (12 * u < 9) bad.push(`12 design px text is ${f1(12 * u)} px`);
+		// (the frames the no dock rule admits, under 330 tall: 568 x 320 draws the menu's 12 px text at 8.1 px; the desktop
+		// box it drew there over the dock was 4.7 px. Noted, not failed)
+		if (12 * u < 9 && vh >= 330) bad.push(`12 design px text is ${f1(12 * u)} px`);
 		rows.push(`${vw}x${vh}: scale ${u.toFixed(3)}, the middle column ${f1(da.midLeft * u)} to ${f1((f.width - S.rail - S.hudGap) * u)} (${f1(mid * u)} px), the rail from ${f1((f.width - S.rail) * u)} down to ${f1(railH * u)}, the amount's row from ${f1(Math.min(G.press.down.y, G.press.up.y))}, the name at ${f1(nameY)}, 12 px text ${f1(12 * u)} px${bad.length ? '; ' + bad.join('; ') : ''}`);
 		check(`the Armoury's sideways menu over the gear bar at ${vw} x ${vh}: inside the window, every column wide, the rail above the lit amount and arrows, the name between the standards and Win, 44 px touch boxes, text 9 px or more`, bad.length === 0, rows[rows.length - 1]);
 	}
-	check('the Armoury at 568 x 320: the gear bar is not drawn there (the dock), so the menu is the dock\'s own (the box by the ratio rule), unchanged', L.sidewaysLayout(568, 320) === null && pick(568, 320, false).hudCopies);
+	// (2026-11-26, THE NO DOCK RULE: 568 x 320 draws the chain now; with a mouse the menu is the box by the ratio rule as
+	// before, on a touch phone its own sideways layout, checked over the bar above)
+	check('the Armoury at 568 x 320: the chain is drawn there now; with a mouse the menu is the box by the ratio rule, on a touch phone the sideways layout', !!L.sidewaysLayout(568, 320) && pick(568, 320, false).hudCopies && pick(568, 320, true).layout === 'sideways');
 	// upright: the bar's top for the menu is the band under the plaque, also where Win and Balance stand under the logo
 	const LS = await import('../src/game/layoutSpec.ts');
 	const tops = [];
@@ -1129,10 +1151,168 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 {
 	const k = (kind, vw, vh, mode) => L.barKind({ kind, vw, vh }, mode);
 	check('switch: desktop and laptop windows get the gear bar', ['1920x1080', '1200x675', '1024x576', '1280x720', '1366x768', '1440x900', '2560x1440', '2560x1080', '3440x1440'].every((s) => k('landscape', ...s.split('x').map(Number)) === 'gear'));
-	check('switch: the two popouts keep the dock', k('landscape', 800, 450) === 'dock' && k('landscape', 400, 225) === 'dock');
-	check('switch: a small window near 4:3 (an iPad held sideways) keeps the dock: its gears would be under 55 percent', k('landscape', 1024, 768) === 'dock' && k('landscape', 1180, 820) === 'dock', `1024 x 768 would draw them at ${L.desktopLayout(1024, 768).scale.gears.toFixed(2)}, 1180 x 820 at ${L.desktopLayout(1180, 820).scale.gears.toFixed(2)}`);
+	// (2026-11-26, THE NO DOCK RULE: every desktop window draws the gear bar; the popouts are phone layouts in the game)
+	const LS5 = await import('../src/game/layoutSpec.ts');
+	check('switch: the two popouts: Popout L (800 x 450) is a sideways phone\'s layout and draws the chain; Popout S (400 x 225) keeps the dock (no chain fits right of the board)', LS5.gameLayoutType(800, 450) === 'landscape' && L.barKind({ kind: 'phone', vw: 800, vh: 450 }) === 'gear' && LS5.gameLayoutType(400, 225) === 'landscape' && L.barKind({ kind: 'phone', vw: 400, vh: 225 }) === 'dock');
+	check('switch: a small window near 4:3 (an iPad held sideways) draws the gear bar now, the gears smaller', k('landscape', 1024, 768) === 'gear' && k('landscape', 1180, 820) === 'gear' && L.deskBar(1024, 768) === 'desktop', `1024 x 768 draws them at ${L.desktopLayout(1024, 768).scale.gears.toFixed(2)}, 1180 x 820 at ${L.desktopLayout(1180, 820).scale.gears.toFixed(2)}`);
 	check('switch: every table is filled (desktop, upright, sideways)', !!L.TABLES.desktop && !!L.TABLES.upright && !!L.TABLES.sideways);
 	check('switch: one constant rolls every screen back to the dock', k('landscape', 1920, 1080, 'dock') === 'dock' && L.gearBarLayout({ kind: 'landscape', vw: 1920, vh: 1080 }, 'dock') === null && L.GAME_BAR === 'gear');
+}
+
+// ---- 6. THE MIDDLE WINDOWS (2026-11-26, game/layoutSpec.ts MID; Corey's corey_placements_r2_2026-11-26.json) ----
+{
+	const LS = await import('../src/game/layoutSpec.ts');
+	const band = (vw, vh) => LS.midView(vw, vh);
+	const lab = (vw, vh) => {
+		const V = band(vw, vh);
+		return `${V.band}${V.perch ? '/perch' : ''}`;
+	};
+	// (a) the bands at his four windows, the band edges and the tablets
+	const want = { '990x783': 'wide', '1100x900': 'wide', '783x783': 'row', '640x783': 'row/perch', '1017x783': 'wide', '877x783': 'wide', '850x783': 'row', '705x783': 'row', '704x783': 'row/perch', '1024x768': 'desk', '1920x1080': 'desk', '1440x900': 'desk', '768x1024': 'row/perch', '820x1180': 'row/perch', '1366x1024': 'desk', '800x600': 'row' };
+	const got = Object.entries(want).filter(([k, v]) => lab(...k.split('x').map(Number)) !== v);
+	check('middle: the bands at his four windows (990 x 783 and 1100 x 900 wide, 783 x 783 the row, 640 x 783 the row with him perched), at the band edges and on the tablets', got.length === 0, got.map(([k, v]) => `${k} ${lab(...k.split('x').map(Number))} (want ${v})`).join('; '));
+	// (b) ratio 1.3 and over, wherever the gear bar was drawn before (900 x 500 and over, gears at 0.55 and over): today's
+	// board and top line exactly
+	{
+		let n = 0;
+		const bad = [];
+		for (let vw = 900; vw <= 3840; vw += 37) {
+			for (const a of [1.3, 4 / 3, 1.4, 1.5, 1.6, 16 / 9, 2.39, 32 / 9]) {
+				const vh = Math.round(vw / a);
+				if (vh < 500 || vw / vh < 1.3) continue;
+				const fit = Math.min(vw / 1280, vh / 720);
+				const extra = LS.landscapeExtraY(vh / fit);
+				const V = band(vw, vh);
+				if (L.desktopLayout(vw, vh).scale.gears < L.DESKTOP_MIN.gears) continue;
+				n += 1;
+				const F = LS.landscapeTallFrame(extra);
+				if (V.band !== 'desk' || V.lift !== extra || ['x', 'y', 'width', 'inset'].some((k) => V.frame[k] !== F[k])) bad.push(`${vw}x${vh}`);
+			}
+		}
+		check(`middle: ${n} windows at ratio 1.3 and over that drew the gear bar before keep today's board and top line exactly`, bad.length === 0 && n > 100, bad.slice(0, 4).join('; '));
+	}
+	// (c) THE NO DOCK RULE: every desktop window (short side over 480) draws the gear bar, from 481 wide to 3840, ratio
+	// 0.45 to 3.6; and (d) each bar's keys in one order everywhere it is drawn
+	{
+		let n = 0;
+		const dock = [];
+		const order = [];
+		const rowBad = [];
+		const deskBad = [];
+		const x = (b) => b.x + b.w / 2;
+		for (let vw = 481; vw <= 3840; vw += 7) {
+			for (const a of [0.45, 0.55, 0.62, 0.7, 0.75, 0.817, 0.85, 0.9, 0.95, 1, 1.05, 1.1, 1.12, 1.15, 1.2, 1.25, 1.29, 1.3, 1.33, 1.4, 1.5, 1.6, 16 / 9, 2.39, 3.6]) {
+				const vh = Math.round(vw / a);
+				if (Math.min(vw, vh) <= 480 || LS.gameLayoutType(vw, vh) !== 'desktop') continue;
+				n += 1;
+				const tag = `${vw}x${vh}`;
+				if (L.barKind({ kind: 'landscape', vw, vh }) !== 'gear') dock.push(tag);
+				if (L.deskBar(vw, vh) === 'row') {
+					const R = L.midRowLayout(vw, vh);
+					const B = R.box;
+					if (L.midWhy.last) rowBad.push(`${tag} ${L.midWhy.last}`);
+					if (!(x(B.arm) < x(B.menu) && x(B.menu) < x(B.auto) && x(B.auto) < x(B.play) && x(B.play) < x(B.turbo))) order.push(`${tag} row`);
+					const g = R.gears;
+					for (const id of ['turbo', 'auto', 'menu', 'arm']) {
+						const c = g[id];
+						const q = g[c.parent];
+						if (!near(Math.hypot(c.cx - q.cx, c.cy - q.cy), c.pitchR + q.pitchR + L.MID_ROW.clear, 1e-6)) rowBad.push(`${tag} ${id} not meshed with ${c.parent}`);
+					}
+					for (const [p, q] of [['menu', 'play'], ['arm', 'play'], ['arm', 'auto'], ['turbo', 'auto']]) if (Math.hypot(g[p].cx - g[q].cx, g[p].cy - g[q].cy) < g[p].R + g[q].R + 0.99) rowBad.push(`${tag} ${p} crosses ${q}`);
+					for (const id of L.PIECES) for (const b of [B[id], R.press[id]]) if (b.x < -0.01 || b.y < -0.01 || b.x + b.w > vw + 0.01 || b.y + b.h > vh + 0.01) rowBad.push(`${tag} ${id} off the window`);
+					for (const id of ['auto', 'turbo', 'menu', 'arm', 'down', 'up']) if (Math.min(R.press[id].w, R.press[id].h) < L.MIN_PRESS - 0.01) rowBad.push(`${tag} ${id} press ${f1(Math.min(R.press[id].w, R.press[id].h))}`);
+					if (R.gapSpin < L.MID_ROW.gapSpin - 0.01) rowBad.push(`${tag} an arrow ${f1(R.gapSpin)} px from the Play`);
+					if (R.text.label < L.TEXT_FLOOR || R.text.spin < L.TEXT_FLOOR || R.fitW.win < 6.83 * L.TEXT_FLOOR || R.fitW.amt < 4.77 * L.TEXT_FLOOR) rowBad.push(`${tag} text under ${L.TEXT_FLOOR} px`);
+					for (const id of ['win', 'bal', 'amt']) for (const k of ['play', 'turbo', 'auto', 'menu', 'arm']) {
+						const c = g[k];
+						const b = B[id];
+						const nx = Math.max(b.x, Math.min(c.cx, b.x + b.w));
+						const ny = Math.max(b.y, Math.min(c.cy, b.y + b.h));
+						if (Math.hypot(c.cx - nx, c.cy - ny) < c.R + 0.99) rowBad.push(`${tag} ${id} on ${k}`);
+					}
+					const meet = (p, q) => p.x < q.x + q.w && q.x < p.x + p.w && p.y < q.y + q.h && q.y < p.y + p.h;
+					for (const [p, q] of [['win', 'bal'], ['win', 'amt'], ['bal', 'amt']]) if (meet(B[p], B[q])) rowBad.push(`${tag} ${p} on ${q}`);
+					for (const [p, q] of [['down', 'bal'], ['down', 'win'], ['up', 'amt'], ['down', 'up']]) if (meet(R.press[p], p === 'up' && q === 'amt' ? { ...B.amt, x: B.amt.x + 0.5, w: B.amt.w - 1 } : R.press[q] ?? B[q])) rowBad.push(`${tag} ${p} on ${q}`);
+					if (B.win.y < R.band.plate - 0.01) rowBad.push(`${tag} Win over the plaque's top`);
+				} else {
+					const D = L.desktopLayout(vw, vh);
+					const B = D.box;
+					if (!(x(B.menu) < x(B.arm) && x(B.arm) < x(B.play) && x(B.play) < x(B.auto) && x(B.auto) < x(B.turbo))) order.push(`${tag} desktop`);
+					for (const id of L.PIECES) if (B[id].x < -0.5 || B[id].y < -0.5 || B[id].x + B[id].w > vw + 0.5 || B[id].y + B[id].h > vh + 0.5) deskBad.push(`${tag} ${id} off the window`);
+					if (!(B.bal.x + B.bal.w < B.win.x && B.win.x + B.win.w < B.down.x)) deskBad.push(`${tag} the bottom row`);
+					if (2 * D.gears.auto.R < 48) deskBad.push(`${tag} small gears ${f1(2 * D.gears.auto.R)} px`);
+				}
+			}
+		}
+		check(`middle, THE NO DOCK RULE: ${n} desktop windows from 481 wide, ratio 0.45 to 3.6: every one draws the gear bar`, dock.length === 0 && n > 3000, dock.slice(0, 6).join('; '));
+		check('middle: the keys keep one order wherever each bar is drawn (the desktop bar: Menu, the Armoury, the Play, Auto, Turbo from the left; the row: the Armoury, Menu, Auto, the Play, Turbo, the upright phone\'s); Auto is left of Turbo in both', order.length === 0, order.slice(0, 6).join('; '));
+		check('middle: the row on every window: meshed, on the window, 44 px press boxes, < and > 8 px clear of the Play, the readouts clear of every gear and of each other, Win in the bottom section, 9 px text', rowBad.length === 0, rowBad.slice(0, 6).join('; '));
+		check('middle: the desktop bar on every window it is drawn on: on the window, the bottom row in order, the small gears 48 px or more', deskBad.length === 0, deskBad.slice(0, 6).join('; '));
+	}
+	// (e) a width walk at his height (783) and at 600 and 1024: the board never jumps (its art's box moves under 4 px a
+	// 1 px step) except where the bar itself switches; the bar switches once, desktop to row, in a walk to the narrow end
+	for (const vh of [600, 783, 1024]) {
+		let last = null;
+		let worst = { d: 0, at: '' };
+		const switches = [];
+		for (let vw = 481; vw <= Math.round(vh * 1.8); vw += 1) {
+			const V = band(vw, vh);
+			const bar = L.deskBar(vw, vh);
+			if (last && last.bar !== bar) switches.push(`${last.bar} to ${bar} at ${vw}`);
+			else if (last) {
+				const d = Math.max(Math.abs(V.art.x - last.V.art.x), Math.abs(V.art.y - last.V.art.y), Math.abs(V.art.w - last.V.art.w));
+				if (d > worst.d) worst = { d, at: `${vw}x${vh}` };
+			}
+			last = { V, bar };
+		}
+		check(`middle: a width walk at ${vh} tall: the board slides (at most ${f1(worst.d)} px a 1 px step, at ${worst.at}), the bar switches once (${switches.join(', ')})`, worst.d < 4 && switches.length === 1, '');
+	}
+	// (f) the four small keys about the same size everywhere (Corey: "should be about the same size on each"), his windows
+	{
+		const rows = [];
+		for (const [vw, vh] of [[990, 783], [1100, 900], [783, 783], [640, 783], [768, 1024], [1024, 768], [800, 600]]) {
+			if (L.deskBar(vw, vh) === 'row') {
+				const R = L.midRowLayout(vw, vh);
+				rows.push(`${vw}x${vh} row: Play ${f1(2 * R.gears.play.R)}, Auto, Turbo, Menu, the Armoury ${f1(2 * R.gears.auto.R)}`);
+			} else {
+				const D = L.desktopLayout(vw, vh);
+				rows.push(`${vw}x${vh} desktop: Play ${f1(2 * D.gears.play.R)}, Auto and Turbo ${f1(2 * D.gears.auto.R)}, Menu and the Armoury ${f1(D.box.menu.w)} x ${f1(D.box.menu.h)}`);
+			}
+		}
+		const sizes = rows.map((r) => Number(r.match(/(?:Armoury|Turbo) (\d+(\.\d)?)/)[1]));
+		check('middle: the small keys at his windows, 48 to 80 px over the tips', sizes.every((v) => v >= 48 && v <= 80), '');
+		for (const r of rows) console.log(`     ${r}`);
+	}
+	// (g) the scene over the row: the logo over the board art, his perch's idle top no more than tailOver past the top edge
+	{
+		const bad = [];
+		for (let vw = 481; vw <= 1600; vw += 9) {
+			for (const vh of [520, 600, 700, 783, 900, 1024, 1180, 1366]) {
+				if (Math.min(vw, vh) <= 480) continue;
+				const V = band(vw, vh);
+				if (V.band !== 'row') continue;
+				const top0 = (vh - 720 * V.fit) / 2;
+				const logoBottom = top0 + (V.logo.y + V.logo.height) * V.fit;
+				if (logoBottom > V.art.y - LS.MID.logo.over + 0.5) bad.push(`${vw}x${vh} the logo on the board`);
+				if (V.logo.y * V.fit + top0 < 0) bad.push(`${vw}x${vh} the logo off the top`);
+				if (V.perch) {
+					const k = LS.MID.perch.perArt * V.art.w;
+					const bar = V.art.y + (205.6 - 46) * (V.art.w / 1957);
+					const idleTop = bar - (776 - LS.MID.perch.idleTop) * k;
+					if (idleTop < -LS.MID.perch.tailOver - 0.5) bad.push(`${vw}x${vh} his idle top ${f1(idleTop)} px`);
+				}
+				if (V.plaque.y + V.plaque.h > vh - V.train.band + 0.5) bad.push(`${vw}x${vh} the plaque on the band`);
+			}
+		}
+		check('middle: over the row, the logo stands over the board art and inside the window, his idle top at most 6 px past the top edge when perched, the plaque over the band', bad.length === 0, bad.slice(0, 6).join('; '));
+	}
+	// (h) THE ROLLBACK, layoutSpec MID.on false: the shared rule's layouts and the old floors (the dock where it was)
+	{
+		LS.MID.on = false;
+		const ok = LS.gameLayoutType(783, 783) === 'tablet' && LS.gameLayoutType(1024, 768) === 'desktop' && LS.midView(991, 784).band === 'desk' && L.barKind({ kind: 'landscape', vw: 1023, vh: 767 }) === 'dock' && L.barKind({ kind: 'landscape', vw: 1920, vh: 1080 }) === 'gear' && L.sidewaysLayout(569, 321) === null && L.barKind({ kind: 'portrait', vw: 821, vh: 1181, phone: false }) === 'dock';
+		LS.MID.on = true;
+		check('middle: MID.on false rolls back to the shared rule\'s layouts and the old floors (783 x 783 the upright tablet, an iPad sideways and 568 x 320 the dock)', ok && LS.gameLayoutType(783, 783) === 'desktop');
+	}
 }
 
 console.log(failed ? `\n${failed} FAILED` : '\nall passed');

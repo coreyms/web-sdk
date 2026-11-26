@@ -6,7 +6,8 @@
 	import { waitForTimeout } from 'utils-shared/wait';
 
 	import { getContext } from '../game/context';
-	import { MASTER, layoutKind, isPhoneSizeType, landscapeExtraY } from '../game/layoutSpec';
+	import { MASTER, layoutKind, isPhoneSizeType, landscapeExtraY, midView } from '../game/layoutSpec';
+	import { stateLayoutDerived as gameLayout } from '../game/stateLayout';
 	import { ARMOURY } from '../game/constants';
 	import { createControls } from './controls.svelte';
 	import ChromeStyles from './ChromeStyles.svelte';
@@ -55,7 +56,17 @@
 	const extraBottom = $derived(kind === 'portrait' ? Math.max(0, ((innerHeight.current ?? 1) / scale - master.height) / 2) : kind === 'landscape' ? landscapeExtraY((innerHeight.current ?? 1) / scale) : 0);
 	// ...and its top row (the clock strip; the logo's box follows by its own rule, game/logo/layout.ts) rides UP by the
 	// same, to the screen's top edge: on a 3:2 screen the bigger board's top left gear stands where the strip was
-	const extraTop = $derived(kind === 'landscape' ? extraBottom : 0);
+	// THE MIDDLE WINDOWS (layoutSpec MID): under ratio 1.3 the strip slides up to the screen's top edge (`lift`)
+	const extraTop = $derived(kind === 'landscape' ? midView(innerWidth.current ?? 1, innerHeight.current ?? 1).lift : 0);
+	// THE MODALS, THE ARMOURY AND THE LANDING keep the layout the window had before the middle windows' rule (stateLayout
+	// legacyKind): a 640 x 783 window draws the desktop canvas and bar at half scale now, where the desktop modals would be
+	// 7 px text; there they are the upright layout they always were (the same pixels as before on every window)
+	const legacyKind = $derived(gameLayout.legacyKind());
+	const legacyMaster = $derived(MASTER[legacyKind]);
+	const legacyScale = $derived(Math.min((innerWidth.current ?? 1) / legacyMaster.width, (innerHeight.current ?? 1) / legacyMaster.height));
+	const legacyLeft = $derived(((innerWidth.current ?? 1) - legacyMaster.width * legacyScale) / 2);
+	const legacyTop = $derived(((innerHeight.current ?? 1) - legacyMaster.height * legacyScale) / 2);
+	const legacyFitWidth = $derived(legacyKind === 'portrait' ? Math.max(legacyMaster.width, (innerWidth.current ?? 1) / legacyScale) : legacyMaster.width);
 
 	// THE ARMOURY (spec feedback/armoury_build_r1): the feature menu, in every layout (desktop, portrait phone, tablet,
 	// sideways, and the desktop box scaled on small 16:9 frames). It follows the chrome (ui/armoury/menuFrame.ts).
@@ -83,7 +94,7 @@
 	// box at half scale; ui/armoury/menuFrame.ts `touchSideways`. A popout window on a desktop has a fine pointer and
 	// keeps the box.)
 	const coarse = TOUCH;
-	const armouryFrame = $derived(menuFrame({ kind, phone, vw, vh, scale, master, fitWidth, touchSideways: coarse && kind === 'phone' && barKind({ kind, vw, vh, phone, safeBottom: safe.b, safe, touch: TOUCH }, BAR_MODE) === 'gear' }, ARMOURY.layout));
+	const armouryFrame = $derived(menuFrame({ kind: legacyKind, phone, vw, vh, scale: legacyScale, master: legacyMaster, fitWidth: legacyFitWidth, touchSideways: coarse && legacyKind === 'phone' && barKind({ kind: legacyKind, vw, vh, phone, safeBottom: safe.b, safe, touch: TOUCH }, BAR_MODE) === 'gear' }, ARMOURY.layout));
 	// the real HUD's BALANCE and bet row are lit above the tint in every layout but the desktop box scaled onto a phone
 	// sideways chrome (the small 16:9 frames): there the menu draws its own copies and the whole HUD stays under the tint
 	const armouryLit = $derived(armouryView.shown && !armouryFrame.hudCopies);
@@ -184,11 +195,11 @@
 
 <div class="am-ui layer modals">
 	<Armoury {controls} frame={armouryFrame} />
-	<AutoplayModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
-	<DenomModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
-	<GameInfoModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
-	<NoticeModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
-	<ReplayModal {controls} {master} {scale} {left} {top} compact={kind !== 'landscape'} />
+	<AutoplayModal {controls} master={legacyMaster} scale={legacyScale} left={legacyLeft} top={legacyTop} compact={legacyKind !== 'landscape'} />
+	<DenomModal {controls} master={legacyMaster} scale={legacyScale} left={legacyLeft} top={legacyTop} compact={legacyKind !== 'landscape'} />
+	<GameInfoModal {controls} master={legacyMaster} scale={legacyScale} left={legacyLeft} top={legacyTop} compact={legacyKind !== 'landscape'} />
+	<NoticeModal {controls} master={legacyMaster} scale={legacyScale} left={legacyLeft} top={legacyTop} compact={legacyKind !== 'landscape'} />
+	<ReplayModal {controls} master={legacyMaster} scale={legacyScale} left={legacyLeft} top={legacyTop} compact={legacyKind !== 'landscape'} />
 </div>
 
 <style>

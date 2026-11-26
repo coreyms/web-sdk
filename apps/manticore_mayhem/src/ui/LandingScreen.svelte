@@ -26,7 +26,8 @@
 
 	import { getContext } from '../game/context';
 	import { boot, cardClip, cardClipInfo, cardsLate, dropCardHolder, releaseSplash, splashShare } from '../game/boot.svelte';
-	import { MASTER, layoutKind } from '../game/layoutSpec';
+	import { MASTER } from '../game/layoutSpec';
+	import { stateLayoutDerived as gameLayout } from '../game/stateLayout';
 	import { GATE_BYTES, stamp } from '../game/assets';
 	import LogoPicture from './LogoPicture.svelte';
 	import { bootSizes } from '../game/assetStamp';
@@ -86,7 +87,9 @@
 		return () => clearTimeout(id);
 	});
 
-	const kind = $derived(layoutKind(context.stateLayoutDerived.layoutType()));
+	// (THE MIDDLE WINDOWS, layoutSpec MID: the landing keeps the layout the window had before that rule, as the modals do:
+	// ui/Chrome.svelte legacyKind)
+	const kind = $derived(gameLayout.legacyKind());
 	const master = $derived(MASTER[kind]);
 	// where the logo, the cards, the dots and the gate stand for this viewport (game/introCards.ts)
 	// THE MAX WIN LINE (game/introCards.ts INTRO_MAXLINE): the gold "WIN UP TO 10,000x" between the logo and the cards, its

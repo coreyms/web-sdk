@@ -29,7 +29,7 @@
 
 	import { getContext } from '../game/context';
 	import { TIMINGS } from '../game/constants';
-	import { HUD as HUD_SLOTS, layoutKind as kindOf, boardCenterX, boardCenterY, landscapeExtraY } from '../game/layoutSpec';
+	import { FRAME, HUD as HUD_SLOTS, layoutKind as kindOf, boardCenterX, boardCenterY, frameFor } from '../game/layoutSpec';
 	import { waitForResolve, waitForTimeout } from 'utils-shared/wait';
 	import { autoBonusesRunning } from '../game/stateGame.svelte';
 	import { awaitPlaqueAssets } from '../game/assetGate';
@@ -49,7 +49,8 @@
 	// (layoutSpec LANDSCAPE_TALL: the bigger board's centre); the others keep their HUD slot
 	const py = $derived.by(() => {
 		const k = kindOf(context.stateLayoutDerived.layoutType());
-		return k === 'portrait' || (k === 'landscape' && landscapeExtraY() > 0) ? boardCenterY(k, vw) : slot.y;
+		// (and every middle window's board, layoutSpec MID: any desktop frame that is not the 16:9 one)
+		return k === 'portrait' || (k === 'landscape' && frameFor('landscape') !== FRAME.landscape) ? boardCenterY(k, vw) : slot.y;
 	});
 
 	let title = $state('');

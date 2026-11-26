@@ -16,7 +16,7 @@
 // Bottom rows are anchored to the viewport's bottom edge, the desktop dock to its centre line (the WIN readout's
 // centre IS the screen's centre), portrait keys to its side edges. Pure functions: the chromes, the SKIP button and
 // the probes' own copies of these numbers all read the same rules.
-import { MASTER, type LayoutKind, type FrameRect, artRectOf, frameFor, registrationOf, portraitShippedK } from '../../game/layoutSpec';
+import { MASTER, type LayoutKind, type FrameRect, artRectOf, frameFor, midView, registrationOf, portraitShippedK } from '../../game/layoutSpec';
 import { BOARD_PLAQUE_SPEC } from '../../game/boardPlaqueSpec';
 import { BOARD_ART } from '../../game/boardArtSpec';
 
@@ -371,12 +371,21 @@ export const landscapeGeo = (f: HudFrame) => {
 export const hudSkipRect = (v: HudView) => {
 	const f = hudFrame(v);
 	let s: { x: number; y: number; w: number; h: number };
+	/** the prompt opens under the button (the top right spots) */
+	let under = f.variant === 'portrait' || f.variant === 'landscape';
 	if (f.variant === 'portrait') {
 		const strip = (f.fit.top + 28 * f.fit.scale) / f.u; // the clock strip's lower edge (layoutSpec SKIP.clockBottom)
 		s = portraitGeo(f, Math.max(strip, f.safe.t / f.u)).skip;
 	} else if (f.variant === 'landscape') s = landscapeGeo(f).skip;
-	else s = desktopGeo(f, 0).skip;
-	return { x: s.x * f.u, y: s.y * f.u, width: s.w * f.u, height: s.h * f.u, u: f.u, variant: f.variant };
+	else if (v.kind === 'landscape' && midView(v.vw, v.vh).band === 'row') {
+		// THE MIDDLE WINDOWS' ROW (game/layoutSpec.ts MID): the gear train stands where the dock's SKIP did (right of the
+		// plaque, over the bottom row), so SKIP is at the top right under the clock line, as on an upright phone
+		const lift = midView(v.vw, v.vh).lift;
+		const strip = (f.fit.top + (28 - lift) * f.fit.scale) / f.u;
+		s = { x: f.W - 8 - 80, y: Math.max(strip, f.safe.t / f.u) + 7, w: 80, h: 32 };
+		under = true;
+	} else s = desktopGeo(f, 0).skip;
+	return { x: s.x * f.u, y: s.y * f.u, width: s.w * f.u, height: s.h * f.u, u: f.u, variant: f.variant, under };
 };
 
 // ---- glass outlines (u1: every path is painted, no filters) ----

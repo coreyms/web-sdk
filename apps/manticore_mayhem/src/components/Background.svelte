@@ -44,7 +44,7 @@
 	import { Rectangle, getContextParent } from 'pixi-svelte';
 
 	import { getContext } from '../game/context';
-	import { layoutKind, portraitSceneNow } from '../game/layoutSpec';
+	import { MID, layoutKind, midView, portraitSceneNow } from '../game/layoutSpec';
 	import { BACKGROUND_WASH, BONUS_WARMTH, CHAIN_GUST, CHAIN_SOUND, CREATURE, ENTRANCE_ROAR, FIRE_SOUND, FLAMES, FOREGROUND_KICK, PLAQUE_CHEER, PLAYGROUND_PX, SCENE, SKY, STING_FX, zIndexes, type CheerMove, type CreatureDockKey, type CreatureShadeMode, type CreatureSpot } from '../game/constants';
 	import { creature, creatureDocked, creatureFront, creaturePlaceFor, desktopFloorRow, type CreaturePlace } from '../game/creature';
 	import { boardRegistration } from '../game/boardArt';
@@ -321,8 +321,10 @@
 	// ---- THE CREATURE (game/creature.ts, constants CREATURE) ------------------------------------------
 	// WHICH SPOT: landscape = desktop, the phone master = phone sideways, and a portrait screen is a PHONE or a TABLET
 	// by the layout system's own size class (its short side at most 480 CSS px is a phone): never between the two.
+	// (THE MIDDLE WINDOWS, game/layoutSpec.ts MID: a desktop window under MID.perchUnder perches him behind the board)
+	const mid = $derived(kind === 'landscape' ? midView(canvas.width, canvas.height) : null);
 	const spot: CreatureSpot = $derived(
-		kind === 'landscape' ? 'desktop' : kind === 'phone' ? 'phoneSideways' : ['smallMobile', 'mobile'].includes(context.stateLayoutDerived.canvasSizeType()) ? 'portraitPhone' : 'portraitTablet',
+		kind === 'landscape' ? (mid?.perch ? 'desktopPerch' : 'desktop') : kind === 'phone' ? 'phoneSideways' : ['smallMobile', 'mobile'].includes(context.stateLayoutDerived.canvasSizeType()) ? 'portraitPhone' : 'portraitTablet',
 	);
 	creatureLoader.renderer = renderer;
 	// THE BACK-FEET SHADE (constants CREATURE_SHADE; game/creatureShade.ts): the production default, or DEV ?creatureshade=
@@ -373,8 +375,44 @@
 		const over = foregroundOn ? foregroundOver(canvasPerKickPx, -x, -y, (fw * s) / 2, (fh * s) / 2) : 1;
 		return { y, scale: s, foreY: (fh * (1 - over)) / 2, over };
 	};
+	/** a canvas x (CSS px) and a size (CSS px per rig px) as his place's x and scale in the landscape scene's foreground,
+	 *  through its cover fit and its oversize at rest (the x half of the portrait dock's hook below, inverted) */
+	const sceneX = (cssX: number, cssPerRig: number) => {
+		const f = dockFit('landscape');
+		const [fw] = frames.landscape;
+		const x0 = (canvas.width - fw * f.scale) / 2;
+		return { x: ((cssX - x0) / f.scale - (fw * (1 - f.over)) / 2) / f.over, scale: cssPerRig / (f.over * f.scale) };
+	};
 	const spotPlace = (): CreaturePlace => {
 		const aspect = canvas.width / Math.max(canvas.height, 1);
+		// THE MIDDLE WINDOWS' ROW (game/layoutSpec.ts MID; Corey's 783 x 783 and 640 x 783): his place follows the board,
+		// which grows with the window's shape there
+		if (mid && mid.band === 'row' && which === 'landscape') {
+			const A = mid.art.w;
+			if (mid.perch) {
+				// PERCHED behind the board on its top right: his feet column fromRight of the art's width in from its right
+				// edge, his size perArt of its width; his claw at the end of the swipe on the frame's top bar (the upright
+				// phone's dock A, on this board)
+				const P = MID.perch;
+				const at = sceneX(mid.art.x + A * (1 - P.fromRight), P.perArt * A);
+				const base: CreaturePlace = { ...CREATURE.place.desktopPerch, x: at.x, scale: at.scale };
+				return creatureDocked(base, 1, dockEdge(CREATURE.portraitDock.edges.frame, 'landscape'), dockFit('landscape'));
+			}
+			// ON THE FLOOR in front of the board, at its lower right: his size perArt of its width, drawn smaller where that
+			// would put his left wing on the cells (cellClear kept) or his right one more than wingOver off the window;
+			// his feet on the board's floor row, as on every desktop under 16:9
+			const F = MID.floor;
+			const master = context.stateLayoutDerived.mainLayout();
+			const fr = mid.frame;
+			const cellsRight = master.x + (fr.x + fr.width - fr.inset - master.width / 2) * master.scale;
+			let k = F.perArt * A;
+			const room = canvas.width + F.wingOver - (cellsRight + F.cellClear);
+			k = Math.min(k, room / (F.left + F.right));
+			const feetX = Math.max(mid.art.x + A - 0.033 * A, cellsRight + F.cellClear + F.left * k);
+			const at = sceneX(Math.min(feetX, canvas.width + F.wingOver - F.right * k), k);
+			const base: CreaturePlace = { ...CREATURE.place.desktop, x: at.x, scale: at.scale };
+			return creatureDocked(base, 1, dockEdge(desktopFloorRow(aspect), 'landscape'), dockFit('landscape'), CREATURE_SPEC.feetRow);
+		}
 		const base = creaturePlaceFor(spot, aspect);
 		// THE DESKTOP FLOOR (constants CREATURE.desktopFloor): below 16:9 his feet go on the board row his feet stand on at
 		// 16:9 (the courtyard floor), x and scale stay the spot line's; 16:9 and wider keep place.desktop as it is. The row

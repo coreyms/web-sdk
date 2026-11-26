@@ -7,7 +7,7 @@
 import { CREATURE, LOGO, LOGO_KEY } from '../constants';
 import { CREATURE_SPEC } from '../creatureSpec';
 import { SCENE_SPEC_PORTRAIT } from '../sceneSpec';
-import { frameArtRect, frameFor, landscapeExtraY, MASTER, portraitSceneNow, portraitViewportNow, registrationOf, SKIP, type LayoutKind } from '../layoutSpec';
+import { frameArtRect, frameFor, landscapeExtraY, landscapeWindowNow, MASTER, midView, portraitSceneNow, portraitViewportNow, registrationOf, SKIP, type LayoutKind } from '../layoutSpec';
 import { portraitOptions } from '../portraitOptions.svelte';
 import { safeInsetLeftCss } from '../safeInset';
 
@@ -29,7 +29,12 @@ const fit = (x: number, y: number, width: number): LogoRect => {
  */
 export const logoArtRect = (kind: LayoutKind, viewportMasterWidth?: number, phone = false): LogoRect => {
 	if (kind === 'landscape') {
-		const extra = landscapeExtraY();
+		// THE MIDDLE WINDOWS (layoutSpec MID): under the row's shape the logo stands at the top left over the board (Corey's
+		// 783 x 783 and 640 x 783); elsewhere the column rule below, its box riding up with the clock line (`lift`)
+		const win = landscapeWindowNow();
+		const mid = win ? midView(win.vw, win.vh) : null;
+		if (mid?.logo) return { ...mid.logo };
+		const extra = mid ? mid.lift : landscapeExtraY();
 		// THE C1 FRAME, LARGER (constants LOGO_KEY.grow.landscape): the whole column between the screen's edge and the board
 		// frame art's left edge
 		const G = LOGO_KEY.grow.landscape;

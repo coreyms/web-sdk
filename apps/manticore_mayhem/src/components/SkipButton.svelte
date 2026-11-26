@@ -72,7 +72,7 @@
 	});
 	const promptRect = (b: CssRect, size: { width: number; height: number }, g: number): CssRect => {
 		const E = SKIP.edgeCss;
-		const below = hb.variant === 'portrait' || hb.variant === 'landscape';
+		const below = hb.under;
 		const fits = b.y + b.height + g + size.height <= view.height - E;
 		const y = below && fits ? b.y + b.height + g : b.y - g - size.height;
 		const x = b.x + b.width - size.width;

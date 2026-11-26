@@ -23,7 +23,8 @@
 	import HudReadout from './hud/HudReadout.svelte';
 	import HudMenuPanel from './hud/HudMenuPanel.svelte';
 	import GearBar from './gear/GearBar.svelte';
-	import { gearBarLayout, presentKeys } from './gear/gearLayout';
+	import GearBarUpright from './gear/GearBarUpright.svelte';
+	import { gearBarLayout, midBarLayout, presentKeys } from './gear/gearLayout';
 	import { BAR_MODE } from './gear/barMode';
 
 	type Props = { controls: Controls; hud: HudFrame };
@@ -47,6 +48,10 @@
 	// THE GEAR BAR (2026-11-22, ui/gear): the bar a desktop or laptop window draws; null where the rule keeps the dock
 	// (Stake's two popouts, a small window near 4:3, and every screen while ui/gear/gearLayout.ts GAME_BAR says 'dock')
 	const gear = $derived(gearBarLayout({ kind: 'landscape', vw: hud.W * hud.u, vh: hud.H * hud.u, present: presentKeys(controls.jurisdiction(), controls.isReplay()) }, BAR_MODE));
+	// THE MIDDLE WINDOWS' ROW (2026-11-26, game/layoutSpec.ts MID; ui/gear/gearLayout.ts midRowLayout): a desktop window
+	// under ratio 1.12, or one too small for the gears beside the board, draws the upright phone's train in a row under the
+	// board, by the upright bar's own component
+	const row = $derived(midBarLayout({ kind: 'landscape', vw: hud.W * hud.u, vh: hud.H * hud.u, present: presentKeys(controls.jurisdiction(), controls.isReplay()) }, BAR_MODE));
 </script>
 
 <ClockStrip side="left" clock text="MANTICORE UNLEASHED" />
@@ -59,7 +64,9 @@
 	<LogoPicture />
 </div>
 
-{#if gear}
+{#if row}
+<GearBarUpright {controls} {hud} layout={row} />
+{:else if gear}
 <GearBar {controls} {hud} layout={gear} />
 {:else}
 <!-- the dock: glass, keys, WIN and Spin (under THE ARMOURY's tint) -->

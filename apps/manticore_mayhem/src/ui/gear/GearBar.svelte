@@ -1,6 +1,6 @@
 <script lang="ts" module>
 	import { hubArrowSvg, playGearArt, spinWordSvg, GEAR_PAD } from './gearArt';
-	import { DESKTOP, DESKTOP_GEARS } from './gearLayout';
+	import { DESKTOP, DESKTOP_GEARS, TOOTH } from './gearLayout';
 	// the Play gear's drawing: the table's own px (it scales to its box), made once
 	const PG = DESKTOP_GEARS.play;
 	const PLAY_ART = playGearArt(PG.R, PG.teeth, PG.R * DESKTOP.play.hub);
@@ -82,6 +82,10 @@
 		return { ...P, x, y: B.menu.y + B.menu.h + 8 * L.h };
 	});
 	const chain = $derived(Math.max(0, B.menu.y - L.chainTop));
+	// Auto's and Turbo's drawing in the table's own px (GearKey's desktop default), their word at the layout's size over the
+	// gears' scale: the table's 19 wherever the gears are drawn at 0.5 of their size or more, larger only where the no
+	// dock rule draws them smaller (gearLayout.ts DESK_WORD: never under 9.5 CSS px)
+	const smallGeo = (id: 'auto' | 'turbo') => ({ R: DESKTOP_GEARS[id].R, teeth: DESKTOP_GEARS.auto.teeth, dep: TOOTH.height, word: L.text.word > DESKTOP.text.word * L.scale.gears + 1e-9 ? L.text.word / L.scale.gears : DESKTOP.text.word });
 
 	$effect(() => {
 		const k = ringKind;
@@ -201,8 +205,8 @@
 			<span class="gw">{@html SPIN_WORD}</span>
 		{/snippet}
 	</HudSpin>
-	{#if !replay && !controls.jurisdiction().disabledAutoplay}<GearKey kind="auto" {controls} box={B.auto} />{/if}
-	{#if !controls.jurisdiction().disabledTurbo}<GearKey kind="turbo" {controls} box={B.turbo} />{/if}
+	{#if !replay && !controls.jurisdiction().disabledAutoplay}<GearKey kind="auto" {controls} box={B.auto} geo={smallGeo('auto')} />{/if}
+	{#if !controls.jurisdiction().disabledTurbo}<GearKey kind="turbo" {controls} box={B.turbo} geo={smallGeo('turbo')} />{/if}
 	<div class="gsc gmp" class:is-open={stateUi.menuOpen} style="left:{panel.x}px;top:{panel.y}px;width:{panel.w}px;height:{panel.h}px;transform:scale({L.u})">
 		<HudMenuPanel {controls} x={0} y={0} W={panel.w} H={panel.h} tip={24} up T={0} cls={panel.nar ? 'nar' : ''} />
 	</div>

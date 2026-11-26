@@ -3683,6 +3683,13 @@ export const CREATURE = {
 		phoneSideways: { x: 2249.3, y: 1157.2, scale: 0.97, layer: 'behind' },
 		portraitPhone: { x: 1039.9, y: 1001.6, scale: 0.77, layer: 'behind' },
 		portraitTablet: { x: 1210, y: 905, scale: 0.58, layer: 'behind', shadow: false },
+		// THE MIDDLE WINDOWS' PERCH (2026-11-26, game/layoutSpec.ts MID; Corey's 640 x 783: "the Manticore BEHIND the floor
+		// layer and the board, perched above the board's top right"): a desktop window under MID.perchUnder (0.9). x and
+		// scale are worked out from the board on every window (components/Background.svelte: his feet column MID.perch
+		// .fromRight of the art's width left of its right edge, his size MID.perch.perArt of its width), y by the upright
+		// phone's claw dock (portraitDock A: his claw at the end of the swipe on the frame's top bar). These numbers are
+		// only the type's: the place is never read from them.
+		desktopPerch: { x: 0, y: 0, scale: 0, layer: 'behind', shadow: false },
 	},
 	/** THE DESKTOP SPOT FOLLOWS THE SCREEN'S SHAPE (2026-10-16, with the bigger board, layoutSpec LANDSCAPE_BOARD). The
 	 *  scene is fitted to COVER the canvas and the master to FIT it, so on a screen narrower than 16:9 the scene's sides
@@ -3725,9 +3732,15 @@ export const CREATURE = {
 	desktopNarrow: [
 		{ aspect: 1.5, x: 2006, scale: 0.46 },
 		{ aspect: 4 / 3, x: 1928, scale: 0.41 },
+		// THE MIDDLE WINDOWS' WIDE STYLE (2026-11-26, game/layoutSpec.ts MID): 1.3 holds 4:3's spot (so every window at
+		// 1.3 and over stands him where he stood), and the line runs on to Corey's 1100 x 900 (his still's box there:
+		// feet at scene x 1923, 0.483 scene px per rig px; his 990 x 783 drew him larger still, 0.636, which put his
+		// wing on the cells). Held under 1.2222; under MID.rowUnder the row's floor rule places him (Background.svelte).
+		{ aspect: 1.3, x: 1928, scale: 0.41 },
+		{ aspect: 1.2222, x: 1923, scale: 0.483 },
 	],
 	desktopWide: { aspect: 16 / 9 },
-	desktopMinAspect: 4 / 3,
+	desktopMinAspect: 1.2222,
 	/** THE DESKTOP FLOOR (layout_1610_r2; Corey 2026-10-17 21:42: "For the widescreen, the feet need to be on the ground,
 	 *  not hovering over the board. The board size is fine though."). Below 16:9 the spot line above put his feet some
 	 *  100 board render rows above where they stand at 16:9 (at 1440 x 900, 48 CSS px over the floor, level with the

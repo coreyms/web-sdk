@@ -46,6 +46,7 @@ import { loadGate as gateState, markGateSettled } from './loadGate.svelte';
 import { loadStingerData } from './stinger/data';
 import { STAGING_TOOLS, perfMark } from './staging';
 import { LOAD_GATE } from './constants';
+import { gameLayoutType } from './layoutSpec';
 
 type Entry = { type: string; src: unknown };
 type Textures = Record<string, unknown>;
@@ -281,15 +282,15 @@ export const loadDeferredInOrder = async (app: AppState): Promise<void> => {
 // A phone never opens the desktop landscape master, so its art is not registered there. If the window
 // ever does become that master (a browser's "desktop site" mode reports a wide virtual viewport), fetch
 // the art then, once. Until it lands the board shows its plain fallback, exactly as before any art loads.
-const LANDSCAPE_RATIO = 1.3;
-const LANDSCAPE_SHORT_SIDE = 480;
+// (the game's own rule, layoutSpec gameLayoutType: since 2026-11-26 a window whose short side is over 480 is the desktop
+// at every shape)
 const watchUnreachable = (app: AppState) => {
 	if (typeof window === 'undefined' || !Object.keys(UNREACHABLE_ASSETS).length) return;
 	let fetched = false;
 	const check = () => {
 		const w = window.innerWidth || 1;
 		const h = window.innerHeight || 1;
-		if (fetched || w / h < LANDSCAPE_RATIO || Math.min(w, h) <= LANDSCAPE_SHORT_SIDE) return;
+		if (fetched || gameLayoutType(w, h) !== 'desktop') return;
 		fetched = true;
 		window.removeEventListener('resize', check);
 		void Promise.all(Object.entries(UNREACHABLE_ASSETS).map(async ([key, entry]) => loadOne(key, entry))).then((list) => {

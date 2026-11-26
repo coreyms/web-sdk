@@ -91,11 +91,16 @@ export const LANDSCAPE_TALL = {
 
 /** the live landscape (desktop) viewport: the master height the screen shows (720 plus the letterbox above and below).
  *  game/stateLayout.ts sets the source, which gives 720 whenever the layout is not the desktop one, so this is 0 on a
- *  phone, a tablet and a portrait screen; without a source (node tools) it is 0 as well. */
+ *  phone, a tablet and a portrait screen; without a source (node tools) it is 0 as well.
+ *  2026-11-26 (THE MIDDLE WINDOWS, MID below): the source gives the window itself, CSS px (null: not the desktop layout) */
 let landscapeViewport: (() => number) | null = null;
-export const setLandscapeViewportSource = (source: () => number) => {
+let landscapeWindow: (() => { vw: number; vh: number } | null) | null = null;
+export const setLandscapeViewportSource = (source: () => number, window?: () => { vw: number; vh: number } | null) => {
 	landscapeViewport = source;
+	landscapeWindow = window ?? null;
 };
+/** the desktop window now (CSS px), or null (not the desktop layout, or a node tool with no source) */
+export const landscapeWindowNow = () => landscapeWindow?.() ?? null;
 
 /** the master units of canvas the desktop screen shows above the master and as many below it, as far as the board uses
  *  them (LANDSCAPE_TALL): 0 at 16:9 and wider, 40 at 16:10, 66.7 at 3:2 and held there below 3:2. Reactive (a $derived
@@ -117,6 +122,259 @@ export const landscapeTallFrame = (extra: number) => {
 	const cellArea = (B.cellArea * (H + 2 * extra)) / H;
 	const plaqueBottom = B.cellTop + LANDSCAPE_TALL.plaqueK * B.cellArea + extra;
 	return landscapeFrame(cellArea, plaqueBottom - LANDSCAPE_TALL.plaqueK * cellArea);
+};
+
+// ---- THE MIDDLE WINDOWS (2026-11-26; Corey's placements, Desktop "Manticore Mayhem/layout_mid_sizes_mock_r1_2026-11-26"
+// corey_placements_r2_2026-11-26.json: 990 x 783, 1100 x 900, 783 x 783 and 640 x 783, every piece on the 16:9 day scene
+// with the gear bar; Corey: "These are approximate sizes only") -----------------------------------------------------------
+// Until now a window narrower than ratio 1.3 was drawn as an upright phone (the portrait master and its 9:16 scene) with
+// the old dock, and from about 0.9 to 1.3 it was broken (no floor or pillars, a huge logo, the Manticore floating). Corey:
+// "We should always use the Gear layout since this older UI Bar was rejected by Stake before."
+// THE RULE: a window whose SHORT side is over 480 CSS px is a desktop window at every shape (the landscape master, the
+// 16:9 scene cover fitted as it always was, the desktop's board, frame and Manticore art). Phones (short side 480 or
+// less) keep their own layouts exactly. By the window's shape r = width / height:
+//   DESK  r >= 1.3     today's desktop rule, untouched (LANDSCAPE_TALL; the gear bar of ui/gear/gearLayout.ts DESKTOP)
+//   WIDE  1.12 .. 1.3  his 990 x 783 and 1100 x 900: the same desktop gear bar (the Play by the frame's top right wheel,
+//                      Turbo on its right, Auto under it, Menu and the Armoury as standards under the logo, Balance, Win
+//                      and the amount along the bottom), the 3:2 board's size against the width (his 0.69), the board let
+//                      down toward the bottom row (his places: the plaque about 0.1 of the height over the bottom edge),
+//                      the Manticore on the floor at the lower right in front of it. Over the first `ramp` of shape under
+//                      1.3 the board, the clock line and the logo slide from today's places to these, so nothing jumps.
+//   ROW   r < 1.12     his 783 x 783 (square) and 640 x 783 (tall): the gear train in a row under the board (the
+//                      upright phone's order: the Armoury, Menu, Auto, the Play, Turbo), Win just over its left end,
+//                      Balance at the bottom left, the amount with < and > at the bottom right; the board grows with the
+//                      shape (his 0.79 of the width at 1.0, 0.87 at 0.817), its plaque on the row's band; the logo at the
+//                      top left over the board. Over `rowRamp` of shape above 1.12 the board rises to the row's band
+//                      while the bar is still the desktop one, so the switch moves the bar, not the board.
+//   PERCH r < 0.9      (inside ROW) the Manticore perches BEHIND the board on its top right (his 640 x 783), the claw
+//                      dock of the upright phone (CREATURE.portraitDock) on this board; at and over 0.9 he stands on the
+//                      floor in front of it (his 783 x 783).
+// Between his anchor shapes everything is the straight line through them (the board's share, the logo's share), so a
+// resize slides; the only switches are the bar (at rowUnder) and his layer (at perchUnder), and neither reorders a key.
+// Shapes narrower than his 640 x 783 hold its shares (a tablet held upright, 768 x 1024 or 820 x 1180, is this band).
+// Where the window is too short for a share the board is drawn smaller (the plaque keeps the band, the logo and his
+// perch keep their room over the board).
+export const MID = {
+	/** ROLLBACK: false draws every window as before 2026-11-26 (the shared rule's layouts, the dock where the gear bar
+	 *  did not fit: ui/gear/gearLayout.ts barKind). On the dev server `?mid=0` does the same for one page (probes keep
+	 *  checking the old upright tablet and the dock with it). */
+	on: true,
+	/** a window whose short side is over this is a desktop window at every shape (utils-layout's phone size class) */
+	shortSide: 480,
+	/** at and above this shape nothing changes */
+	from: 1.3,
+	/** the slide from today's places to the wide style's, in shape under `from` */
+	ramp: 0.06,
+	/** under this shape the bar is the row under the board */
+	rowUnder: 1.12,
+	/** the board's rise to the row's band, in shape over rowUnder */
+	rowRamp: 0.05,
+	/** under this shape the Manticore perches behind the board; the board makes room for him over `perchRamp` above it */
+	perchUnder: 0.9,
+	perchRamp: 0.06,
+	/** the board ART's width against the window's width, [shape, share] in falling shape: the 3:2 board's own share
+	 *  (875.8 / 1280) at and over the first; his 783 x 783 and 640 x 783; held under the last */
+	share: [
+		[1.12, 0.68422],
+		[1.0, 0.79],
+		[0.817, 0.87],
+	] as readonly (readonly [number, number])[],
+	/** the desktop bar's gears stand right of the board by the frame's top right wheel: a window whose room right of the
+	 *  board art is under this (CSS px) draws the row instead, whatever its shape (a small window: 700 x 560, 800 x 600;
+	 *  the desktop rule there would draw the small gears under 50 px or off the window). 990 x 783 has 156. */
+	wideRoom: 135,
+	/** WIDE: the plaque's bottom stands this share of the window's height over its bottom edge (his 990 x 783: 0.0996,
+	 *  1100 x 900: 0.0961), and never less than the bottom row's own height plus `wideAir` CSS px */
+	wideGap: 0.098,
+	wideAir: 12,
+	/** ROW: the gear train's band under the plaque, CSS px at his 783 tall windows, scaled by the window's height
+	 *  (k = vh / refH, held between kMin and kMax, never over the width's own vw / refH + 0.25, and smaller where a
+	 *  straight row would not fit the width): the Play's size, the four small
+	 *  gears' (his 62 to 72 everywhere, Corey: "should be about the same size on each"), the room under the Play */
+	row: { refH: 783, kMin: 0.72, kMax: 1.15, play: 110, small: 64, smallMin: 46, under: 12 },
+	/** ROW: the logo at the top left over the board: its width against the window's width ([shape, share], his 0.257
+	 *  at 783 x 783 and 0.344 at 640 x 783, drawn a little smaller so the board keeps its share), its left edge and its
+	 *  top (master units, LOGO.landscapeTall's: `gap` in from the screen's edge, `top` under the clock row's), and the
+	 *  clear gap to the frame art under it (CSS px) */
+	logo: {
+		share: [
+			[1.12, 0.22],
+			[0.817, 0.3],
+		] as readonly (readonly [number, number])[],
+		gap: 26,
+		top: 46.76,
+		over: 6,
+	},
+	/** PERCH: his size against the board (CSS px per rig px over the board ART's width: his 640 x 783, 0.2517 at 556.8),
+	 *  the rows of his 1024 rig canvas his idle top stands on (ui/gear/uprightScene.ts UPRIGHT_SCENE.creature.idleTop) and
+	 *  how far his idle tail tip may stand past the top edge (CSS px, the upright phone's `tailOver`), and his feet's
+	 *  column left of the board art's right edge (share of the art's width: his 0.218) */
+	perch: { perArt: 0.000452, idleTop: 112, tailOver: 6, fromRight: 0.218 },
+	/** ROW, at and over perchUnder: on the floor in front of the board, his size against the board (his 783 x 783: 0.267
+	 *  CSS px per rig px at 617.9), drawn smaller where that would put his left wing on the cells (`cellClear` CSS px
+	 *  kept, as on every desktop) or his right one more than `wingOver` CSS px off the window (Corey 2026-11-04: "It's
+	 *  okay if the wing is off the screen a little bit"). His drawn width, rig px either side of his feet column (the
+	 *  still's trimmed box, static/assets/sprites/creature/still: 418 left, 362 right of column 512) */
+	floor: { perArt: 0.000432, cellClear: 5, wingOver: 12, left: 418, right: 362 },
+} as const;
+
+export type MidBand = 'desk' | 'wide' | 'row';
+/** DEV only: `?mid=0` turns the middle windows' rule off for the page (MID.on) */
+const MID_DEV_OFF = !!import.meta.env?.DEV && typeof location !== 'undefined' && new URLSearchParams(location.search).get('mid') === '0';
+/** the middle windows' rule is on (MID.on, and not `?mid=0` on the dev server) */
+export const midOn = () => MID.on && !MID_DEV_OFF;
+const lerpTable = (table: readonly (readonly [number, number])[], r: number) => {
+	if (r >= table[0][0]) return table[0][1];
+	for (let i = 1; i < table.length; i++) {
+		const [r0, v0] = table[i - 1];
+		const [r1, v1] = table[i];
+		if (r >= r1) return v1 + ((v0 - v1) * (r - r1)) / (r0 - r1);
+	}
+	return table[table.length - 1][1];
+};
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+
+/** COPY OF packages/utils-layout createLayout layoutType (the shared rule): ratio >= 1.3 is wide (a phone's master when
+ *  the short side is 480 or less, else the desktop), 0.8 .. 1.3 'tablet', under 0.8 'portrait' */
+export const sharedLayoutType = (w: number, h: number): 'desktop' | 'landscape' | 'portrait' | 'tablet' => {
+	const r = w / (h || 1);
+	if (r > 0.8 && r < 1.3) return 'tablet';
+	if (r <= 0.8) return 'portrait';
+	return Math.min(w, h) <= MID.shortSide ? 'landscape' : 'desktop';
+};
+/** THE GAME'S LAYOUT TYPE (MID above): every window whose short side is over 480 CSS px is the desktop; a phone's
+ *  window is the shared rule's (game/stateLayout.ts gives this to the whole game; game/assets.ts picks its boot art by it) */
+export const gameLayoutType = (w: number, h: number): 'desktop' | 'landscape' | 'portrait' | 'tablet' => (midOn() && Math.min(w, h) > MID.shortSide ? 'desktop' : sharedLayoutType(w, h));
+
+/** the board's own numbers for the rule: the ART's width per cell area, the stack from the art's top edge to the spin
+ *  amount plaque's sprite box bottom (LANDSCAPE_TALL.plaqueK) against the art's width, the frame's top bar row (the
+ *  upright phone's dock edge, render px) under the art's top against the art's width, and the plaque's own box */
+let boardNumbers: { artPerCell: number; stack: number; bar: number; plaqueLeft: number; plaqueWidth: number; plaqueHeight: number } | null = null;
+const boardNums = () => {
+	if (boardNumbers) return boardNumbers;
+	const f = landscapeFrame(LANDSCAPE_BOARD.cellArea, LANDSCAPE_BOARD.cellTop);
+	const art = artRectOf(f);
+	const r = registrationOf(f);
+	const pb = BOARD_PLAQUE_SPEC.layouts.landscape.render.plaqueBox;
+	const p0 = r.map(pb[0], pb[1]);
+	const p1 = r.map(pb[0] + pb[2], pb[1] + pb[3]);
+	boardNumbers = {
+		artPerCell: art.width / LANDSCAPE_BOARD.cellArea,
+		stack: (LANDSCAPE_BOARD.cellTop + LANDSCAPE_TALL.plaqueK * LANDSCAPE_BOARD.cellArea - art.y) / art.width,
+		bar: (r.map(0, MID_DOCK_BAR_ROW).y - art.y) / art.width,
+		plaqueLeft: (p0.x - art.x) / art.width,
+		plaqueWidth: (p1.x - p0.x) / art.width,
+		plaqueHeight: (p1.y - p0.y) / art.width,
+	};
+	return boardNumbers;
+};
+/** COPY OF constants CREATURE.portraitDock.edges.frame and .claw.y (this file cannot import the creature's block without
+ *  a cycle): the frame's top bar row (render px) his claw docks on, and his claw's rig row */
+const MID_DOCK_BAR_ROW = 205.6;
+const MID_CLAW_ROW = 776;
+const LOGO_ASPECT = 1938 / 701; // COPY OF constants LOGO.art
+
+export type MidView = {
+	vw: number;
+	vh: number;
+	r: number;
+	band: MidBand;
+	perch: boolean;
+	/** the master's fit, and the letterbox the window shows over and under the master (master units) */
+	fit: number;
+	letterbox: number;
+	/** how far the top line (the clock strip, the logo's C1 box, SKIP's place under it) rides up, master units */
+	lift: number;
+	/** the slide from today's places (0) to the wide style's (1) */
+	t: number;
+	frame: FrameRect;
+	/** the board art (CSS px): its box, the spin amount plaque's sprite box */
+	art: { x: number; y: number; w: number; h: number };
+	plaque: { x: number; y: number; w: number; h: number };
+	/** ROW: the logo's box (master units; null elsewhere: the C1 column rule) */
+	logo: { x: number; y: number; width: number; height: number } | null;
+	/** ROW: the gear train's sizes (CSS px): the Play's and the small gears' size over the tips, the band's height, k */
+	train: { play: number; small: number; band: number; k: number } | null;
+};
+const midKept = new Map<string, MidView>();
+/** THE MIDDLE WINDOWS' RULE for a desktop window (CSS px), pure. At r >= MID.from: today's frame exactly. */
+export const midView = (vw: number, vh: number): MidView => {
+	const key = `${Math.round(vw * 100)}|${Math.round(vh * 100)}`;
+	const hit = midKept.get(key);
+	if (hit) return hit;
+	const out = midSolve(vw, vh);
+	if (midKept.size >= 32) midKept.delete(midKept.keys().next().value as string);
+	midKept.set(key, out);
+	return out;
+};
+const midSolve = (vw: number, vh: number): MidView => {
+	const M = MASTER.landscape;
+	const r = vw / Math.max(vh, 1);
+	const fit = Math.min(vw / M.width, vh / M.height);
+	const H = vh / fit;
+	const letterbox = Math.max(0, (H - M.height) / 2);
+	const extra = landscapeExtraY(H);
+	const top0 = (vh - M.height * fit) / 2;
+	const css = (x: number, y: number) => ({ x: (vw - M.width * fit) / 2 + x * fit, y: top0 + y * fit });
+	const N = boardNums();
+	const boxes = (frame: FrameRect) => {
+		const a = artRectOf(frame);
+		const p = css(a.x, a.y);
+		const w = a.width * fit;
+		const cellArea = frame.width - 2 * frame.inset;
+		const pb = css(0, frame.y + frame.inset + LANDSCAPE_TALL.plaqueK * cellArea).y;
+		const ph = N.plaqueHeight * w;
+		return { art: { x: p.x, y: p.y, w, h: a.height * fit }, plaque: { x: p.x + N.plaqueLeft * w, y: pb - ph, w: N.plaqueWidth * w, h: ph } };
+	};
+	const roomy = (A: number) => (vw - A) / 2 >= MID.wideRoom;
+	if (r >= MID.from || !midOn()) {
+		const frame = landscapeTallFrame(extra);
+		const b = boxes(frame);
+		if (roomy(b.art.w) || !midOn()) return { vw, vh, r, band: 'desk', perch: false, fit, letterbox, lift: extra, t: 0, frame, ...b, logo: null, train: null };
+	}
+	const band: MidBand = r < MID.rowUnder || !roomy(lerpTable(MID.share, r) * vw) || r >= MID.from ? 'row' : 'wide';
+	const t = band === 'row' ? 1 : clamp01((MID.from - r) / MID.ramp);
+	const lift = extra + (letterbox - extra) * t;
+	const perch = band === 'row' && r < MID.perchUnder;
+	// the gear train's band (ROW; and the target of the rise above rowUnder)
+	const R = MID.row;
+	let k = Math.max(R.kMin, Math.min(R.kMax, vh / R.refH, vw / R.refH + 0.25));
+	// a straight row of the Play and four small gears, with 16 px to spare, never wider than the window
+	k = Math.min(k, (vw - 16) / (R.play + 4 * R.small));
+	const play = R.play * k;
+	const small = Math.max(R.smallMin, R.small * k);
+	const trainBand = play + R.under * k;
+	// the plaque's bottom over the window's bottom edge, CSS px: today's, the wide style's, the row's band
+	const today = landscapeTallFrame(extra);
+	const gToday = vh - (top0 + (today.y + today.inset + LANDSCAPE_TALL.plaqueK * (today.width - 2 * today.inset)) * fit);
+	// (the desktop bar's bottom row: Win's box is 80.8 px of the 1920 table over the bottom edge, x the bar's scale:
+	// COPY OF ui/gear/gearLayout.ts desktopLayout h, the HUD's tablet scale under a 1:1 fit)
+	const hBar = fit / (fit < 1 ? 0.921875 : 1.125) / (1.5 / 1.125);
+	const gWide = Math.max(MID.wideGap * vh, 80.8 * hBar + MID.wideAir);
+	const t2 = clamp01((MID.rowUnder + MID.rowRamp - r) / MID.rowRamp);
+	const g = band === 'row' ? trainBand : gToday + (gWide - gToday) * t + (trainBand - (gToday + (gWide - gToday) * t)) * t2;
+	// the board ART's width: the share, then what the height leaves
+	let A = lerpTable(MID.share, r) * vw;
+	let logo: MidView['logo'] = null;
+	if (band === 'row') {
+		const lw = lerpTable(MID.logo.share, r) * vw;
+		const logoTop = (MID.logo.top - lift) * fit + top0;
+		const logoBottom = logoTop + lw / LOGO_ASPECT;
+		logo = { x: MID.logo.gap, y: MID.logo.top - lift, width: lw / fit, height: lw / LOGO_ASPECT / fit };
+		A = Math.min(A, (vh - g - logoBottom - MID.logo.over) / N.stack);
+		// his idle top over the frame's top bar (his claw on it), at his size against the board: A x perArt per rig px. The
+		// room he needs is taken in over `perchRamp` of shape above perchUnder, so the board does not jump where he perches
+		const above = (MID_CLAW_ROW - MID.perch.idleTop) * MID.perch.perArt - N.bar;
+		const w = clamp01((MID.perchUnder + MID.perchRamp - r) / MID.perchRamp);
+		if (w > 0) A -= w * Math.max(0, A - (vh - g + MID.perch.tailOver) / (N.stack + above));
+	} else {
+		// the art's top no higher than the window's top edge less its finial tips (about 3 percent of its width)
+		A = Math.min(A, (vh - g + 0.03 * A) / N.stack);
+	}
+	const cellArea = A / fit / N.artPerCell;
+	const plaqueBottom = (vh - g - top0) / fit;
+	const frame = landscapeFrame(cellArea, plaqueBottom - LANDSCAPE_TALL.plaqueK * cellArea);
+	return { vw, vh, r, band, perch, fit, letterbox, lift, t, frame, ...boxes(frame), logo, train: band === 'row' ? { play, small, band: trainBand, k } : null };
 };
 
 // Board frame geometry. inset = the distance from the frame edge to the first cell; the 8x8 cell
@@ -245,8 +503,12 @@ const plaqueBelowArtPx = (tablet: boolean) => {
 // (LANDSCAPE_TALL); the phone's passes through.
 export const frameFor = (kind: LayoutKind, viewportMasterWidth?: number) => {
 	const base = FRAME[kind];
-	// the desktop board on a screen narrower than 16:9 (LANDSCAPE_TALL); FRAME.landscape itself at 16:9 and wider
-	if (kind === 'landscape') return landscapeTallFrame(landscapeExtraY());
+	// the desktop board on a screen narrower than 16:9 (LANDSCAPE_TALL); FRAME.landscape itself at 16:9 and wider; under
+	// ratio 1.3 the middle windows' rule (MID)
+	if (kind === 'landscape') {
+		const win = landscapeWindowNow();
+		return win ? midView(win.vw, win.vh).frame : landscapeTallFrame(landscapeExtraY());
+	}
 	if (kind !== 'portrait' || !viewportMasterWidth) return base;
 	const shipped = portraitFrameShipped(viewportMasterWidth);
 	// an upright phone drawing the gear train: the same frame, smaller and higher where the train needs the room
@@ -400,8 +662,10 @@ const rowRectOf = (f: FrameRect, row: number) => ({ x: f.x + f.inset, y: f.y + f
  *  in every other layout; on a taller desktop screen the bigger board's (LANDSCAPE_TALL). What sits over a row (the
  *  desktop prompt's fallback, HUD.landscape.pressToContinue) moves by it. */
 export const boardRowShift = (kind: LayoutKind, row: number) => {
-	if (kind !== 'landscape' || landscapeExtraY() <= 0) return 0;
-	const a = rowRectOf(frameFor('landscape'), row);
+	if (kind !== 'landscape') return 0;
+	const f = frameFor('landscape');
+	if (f === FRAME.landscape) return 0;
+	const a = rowRectOf(f, row);
 	const b = rowRectOf(FRAME.landscape, row);
 	return a.y + a.height / 2 - (b.y + b.height / 2);
 };

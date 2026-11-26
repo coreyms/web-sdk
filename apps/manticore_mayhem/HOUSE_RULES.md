@@ -59,8 +59,21 @@ loop, every move book driven).
   (Play as a gear by the frame's top right wheel, Auto and Turbo meshed on it, Menu and the Armoury as war standards
   under the logo). One typed file holds its tables and its rule, `ui/gear/gearLayout.ts`: `DESKTOP` (Corey's places at
   1920 x 1080), `desktopLayout()` (every other desktop window), empty `sideways` and `upright` phone tables, and
-  `barKind()`, the one switch. Phones, tablets and Stake's two popouts keep the dock until their tables are filled.
-  Rollback: `GAME_BAR = 'dock'`. On the dev server `?bar=dock` or `?bar=gear` picks a bar for a probe run. It is a
+  `barKind()`, the one switch. Rollback: `GAME_BAR = 'dock'`.
+- THE MIDDLE WINDOWS AND THE NO DOCK RULE (2026-11-26, `game/layoutSpec.ts` `MID`, `midView`; Corey's placements
+  `corey_placements_r2_2026-11-26.json`, "We should always use the Gear layout"): a window whose short side is over
+  480 CSS px is the DESKTOP layout at every shape (`gameLayoutType`, given to the whole game by `game/stateLayout.ts`;
+  `game/assets.ts` boots by it). Ratio 1.3 and over: today's desktop, untouched. 1.12 to 1.3 (WIDE, his 990 x 783 and
+  1100 x 900): the desktop gear bar, the 3:2 board's share of the width, the board let down toward the bottom row. Under
+  1.12, or where the room right of the board is under `MID.wideRoom` (ROW, his 783 x 783 and 640 x 783, tablets held
+  upright): `gearLayout.ts` `midRowLayout`, the upright phone's train in a row under the board (drawn by
+  `GearBarUpright.svelte` from `ChromeLandscape.svelte`), the logo at the top left over the board, the board's share
+  growing to 0.87; under 0.9 the Manticore perches behind the board (`CREATURE.place.desktopPerch`, placed from the
+  board in `components/Background.svelte`). The HTML modals, THE ARMOURY and the landing keep the layout the shared rule
+  gives (`stateLayoutDerived.legacyKind`), so they are what they were. Every desktop window draws the gear bar (no
+  `DESKTOP_MIN` floor); the sideways rule has no size floor. The dock is left only where a phone's rule finds no layout
+  (upright under 360 wide or under 480 tall, Popout S 400 x 225, `tools/gear_layout_test.mjs` lists them). Rollback:
+  `MID.on = false` (and `?mid=0` on the dev server for one page). On the dev server `?bar=dock` or `?bar=gear` picks a bar for a probe run. It is a
   re-skin: `HudSpin`, `HudReadout`, `HudStep` and `HudMenuPanel` are reused over the same `controls`. The gears turn
   from the frame's own haul (`game/frameGears.ts`, called from `components/BoardFrame.svelte`'s tick) by a CSS rotate
   on five layers, and the hub ring's color is drawn on the frame's two top wheels as plain sprites. Dev hook:
@@ -78,7 +91,8 @@ loop, every move book driven).
   train under the plaque (Play on the center line; Turbo on its right; Auto, Menu and the Armoury as a chain on its
   left; icons only). `gearLayout.ts` `UPRIGHT` is his setup at 402 x 874 and `uprightLayout()` the one rule for every
   other phone window (the scale, the chain's angles, where each readout goes, the bottom safe area); its comment lists
-  every move from his places. Under 360 px wide (320 x 568) the dock stays, and so do tablets. The readouts are real
+  every move from his places. Under 360 px wide (320 x 568) the dock stays; tablets are desktop windows since
+  2026-11-26 (THE MIDDLE WINDOWS above). The readouts are real
   text, a 9 px word over a 15 px number, always in the band under the plaque.
 - THE UPRIGHT PHONE'S SCENE UNDER THE TRAIN (2026-11-23, `ui/gear/uprightScene.ts`, table `UPRIGHT_SCENE`): a phone
   browser's frame is far shorter than the phone (Stake full screen 440 x 742, its framed page 413 x 586), so where the
@@ -108,7 +122,7 @@ loop, every move book driven).
   fits; other bends, then a smaller Play, where it does not; `SKYLINE` is the Manticore's top edge, and the Play may
   reach under it only as far as his own placing does). The HTML gears are phased to the wheel (`WHEEL_REST`). With
   this bar the studio name of the top line is drawn under the clock line at the left (`ui/ChromePhone.svelte`): the
-  Play gear stands where it was. Under 640 x 320, and where no chain fits, the dock stays. On a touch phone the bottom
+  Play gear stands where it was. Where no chain fits the dock stays (the 640 x 320 floor went on 2026-11-26: the rule's own checks decide). On a touch phone the bottom
   row is drawn 20 px up (`SIDEWAYS.homeStrip`: the phone's home indicator line lies over the frame's bottom edge and
   the safe area reads 0 inside an iframe), the amount and its arrows always in one row there. The chain reads Auto,
   Turbo, Play from the left on every frame; Turbo stands under Auto except where the chain must fold (667 wide).

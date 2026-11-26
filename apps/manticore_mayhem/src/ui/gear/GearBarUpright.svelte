@@ -35,11 +35,13 @@
 	import HudMenuPanel from '../hud/HudMenuPanel.svelte';
 	import GearKey from './GearKey.svelte';
 	import { GEAR_PAD, playGearArt, spinWordSvg } from './gearArt';
-	import { fold, playAngle, smallAngle, type TrainGear, type UprightLayout } from './gearLayout';
+	import { fold, playAngle, smallAngle, type MidRowLayout, type TrainGear, type UprightLayout } from './gearLayout';
 	import { hubNow } from './hubNow';
 	import './gear.css';
 
-	type Props = { controls: Controls; hud: HudFrame; layout: UprightLayout };
+	// (THE MIDDLE WINDOWS' ROW, ui/gear/gearLayout.ts midRowLayout: the same train under the desktop board of a window
+	// under ratio 1.12, drawn by this same component from ui/ChromeLandscape.svelte)
+	type Props = { controls: Controls; hud: HudFrame; layout: UprightLayout | MidRowLayout };
 	const { controls, hud, layout: L }: Props = $props();
 	const context = getContext();
 	const hs = createHudState(controls);
@@ -158,7 +160,7 @@
 				/** the scene under the train (ui/gear/uprightScene.ts): the common share u, the board against the shipped one, the
 				 *  lift, where the frame art's top and the logo's bottom edge stand, the Manticore's share and his idle top (CSS px;
 				 *  under 0: past the top edge), and the band the shipped scene would have left */
-				scene: { ...L.scene, creature: { ...L.scene.creature }, logo: { ...L.scene.logo } },
+				scene: L.table === 'upright' ? { ...L.scene, creature: { ...L.scene.creature }, logo: { ...L.scene.logo } } : JSON.parse(JSON.stringify(L.scene)),
 				kBand: L.kBand,
 				/** every piece's drawn box and its press box (the arrows': 44 px round the drawn arrow), CSS px */
 				box: copy(L.box),

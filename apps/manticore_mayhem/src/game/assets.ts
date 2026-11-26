@@ -4,6 +4,7 @@ import { PHONE_TIER, renderResolutionFor } from './deviceTier';
 import { LABEL_CAPS } from './labelGlyphs';
 import { pickLabelCap } from './clusterLabel';
 import { CREATURE, EPIC_LOAD, LOAD_GATE, SUNSET_FORE } from './constants';
+import { gameLayoutType } from './layoutSpec';
 
 // Pixi's texture loader fetches through a Worker it builds from a blob: URL, and its support probe
 // waits for that worker's first message with no error path. Behind a CSP whose worker-src has no
@@ -57,10 +58,10 @@ const LABEL_BOOT_CAP: number = (() => {
 const LANDSCAPE_MASTER_MIN_SHORT_SIDE = 480;
 const bootLayout = ((): 'landscape' | 'phone' | 'portrait' => {
 	if (typeof window === 'undefined') return 'landscape';
-	const w = window.innerWidth || 1;
-	const h = window.innerHeight || 1;
-	if (w / h >= 1.3) return Math.min(w, h) <= LANDSCAPE_MASTER_MIN_SHORT_SIDE ? 'phone' : 'landscape';
-	return 'portrait';
+	// the game's own rule (layoutSpec gameLayoutType, THE MIDDLE WINDOWS 2026-11-26: a window whose short side is over
+	// 480 is the desktop at every shape), the one game/stateLayout.ts gives the whole game
+	const t = gameLayoutType(window.innerWidth || 1, window.innerHeight || 1);
+	return t === 'desktop' ? 'landscape' : t === 'landscape' ? 'phone' : 'portrait';
 })();
 const atBoot = (kind: 'landscape' | 'phone' | 'portrait') => bootLayout === kind;
 /** the layout the game booted in: its board art is in the start-up art (game/deferredLoad.ts loadLayoutLate fetches the
