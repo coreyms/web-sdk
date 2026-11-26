@@ -63,6 +63,9 @@ const bootLayout = ((): 'landscape' | 'phone' | 'portrait' => {
 	return 'portrait';
 })();
 const atBoot = (kind: 'landscape' | 'phone' | 'portrait') => bootLayout === kind;
+/** the layout the game booted in: its board art is in the start-up art (game/deferredLoad.ts loadLayoutLate fetches the
+ *  others' the first time they show) */
+export const BOOT_LAYOUT = bootLayout;
 /** which of the two courtyard scenes the boot layout draws: the 16:9 one (landscape and phone sideways) or the 9:16
  *  one (portrait). Only that one gates the landing screen; the other is not registered at all (SCENE_LATE). */
 const sceneAtBoot = bootLayout !== 'portrait';

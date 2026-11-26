@@ -17,9 +17,7 @@
 // Loading only: nothing here changes what the round shows, its timing once it plays, or how it ends.
 import { stateBet, stateUrlDerived } from 'state-shared';
 
-import * as PIXI from 'pixi.js';
-
-import assets, { FRAME_NIGHT_KEYS, GATE_ORDER, STINGER_DATA_URLS, gateFileBytes } from './assets';
+import { GATE_ORDER, STINGER_DATA_URLS, gateFileBytes } from './assets';
 import { fileBytes } from './assetStamp';
 import { loadBannerMotion } from './banner/motion';
 import { BANNER_GLYPHS, BANNER_MOTION_URLS, BANNER_TEXTURES, bannerTierOf } from './banner/spec';
@@ -28,8 +26,8 @@ import { epicBannerClass, epicReplayAhead } from './epicLoad';
 import { warmFile, warmSheet, type WarmOptions } from './fileWarm';
 import { gateSettled, loadGate as gateState } from './loadGate.svelte';
 import { replayGateOrder, replayNeedsOf, type ReplayBookLike, type ReplayGroup, type ReplayNeeds } from './replayNeeds';
+import { layoutLate } from './deferredLoad';
 import { sound } from './sound';
-import { stateApp } from './stateApp';
 import { STAGING_TOOLS, perfMark } from './staging';
 import { replayRoundUsable } from '../ui/replayRound';
 
@@ -135,14 +133,17 @@ const POLL_MS = 100;
  *    1. `gameUp`: the game is drawn (the start-up art in, components/Game.svelte's loading screen gone). NOT capped: the
  *       round's handlers mount with the game (components/EnableGameActor.svelte, ResumeBet.svelte), and a round sent
  *       before them would be lost. Since 2026-11-26 the card opens before the game is drawn, so a press can come first.
- *    2. the files the round waits for (a feature round's banner motion with them) and the audio (ready on a decode error
- *       too), or REPLAY_LOAD.capMs after the later of the press and the game being drawn. */
+ *    2. the files the round waits for (a feature round's banner motion with them), the audio (ready on a decode error
+ *       too) and the board art of the layout on show, or REPLAY_LOAD.capMs after the later of the press and the game
+ *       being drawn. */
 export const awaitReplayNeeds = async (gameUp: () => boolean): Promise<void> => {
 	const t0 = performance.now();
 	replayLoad.pressedAt = t0;
 	replayLoad.capped = false;
 	// (no plan: the gate was started without one; its settling is the end of its files)
-	const filesIn = () => (replayLoad.neededIn || (!plan && gateState.settled)) && (replayLoad.motionIn || !replayLoad.motionBytes) && sound.isReady;
+	// (layoutLate.pending: the board art of a layout the replay was turned to before START, game/deferredLoad.ts
+	// loadLayoutLate: the round never starts on a board waiting for its frame, though BoardFrame draws another layout's)
+	const filesIn = () => (replayLoad.neededIn || (!plan && gateState.settled)) && (replayLoad.motionIn || !replayLoad.motionBytes) && sound.isReady && layoutLate.pending === 0;
 	if (!(gameUp() && filesIn())) {
 		replayLoad.waiting = true;
 		let capFrom = 0;
@@ -163,42 +164,6 @@ export const awaitReplayNeeds = async (gameUp: () => boolean): Promise<void> => 
 	}
 	replayLoad.waitedMs = Math.round(performance.now() - t0);
 	if (STAGING_TOOLS) perfMark(replayLoad.capped ? 'replay:capped' : 'replay:start');
-};
-
-// ---- THE OTHER LAYOUTS' BOARD ART IN A REPLAY ---------------------------------------------------------------------------
-// The board's day art (frame, chains, gears, plaque, its crest and shadow) of a layout the game did not boot in is not in
-// the start-up art: it comes in the shared loader's LAST batch (pixi-svelte AssetsLoader), published all at once when that
-// whole batch is in. Until 2026-11-26 START REPLAY waited for that batch (or 30 s); a replay now starts on its own files,
-// so a replay turned to another layout before the batch is in (Stake's mini player taken to full screen: the phone master
-// to the desktop one) showed a board with no frame, chains or gears until the end of the whole download. In a replay that
-// layout's set is now fetched the first time it shows (components/BoardFrame.svelte), at once, and published together
-// (the frame and its gears appear as one, as the night set does: game/deferredLoad.ts loadFrameNightLate). The night and
-// fire sets keep their own on demand load. Not in play: a normal launch is unchanged.
-type Entry = { type: string; src: unknown; preload?: boolean };
-const layoutAsked = new Set<string>();
-export const replayLayoutArt = (kind: string): void => {
-	if (!stateUrlDerived.replay() || stateApp.loaded || layoutAsked.has(kind)) return;
-	layoutAsked.add(kind);
-	const table = assets as unknown as Record<string, Entry>;
-	const night = new Set(FRAME_NIGHT_KEYS(kind as 'landscape' | 'phone' | 'portrait'));
-	// (the boot layout's day art is in the start-up art: preload true, nothing to fetch)
-	const keys = Object.keys(table).filter((key) => key.endsWith(`_${kind}`) && !table[key].preload && !night.has(key) && typeof table[key].src === 'string');
-	if (!keys.length) return;
-	void Promise.all(
-		keys.map(async (key) => {
-			const entry = table[key];
-			try {
-				const raw = await PIXI.Assets.load(entry.src as string);
-				return entry.type === 'sprite' ? { [key]: raw } : ((raw as { textures?: Record<string, unknown> }).textures ?? {});
-			} catch {
-				return null;
-			}
-		}),
-	).then((done) => {
-		// (a part that failed is left to the shared loader's batch, which has the retries)
-		if (done.some((textures) => !textures)) return;
-		stateApp.loadedAssets = Object.assign({ ...stateApp.loadedAssets }, ...(done as Record<string, unknown>[]));
-	});
 };
 
 if (import.meta.env.DEV && typeof window !== 'undefined') {
