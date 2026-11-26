@@ -75,6 +75,10 @@ export const decodeSlotState = () => ({ busy: slotsBusy, waiting: slotLine.lengt
 /** a texture whose upload writes one band of rows per update (glTexture.width marks the allocation) */
 export class StripSource extends PIXI.TextureSource<Strips> {
 	override uploadMethodId = 'creatureStrips';
+	/** the sheet's picture (its address), to make the GPU copy again after a lost context (restripSheet) */
+	image = '';
+	/** its GPU copy was made again with no pixels left to fill it (a lost context): empty until restripSheet */
+	lost = false;
 	get done(): boolean {
 		return !this.resource?.px;
 	}
@@ -91,9 +95,9 @@ const stripUploader = {
 			gl.texImage2D(gl.TEXTURE_2D, 0, glTexture.internalFormat, w, h, 0, glTexture.format, glTexture.type, null);
 			glTexture.width = w;
 			glTexture.height = h;
-			// (a GPU copy made again after a lost WebGL context finds its pixels gone and stays empty: rare, and marked
-			// `lost` for the DEV readout)
-			if (s && !s.px) (source as StripSource & { lost?: boolean }).lost = true;
+			// (a GPU copy made again after a lost WebGL context finds its pixels gone: it is marked `lost` and stays empty
+			// until game/creatureLoad.ts makes it again from its file, restripSheet below)
+			if (s && !s.px) source.lost = true;
 			if (s) s.band = 0;
 		}
 		if (!s?.px) return;
@@ -211,6 +215,7 @@ export const loadStripSheet = async (url: string, renderer: PIXI.Renderer | unde
 			autoGarbageCollect: false,
 			label: url,
 		});
+		source.image = imageOfSheet(url, data.meta.image);
 		// (a sheet destroyed before its last band is up, a look let go mid upload: its pixels and its slot go with it)
 		(source as unknown as { once: (event: string, fn: () => void) => void }).once('destroy', () => own.free());
 		const sheet = new PIXI.Spritesheet(new PIXI.Texture({ source }), data);
@@ -241,4 +246,37 @@ export const uploadStrips = async (renderer: PIXI.Renderer | undefined, source: 
 		if (hold) await hold();
 		if (!source.destroyed) source.update();
 	}
+};
+
+/** THE LOST CONTEXT (memory follow-up, 2026-11-26): a sheet whose GPU copy went with a lost WebGL context is made again
+ *  the way it was made the first time: its picture fetched (the HTTP cache answers), decoded in the worker through THE
+ *  DECODE SLOTS, and uploaded in strips, one band a frame (no hold: he is missing until it is up). False when it cannot be
+ *  (destroyed meanwhile, no worker, the file or the decode failed, a picture of another size) */
+export const restripSheet = async (renderer: PIXI.Renderer | undefined, source: StripSource, needNow: () => boolean): Promise<boolean> => {
+	if (source.destroyed || !source.image || !canStrip(renderer)) return false;
+	const old = source.resource;
+	const file = await fetchPicture(source.image);
+	if (!file || source.destroyed) return false;
+	const giveBack = await takeDecodeSlot(needNow);
+	const pic = await decode(file);
+	if (!pic || source.destroyed || pic.w !== source.pixelWidth || pic.h !== source.pixelHeight) {
+		if (pic) letGo(new Uint8Array(pic.buf));
+		giveBack();
+		return false;
+	}
+	const own: Strips = { px: new Uint8Array(pic.buf), band: 0, rows: old?.rows ?? Math.ceil(pic.h / Math.max(1, CREATURE.upload.bands)), free: () => {} };
+	let freed = false;
+	own.free = () => {
+		if (freed) return;
+		freed = true;
+		const px = own.px;
+		own.px = null;
+		letGo(px);
+		giveBack();
+	};
+	(source as unknown as { once: (event: string, fn: () => void) => void }).once('destroy', () => own.free());
+	source.resource = own;
+	source.lost = false;
+	await uploadStrips(renderer, source);
+	return source.done && !source.destroyed;
 };

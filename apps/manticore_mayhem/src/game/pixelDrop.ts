@@ -21,9 +21,10 @@
 //
 // WHEN THE GPU COPY IS GONE (a lost WebGL context, an explicit unload): Pixi asks the uploader for a NEW texture. It
 // allocates it empty and the picture is fetched again (the same address: the HTTP cache answers), decoded as Pixi's loader
-// decodes it, set back as the resource and uploaded; then let go again. One file at a time, so a restored context does not
-// decode every picture at once. Until its picture is back the texture is blank: Decimus watches for this (`restores` and
-// `blank` in the readout). A scene released at a turn of the device keeps its dropped sources on the GPU instead of
+// decodes it, set back as the resource and uploaded; then let go again. After a restored context every dropped picture is
+// fetched again at once, not only when drawn (RESTORE_AT_ONCE at a time, the ones on show moved to the head of the line),
+// so a plaque that comes up a few seconds later finds its letters in. Until its picture is back a texture is blank: the
+// readout's `blank` counts the ones blank NOW, `blankEver` every time it happened. A scene released at a turn of the device keeps its dropped sources on the GPU instead of
 // unloading them (game/scene.ts release), so a turn never takes this path.
 //
 // THE READOUT (DEV and staging builds only, never Stake's: STAGING_TOOLS): `__manticore.memory()` (installed by
@@ -56,17 +57,26 @@ const switchedOff = (): boolean => STAGING_TOOLS && typeof window !== 'undefined
 
 const state = {
 	sys: null as TexSys | null,
+	renderer: null as PIXI.Renderer | null,
 	queued: new Set<PIXI.TextureSource>(),
 	flushing: false,
 	dropped: 0,
 	droppedBytes: 0,
 	restores: 0,
-	/** times a GPU copy had to be made again while the picture was not there (drawn blank until it is restored) */
-	blank: 0,
+	/** LIFETIME: times a GPU copy had to be made again while its picture was not there (each drawn blank until restored) */
+	blankEver: 0,
+	/** NOW: the sources with a GPU copy and no pixels in it, waiting for their picture (the readout's `blank`) */
+	blankNow: new Set<PIXI.TextureSource>(),
 	failed: 0,
+	contextRestores: 0,
+	/** the restore line: the sources waiting, the ones on show first (see restore) */
+	waiting: [] as PIXI.TextureSource[],
 	restoring: new Set<PIXI.TextureSource>(),
-	line: Promise.resolve() as Promise<void>,
+	running: 0,
 };
+/** how many pictures are fetched and decoded again at one time after a lost context (each is let go a frame after its
+ *  upload, so at most this many decoded copies are alive at once) */
+const RESTORE_AT_ONCE = 4;
 
 const kept = (s: PIXI.TextureSource): boolean => {
 	const file = fileOf(addressOf(s));
@@ -105,34 +115,80 @@ const queue = (s: PIXI.TextureSource): void => {
 	requestAnimationFrame(() => setTimeout(flush, 0));
 };
 
-/** the picture fetched again and set back as the source's resource, then uploaded (and let go again after). One at a time */
-const restore = (s: PIXI.TextureSource): void => {
-	if (state.restoring.has(s)) return;
-	state.restoring.add(s);
-	state.line = state.line.then(async () => {
-		try {
-			if (s.destroyed || !isStandIn(s.resource)) return;
-			const res = await fetch(addressOf(s));
-			if (!res.ok) throw new Error(String(res.status));
-			const blob = await res.blob();
-			// (decoded exactly as Pixi's loader decodes it: pixi.js loadTextures loadImageBitmap)
-			const bmp = s.alphaMode === 'premultiplied-alpha' ? await createImageBitmap(blob, { premultiplyAlpha: 'none' }) : await createImageBitmap(blob);
-			if (s.destroyed || !isStandIn(s.resource)) {
-				bmp.close();
-				return;
+/** the picture fetched again and set back as the source's resource, then uploaded (and let go again after).
+ *  RESTORE_AT_ONCE at a time; `first`: a source on show now (its GPU copy was just made blank) goes to the head of the line,
+ *  so what the player sees comes back before what is not drawn yet */
+const restore = (s: PIXI.TextureSource, first = false): void => {
+	if (state.restoring.has(s)) {
+		if (first) {
+			const i = state.waiting.indexOf(s);
+			if (i > 0) {
+				state.waiting.splice(i, 1);
+				state.waiting.unshift(s);
 			}
-			s.resource = bmp as unknown as typeof s.resource;
-			s.uploadMethodId = 'image';
-			state.restores += 1;
-			// (a blank GPU copy made in its place is filled now; with no GPU copy at all, an unload, Pixi uploads it at its next
-			// draw, as it would have before. Either way the wrapped uploader then queues the drop again)
-			if (state.sys?._glTextures[s.uid]) s.update();
-		} catch {
-			state.failed += 1;
-		} finally {
-			state.restoring.delete(s);
 		}
-	});
+		return;
+	}
+	state.restoring.add(s);
+	if (first) state.waiting.unshift(s);
+	else state.waiting.push(s);
+	pump();
+};
+const pump = (): void => {
+	while (state.running < RESTORE_AT_ONCE && state.waiting.length) {
+		const s = state.waiting.shift()!;
+		state.running += 1;
+		void restoreOne(s).finally(() => {
+			state.running -= 1;
+			state.restoring.delete(s);
+			pump();
+		});
+	}
+};
+const restoreOne = async (s: PIXI.TextureSource): Promise<void> => {
+	try {
+		if (s.destroyed || !isStandIn(s.resource)) return;
+		const res = await fetch(addressOf(s));
+		if (!res.ok) throw new Error(String(res.status));
+		const blob = await res.blob();
+		// (decoded exactly as Pixi's loader decodes it: pixi.js loadTextures loadImageBitmap)
+		const bmp = s.alphaMode === 'premultiplied-alpha' ? await createImageBitmap(blob, { premultiplyAlpha: 'none' }) : await createImageBitmap(blob);
+		if (s.destroyed || !isStandIn(s.resource)) {
+			bmp.close();
+			return;
+		}
+		s.resource = bmp as unknown as typeof s.resource;
+		s.uploadMethodId = 'image';
+		state.restores += 1;
+		// a blank GPU copy made in its place (it is on show) is filled now; a source with no GPU copy at all (after a lost
+		// context, one not drawn yet) goes up through the renderer's prepare queue, so its decoded copy does not wait for
+		// its next draw. Either way the wrapped uploader then queues the drop again
+		if (state.sys?._glTextures[s.uid]) s.update();
+		else void (state.renderer as unknown as { prepare?: { upload: (x: unknown) => Promise<void> } } | null)?.prepare?.upload(s);
+	} catch {
+		state.failed += 1;
+	}
+};
+
+/** THE LOST CONTEXT (WebGL context lost, then restored: Pixi has made every GPU copy anew, empty until uploaded): every
+ *  other system that keeps pixels of its own hears it here (game/creatureLoad.ts makes his strip sheets again) */
+const contextListeners: (() => void)[] = [];
+export const whenContextRestored = (fn: () => void): void => {
+	contextListeners.push(fn);
+};
+const contextRestored = (): void => {
+	state.contextRestores += 1;
+	// (every GPU copy is gone: the old "blank now" set means nothing any more; what is drawn blank joins it again)
+	state.blankNow.clear();
+	// every dropped picture comes back, before it is next drawn (the ones drawn this frame are moved to the head)
+	if (state.sys) for (const s of state.sys.managedTextures) if (isStandIn(s.resource) && !s.destroyed) restore(s);
+	for (const fn of contextListeners) {
+		try {
+			fn();
+		} catch {
+			/* one system's failure does not stop the others */
+		}
+	}
 };
 
 /** the upload method of a dropped source: the GPU copy stays as it is; a new one (its old copy gone) is made empty and
@@ -146,8 +202,9 @@ const droppedUploader: Uploader = {
 		gl.texImage2D(gl.TEXTURE_2D, 0, glTexture.internalFormat, w, h, 0, glTexture.format, glTexture.type, null);
 		glTexture.width = w;
 		glTexture.height = h;
-		state.blank += 1;
-		restore(source);
+		state.blankEver += 1;
+		state.blankNow.add(source);
+		restore(source, true);
 	},
 };
 
@@ -164,13 +221,18 @@ export const installPixelDrop = (renderer: PIXI.Renderer | undefined): void => {
 	// (WebGL only: a WebGPU renderer has no _uploads; the house renderer is 'webgl', rule R4)
 	if (!sys?._uploads?.image) return;
 	state.sys = sys;
+	state.renderer = renderer;
 	if (STAGING_TOOLS) installReadout(renderer, sys);
+	// THE LOST CONTEXT: Pixi's own systems hear a restored context on this runner first (they were added before), then this
+	// (a task later: every system has its new context by then)
+	(renderer as unknown as { runners: { contextChange: { add: (item: unknown) => void } } }).runners.contextChange.add({ contextChange: () => setTimeout(contextRestored, 0) });
 	if (!PIXEL_DROP.on || switchedOff()) return;
 	const image = sys._uploads.image;
 	sys._uploads.image = {
 		id: 'image',
 		upload(source, glTexture, gl, webGLVersion) {
 			image.upload(source, glTexture, gl, webGLVersion);
+			state.blankNow.delete(source);
 			if (isBitmap(source.resource)) {
 				if (!(source as unknown as { mmUnloadHooked?: boolean }).mmUnloadHooked) {
 					(source as unknown as { mmUnloadHooked?: boolean }).mmUnloadHooked = true;
@@ -207,7 +269,7 @@ const installReadout = (renderer: PIXI.Renderer, sys: TexSys): void => {
 		const gpu = { mb: 0, count: 0 };
 		const decoded = { mb: 0, count: 0, names: [] as string[] };
 		const dropped = { mb: 0, count: 0 };
-		const strips = { mb: 0, count: 0 };
+		const strips = { mb: 0, count: 0, lost: 0, lostNames: [] as string[] };
 		for (const s of seen.values()) {
 			const r = s.resource as unknown;
 			const onGpu = !!sys._glTextures[s.uid];
@@ -221,6 +283,11 @@ const installReadout = (renderer: PIXI.Renderer, sys: TexSys): void => {
 				gpu.count += 1;
 			}
 			const name = s.label || addressOf(s) || `uid ${s.uid}`;
+			// (a creature strip sheet whose GPU copy went with a lost context and is not made again yet: drawn empty)
+			if ((s as unknown as { lost?: boolean }).lost && onGpu) {
+				strips.lost += 1;
+				strips.lostNames.push(fileOf(name));
+			}
 			if (pixels === 'ImageBitmap') {
 				decoded.mb += bytes / MB;
 				decoded.count += 1;
@@ -245,9 +312,16 @@ const installReadout = (renderer: PIXI.Renderer, sys: TexSys): void => {
 			dropped: { mb: round1(dropped.mb), count: dropped.count, total: state.dropped, totalMb: round1(state.droppedBytes / MB) },
 			// (the creature's strip sheets: buffers of sheets on the GPU with bands still to go, and the decode slots, which
 			// also count a sheet decoded and not yet started on the GPU)
-			strips: { mb: round1(strips.mb), count: strips.count, slots: decodeSlotState() },
+			strips: { mb: round1(strips.mb), count: strips.count, lost: strips.lost, lostNames: strips.lostNames, slots: decodeSlotState() },
 			restores: state.restores,
-			blank: state.blank,
+			// NOW: sources with a GPU copy and no pixels in it, waiting for their picture (0 = nothing drawn blank); the
+			// creature's strip sheets made again after a lost context are in `strips.lost`
+			blank: [...state.blankNow].filter((x) => !x.destroyed).length,
+			blankNames: [...state.blankNow].filter((x) => !x.destroyed).map((x) => fileOf(addressOf(x))),
+			/** LIFETIME: how many times a GPU copy was made blank (each then restored) */
+			blankEver: state.blankEver,
+			restoring: state.restoring.size,
+			contextRestores: state.contextRestores,
 			restoreFailed: state.failed,
 			rows,
 		};

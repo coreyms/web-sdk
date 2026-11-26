@@ -170,7 +170,12 @@ loop, every move book driven).
   and staging builds: `__manticore.memory()`; A / B: `?pixeldrop=0`.
 - HIS DECODED SHEETS (memory fix 2): at most `CREATURE.upload.decodeSlots` of them in memory at once (`game/stripUpload.ts`
   THE DECODE SLOTS), each buffer let go the moment its last band is up; after a change of look his new attacks wait for
-  the old look's files to be destroyed (`sweptWaitMs`).
+  the old look's files to be destroyed (`sweptWaitMs`). At a feature's wrap up his feature look lets go of its attacks,
+  alternates and every win clip but the TOTAL WIN's before his base idle sheet comes up (`CREATURE.handOverRelease`).
+- A LOST WEBGL CONTEXT (2026-11-26): `game/pixelDrop.ts` fetches every dropped picture again (4 at a time, the ones on
+  show first) and tells `whenContextRestored` listeners; `game/creatureLoad.ts` THE LOST CONTEXT makes his strip sheets
+  again (shadow and idle first; a clip not back is not played, `creature.notUp`). Anything new that keeps GPU-only pixels
+  (a render texture drawn once, a buffer let go) must register there too.
 - THE EPIC'S FILES (constants `EPIC_LOAD`, `game/epicLoad.ts`, pure parts `game/epicPlan.ts`, node test
   `tools/epic_load_test.mjs`): nothing of the Epic is in start-up. A background line fetches its groups (intro, creature,
   flames, attacks) one file at a time at priority low once start-up is over, the landing is passed and no round is in

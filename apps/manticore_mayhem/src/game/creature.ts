@@ -754,8 +754,11 @@ export class Creature {
 	}
 	/** every look being drawn NOW has this clip's sheet: the look on show, and the one crossing over it */
 	private drawable(clip: CreatureClip): boolean {
-		return !!this.look && this.has(this.look, clip) && !!this.shadows[clip] && (!this.next || this.fadeAt < 0 || this.has(this.next, clip));
+		return !!this.look && this.has(this.look, clip) && !!this.shadows[clip] && !this.notUp(this.look, clip) && (!this.next || this.fadeAt < 0 || (this.has(this.next, clip) && !this.notUp(this.next, clip)));
 	}
+	/** a clip whose sheet is being made again after a lost WebGL context (game/creatureLoad.ts THE LOST CONTEXT): in, but
+	 *  empty on the GPU until it is up, so it is not played meanwhile (set by the loader) */
+	notUp: (look: CreatureLook, clip: CreatureClip) => boolean = () => false;
 	/** a cue's action can be drawn NOW. Asked when it starts: the look may have changed since the cue was made */
 	private fireable(kind: CueKind, move?: CheerMove): boolean {
 		if (kind === 'win') return !!move && this.cheerReady(move);

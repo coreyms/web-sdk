@@ -3821,6 +3821,11 @@ export const CREATURE = {
 	 *            destroyed (game/creatureLoad.ts WHO OWNS A LOOK'S FILES), at most this long, so two whole looks are never
 	 *            on the GPU together. ROLLBACK: 0. */
 	upload: { on: true, gapMs: 300, pollMs: 100, strips: 'all' as 'all' | 'webkit' | 'off', bands: 8, decodeSlots: 1, sweptWaitMs: 1000 },
+	/** THE FEATURE'S LOOK THINNED AT THE WRAP UP (memory follow-up, 2026-11-26; game/creatureLoad.ts creatureHandOverPrepare):
+	 *  at a feature's TOTAL WIN, before his base look's idle sheet comes up, the feature's look lets go of these clips (no
+	 *  spin is left to play an attack; an idle alternate is a random filler) and of every win clip but the TOTAL WIN's. His
+	 *  idle and his roar (the Max Win screen's beat) stay. ROLLBACK: on false (the base idle sheet up beside the whole look). */
+	handOverRelease: { on: true, body: ['swipe', 'charge_in', 'charge_loop', 'sting_hit', 'sting_recrouch', 'snarl', 'growl', 'idle_look'] as readonly string[] },
 	/** HIS PLACE IN THE LOAD (first-minute plan D, Corey 2026-10-16 17:21 "Yes D"; until then CREATURE.deferredAfter put
 	 *  his idle sheet straight after the plaque and his attacks behind the symbols' sheets). Now:
 	 *    - his STILL (idle frame 1 of the base look and its shadow, tools/build_creature_still.py, 45 KB / 25 KB) is in the

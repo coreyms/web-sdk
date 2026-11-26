@@ -79,7 +79,8 @@ import { creature } from './creature';
 import { CREATURE_FILES, CREATURE_SHARED, CREATURE_WIN_CLIPS, type CreatureClip, type CreatureLook, type CreatureWinClip } from './creatureAssets';
 import { getFeatureSpinWinLevelData, getWinLevelDataByBookEventAmount, winLevelMap, type WinLevel } from './winLevelMap';
 import type { BonusMode } from './types';
-import { imageOfSheet, loadStripSheet, uploadStrips, type StripSheet } from './stripUpload';
+import { imageOfSheet, loadStripSheet, restripSheet, uploadStrips, type StripSheet } from './stripUpload';
+import { whenContextRestored } from './pixelDrop';
 import { warmWait } from './fileWarm';
 
 type GroupLog = Record<string, { start: number; end: number; keys: number; failed: number }>;
@@ -98,7 +99,7 @@ const EPIC_CLIPS: readonly CreatureWinClip[] = ['win_epic_in', 'win_epic_loop', 
 /** the renderer, for the one upload per sheet (components/Background.svelte sets it) */
 export const creatureLoader = { renderer: null as null | (() => PIXI.Renderer | undefined) };
 /** DEV / probe: every load, upload and unload, oldest first */
-export const creatureLoadLog: { t: number; what: 'load' | 'upload' | 'unload' | 'failed' | 'dropped' | 'kept' | 'wins' | 'release' | 'entryRoar' | 'swept'; look: string; file: string; ms?: number }[] = [];
+export const creatureLoadLog: { t: number; what: 'load' | 'upload' | 'unload' | 'failed' | 'dropped' | 'kept' | 'wins' | 'release' | 'entryRoar' | 'swept' | 'restrip'; look: string; file: string; ms?: number }[] = [];
 const note = (what: (typeof creatureLoadLog)[number]['what'], look: string, file: string, ms?: number) => {
 	if (!import.meta.env.DEV) return;
 	creatureLoadLog.push({ t: performance.now(), what, look, file, ms });
@@ -192,6 +193,56 @@ const unloadSheet = async (url: string): Promise<void> => {
 	made.sheet.destroy(true);
 };
 
+// ---- THE LOST CONTEXT (memory follow-up, 2026-11-26) ---------------------------------------------------------------------
+// A lost WebGL context takes every GPU copy with it. Pixi uploads a picture again from what it kept (game/pixelDrop.ts
+// fetches the pictures it let go); his strip sheets keep nothing once their last band is up, so after a restored context
+// he was missing until the next change of look (Decimus, WEBGL_lose_context held 1 s: through a whole Epic). Now every
+// strip sheet he holds is made again from its file, one at a time through his upload turn: the shadow and the idle
+// sheet of the look on show first (they skip the line, the decode slots and the upload turn: he is back breathing as
+// soon as they are up), then the rest of that look, then anything else he holds (a look loaded ahead, the win clips).
+// A clip whose sheet is not up yet is simply not played (creature.notUp, read by his canPlay), as a clip not loaded yet.
+let restripRun = 0;
+/** the URLs being made again after a lost context (not yet up) */
+const restriping = new Set<string>();
+const restripAll = async (): Promise<void> => {
+	const run = ++restripRun;
+	const look = creature.look;
+	const first = [CREATURE_SHARED.shadow, ...(look ? CREATURE_FILES[look].idle : [])];
+	const own = look ? Object.values(CREATURE_FILES[look]).flat() : [];
+	const urls = [...stripSheets.keys()];
+	const order = [...first.filter((u) => urls.includes(u)), ...own.filter((u) => urls.includes(u) && !first.includes(u)), ...urls.filter((u) => !first.includes(u) && !own.includes(u))];
+	for (const url of order) restriping.add(url);
+	for (const url of order) {
+		if (run !== restripRun) return;
+		const entry = stripSheets.get(url);
+		const made = entry ? await entry.sheet.catch(() => null) : null;
+		if (!entry || !made || made.source.destroyed) {
+			restriping.delete(url);
+			continue;
+		}
+		// (a sheet still on its first way up keeps its pixels: its uploader starts again from the first band by itself)
+		await entry.up?.catch(() => {});
+		if (!made.source.done || made.source.destroyed) {
+			restriping.delete(url);
+			continue;
+		}
+		const now = first.includes(url);
+		const done = await takeTurn(() => now);
+		const t0 = performance.now();
+		try {
+			const ok = await restripSheet(creatureLoader.renderer?.(), made.source, () => now);
+			note(ok ? 'restrip' : 'failed', 'context', `${url.split('/').pop()!.split('?')[0]}`, performance.now() - t0);
+		} finally {
+			done();
+			restriping.delete(url);
+		}
+	}
+};
+whenContextRestored(() => void restripAll());
+creature.notUp = (look, clip) => restriping.size > 0 && CREATURE_FILES[look][clip].some((url) => restriping.has(url));
+/** DEV / staging readout: the sheets still being made again after a lost context */
+export const creatureRestriping = (): number => restriping.size;
+
 /** THE MEASURES (drop 8): every sheet's upload is a performance measure `creature upload <file>`, and a win clip's whole
  *  load `creature wins <look> <clip>`, so a device's own timeline (Safari's Web Inspector, Chrome's Performance panel)
  *  shows them on staging and in production alike. Nothing is kept here: the browser's own buffer holds them */
@@ -279,6 +330,7 @@ const unload = (look: CreatureLook): void => {
 	if (!run) return;
 	delete runs[look];
 	delete wins[look];
+	if (handOver?.look === look) handOver = null;
 	creature.forget(look);
 	// (a run held behind the symbols is let out of its hold: it sees it is no longer the look's run and ends)
 	run.drop();
@@ -330,6 +382,8 @@ const sweptOthers = async (look: CreatureLook): Promise<void> => {
 
 const load = (look: CreatureLook) => {
 	const id = ++serial;
+	// (a look that comes back is whole again)
+	if (handOver?.look === look) handOver = null;
 	const urls: string[] = [];
 	const mine = () => runs[look]?.id === id;
 	let idleIn = () => {};
@@ -376,6 +430,8 @@ const load = (look: CreatureLook) => {
 				if (!mine()) return;
 				// (the entry roar, loaded ahead with the idle sheet)
 				if (creature.has(look, clip)) continue;
+				// (a look thinned for its wrap up does not load what it let go: THE FEATURE'S LOOK THINNED)
+				if (handOver?.look === look && !handOver.keep.includes(clip)) continue;
 				// a look that is not on show, not crossing over and not wanted any more is not worth another sheet
 				if (!creature.uses(look)) {
 					note('dropped', look, clip);
@@ -646,10 +702,66 @@ const sweepWins = async (): Promise<void> => {
 	}
 };
 // ---- THE HAND-OVER AT A FEATURE'S END (Corey 2026-11-10, "A"; game/bookEventHandlerMap.ts freeSpinEnd) ------------
-/** the wrap up starts: his base look loads now (its idle sheet), ahead of the hand-over, as a look ahead of its mode */
-export const creatureHandOverPrepare = (): void => {
+// THE FEATURE'S LOOK THINNED AT THE WRAP UP (memory follow-up, 2026-11-26; constants CREATURE.handOverRelease). Decimus
+// measured 611.3 MB on the GPU once in three at an Epic's end: his base look's idle sheet (57 MB) came up beside the whole
+// Epic look. From the wrap up's start until the hand-over he only stands in his idle, may roll an idle alternate, cheers
+// once on the TOTAL WIN's own tier (the Epic's in / loop / out when it reaches EPIC or the round is capped) and may roar
+// (the Max Win screen's beat). No board action comes any more (no spin is left), so his attacks are let go first, and
+// so are his idle alternates and every win clip but the TOTAL WIN's: each clip only once he does not draw it (holds,
+// asked again a little later otherwise), after the renderer's upload queue is empty, as the win clips are let go after a
+// round (WHO OWNS A LOOK'S FILES). His idle, his roar and the TOTAL WIN's clips stay. Only then is his base look named
+// ahead (at most sweptWaitMs later), so its idle sheet comes up beside a look already thinned. After the hand-over the
+// rest of the feature's look goes as ever.
+/** the look being thinned and the clips it keeps (null: none) */
+let handOver: { look: CreatureLook; keep: readonly CreatureClip[] } | null = null;
+let handOverSerial = 0;
+const thinBody = async (look: CreatureLook): Promise<void> => {
+	const run = runs[look];
+	if (!run) return;
+	let held = false;
+	for (const clip of CREATURE.handOverRelease.body as readonly CreatureClip[]) {
+		if (handOver?.look !== look || runs[look] !== run) return;
+		if (handOver.keep.includes(clip) || !creature.has(look, clip)) continue;
+		if (creature.holds(clip)) {
+			held = true;
+			continue;
+		}
+		creature.forgetClip(look, clip);
+		const urls = CREATURE_FILES[look][clip];
+		for (const url of urls) {
+			const i = run.urls.indexOf(url);
+			if (i >= 0) run.urls.splice(i, 1);
+		}
+		await creatureLoader.renderer?.()?.prepare?.upload();
+		// (logged one `unload` a file, as the sweeper logs a let-go look's files: tools/manticore/creature_probe.js counts them)
+		for (const url of urls) {
+			await unloadSheet(url).catch(() => {});
+			note('unload', look, url.split('/').pop()!.split('?')[0]);
+		}
+	}
+	if (held && handOver?.look === look) setTimeout(() => void thinBody(look), 300);
+};
+/** the wrap up starts (game/bookEventHandlerMap.ts freeSpinEnd): the feature's look is thinned (above), then his base
+ *  look loads (its idle sheet), ahead of the hand-over, as a look ahead of its mode. `level`: the TOTAL WIN's win level
+ *  (winLevelMap), `capped`: the wrap up is the MAX WIN one */
+export const creatureHandOverPrepare = (level = 0, capped = false): void => {
 	const base = CREATURE.looks.base as CreatureLook;
-	if (creature.wanted !== base) creature.prepare('book', base);
+	const token = ++handOverSerial;
+	const ahead = () => {
+		if (token === handOverSerial && creature.wanted !== base) creature.prepare('book', base);
+	};
+	const from = creature.look;
+	if (!CREATURE.handOverRelease.on || !from || from === base || !runs[from]) return ahead();
+	const tier = level - 6;
+	const keepWins: CreatureWinClip[] = [];
+	if (!capped && tier >= 0 && tier < PLAQUE_CHEER.moves.length) keepWins.push(PLAQUE_CHEER.moves[tier]);
+	if (capped || tier >= EPIC_TIER) keepWins.push(...EPIC_CLIPS);
+	handOver = { look: from, keep: ['idle', 'roar', ...keepWins] };
+	// the win clips: only the TOTAL WIN's are wanted now; the rest go in the wins line, as after any round
+	const ws = wins[from];
+	if (ws) ws.want = [...keepWins];
+	void winJob(sweepWins);
+	void Promise.race([thinBody(from), wait(CREATURE.upload.sweptWaitMs)]).then(ahead, ahead);
 };
 /** resolves once he can cross to the base look on the very frame the scene does: in his idle (or not drawn at all) with
  *  the base look's idle sheet in; at most CREATURE.handOverWaitMs, then at once whatever he is doing (never rejects) */
@@ -715,6 +827,9 @@ export const uploadInTurn = async (upload: () => Promise<void> | void): Promise<
 /** the round's book has played out (its feature with it): nothing is coming any more; the first settles the prefetch's
  *  second condition */
 export const creatureBookDone = (): void => {
+	// (a hand-over's base look named after this would outlive its round)
+	handOverSerial += 1;
+	handOver = null;
 	entryRoarFor = null;
 	creature.prepare('book', null);
 	releaseWins();

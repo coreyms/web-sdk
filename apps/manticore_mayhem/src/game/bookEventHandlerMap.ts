@@ -947,7 +947,8 @@ export const bookEventHandlerMap: BookEventHandlerMap<BookEvent, BookEventContex
 		// keep the feature's look through the wrap up (stateGame.lookHold, components/Background.svelte) and go back to the
 		// base look together once it has gone; the creature's base look loads meanwhile so nothing loads at the hand-over
 		stateGame.lookHold = true;
-		creatureHandOverPrepare();
+		// (his feature look keeps only what the wrap up can draw before his base look comes up: the TOTAL WIN's tier)
+		creatureHandOverPrepare(winLevelData?.level ?? 0, capShown);
 		stateGame.gameType = 'basegame';
 		eventEmitter.broadcast({ type: 'spinWinHide' });
 		// A CAPPED ROUND (the book's `wincap` came before this): the wrap up is the MAX WIN screen. Same plaque,
