@@ -5,6 +5,7 @@
 	import ChromeStyles from '../ui/ChromeStyles.svelte';
 	import Game from '../components/Game.svelte';
 	import { setContext } from '../game/context';
+	import { stateUrlDerived } from 'state-shared';
 	import { boot, startLandingPreload, releaseSplash } from '../game/boot.svelte';
 	import { installFixtureRgs } from '../fixtures/fixtureRgs';
 	import { STAGING_TOOLS } from '../game/staging';
@@ -57,8 +58,9 @@
 	// Backstop for the splash handoff. Normally LandingScreen releases it the moment it is mounted
 	// with the assets in (ui/LandingScreen.svelte); if it never mounts (a social-casino reload, a
 	// dead Authenticate), do not sit on a full-screen splash forever.
+	// (Not in a replay: there the splash's backdrop stands under the round card until the game is drawn, components/Game.svelte)
 	$effect(() => {
-		if (!boot.landingReady || boot.landingMounted) return;
+		if (!boot.landingReady || boot.landingMounted || stateUrlDerived.replay()) return;
 		const id = setTimeout(releaseSplash, 8000);
 		return () => clearTimeout(id);
 	});

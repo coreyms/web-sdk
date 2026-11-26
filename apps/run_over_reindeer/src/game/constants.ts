@@ -2520,3 +2520,19 @@ export const PIXEL_DROP = { on: true, keep: ['logo-sign', 'scoreboard-art', 'led
 // ---- loading ------------------------------------------------------------------------------------------------------------
 /** PRESS ANYWHERE waits for the audio; if the sprite never lands it shows anyway after this long (a hung request) */
 export const LOAD_GATE = { stallMs: 30_000 } as const;
+
+/** A REPLAY ON A SLOW LINK (2026-11-26, Corey: "make sure the text card recap is the first thing that comes up on a slow
+ *  connection"; Manticore Unleashed's REPLAY_LOAD, ported). The replay card opens as the game's HTML mounts (the bundle,
+ *  its CSS and the replay answer), over the shell splash's backdrop, no longer behind the Pixi preload and its fade
+ *  (ui/ReplayModal.svelte). START pressed before the game is drawn waits for that (the round's handlers mount with it),
+ *  then for the audio, with the card's loading sign up (game/replayLoad.svelte.ts awaitReplayNeeds).
+ *    capMs      once the game is drawn, the longest START waits for the audio (real ms); past it the round starts anyway
+ *               and plays silent until the sprite lands, as before
+ *    stallMs    before the game is drawn: no start-up file landed for this long since the press (or the last one)
+ *    preGameMs  before the game is drawn: the start-up art still not all in this long after the press
+ *               Either one, or a start-up file the shared loader gave up after its own three retries, turns the sign into
+ *               CONNECTION PROBLEM / TAP TO RETRY (a given-up file: the loader's own retry of it; a held one: a reload of
+ *               the replay link, the files already in come from the browser's cache). It clears by itself if the art
+ *               moves again. (Desktop's symbols atlas is 5.5 MB, one file: on a link much slower than Slow 4G it can take
+ *               longer than stallMs alone, and the sign then asks while it is still coming.) */
+export const REPLAY_LOAD = { capMs: 20_000, stallMs: 30_000, preGameMs: 90_000 } as const;

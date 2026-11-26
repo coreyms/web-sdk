@@ -14,6 +14,7 @@
 	// multiplier gives the total play; `payoutMultiplier` from /bet/replay is in base-play
 	// multiples (the books' payoutMultiplier / 100), so total win = base × multiplier — the same
 	// arithmetic the win counter uses during the round.
+	import { untrack } from 'svelte';
 	import { stateBet, stateModal, stateUrlDerived, type BetToResume } from 'state-shared';
 	import { replayFault } from '../game/replayFault';
 	import { numberToCurrencyString } from '../game/currency';
@@ -25,7 +26,11 @@
 	import type { Controls } from './controls.svelte';
 	import ModalShell from './ModalShell.svelte';
 	import { replayState } from './replayState.svelte';
-	import { awaitDeferredAssets } from '../game/assetGate';
+	import { awaitReplayNeeds, replayLoad, replayRetried } from '../game/replayLoad.svelte';
+	import { replayPct } from '../game/replayWait';
+	import { REPLAY_LOAD } from '../game/constants';
+	import { bootSizes } from '../game/assetStamp';
+	import { sound } from '../game/sound';
 
 	type Props = { controls: Controls; master: { width: number; height: number }; scale: number; left: number; top: number; compact?: boolean };
 	const { controls, master, scale, left, top, compact = false }: Props = $props();
@@ -47,7 +52,37 @@
 	// the card is the FIRST start only; later replays come from the spin button. NEVER UNDER THE ERROR CARD (2026-11-23,
 	// game/replayGuard.ts): a replay the RGS did not serve, or one whose fetch failed, shows the error card alone (this
 	// card used to stand behind it, reading "Fetching the round").
-	const open = $derived(stateUrlDerived.replay() && replayState.phase === 'ready' && !context.stateLayout.showLoadingScreen && stateModal.modal?.name !== 'error');
+	// THE CARD FIRST (2026-11-26, constants REPLAY_LOAD; Corey: "make sure the text card recap is the first thing that comes
+	// up on a slow connection"): it is plain HTML and needs the bundle, its CSS and the replay answer only, so it opens the
+	// moment the game's HTML mounts, over the shell splash's backdrop (src/app.html #am-splash.am-replay). Until then it also
+	// waited for the whole Pixi preload and its fade (showLoadingScreen): Decimus measured the card 3.1 s (phone) and 8.6 s
+	// (desktop, the 5.5 MB symbols atlas) after the first contentful paint on Fast 4G. It stays up while a press waits
+	// (replayLoad.waiting), its loading sign in START's place.
+	const open = $derived(stateUrlDerived.replay() && (replayState.phase === 'ready' || replayLoad.waiting) && stateModal.modal?.name !== 'error');
+
+	// THE LOADING SIGN (game/replayLoad.svelte.ts): the start-up art (the Pixi preload by its own progress) and the audio, by
+	// bytes; once the game is drawn the cap's time too, so the bar reaches its end as a capped round starts. Never backwards.
+	const rawPct = $derived(
+		replayPct(
+			{
+				preload: context.stateApp.preLoaded ? 1 : context.stateApp.loadingProgress / 100,
+				preloadBytes: bootSizes.preload,
+				audio: sound.isReady ? 1 : sound.progress,
+				audioBytes: bootSizes.audio,
+				now: replayLoad.tick,
+				drawnAt: replayLoad.drawnAt,
+			},
+			REPLAY_LOAD,
+		),
+	);
+	let highWater = $state(0);
+	$effect(() => {
+		const p = rawPct;
+		untrack(() => {
+			if (p > highWater) highWater = p;
+		});
+	});
+	const pct = $derived(Math.max(rawPct, highWater));
 
 	const modeKey = $derived((replayBet?.mode ?? stateBet.activeBetModeKey ?? 'BASE').toUpperCase());
 	const meta = $derived(betModeMeta[modeKey]);
@@ -73,7 +108,7 @@
 
 	const start = async () => {
 		// (no round, or one with no book events in it: nothing to play, so nothing starts and nothing is held)
-		if (!replayBet || replayFault(replayBet, true) !== null) return;
+		if (!replayBet || replayFault(replayBet, true) !== null || replayLoad.waiting) return;
 		controls.sound('soundPressMinor');
 		// event '0' = play the round from its first book event. The replay URL's `event` param is
 		// the ROUND identifier (the last path segment of /bet/replay/...), NOT an index into this
@@ -83,12 +118,29 @@
 		// upper case whatever the URL said (mode=bonus and mode=BONUS are the same round): the mode table,
 		// the labels and the handlers all key on the upper-case RGS name
 		if (replayBet.mode) stateBet.activeBetModeKey = replayBet.mode.toUpperCase();
+		// THE GAME DRAWN AND THE AUDIO IN (game/replayLoad.svelte.ts): at once when they are (the usual case once the card has
+		// been read on a fast link), else with the card's loading sign up; the audio at most REPLAY_LOAD.capMs after the game
+		// is drawn. Until 2026-11-26 this waited on game/assetGate.ts awaitDeferredAssets, which resolved with the preload
+		// (nothing is deferred), because the card itself came only after it.
+		await awaitReplayNeeds(
+			() => !context.stateLayout.showLoadingScreen,
+			() => context.stateApp,
+			() => sound.isReady,
+		);
 		replayState.phase = 'playing';
-		// a replayed bonus draws the deferred assets (game/assets.ts) from its first event
-		await awaitDeferredAssets();
 		context.eventEmitter.broadcast({ type: 'resumeBet' });
 	};
 	replayState.start = start;
+	// TAP TO RETRY (the start-up art is stuck, replayLoad.stalled), as the landing screen offers it: a file the loader gave
+	// up is fetched again by the loader's own retry (stateApp.retryFailedAssets); a file that is only held cannot be asked
+	// again from here, so the replay link opens anew (what is already in comes from the browser's cache)
+	const retry = () => {
+		controls.sound('soundPressMinor');
+		if (replayLoad.stalled === 'failed' && context.stateApp.retryFailedAssets) {
+			context.stateApp.retryFailedAssets();
+			replayRetried();
+		} else location.reload();
+	};
 </script>
 
 <ModalShell {open} onclose={() => {}} {master} {scale} {left} {top} dim="rgba(0,0,0,0.55)" blur={6} zIndex={4}>
@@ -117,7 +169,17 @@
 			{/if}
 
 			<div class="tear"></div>
-			<button class="slot-btn go" disabled={!replayBet} onclick={start}>START REPLAY</button>
+			{#if replayLoad.waiting && replayLoad.stalled}
+				<!-- the landing screen's words for a start-up file that will not come (ui/LandingScreen.svelte), on two lines -->
+				<button class="slot-btn go retry" onclick={retry} aria-label="Connection problem. Tap to retry"><span>CONNECTION PROBLEM</span><span>TAP TO RETRY</span></button>
+			{:else if replayLoad.waiting}
+				<div class="go wait" role="status" aria-live="polite">
+					<div class="wbar" aria-hidden="true"><div class="wfill" style:transform="scaleX({pct / 100})"></div></div>
+					<div class="wtext">LOADING · {pct}%</div>
+				</div>
+			{:else}
+				<button class="slot-btn go" disabled={!replayBet} onclick={start}>START REPLAY</button>
+			{/if}
 			<div class="cap">{soc('Watching only. Nothing is wagered. Speed, sound and game info still work.', 'Watching only. No play amount is used. Speed, sound and game info still work.')}</div>
 		</div>
 	</div>
@@ -292,6 +354,14 @@
 		.cap {
 			line-height: 1.25;
 		}
+		/* the loading sign keeps START REPLAY's height in Stake's Popout S */
+		.wait {
+			gap: 2px;
+			padding: 3px 12px;
+		}
+		.wbar {
+			height: 8px;
+		}
 	}
 	/* sticky: in a 225 px popout the card is taller than the window and scrolls, and START REPLAY
 	   is the one control on it — it must never be below the fold (Stake review FIX 5) */
@@ -319,6 +389,56 @@
 			inset 0 0 0 3px var(--sp-band),
 			0 0 0 1.5px var(--sp-ki-c),
 			0 3px 0 1.5px var(--sp-acc-deep);
+	}
+	.retry {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 2px;
+		line-height: 1.15;
+		text-align: center;
+	}
+	.retry span {
+		white-space: nowrap;
+	}
+	/* THE LOADING SIGN in START REPLAY's place (the same box, so the card does not jump): the sign panels' slider track
+	   (ui/sign/signPanel.css .sp-sl-t: the dark track, the white band, the yellow fill) and the card's key type. A transform
+	   moves the fill; no filters. */
+	.wait {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 5px;
+		padding: 6px 16px;
+		background: var(--sp-well);
+		box-shadow: inset 0 0 0 var(--sp-wl) var(--sp-band);
+	}
+	.wbar {
+		position: relative;
+		width: min(100%, 300px);
+		height: 10px;
+		box-sizing: border-box;
+		border-radius: 5px;
+		background: var(--sp-trk);
+		border: 1.5px solid var(--sp-band);
+		overflow: hidden;
+	}
+	.wfill {
+		position: absolute;
+		inset: 0;
+		background: var(--sp-acc);
+		transform-origin: left center;
+		transition: transform 160ms linear;
+	}
+	.wtext {
+		font-size: clamp(9px, 2.5vmin, 12px);
+		font-weight: 800;
+		letter-spacing: 3px;
+		color: var(--muted);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
 	}
 	.cap {
 		text-align: center;
