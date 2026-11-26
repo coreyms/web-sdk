@@ -66,6 +66,10 @@ const state = {
 	blankEver: 0,
 	failed: 0,
 	contextRestores: 0,
+	/** the WebGL context's generation: 0 the first, +1 at every restore (a source's real upload is stamped with it) */
+	ctx: 0,
+	/** binding-cache entries cleared at the last restore (THE STALE UNITS) */
+	staleCleared: 0,
 	/** the restore line: the sources waiting, the ones on show first (see restore) */
 	waiting: [] as PIXI.TextureSource[],
 	restoring: new Set<PIXI.TextureSource>(),
@@ -85,7 +89,8 @@ const droppable = (s: PIXI.TextureSource): boolean => {
 	const sys = state.sys;
 	if (!sys || s.destroyed || s.uploadMethodId !== 'image' || !isBitmap(s.resource) || !addressOf(s) || kept(s)) return false;
 	const gl = sys._glTextures[s.uid];
-	return !!gl && gl.width === s.pixelWidth && gl.height === s.pixelHeight;
+	// (its pixels went up on THIS context: the bitmap is closed only once the GPU copy it filled is the live one)
+	return !!gl && gl.width === s.pixelWidth && gl.height === s.pixelHeight && (s as unknown as { mmCtx?: number }).mmCtx === state.ctx;
 };
 
 const drop = (s: PIXI.TextureSource): void => {
@@ -167,6 +172,30 @@ const restoreOne = async (s: PIXI.TextureSource): Promise<void> => {
 	}
 };
 
+// THE STALE UNITS (proven on Decimus's lost-context walk, 2026-11-26). Pixi 8.8.1 keeps a cache of which source each
+// texture unit holds (GlTextureSystem._boundTextures) and binds a source only when the cache says the unit holds
+// another one (GlTextureSystem.mjs line 73). Its contextChange resets that cache by binding Texture.EMPTY to units 0..15
+// only (line 49), but the batcher uses up to MAX_TEXTURE_IMAGE_UNITS units (rendering/batcher/gl/utils/
+// maxRecommendedTextures.mjs: 32 on many GPUs). A source that sat in unit 16 or above before the loss is still cached
+// there: every frame its bind is skipped, nothing is bound to that unit on the new context, and its sprites sample an
+// unbound unit, which reads opaque black (Decimus: five symbol idle sheets black over their wells for 4 to 10 s on both
+// 43021f91 and e6c2ff16, bound every frame and never uploaded; the SUPER WIN title black on its panel 4.4 s after the
+// restore) until the batch happens to give that unit another texture. Not a pixel problem, and older than this file.
+// So right after Pixi's own pass (this runner item was added after its systems) every cached unit is forgotten (not set
+// to EMPTY: EMPTY is not bound on units 16 and up either), and the active unit too: the next bind of each is real.
+const clearStaleUnits = (sys: TexSys): void => {
+	const t = sys as unknown as { _boundTextures?: (PIXI.TextureSource | null)[]; _activeTextureLocation?: number };
+	const units = t._boundTextures;
+	if (!units) return;
+	let n = 0;
+	for (let i = 0; i < units.length; i += 1) {
+		if (units[i] && units[i] !== PIXI.Texture.EMPTY.source) n += 1;
+		units[i] = null;
+	}
+	t._activeTextureLocation = -1;
+	state.staleCleared = n;
+};
+
 /** the textures every display object on the stage holds, in draw order: the ones drawn now (visible all the way up,
  *  not transparent) and the ones mounted but hidden (a plaque waiting for its win, the night layers by day) */
 const stageSources = (): { shown: PIXI.TextureSource[]; hidden: PIXI.TextureSource[] } => {
@@ -188,7 +217,7 @@ const stageSources = (): { shown: PIXI.TextureSource[]; hidden: PIXI.TextureSour
 const blankNow = (x: PIXI.TextureSource): boolean => {
 	if (x.destroyed) return false;
 	const onGpu = !!state.sys?._glTextures[x.uid];
-	if (isStandIn(x.resource)) return !onGpu || !!(x as unknown as { mmBlank?: boolean }).mmBlank;
+	if (isStandIn(x.resource)) return !onGpu || !!(x as unknown as { mmBlank?: boolean }).mmBlank || (x as unknown as { mmCtx?: number }).mmCtx !== state.ctx;
 	if ((x as unknown as { lost?: boolean }).lost) return true;
 	const r = x.resource as unknown as { px?: Uint8Array | null } | null;
 	return !!r && typeof r === 'object' && 'px' in r && !onGpu && !r.px;
@@ -268,15 +297,24 @@ export const installPixelDrop = (renderer: PIXI.Renderer | undefined): void => {
 	if (STAGING_TOOLS) installReadout(renderer, sys);
 	// THE LOST CONTEXT: Pixi's own systems hear a restored context on this runner first (they were added before), then this
 	// (a task later: every system has its new context by then)
-	(renderer as unknown as { runners: { contextChange: { add: (item: unknown) => void } } }).runners.contextChange.add({ contextChange: () => setTimeout(contextRestored, 0) });
+	(renderer as unknown as { runners: { contextChange: { add: (item: unknown) => void } } }).runners.contextChange.add({
+		contextChange: () => {
+			state.ctx += 1;
+			clearStaleUnits(sys);
+			setTimeout(contextRestored, 0);
+		},
+	});
 	if (!PIXEL_DROP.on || switchedOff()) return;
 	const image = sys._uploads.image;
 	sys._uploads.image = {
 		id: 'image',
 		upload(source, glTexture, gl, webGLVersion) {
 			image.upload(source, glTexture, gl, webGLVersion);
+			// (an upload into a lost context does nothing: the source keeps its picture and is not stamped)
+			if (gl.isContextLost()) return;
 			(source as unknown as { mmBlank?: boolean }).mmBlank = false;
 			if (isBitmap(source.resource)) {
+				(source as unknown as { mmCtx?: number }).mmCtx = state.ctx;
 				if (!(source as unknown as { mmUnloadHooked?: boolean }).mmUnloadHooked) {
 					(source as unknown as { mmUnloadHooked?: boolean }).mmUnloadHooked = true;
 					(source as unknown as { on: (event: string, fn: (s: PIXI.TextureSource) => void) => void }).on('unload', onUnload);
@@ -286,7 +324,12 @@ export const installPixelDrop = (renderer: PIXI.Renderer | undefined): void => {
 		},
 	};
 	sys._uploads[DROPPED] = droppedUploader;
-	for (const s of sys.managedTextures) if (isBitmap(s.resource)) queue(s);
+	// (what went up before this was installed went up on this first context: stamped so it can be let go too)
+	for (const s of sys.managedTextures)
+		if (isBitmap(s.resource)) {
+			if (sys._glTextures[s.uid]) (s as unknown as { mmCtx?: number }).mmCtx = state.ctx;
+			queue(s);
+		}
 };
 
 /** the source's pixels were let go (game/scene.ts release keeps such a source on the GPU) */
@@ -372,6 +415,11 @@ const installReadout = (renderer: PIXI.Renderer, sys: TexSys): void => {
 			blankEver: state.blankEver,
 			restoring: state.restoring.size,
 			contextRestores: state.contextRestores,
+			context: state.ctx,
+			/** THE STALE UNITS: units the binding cache said were holding a source at the last restore (all forgotten then),
+			 *  and units it says hold a source with no GL texture now (should be 0: that unit draws black) */
+			staleCleared: state.staleCleared,
+			staleUnits: ((sys as unknown as { _boundTextures?: (PIXI.TextureSource | null)[] })._boundTextures ?? []).filter((x) => !!x && !x.destroyed && x !== PIXI.Texture.EMPTY.source && !sys._glTextures[x.uid]).length,
 			restoreFailed: state.failed,
 			rows,
 		};

@@ -175,7 +175,9 @@ loop, every move book driven).
 - A LOST WEBGL CONTEXT (2026-11-26): `game/pixelDrop.ts` fetches every dropped picture again (4 at a time, the ones on
   show first) and tells `whenContextRestored` listeners; `game/creatureLoad.ts` THE LOST CONTEXT makes his strip sheets
   again (shadow and idle first; a clip not back is not played, `creature.notUp`). Anything new that keeps GPU-only pixels
-  (a render texture drawn once, a buffer let go) must register there too.
+  (a render texture drawn once, a buffer let go) must register there too. Pixi 8.8.1 resets its texture unit cache only
+  for units 0..15 at a restore while the batcher uses up to 32: `game/pixelDrop.ts` THE STALE UNITS forgets the whole
+  cache then, or sprites in units 16 and up draw black until their batch changes.
 - THE EPIC'S FILES (constants `EPIC_LOAD`, `game/epicLoad.ts`, pure parts `game/epicPlan.ts`, node test
   `tools/epic_load_test.mjs`): nothing of the Epic is in start-up. A background line fetches its groups (intro, creature,
   flames, attacks) one file at a time at priority low once start-up is over, the landing is passed and no round is in
