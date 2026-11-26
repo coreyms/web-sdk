@@ -23,6 +23,7 @@
 	import { loadCoinFlip } from '../game/coinFlip';
 	import { creatureDeferredDone } from '../game/creatureLoad';
 	import { epicLandingPassed, epicStartupDone } from '../game/epicLoad';
+	import { installPixelDrop } from '../game/pixelDrop';
 	import { renderResolutionCap, renderResolutionFor } from '../game/deviceTier';
 	import { RENDER_RESIZE } from '../game/constants';
 	import { boot, reportPreload } from '../game/boot.svelte';
@@ -152,6 +153,9 @@
 			if (!clamped) {
 				clamped = true;
 				applyResolution(app, true);
+				// THE SECOND COPY LET GO (game/pixelDrop.ts, constants PIXEL_DROP): from here every picture's decoded copy is
+				// closed once it is on the GPU (what went up before this is looked at too)
+				installPixelDrop(app.renderer as PIXI.Renderer);
 			}
 			if (!app.renderer.renderableGC.enabled) {
 				if (framesWaited++ < 600) requestAnimationFrame(clamp);

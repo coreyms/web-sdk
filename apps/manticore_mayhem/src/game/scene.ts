@@ -51,6 +51,7 @@ import { boardKick, gustFx, gustPulse, gustStart, type ChainGust } from './featu
 import { SCENE_SPEC, SCENE_SPEC_PORTRAIT } from './sceneSpec';
 import { FLAME_CLIPS, FlameView } from './flames';
 import { SkyView } from './sky';
+import { pixelsDropped } from './pixelDrop';
 
 export type SceneFamily = keyof typeof SCENE.modes;
 export type SceneTier = keyof typeof SCENE_SPEC.tiers;
@@ -530,7 +531,10 @@ export class SceneView {
 	release(keep: readonly PIXI.TextureSource[] = []): number {
 		if (this.released) return 0;
 		const list = this.sources();
-		for (const source of list) if (!keep.includes(source)) source.unload();
+		// (a source whose decoded picture was let go, game/pixelDrop.ts, keeps its GPU copy: it is the only copy left, and
+		// Pixi could not upload it again at the turn back. The memory is the same as before: the GPU copy in place of the
+		// decoded picture this used to keep)
+		for (const source of list) if (!keep.includes(source) && !pixelsDropped(source)) source.unload();
 		this.released = list.length > 0;
 		return list.length;
 	}

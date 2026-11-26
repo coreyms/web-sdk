@@ -253,6 +253,15 @@ export const PHONE_3X_ALLOW = { on: false, minShort: 420 } as const;
 export const RENDER_MAX_PIXELS = 8_300_000;
 export const RENDER_RESIZE = { settleMs: 250, band: 0.04 } as const;
 
+/** THE SECOND COPY LET GO (game/pixelDrop.ts; Corey 2026-11-26, memory fix 1, after Stake's reviewers saw the game reload on
+ *  an iPhone 12). Pixi keeps a picture's decoded ImageBitmap beside its GPU copy for good; Decimus measured 236 MB of
+ *  them at rest on a phone. Once a picture is on the GPU its bitmap is closed and Pixi keeps only its size.
+ *    keep   the files whose pixels the game reads on the CPU after the upload, so their bitmaps stay: the logo frame
+ *           (game/logo/still.ts bakes its drop shadow from it at every change of size) and the win plaque's atlas
+ *           (game/fxTexture.ts plaqueHaloTexture bakes the plaque's halo from its body). Matched against the file name.
+ *  ROLLBACK: on false (every bitmap kept, as before). DEV and staging: `?pixeldrop=0` for an A / B measurement. */
+export const PIXEL_DROP = { on: true, keep: ['logo-frame', 'stinger-plaque'] as readonly string[] } as const;
+
 export const BOARD_SIZES = { width: SYMBOL_SIZE * GRID, height: SYMBOL_SIZE * GRID };
 export const BOARD_DIMENSIONS = { x: GRID, y: GRID };
 
@@ -3802,8 +3811,16 @@ export const CREATURE = {
 	 *    on      game/creatureLoad.ts: uploads go one at a time, at least gapMs apart (the
 	 *            sheet he needs NOW, the idle sheet of the look the mode asks for, skips the line). Tried with a wait for a
 	 *            still moment as well (2026-10-18 r1): free spins have none, so it only moved the stalls into the spins.
-	 *  ROLLBACK: strips 'off' and on false (every sheet uploaded whole the moment it lands, as before). */
-	upload: { on: true, gapMs: 300, pollMs: 100, strips: 'all' as 'all' | 'webkit' | 'off', bands: 8 },
+	 *  ROLLBACK: strips 'off' and on false (every sheet uploaded whole the moment it lands, as before).
+	 *    decodeSlots (Corey 2026-11-26, memory fix 2) how many of his sheets may sit decoded in memory, waiting for or
+	 *            going through their upload, at one time: a sheet is decoded only when a slot is free, and its slot is
+	 *            free again when its last band is up (its pixel buffer is let go at that moment, not at the next garbage
+	 *            collection). The sheet he needs NOW skips the line, as in the upload turn. Decimus measured 111.5 MB of
+	 *            these buffers alive at once right after an Epic's book. ROLLBACK: a large number (no bound).
+	 *    sweptWaitMs (the same fix): after a change of look his new look's attacks wait until the old look's files are
+	 *            destroyed (game/creatureLoad.ts WHO OWNS A LOOK'S FILES), at most this long, so two whole looks are never
+	 *            on the GPU together. ROLLBACK: 0. */
+	upload: { on: true, gapMs: 300, pollMs: 100, strips: 'all' as 'all' | 'webkit' | 'off', bands: 8, decodeSlots: 1, sweptWaitMs: 1000 },
 	/** HIS PLACE IN THE LOAD (first-minute plan D, Corey 2026-10-16 17:21 "Yes D"; until then CREATURE.deferredAfter put
 	 *  his idle sheet straight after the plaque and his attacks behind the symbols' sheets). Now:
 	 *    - his STILL (idle frame 1 of the base look and its shadow, tools/build_creature_still.py, 45 KB / 25 KB) is in the

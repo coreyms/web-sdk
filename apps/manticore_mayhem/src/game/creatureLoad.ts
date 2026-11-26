@@ -98,7 +98,7 @@ const EPIC_CLIPS: readonly CreatureWinClip[] = ['win_epic_in', 'win_epic_loop', 
 /** the renderer, for the one upload per sheet (components/Background.svelte sets it) */
 export const creatureLoader = { renderer: null as null | (() => PIXI.Renderer | undefined) };
 /** DEV / probe: every load, upload and unload, oldest first */
-export const creatureLoadLog: { t: number; what: 'load' | 'upload' | 'unload' | 'failed' | 'dropped' | 'kept' | 'wins' | 'release' | 'entryRoar'; look: string; file: string; ms?: number }[] = [];
+export const creatureLoadLog: { t: number; what: 'load' | 'upload' | 'unload' | 'failed' | 'dropped' | 'kept' | 'wins' | 'release' | 'entryRoar' | 'swept'; look: string; file: string; ms?: number }[] = [];
 const note = (what: (typeof creatureLoadLog)[number]['what'], look: string, file: string, ms?: number) => {
 	if (!import.meta.env.DEV) return;
 	creatureLoadLog.push({ t: performance.now(), what, look, file, ms });
@@ -212,7 +212,8 @@ const fetchSheet = async (url: string, look: string, needNow: () => boolean = ()
 	try {
 		// THE STRIP PATH first; null: this browser, this renderer or this sheet takes Pixi's path below
 		let own = stripSheets.get(url);
-		if (!own) stripSheets.set(url, (own = { sheet: loadStripSheet(url, creatureLoader.renderer?.(), bands), up: null }));
+		// (`needNow` lets the sheet he needs now past the decode slots, game/stripUpload.ts, as past the upload turn)
+		if (!own) stripSheets.set(url, (own = { sheet: loadStripSheet(url, creatureLoader.renderer?.(), bands, needNow), up: null }));
 		const made = await own.sheet;
 		if (made && !made.source.destroyed) {
 			note('load', look, `${file} (strips)`, performance.now() - t0);
@@ -319,6 +320,14 @@ const sweep = async (look: CreatureLook) => {
 	bin.sweeping = false;
 };
 
+/** every OTHER look's trash is destroyed (its sweeper idle, nothing left in it), or CREATURE.upload.sweptWaitMs went by */
+const sweptOthers = async (look: CreatureLook): Promise<void> => {
+	const t0 = performance.now();
+	const busy = () => (Object.entries(trash) as [CreatureLook, (typeof trash)[CreatureLook]][]).some(([other, bin]) => other !== look && !!bin && (bin.sweeping || bin.urls.length > 0) && !runs[other]);
+	while (busy() && performance.now() - t0 < CREATURE.upload.sweptWaitMs) await wait(50);
+	if (import.meta.env.DEV && performance.now() - t0 > 1) note('swept', look, `waited ${Math.round(performance.now() - t0)} ms for the old look's files`);
+};
+
 const load = (look: CreatureLook) => {
 	const id = ++serial;
 	const urls: string[] = [];
@@ -414,6 +423,12 @@ const load = (look: CreatureLook) => {
 				await Promise.race([wanted, dropped]);
 				if (!mine()) return;
 				if (creature.look !== look) await Promise.race([shown, dropped]);
+				if (!mine()) return;
+				// THE OLD LOOK GONE FIRST (memory fix 2, Corey 2026-11-26; constants CREATURE.upload.sweptWaitMs): the old look
+				// was let go at the crossover's end, and its sweeper destroys its files once nothing of it is drawn, on the
+				// wire or waiting for its upload. Until then this look's attacks wait (at most sweptWaitMs), so his two whole
+				// looks are never on the GPU together. Nothing of the new look but its idle loop is played before this anyway
+				await sweptOthers(look);
 				if (!mine()) return;
 			}
 		}

@@ -163,6 +163,14 @@ loop, every move book driven).
 - The creature's big sheets are decoded in a same-origin module worker (`game/creatureDecode.worker.ts`) and uploaded
   in strips (`game/stripUpload.ts`): `CREATURE.upload = { on: true, gapMs: 300, pollMs: 100, strips: 'all', bands: 8 }`
   (constants line 3809). Measured Safari worst frame 42 to 44 ms, Chrome 18 ms.
+- ONE COPY OF EVERY PICTURE (2026-11-26, memory fix 1; `game/pixelDrop.ts`, constants `PIXEL_DROP`): once a loaded
+  picture is on the GPU its decoded ImageBitmap is closed (Pixi kept it for good). Files whose pixels the game reads on
+  the CPU stay whole (`PIXEL_DROP.keep`: the logo frame, the plaque atlas); a new CPU reader of a picture must be added
+  there. Such a source is never unloaded from the GPU (its GC is off; `game/scene.ts` release keeps it). Readout on DEV
+  and staging builds: `__manticore.memory()`; A / B: `?pixeldrop=0`.
+- HIS DECODED SHEETS (memory fix 2): at most `CREATURE.upload.decodeSlots` of them in memory at once (`game/stripUpload.ts`
+  THE DECODE SLOTS), each buffer let go the moment its last band is up; after a change of look his new attacks wait for
+  the old look's files to be destroyed (`sweptWaitMs`).
 - THE EPIC'S FILES (constants `EPIC_LOAD`, `game/epicLoad.ts`, pure parts `game/epicPlan.ts`, node test
   `tools/epic_load_test.mjs`): nothing of the Epic is in start-up. A background line fetches its groups (intro, creature,
   flames, attacks) one file at a time at priority low once start-up is over, the landing is passed and no round is in

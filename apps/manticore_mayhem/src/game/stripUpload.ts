@@ -11,8 +11,66 @@ import * as PIXI from 'pixi.js';
 
 import { CREATURE } from './constants';
 
-/** the pixels of one sheet until its last band is up (then null) */
-type Strips = { px: Uint8Array | null; band: number; rows: number };
+/** the pixels of one sheet until its last band is up (then null); `free` lets them go at once and gives back the
+ *  sheet's decode slot (called when the last band is up, or when the sheet is destroyed first; once) */
+type Strips = { px: Uint8Array | null; band: number; rows: number; free: () => void };
+
+// ---- THE DECODE SLOTS (constants CREATURE.upload.decodeSlots; Corey 2026-11-26, memory fix 2) ----------------------------
+// Decimus measured 111.5 MB of these pixel buffers alive at once right after an Epic's book: sheets of two looks and the
+// round's win clips were each decoded the moment they were asked for and then waited, whole, for their turn to go up
+// (and for the quiet of a win plaque), and a buffer whose last band was up still lived until the next garbage
+// collection. Now a sheet is decoded only when a slot is free (decode it, upload it, free it, then the next), first come
+// first served, and its buffer is let go the moment its last band is up. A sheet asked for with needNow() true (the
+// idle sheet of the look the mode asks for) skips the line and takes no slot, as it skips the upload turn; one waiting
+// in line is let through the moment it becomes needed. The slot is taken BEFORE the upload turn (game/creatureLoad.ts
+// takeTurn) and only a sheet with its pixels in hand ever holds the turn, so the two never wait on each other.
+let slotsBusy = 0;
+const slotLine: (() => void)[] = [];
+const nextInLine = () => {
+	const go = slotLine.shift();
+	if (go) go();
+	else slotsBusy = Math.max(0, slotsBusy - 1);
+};
+/** a slot for one decode: resolves with the function that gives it back (a no-op for a sheet that skipped the line) */
+const takeDecodeSlot = (needNow: () => boolean): Promise<() => void> =>
+	new Promise((resolve) => {
+		let back = false;
+		const giveBack = () => {
+			if (back) return;
+			back = true;
+			nextInLine();
+		};
+		if (needNow()) return resolve(() => {});
+		if (slotsBusy < Math.max(1, CREATURE.upload.decodeSlots)) {
+			slotsBusy += 1;
+			return resolve(giveBack);
+		}
+		let poll: ReturnType<typeof setInterval> | null = null;
+		const go = () => {
+			if (poll) clearInterval(poll);
+			resolve(giveBack);
+		};
+		slotLine.push(go);
+		poll = setInterval(() => {
+			if (!needNow()) return;
+			clearInterval(poll!);
+			const i = slotLine.indexOf(go);
+			if (i >= 0) slotLine.splice(i, 1);
+			resolve(() => {});
+		}, CREATURE.upload.pollMs);
+	});
+/** a pixel buffer let go NOW, not at the next garbage collection (ArrayBuffer transfer to length 0 detaches it and frees
+ *  its memory; a browser without it leaves the buffer to the collector, as before) */
+const letGo = (px: Uint8Array | null): void => {
+	if (!px) return;
+	try {
+		(px.buffer as ArrayBuffer & { transfer?: (length: number) => ArrayBuffer }).transfer?.(0);
+	} catch {
+		/* detached already, or not transferable: the collector has it */
+	}
+};
+/** DEV / staging readout: the decode slots in use and the sheets waiting for one */
+export const decodeSlotState = () => ({ busy: slotsBusy, waiting: slotLine.length });
 
 /** a texture whose upload writes one band of rows per update (glTexture.width marks the allocation) */
 export class StripSource extends PIXI.TextureSource<Strips> {
@@ -43,7 +101,7 @@ const stripUploader = {
 		const rows = Math.min(s.rows, h - y);
 		if (rows > 0) gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, y, w, rows, glTexture.format, glTexture.type, s.px.subarray(y * w * 4, (y + rows) * w * 4));
 		s.band += 1;
-		if (y + rows >= h) s.px = null;
+		if (y + rows >= h) s.free();
 	},
 };
 
@@ -86,12 +144,15 @@ const getWorker = (): Worker | null => {
 };
 /** a sheet's picture decoded by the worker: the file fetched HERE (the same request Pixi's loader made, answered by the
  *  same cache), only the decode is the worker's */
-const decode = async (url: string): Promise<{ w: number; h: number; buf: ArrayBuffer } | null> => {
+const fetchPicture = async (url: string): Promise<Blob | null> => {
+	if (!getWorker()) return null;
+	const res = await fetch(url);
+	return res.ok ? res.blob() : null;
+};
+/** ...and decoded (the compressed file is fetched before a decode slot is taken, so a slow download holds no slot) */
+const decode = async (file: Blob): Promise<{ w: number; h: number; buf: ArrayBuffer } | null> => {
 	const w = getWorker();
 	if (!w) return null;
-	const res = await fetch(url);
-	if (!res.ok) return null;
-	const file = await res.blob();
 	const id = ++serial;
 	return new Promise((resolve) => {
 		asks.set(id, resolve);
@@ -113,18 +174,36 @@ export type StripSheet = { sheet: PIXI.Spritesheet; source: StripSource };
 export const canStrip = (renderer: PIXI.Renderer | undefined): boolean => (renderer as unknown as { gl?: unknown } | undefined)?.gl instanceof WebGL2RenderingContext;
 /** one sheet the strip way, not yet uploaded (null: load it the old way). `bands`: how many it goes up in (drop 8: the
  *  win clips' sheets take CREATURE.wins.bands, the rest CREATURE.upload.bands) */
-export const loadStripSheet = async (url: string, renderer: PIXI.Renderer | undefined, bands: number = CREATURE.upload.bands): Promise<StripSheet | null> => {
+export const loadStripSheet = async (url: string, renderer: PIXI.Renderer | undefined, bands: number = CREATURE.upload.bands, needNow: () => boolean = () => false): Promise<StripSheet | null> => {
 	if (!wanted() || !canStrip(renderer)) return null;
+	let giveBack: () => void = () => {};
+	let strips: Strips | null = null;
 	try {
 		const res = await fetch(url);
 		if (!res.ok) return null;
 		const data = (await res.json()) as PIXI.SpritesheetData & { meta: { related_multi_packs?: unknown } };
 		// (a multi-pack sheet is the shared loader's to follow)
 		if (!data.meta?.image || data.meta.related_multi_packs) return null;
-		const pic = await decode(imageOfSheet(url, data.meta.image));
-		if (!pic) return null;
+		const file = await fetchPicture(imageOfSheet(url, data.meta.image));
+		if (!file) return null;
+		// THE DECODE SLOTS (above): the picture is decoded only once a slot is free; the slot goes back with its pixels
+		giveBack = await takeDecodeSlot(needNow);
+		const pic = await decode(file);
+		if (!pic) {
+			giveBack();
+			return null;
+		}
+		const own: Strips = (strips = { px: new Uint8Array(pic.buf), band: 0, rows: Math.ceil(pic.h / Math.max(1, bands)), free: () => {} });
+		const slot = giveBack;
+		giveBack = () => {};
+		own.free = () => {
+			const px = own.px;
+			own.px = null;
+			letGo(px);
+			slot();
+		};
 		const source = new StripSource({
-			resource: { px: new Uint8Array(pic.buf), band: 0, rows: Math.ceil(pic.h / Math.max(1, bands)) },
+			resource: strips,
 			width: pic.w,
 			height: pic.h,
 			resolution: 1,
@@ -132,10 +211,14 @@ export const loadStripSheet = async (url: string, renderer: PIXI.Renderer | unde
 			autoGarbageCollect: false,
 			label: url,
 		});
+		// (a sheet destroyed before its last band is up, a look let go mid upload: its pixels and its slot go with it)
+		(source as unknown as { once: (event: string, fn: () => void) => void }).once('destroy', () => own.free());
 		const sheet = new PIXI.Spritesheet(new PIXI.Texture({ source }), data);
 		await sheet.parse();
 		return { sheet, source };
 	} catch {
+		if (strips) (strips as Strips).free();
+		else giveBack();
 		return null;
 	}
 };
@@ -145,7 +228,11 @@ export const loadStripSheet = async (url: string, renderer: PIXI.Renderer | unde
 export const uploadStrips = async (renderer: PIXI.Renderer | undefined, source: StripSource, hold?: () => Promise<void>): Promise<void> => {
 	// (WebGL only: the uploader writes through gl; a WebGPU renderer never gets here, see canStrip)
 	const sys = renderer?.texture as unknown as { _uploads?: Record<string, unknown>; initSource: (s: PIXI.TextureSource) => void } | undefined;
-	if (!sys?._uploads) return;
+	// (no WebGL uploader to write through: nothing can go up, so the pixels and the decode slot are not held for it)
+	if (!sys?._uploads) {
+		source.resource?.free();
+		return;
+	}
 	sys._uploads.creatureStrips ??= stripUploader;
 	// the first band with the GPU copy's allocation, then one band a frame
 	sys.initSource(source);

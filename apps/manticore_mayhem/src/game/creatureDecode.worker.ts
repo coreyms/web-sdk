@@ -16,6 +16,12 @@ self.onmessage = async (e: MessageEvent<Ask>) => {
 		ctx.drawImage(bmp, 0, 0);
 		bmp.close();
 		const px = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+		const w = canvas.width;
+		const h = canvas.height;
+		// THE CANVAS'S OWN COPY GOES NOW (memory fix 2, 2026-11-26): its backing store is as big as the sheet's pixels and
+		// would otherwise wait for this worker's next garbage collection; a canvas sized to nothing lets it go at once
+		canvas.width = 0;
+		canvas.height = 0;
 		// getImageData hands back straight alpha; the GPU copy is premultiplied (alphaMode 'premultiplied-alpha')
 		for (let i = 0; i < px.length; i += 4) {
 			const a = px[i + 3];
@@ -24,7 +30,7 @@ self.onmessage = async (e: MessageEvent<Ask>) => {
 			px[i + 1] = (px[i + 1] * a + 127) / 255;
 			px[i + 2] = (px[i + 2] * a + 127) / 255;
 		}
-		(self as unknown as Worker).postMessage({ id, w: canvas.width, h: canvas.height, buf: px.buffer }, [px.buffer]);
+		(self as unknown as Worker).postMessage({ id, w, h, buf: px.buffer }, [px.buffer]);
 	} catch (err) {
 		(self as unknown as Worker).postMessage({ id, error: String(err) });
 	}

@@ -30,6 +30,8 @@ export const STAGING_MARKERS = [
 	'Copy results', // the readout's button
 	'rescap', // game/deviceTier.ts: the resolution cap override's query parameter
 	'getHighEntropyValues', // staging/PerfReadout.svelte: nothing in the game asks for device details
+	'MM_MEMORY_READOUT', // game/pixelDrop.ts: the memory readout (__manticore.memory)
+	'pixeldrop', // game/pixelDrop.ts: the A / B switch's query parameter
 ];
 /** strings that must be in NO build, production or staging: dev server only code (a staging build is not expected to
  *  carry them, so --expect-staging does not ask for them) */

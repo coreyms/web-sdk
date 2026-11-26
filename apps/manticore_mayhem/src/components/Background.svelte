@@ -62,6 +62,7 @@
 	import { loadSceneLate } from '../game/deferredLoad';
 	import { PHONE_TIER } from '../game/deviceTier';
 	import { SCENE_SPEC, SCENE_SPEC_PORTRAIT } from '../game/sceneSpec';
+	import { pixelsDropped } from '../game/pixelDrop';
 	import { SceneView, clearSceneLight, flickerAt, idleAt, isCreature, type SceneFamily, type SceneLayout } from '../game/scene';
 	import { skyNumbers } from '../game/sky';
 	import { FLAME_SPEC } from '../game/flameSpec';
@@ -496,6 +497,12 @@
 				const other = views[view === views.landscape ? 'portrait' : 'landscape'].sources();
 				return view.sources().filter((source) => other.includes(source) === shared && !!table[source.uid]).length;
 			};
+			/** ...of those, the ones whose decoded picture was let go (game/pixelDrop.ts): a released scene keeps these */
+			const droppedOnGpu = (view: SceneView) => {
+				const table = (renderer() as any)?.texture?._glTextures ?? {};
+				const other = views[view === views.landscape ? 'portrait' : 'landscape'].sources();
+				return view.sources().filter((source) => !other.includes(source) && !!table[source.uid] && pixelsDropped(source)).length;
+			};
 			/** the sky hooks act on the sky of the scene of the current layout (or of `layout`) */
 			const skyOf = (layout: SceneLayout = which) => views[layout].sky;
 			const pt = (view: SceneView, x: number, y: number) => {
@@ -549,8 +556,8 @@
 							resident: {
 								/** onGpu: its OWN sources with a GL texture; sharedOnGpu: the ones both scenes draw (the sky's atlas,
 								 *  the birds, the bats), which stay while either scene shows */
-								landscape: { ...ready.landscape, released: views.landscape.released, onGpu: onGpu(views.landscape), sharedOnGpu: onGpu(views.landscape, true), sources: views.landscape.sources().length },
-								portrait: { ...ready.portrait, released: views.portrait.released, onGpu: onGpu(views.portrait), sharedOnGpu: onGpu(views.portrait, true), sources: views.portrait.sources().length },
+								landscape: { ...ready.landscape, released: views.landscape.released, onGpu: onGpu(views.landscape), droppedOnGpu: droppedOnGpu(views.landscape), sharedOnGpu: onGpu(views.landscape, true), sources: views.landscape.sources().length },
+								portrait: { ...ready.portrait, released: views.portrait.released, onGpu: onGpu(views.portrait), droppedOnGpu: droppedOnGpu(views.portrait), sharedOnGpu: onGpu(views.portrait, true), sources: views.portrait.sources().length },
 								...memory,
 							},
 							/** landscape only, per side, in CANVAS px as Pixi draws them: the ring's hook for the swag through the
