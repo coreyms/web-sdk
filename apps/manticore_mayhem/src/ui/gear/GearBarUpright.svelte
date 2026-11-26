@@ -40,9 +40,9 @@
 	import './gear.css';
 
 	// (THE MIDDLE WINDOWS' ROW, ui/gear/gearLayout.ts midRowLayout: the same train under the desktop board of a window
-	// under ratio 1.12, drawn by this same component from ui/ChromeLandscape.svelte; its train is this one mirrored, Turbo
-	// on the Play's left and the chain on its right, Corey's "LP1" of 2026-11-26: every gear turns from the gear it
-	// meshes with by its own angle, so nothing here depends on the side)
+	// under ratio 1.12, drawn by this same component from ui/ChromeLandscape.svelte; its train is the desktop bar's order
+	// in a line, Corey's "lq1" of 2026-11-26: Menu, the Armoury, the Play, Auto, Turbo, two gears chained on each side.
+	// Every gear turns from the gear it meshes with by its own angle; only ORDER below knows the row's parents)
 	type Props = { controls: Controls; hud: HudFrame; layout: UprightLayout | MidRowLayout };
 	const { controls, hud, layout: L }: Props = $props();
 	const context = getContext();
@@ -88,7 +88,9 @@
 	});
 
 	// ---- THE TURN: every turning layer, from the haul's travel, each gear from the gear it meshes with ----
-	const ORDER: TrainGear[] = ['play', 'turbo', 'auto', 'menu', 'arm'];
+	// (each gear after the one it meshes with: the upright phone's train, Turbo and Auto on the Play, Menu on Auto, the
+	// Armoury on Menu; the middle windows' row, lq1: Auto and the Armoury on the Play, Turbo on Auto, Menu on the Armoury)
+	const ORDER: TrainGear[] = $derived(L.table === 'mid' ? ['play', 'auto', 'turbo', 'arm', 'menu'] : ['play', 'turbo', 'auto', 'menu', 'arm']);
 	type Turn = { el: HTMLElement; gear: TrainGear; period: number };
 	let host: HTMLDivElement | undefined = $state();
 	let turns: Turn[] = [];

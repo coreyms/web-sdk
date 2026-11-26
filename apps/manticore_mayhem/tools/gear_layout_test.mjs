@@ -1050,7 +1050,7 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 		const fail = (why) => bad.push(`${key}, without ${nameOf(P)}: ${why}`);
 		const g = L.gears;
 		const small = Object.keys(g).filter((id) => id !== 'play');
-		const want = (L.table === 'upright' ? ['auto', 'menu', 'arm', 'turbo'] : ['auto', 'turbo']).filter((id) => id === 'menu' || P[id]);
+		const want = (L.table === 'upright' || L.table === 'mid' ? ['auto', 'menu', 'arm', 'turbo'] : ['auto', 'turbo']).filter((id) => id === 'menu' || P[id]);
 		if (small.slice().sort().join() !== want.slice().sort().join()) fail(`draws ${small.join(', ') || 'no small gear'} (wants ${want.join(', ')})`);
 		// each drawn gear meshes with what it says, by the solved tooth rule (pitch circles `clear` apart); all reach the Play
 		const reach = new Set(['play']);
@@ -1104,6 +1104,18 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 		}
 	}
 	LS.setPortraitViewportSource(() => ({ masterHeight: 760, cssPerMaster: 1, phone: true }));
+	// ---- the middle windows' row (lq1: Menu, the Armoury, the Play, Auto, Turbo; each side seated from the Play outward) ----
+	for (const [vw, vh] of [[783, 783], [640, 783], [768, 1024], [820, 1180], [481, 783], [876, 783]]) {
+		const full = L.midRowLayout(vw, vh);
+		for (const P of SETS) {
+			const G = L.midBarLayout({ kind: 'landscape', vw, vh, present: P });
+			if (!G) { bad.push(`row ${vw}x${vh}, without ${nameOf(P)}: no row`); continue; }
+			judge(`row ${vw}x${vh}`, P, { ...G, MIN: L.MIN_PRESS }, full, L.MID_ROW.clear, null);
+			const xs = ['menu', 'arm', 'play', 'auto', 'turbo'].filter((id) => G.gears[id]).map((id) => G.gears[id].cx);
+			if (!xs.every((v, i) => i === 0 || v > xs[i - 1])) bad.push(`row ${vw}x${vh}, without ${nameOf(P)}: not Menu, the Armoury, the Play, Auto, Turbo from the left`);
+			if (vw === 783) rows.push(`row      783x783   without ${nameOf(P).padEnd(34)} ${['menu', 'arm', 'play', 'auto', 'turbo'].filter((id) => G.gears[id]).map((id) => `${id} ${f1(G.gears[id].cx)}`).join(', ')}`);
+		}
+	}
 	// ---- sideways ----
 	for (const [vw, vh] of SIDE) {
 		const view = { kind: 'phone', vw, vh, safe: { t: 0, r: 0, b: 0, l: 0 }, touch: true };
@@ -1200,6 +1212,10 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 		const rowBad = [];
 		const deskBad = [];
 		const x = (b) => b.x + b.w / 2;
+		// every pair of the five keys, which is right of which on the desktop bar at 1920 x 1080
+		const KEYS5 = ['menu', 'arm', 'play', 'auto', 'turbo'];
+		const D0 = L.desktopLayout(1920, 1080).box;
+		const DESK_SIGNS = KEYS5.flatMap((p, i) => KEYS5.slice(i + 1).map((q) => [p, q, Math.sign(x(D0[p]) - x(D0[q]))]));
 		for (let vw = 481; vw <= 3840; vw += 7) {
 			for (const a of [0.45, 0.55, 0.62, 0.7, 0.75, 0.817, 0.85, 0.9, 0.95, 1, 1.05, 1.1, 1.12, 1.15, 1.2, 1.25, 1.29, 1.3, 1.33, 1.4, 1.5, 1.6, 16 / 9, 2.39, 3.6]) {
 				const vh = Math.round(vw / a);
@@ -1211,16 +1227,19 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 					const R = L.midRowLayout(vw, vh);
 					const B = R.box;
 					if (L.midWhy.last) rowBad.push(`${tag} ${L.midWhy.last}`);
-					// (LP1, 2026-11-26: the row mirrored, Turbo left of the Play and Auto, Menu, the Armoury right of it)
-					if (!(x(B.turbo) < x(B.play) && x(B.play) < x(B.auto) && x(B.auto) < x(B.menu) && x(B.menu) < x(B.arm))) order.push(`${tag} row`);
-					if (!(R.gears.turbo.cx < R.gears.play.cx && R.gears.play.cx < R.gears.auto.cx && R.gears.auto.cx < R.gears.menu.cx && R.gears.menu.cx < R.gears.arm.cx)) order.push(`${tag} row gears`);
+					// (lq1, 2026-11-26: the desktop bar's order in a line, Menu, the Armoury, the Play, Auto, Turbo: every pair of
+					// keys in the row on the sides the desktop bar gives them at 1920 x 1080)
+					const xs = ['menu', 'arm', 'play', 'auto', 'turbo'].map((id) => x(B[id]));
+					if (!xs.every((v, i) => i === 0 || v > xs[i - 1])) order.push(`${tag} row`);
+					const ds = DESK_SIGNS.filter(([p, q, s]) => Math.sign(x(B[p]) - x(B[q])) !== s).map(([p, q]) => `${p}/${q}`);
+					if (ds.length) order.push(`${tag} row against 1920 x 1080: ${ds.join(', ')}`);
 					const g = R.gears;
 					for (const id of ['turbo', 'auto', 'menu', 'arm']) {
 						const c = g[id];
 						const q = g[c.parent];
 						if (!near(Math.hypot(c.cx - q.cx, c.cy - q.cy), c.pitchR + q.pitchR + L.MID_ROW.clear, 1e-6)) rowBad.push(`${tag} ${id} not meshed with ${c.parent}`);
 					}
-					for (const [p, q] of [['menu', 'play'], ['arm', 'play'], ['arm', 'auto'], ['turbo', 'auto']]) if (Math.hypot(g[p].cx - g[q].cx, g[p].cy - g[q].cy) < g[p].R + g[q].R + 0.99) rowBad.push(`${tag} ${p} crosses ${q}`);
+					for (const [p, q] of [['menu', 'play'], ['turbo', 'play'], ['arm', 'auto'], ['menu', 'turbo']]) if (Math.hypot(g[p].cx - g[q].cx, g[p].cy - g[q].cy) < g[p].R + g[q].R + 0.99) rowBad.push(`${tag} ${p} crosses ${q}`);
 					for (const id of L.PIECES) for (const b of [B[id], R.press[id]]) if (b.x < -0.01 || b.y < -0.01 || b.x + b.w > vw + 0.01 || b.y + b.h > vh + 0.01) rowBad.push(`${tag} ${id} off the window`);
 					for (const id of ['auto', 'turbo', 'menu', 'arm', 'down', 'up']) if (Math.min(R.press[id].w, R.press[id].h) < L.MIN_PRESS - 0.01) rowBad.push(`${tag} ${id} press ${f1(Math.min(R.press[id].w, R.press[id].h))}`);
 					if (R.gapSpin < L.MID_ROW.gapSpin - 0.01) rowBad.push(`${tag} an arrow ${f1(R.gapSpin)} px from the Play`);
@@ -1247,9 +1266,9 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 			}
 		}
 		check(`middle, THE NO DOCK RULE: ${n} desktop windows from 481 wide, ratio 0.45 to 3.6: every one draws the gear bar`, dock.length === 0 && n > 3000, dock.slice(0, 6).join('; '));
-		// (LP1, Corey 2026-11-26: "flip the row to match the desktop": Auto right of the Play and the Armoury right of Menu
-		// on both bars; Turbo is right of the Play on the desktop bar, left of it in the row)
-		check('middle: the keys keep one order wherever each bar is drawn (the desktop bar: Menu, the Armoury, the Play, Auto, Turbo from the left; the row: Turbo, the Play, Auto, Menu, the Armoury, the upright phone\'s mirrored); Auto right of the Play and the Armoury right of Menu in both', order.length === 0, order.slice(0, 6).join('; '));
+		// (lq1, Corey 2026-11-26: "Menu, Armoury, Spin, Auto, Turbo. This is the desktop order laid out in a line. No button
+		// changes side at any desktop size")
+		check('middle: the keys keep one order wherever each bar is drawn (Menu, the Armoury, the Play, Auto, Turbo from the left on the desktop bar and in the row; every one of the ten pairs on the sides 1920 x 1080 gives it)', order.length === 0, order.slice(0, 6).join('; '));
 		check('middle: the row on every window: meshed, on the window, 44 px press boxes, < and > 8 px clear of the Play, the readouts clear of every gear and of each other, Win in the bottom section, 9 px text', rowBad.length === 0, rowBad.slice(0, 6).join('; '));
 		check('middle: the desktop bar on every window it is drawn on: on the window, the bottom row in order, the small gears 48 px or more', deskBad.length === 0, deskBad.slice(0, 6).join('; '));
 	}
