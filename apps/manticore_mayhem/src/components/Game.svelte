@@ -2,7 +2,7 @@
 	// registers renderer.prepare (PrepareSystem) — used to pre-upload textures during the loading screen
 	import 'pixi.js/prepare';
 	import * as PIXI from 'pixi.js';
-	import { onMount, tick } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 
 	import { EnablePixiExtension } from 'components-pixi';
 	import { EnableHotkey } from 'components-shared';
@@ -24,6 +24,7 @@
 	import { creatureDeferredDone } from '../game/creatureLoad';
 	import { epicLandingPassed, epicStartupDone } from '../game/epicLoad';
 	import { installPixelDrop } from '../game/pixelDrop';
+	import { replayGatePlan } from '../game/replayLoad.svelte';
 	import { renderResolutionCap, renderResolutionFor } from '../game/deviceTier';
 	import { RENDER_RESIZE } from '../game/constants';
 	import { boot, reportPreload } from '../game/boot.svelte';
@@ -96,7 +97,8 @@
 		if (context.stateApp.preLoaded) startSoundPreload();
 		// THE GATE (first-minute plan D, constants LOAD_GATE): the win plaque and the symbols' sheets, from the moment the audio
 		// is in, and PRESS ANYWHERE waits for them, up to the cap (ui/LandingScreen.svelte; game/deferredLoad.ts loadGate)
-		if (context.stateApp.preLoaded) void loadGate(context.stateApp, () => sound.isReady);
+		// A REPLAY (game/replayLoad.svelte.ts): the same files, the ones its round draws first, from the moment its card is up
+		if (context.stateApp.preLoaded) void loadGate(context.stateApp, () => sound.isReady, untrack(replayGatePlan));
 	});
 	// the music's side tracks buffer only once the gate is in (game/sound.ts)
 	void gateSettled.then(releaseMusicSideTracks);

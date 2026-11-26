@@ -4214,6 +4214,18 @@ export const LOAD_GATE = {
 	sceneBesideAttacks: true,
 } as const;
 
+// A REPLAY'S OWN FILES (2026-11-26; Stake's reviewers: "when opening a replay, it takes a long time to load"; Corey approved
+// the fix that day: a replay waits only for the files its own round uses, fetches those first, and shows a loading sign if
+// there is still a wait). game/replayNeeds.ts reads the round's book and has THE WAIT TABLE; game/replayLoad.svelte.ts runs
+// it; ui/ReplayModal.svelte's START REPLAY waits on it. Until then START waited for the whole deferred phase or 30 s, and on
+// a phone on Fast 4G the board stood still for 30.2 s after the press with no sign (Decimus, staging 7a2523c).
+//   capMs   the longest START REPLAY waits, real ms from the press. Past it the round starts anyway and each piece still
+//           missing falls back as on a normal first spin: static symbol tiles until a sheet lands, the shared win look,
+//           the plain win screen after the plaque's own wait. A failed or hung file can never keep the round from starting.
+export const REPLAY_LOAD = {
+	capMs: 20_000,
+} as const;
+
 // THE IN-GAME PRESS ANYWHERE TO CONTINUE (fonts r2, Corey 2026-10-17 14:01, option 1): Cinzel 700, the display face, in
 // the landing screen's PRESS ANYWHERE colour and tracking (ui/LandingScreen.svelte .pressText: #eef0e6, 0.05em, text
 // shadow 0 2px 4px rgba(0, 0, 0, 0.7) at its 18 px desktop size, here in ems of the font). It keeps the old line's slot,
