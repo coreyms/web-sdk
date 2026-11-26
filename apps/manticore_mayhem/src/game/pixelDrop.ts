@@ -54,6 +54,58 @@ const fileOf = (url: string): string => url.split('?')[0].split('#')[0].split('/
 /** DEV / staging: `?pixeldrop=0` keeps every bitmap (the measurement's A / B) */
 const switchedOff = (): boolean => STAGING_TOOLS && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('pixeldrop') === '0';
 
+// EVERY BITMAP CLOSED WHEN ITS SOURCE GOES (2026-11-26; WebKit bug 295618: from iOS 18.4 a decoded ImageBitmap does not
+// report its size to the garbage collector, so one let go WITHOUT close() stays in memory until Safari reloads the page;
+// reported fixed in iOS 26.2. Stake's reload on an iPhone 12 on iOS 18.7.8). Pixi 8.8.1 never calls close(): a source
+// destroyed by Assets.unload, a spritesheet's destroy(true) or a texture's destroy(true) (TextureSource.destroy only sets
+// its resource to null) drops its bitmap open. Pictures that went to the GPU are closed already (drop above); this
+// closes the rest on the one road they all take, TextureSource.destroy: a picture loaded and let go before it was ever
+// drawn (a war standard's cloth asked for and replaced, a creature sheet of a look let go mid load), a kept-whole one
+// (PIXEL_DROP.keep) when it is finally destroyed, and a restored picture whose source goes before its upload. A source
+// being destroyed draws nothing any more, so its bitmap is never closed under a reader. (A closed bitmap reads width 0.)
+const bitmapCounts = { created: 0, closed: 0, closedAtDestroy: 0, unclosedCollected: 0 };
+if (typeof ImageBitmap !== 'undefined') {
+	const proto = PIXI.TextureSource.prototype as unknown as { destroy: () => void; mmCloseOnDestroy?: boolean };
+	if (!proto.mmCloseOnDestroy) {
+		proto.mmCloseOnDestroy = true;
+		const destroy = proto.destroy;
+		proto.destroy = function (this: PIXI.TextureSource) {
+			const r = this.resource as unknown;
+			if (r instanceof ImageBitmap && r.width > 0) {
+				r.close();
+				bitmapCounts.closedAtDestroy += 1;
+			}
+			return destroy.call(this);
+		};
+	}
+}
+// DEV and staging only: every bitmap the page decodes (Pixi's loader and the restores call the global createImageBitmap),
+// every close, and every one the collector took while still open (`unclosed`: should stay 0)
+if (STAGING_TOOLS && typeof ImageBitmap !== 'undefined' && typeof FinalizationRegistry !== 'undefined' && typeof globalThis.createImageBitmap === 'function') {
+	const marks = new WeakMap<ImageBitmap, { closed: boolean }>();
+	const gone = new FinalizationRegistry<{ closed: boolean }>((mark) => {
+		if (!mark.closed) bitmapCounts.unclosedCollected += 1;
+	});
+	const make = globalThis.createImageBitmap.bind(globalThis) as (...a: unknown[]) => Promise<ImageBitmap>;
+	(globalThis as unknown as { createImageBitmap: (...a: unknown[]) => Promise<ImageBitmap> }).createImageBitmap = async (...a: unknown[]) => {
+		const bmp = await make(...a);
+		const mark = { closed: false };
+		marks.set(bmp, mark);
+		gone.register(bmp, mark);
+		bitmapCounts.created += 1;
+		return bmp;
+	};
+	const close = ImageBitmap.prototype.close;
+	ImageBitmap.prototype.close = function (this: ImageBitmap) {
+		const mark = marks.get(this);
+		if (mark && !mark.closed) {
+			mark.closed = true;
+			bitmapCounts.closed += 1;
+		}
+		return close.call(this);
+	};
+}
+
 const state = {
 	sys: null as TexSys | null,
 	renderer: null as PIXI.Renderer | null,
@@ -400,6 +452,8 @@ const installReadout = (renderer: PIXI.Renderer, sys: TexSys): void => {
 			// also count a sheet decoded and not yet started on the GPU)
 			strips: { mb: round1(strips.mb), count: strips.count, lost: strips.lost, lostNames: strips.lostNames, slots: decodeSlotState() },
 			restores: state.restores,
+			/** every decoded bitmap: made, closed, closed by the destroy hook, and collected while still open (keep at 0) */
+			bitmaps: { ...bitmapCounts },
 			// NOW: sources with a GPU copy and no pixels in it, waiting for their picture (0 = nothing drawn blank); the
 			// creature's strip sheets made again after a lost context are in `strips.lost`
 			// NOW, true to the screen: the sources the stage draws (visible all the way up) with no pixels on the GPU right

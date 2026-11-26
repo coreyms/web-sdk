@@ -11,11 +11,19 @@ self.onmessage = async (e: MessageEvent<Ask>) => {
 	try {
 		const bmp = await createImageBitmap(file);
 		const canvas = new OffscreenCanvas(bmp.width, bmp.height);
+		// (closed on every path, the error one too: WebKit bug 295618, an open bitmap let go is not freed on iOS 18.4 to 26.1)
 		const ctx = canvas.getContext('2d', { willReadFrequently: true }) as OffscreenCanvasRenderingContext2D | null;
-		if (!ctx) throw new Error('no 2d');
-		ctx.drawImage(bmp, 0, 0);
-		bmp.close();
-		const px = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+		try {
+			if (!ctx) throw new Error('no 2d');
+			ctx.drawImage(bmp, 0, 0);
+		} catch (err) {
+			canvas.width = 0;
+			canvas.height = 0;
+			throw err;
+		} finally {
+			bmp.close();
+		}
+		const px = ctx!.getImageData(0, 0, canvas.width, canvas.height).data;
 		const w = canvas.width;
 		const h = canvas.height;
 		// THE CANVAS'S OWN COPY GOES NOW (memory fix 2, 2026-11-26): its backing store is as big as the sheet's pixels and
