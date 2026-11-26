@@ -2505,6 +2505,18 @@ export const PHONE_3X_ALLOW = { on: false, minShort: 420 } as const;
 export const RENDER_MAX_PIXELS = 8_300_000;
 export const RENDER_RESIZE = { settleMs: 250, band: 0.04 } as const;
 
+/** THE SECOND COPY LET GO (game/pixelDrop.ts; Corey 2026-11-26 "LN: Yes", Manticore's picture release ported). Pixi keeps a
+ *  picture's decoded ImageBitmap beside its GPU copy for good and never closes it (on iOS 18.4 to 26.1 a bitmap let go
+ *  open is not reclaimed until the page reloads, WebKit bug 295618). Once a picture is on the GPU its bitmap is closed.
+ *    keep   the files whose pixels the game reads on the CPU, so their bitmaps stay whole: the billboard logo
+ *           (game/scene/logoSign.ts footShares), the scoreboard's art (game/scoreboard/scoreboardDraw.ts setScoreboardArt),
+ *           the press screen's LED art and Wilds (game/landing/ledScreens.ts, drawn onto the LED canvases). Matched
+ *           against the file name.
+ *  A dropped picture is never collected by Pixi's texture GC (game/gpuWarm.ts GPU_WARM.gcMaxIdle, about 30 min idle): it
+ *  stays on the GPU, where the GC would have freed only its GPU copy and kept the bitmap, so the total is the same or less.
+ *  ROLLBACK: on false (every bitmap kept, as before). DEV and staging: `?pixeldrop=0` for an A / B measurement. */
+export const PIXEL_DROP = { on: true, keep: ['logo-sign', 'scoreboard-art', 'led-art', 'led-wilds'] as readonly string[] } as const;
+
 // ---- loading ------------------------------------------------------------------------------------------------------------
 /** PRESS ANYWHERE waits for the audio; if the sprite never lands it shows anyway after this long (a hung request) */
 export const LOAD_GATE = { stallMs: 30_000 } as const;

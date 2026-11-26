@@ -41,6 +41,9 @@ export const STAGING_MARKERS = [
 	'ror-tune-panel', // the same host's DOM id (a second trace, in case the marker string is ever renamed)
 	'labeldensity', // game/road/winLabelText.ts: the `?labeldensity=screen` switch's query parameter (staging only, 2026-11-26)
 	'__rorLabelMemory', // components/Board.svelte: the line amounts' memory readout for a staging build (2026-11-26)
+	'ROR_MEMORY_READOUT', // game/pixelDrop.ts: the memory readout (__reindeer.memory, __rorMemory on staging; 2026-11-26)
+	'__rorMemory', // game/pixelDrop.ts: the same readout's staging name
+	'pixeldrop', // game/pixelDrop.ts: the A / B switch's query parameter
 	'sameBookAs', // fixtures/showcaseBooks.ts: the showcase books' own field (the fixture RGS's data, dev and staging only; 2026-11-23)
 ];
 /** strings that must be in NO build, production or staging: dev server only code (a staging build is not expected to

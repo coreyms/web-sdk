@@ -16,6 +16,7 @@
 	import { guardReplay, replayGuard } from '../game/replayGuard';
 	import { renderResolutionCap, renderResolutionFor } from '../game/deviceTier';
 	import { RENDER_RESIZE } from '../game/constants';
+	import { installPixelDrop } from '../game/pixelDrop';
 	import { boot, reportPreload } from '../game/boot.svelte';
 	import { releaseMusicSideTracks, sound, startSoundPreload } from '../game/sound';
 	import EnableSound from './EnableSound.svelte';
@@ -109,6 +110,9 @@
 				// textures stay resident about 30 min from the start (game/gpuWarm.ts): a texture sent up while the player
 				// waits on the press screen is never unloaded by the GC's one minute idle limit and sent up again after it
 				app.renderer.textureGC.maxIdle = GPU_WARM.gcMaxIdle;
+				// THE SECOND COPY LET GO (game/pixelDrop.ts, constants PIXEL_DROP): from here every picture's decoded copy is
+				// closed once it is on the GPU (what went up before this is looked at too), with the lost-context restore
+				installPixelDrop(app.renderer as PIXI.Renderer);
 			}
 			if (!app.renderer.renderableGC.enabled) {
 				if (framesWaited++ < 600) requestAnimationFrame(clamp);
