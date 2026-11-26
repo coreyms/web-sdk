@@ -329,7 +329,17 @@ export const loadSceneLate = (app: AppState): Promise<void> => {
 			.filter((key) => SCENE_LATE[key])
 			.reduce((chain, key) => chain.then(() => group(`sceneFlames_${key}`, [key])), Promise.resolve())
 			.then(() => epicSceneLate(late.flames.length > 0));
-	sceneLate ??= group('sceneDay', late.day).then(() => group('sceneNight', late.night)).then(() => group('sceneSunset', late.sunset)).then(flames).catch(() => {});
+	// THE DAY SET GOES AHEAD OF THE QUEUE (2026-11-26, Decimus: a phone turned upright to sideways on Slow 4G showed the flat
+	// sky colour for 17.5 s, the backdrop sharing the link with the deferred phase): the deferred phase's next group waits
+	// for it, as for a turned layout's board art (holdQueue). Until it is in, the flat sky colour shows, as before: the
+	// upright painting is another crop and composition (cover fitted to 16:9 it is a blurred middle band, its pillars
+	// off the board's registration), and the creature stands on the scene's own floor (he is drawn in it), so neither
+	// stands in cleanly; the placeholder crops left the game for the same reason (Corey 2026-10-28).
+	if (!sceneLate) {
+		const day = group('sceneDay', late.day);
+		holdQueue(day);
+		sceneLate = day.then(() => group('sceneNight', late.night)).then(() => group('sceneSunset', late.sunset)).then(flames).catch(() => {});
+	}
 	return sceneLate;
 };
 
@@ -368,6 +378,18 @@ export const loadFrameNightLate = (app: AppState, kind: string): Promise<void> =
 // the boot layout returns at once.
 export const layoutLate = { busy: null as Promise<void> | null, pending: 0, asked: {} as Record<string, number> };
 const LAYOUT_HOLD_MS = 20_000;
+/** the deferred phase's next group waits for `work` too (beside any hold already on), at most LAYOUT_HOLD_MS: a hung
+ *  request never stops the deferred phase */
+const holdQueue = (work: Promise<unknown>): void => {
+	const capped = Promise.race([work.then(noop, noop), new Promise<void>((resolve) => setTimeout(resolve, LAYOUT_HOLD_MS))]);
+	const busy: Promise<void> = Promise.all([layoutLate.busy, capped])
+		.then(noop)
+		.finally(() => {
+			if (layoutLate.busy === busy) layoutLate.busy = null;
+		});
+	layoutLate.busy = busy;
+};
+const noop = () => {};
 const layoutLateDone: Record<string, Promise<void>> = {};
 export const loadLayoutLate = (app: AppState, kind: string): Promise<void> => {
 	if (kind === BOOT_LAYOUT) return Promise.resolve();
@@ -395,11 +417,7 @@ export const loadLayoutLate = (app: AppState, kind: string): Promise<void> => {
 		).then(() => {
 			log.end = performance.now();
 		});
-		// (the queue waits for them at most LAYOUT_HOLD_MS: a hung request never stops the deferred phase)
-		const busy = Promise.race([work, new Promise<void>((resolve) => setTimeout(resolve, LAYOUT_HOLD_MS))]).finally(() => {
-			if (layoutLate.busy === busy) layoutLate.busy = null;
-		});
-		layoutLate.busy = busy;
+		holdQueue(work);
 		await work;
 	})().catch(() => {});
 	return layoutLateDone[kind];

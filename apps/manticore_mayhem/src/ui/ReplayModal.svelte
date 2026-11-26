@@ -201,7 +201,9 @@
 			<div class="tear"></div>
 			{#if replayLoad.waiting && replayLoad.stalled}
 				<!-- the landing screen's own words for a start-up file that will not come (ui/LandingScreen.svelte) -->
-				<button class="slot-btn go" onclick={retry}>CONNECTION PROBLEM · TAP TO RETRY</button>
+				<!-- two lines, by design: the button's own type does not fit the words on one line in any card (the desktop card's
+				     412 px included), so the break is at the dot, centred: CONNECTION PROBLEM over TAP TO RETRY -->
+				<button class="slot-btn go retry" onclick={retry} aria-label="Connection problem. Tap to retry"><span>CONNECTION PROBLEM</span><span>TAP TO RETRY</span></button>
 			{:else if replayLoad.waiting}
 				<div class="go wait" role="status" aria-live="polite">
 					<div class="wbar" aria-hidden="true">
@@ -396,6 +398,19 @@
 		   lime (harsh review 2026-10-20 must-fix 7; Corey 2026-10-21 "2, 3, 5, and 7 are obvious fixes") */
 		background: linear-gradient(180deg, var(--ui-gold), var(--ui-amber));
 		box-shadow: 0 5px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+	}
+	/* TAP TO RETRY: the two lines each on one line, centred, at START REPLAY's own type (never smaller) */
+	.retry {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 2px;
+		text-align: center;
+		line-height: 1.15;
+	}
+	.retry span {
+		white-space: nowrap;
 	}
 	/* THE LOADING SIGN in START REPLAY's place (same box, so the card does not jump): the landing screen's segmented bar
 	   (ui/LandingScreen.svelte .gbar: the splash's red, skewed segments lit whole) and its readout. No filters. */
