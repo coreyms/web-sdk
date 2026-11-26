@@ -25,7 +25,7 @@
 	import ModalShell from './ModalShell.svelte';
 	import { replayState } from './replayState.svelte';
 	import { replayRoundUsable } from './replayRound';
-	import { awaitReplayNeeds, replayLoad } from '../game/replayLoad.svelte';
+	import { awaitReplayNeeds, replayGatePlan, replayLoad } from '../game/replayLoad.svelte';
 	import { loadGate } from '../game/loadGate.svelte';
 	import { bootSizes } from '../game/assetStamp';
 	import { LANDING_BAR } from '../game/introCards';
@@ -50,6 +50,9 @@
 		const answer = stateBet.betToResume;
 		if (replayRoundUsable(answer)) {
 			replayBet = answer;
+			// (the round's files are worked out now, while the card is up: the loading sign's total is whole from its first
+			// moment, so its percent only climbs)
+			untrack(replayGatePlan);
 			return;
 		}
 		untrack(() => {
@@ -64,24 +67,32 @@
 	});
 
 	// the card is the FIRST start only; later replays come from the spin button. It stays up (or comes back) while a press
-	// waits for the round's files: its loading sign (below) is then in START REPLAY's place
-	const open = $derived(stateUrlDerived.replay() && (replayState.phase === 'ready' || replayLoad.waiting) && !context.stateLayout.showLoadingScreen);
+	// waits for the round's files: its loading sign (below) is then in START REPLAY's place.
+	// THE CARD FIRST (2026-11-26, Corey on Slow 4G: "We should immediately show the replay card"): it is plain HTML and
+	// needs the replay answer and its styles only, so it opens the moment the game's HTML mounts, over the splash's
+	// backdrop (src/app.html), and no longer waits for the start-up art (the Pixi preload behind showLoadingScreen: the
+	// page stayed black for 42 s on Slow 4G). START pressed before the game is drawn waits for that as well (below).
+	const open = $derived(stateUrlDerived.replay() && (replayState.phase === 'ready' || replayLoad.waiting));
 
 	// THE LOADING SIGN (2026-11-26, constants REPLAY_LOAD): START REPLAY pressed before the round's own files and the audio
 	// are in (game/replayLoad.svelte.ts awaitReplayNeeds). Never a still board with nothing on it: the card stays up and the
 	// button gives way to the landing screen's bar and its words (LANDING_BAR: the splash's segmented red bar, "LOADING ·
-	// N%"), plain HTML and CSS. N counts the bytes START waits for: those files as the gate lands them (they are its first
-	// groups), a feature round's banner motion once in, and the audio, by bytes as the landing screen weighs it. It never
-	// slips back.
+	// N%"), plain HTML and CSS. N counts the bytes START waits for: the start-up art (the Pixi preload, by its own
+	// progress), those files as the gate lands them (they are its first groups), a feature round's banner motion once in,
+	// and the audio, by bytes as the landing screen weighs it. Every part of the total is known from the card's first
+	// moment, so it only climbs (and a high-water mark holds it where the audio's own count restarts).
 	const SEG = LANDING_BAR.segments;
 	const SEGS = Array.from({ length: SEG }, (_, i) => i);
 	const AUDIO_BYTES = bootSizes.audio;
+	const PRELOAD_BYTES = bootSizes.preload;
 	const rawPct = $derived.by(() => {
+		const app = context.stateApp;
+		const pre = app.preLoaded ? PRELOAD_BYTES : (Math.min(100, Math.max(0, app.loadingProgress)) / 100) * PRELOAD_BYTES;
 		const need = replayLoad.needBytes;
 		const files = replayLoad.neededIn ? need : Math.min(loadGate.doneBytes, need);
 		const motion = replayLoad.motionIn ? replayLoad.motionBytes : 0;
 		const audio = sound.isReady ? AUDIO_BYTES : sound.progress * AUDIO_BYTES;
-		return Math.round((100 * (files + motion + audio)) / Math.max(1, need + replayLoad.motionBytes + AUDIO_BYTES));
+		return Math.round((100 * (pre + files + motion + audio)) / Math.max(1, PRELOAD_BYTES + need + replayLoad.motionBytes + AUDIO_BYTES));
 	});
 	let highWater = $state(0);
 	$effect(() => {
@@ -135,7 +146,8 @@
 		// round draws and the audio, at once when they are in, else with the loading sign up, never longer than the cap.
 		// Until then this waited for the WHOLE deferred phase or 30 s (game/assetGate.ts awaitDeferredAssets), with the card
 		// gone and the board standing still. The round itself is started exactly as before, once.
-		await awaitReplayNeeds();
+		// (and the game drawn: the round's handlers mount with it, so START never sends the round before they can take it)
+		await awaitReplayNeeds(() => !context.stateLayout.showLoadingScreen);
 		replayState.phase = 'playing';
 		context.eventEmitter.broadcast({ type: 'resumeBet' });
 	};
@@ -422,5 +434,18 @@
 	      only the card's own width is narrowed here ── */
 	.compact {
 		width: min(380px, 94vw);
+	}
+
+	/* Stake's Popout S (400x225) and anything as short: the loading sign keeps START REPLAY's height (after its own rules,
+	   so these win) */
+	@media (max-height: 260px) {
+		.wait {
+			gap: 2px;
+			padding: 3px 12px;
+		}
+		.wbar {
+			height: 9px;
+			padding: 2px;
+		}
 	}
 </style>

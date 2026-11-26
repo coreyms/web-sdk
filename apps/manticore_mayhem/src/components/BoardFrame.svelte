@@ -61,6 +61,7 @@
 	import { stagingHaulLinks, stagingHaulMs, stagingHaulOver } from '../game/staging';
 	import { sceneLight } from '../game/scene';
 	import { loadFrameNightLate } from '../game/deferredLoad';
+	import { replayLayoutArt } from '../game/replayLoad.svelte';
 	import { bannerBackSlot, boardPlateSlot, boardPlaqueSlot, frameLight } from '../game/boardPlateSlot';
 	import { FRAME_PINION, FRAME_WHEEL, frameGearsAt, pinionRing, ringAt } from '../game/frameGears';
 
@@ -206,6 +207,8 @@
 	// the other layouts' night sets are not registered at boot: this layout's is fetched the first time it shows
 	$effect(() => {
 		void loadFrameNightLate(context.stateApp, kind);
+		// A REPLAY turned to this layout before the shared loader's last batch is in: its day art now (game/replayLoad.svelte.ts)
+		replayLayoutArt(kind);
 	});
 
 	/** a set's loops for a layout: per part (the tool's draw order) its frames in order, from the atlas's frame names;
