@@ -28,9 +28,6 @@
 	import { replayState } from './replayState.svelte';
 	import { awaitReplayNeeds, replayLoad, replayRetried } from '../game/replayLoad.svelte';
 	import { replayPct } from '../game/replayWait';
-	import { REPLAY_LOAD } from '../game/constants';
-	import { bootSizes } from '../game/assetStamp';
-	import { sound } from '../game/sound';
 
 	type Props = { controls: Controls; master: { width: number; height: number }; scale: number; left: number; top: number; compact?: boolean };
 	const { controls, master, scale, left, top, compact = false }: Props = $props();
@@ -60,21 +57,9 @@
 	// (replayLoad.waiting), its loading sign in START's place.
 	const open = $derived(stateUrlDerived.replay() && (replayState.phase === 'ready' || replayLoad.waiting) && stateModal.modal?.name !== 'error');
 
-	// THE LOADING SIGN (game/replayLoad.svelte.ts): the start-up art (the Pixi preload by its own progress) and the audio, by
-	// bytes; once the game is drawn the cap's time too, so the bar reaches its end as a capped round starts. Never backwards.
-	const rawPct = $derived(
-		replayPct(
-			{
-				preload: context.stateApp.preLoaded ? 1 : context.stateApp.loadingProgress / 100,
-				preloadBytes: bootSizes.preload,
-				audio: sound.isReady ? 1 : sound.progress,
-				audioBytes: bootSizes.audio,
-				now: replayLoad.tick,
-				drawnAt: replayLoad.drawnAt,
-			},
-			REPLAY_LOAD,
-		),
-	);
+	// THE LOADING SIGN (game/replayLoad.svelte.ts): the start-up art, by the Pixi preload's own progress (weighted by bytes,
+	// pixi-svelte AssetsLoader), the one thing START waits for. Never backwards.
+	const rawPct = $derived(replayPct(context.stateApp.preLoaded ? 1 : context.stateApp.loadingProgress / 100));
 	let highWater = $state(0);
 	$effect(() => {
 		const p = rawPct;
@@ -118,14 +103,13 @@
 		// upper case whatever the URL said (mode=bonus and mode=BONUS are the same round): the mode table,
 		// the labels and the handlers all key on the upper-case RGS name
 		if (replayBet.mode) stateBet.activeBetModeKey = replayBet.mode.toUpperCase();
-		// THE GAME DRAWN AND THE AUDIO IN (game/replayLoad.svelte.ts): at once when they are (the usual case once the card has
-		// been read on a fast link), else with the card's loading sign up; the audio at most REPLAY_LOAD.capMs after the game
-		// is drawn. Until 2026-11-26 this waited on game/assetGate.ts awaitDeferredAssets, which resolved with the preload
-		// (nothing is deferred), because the card itself came only after it.
+		// THE GAME DRAWN (game/replayLoad.svelte.ts): at once when it is (the usual case once the card has been read), else with
+		// the card's loading sign up until the moment the card itself used to open; never the audio (a replay never waited for
+		// it). Until 2026-11-26 this waited on game/assetGate.ts awaitDeferredAssets, which resolved with the preload (nothing
+		// is deferred), because the card itself came only after it.
 		await awaitReplayNeeds(
 			() => !context.stateLayout.showLoadingScreen,
 			() => context.stateApp,
-			() => sound.isReady,
 		);
 		replayState.phase = 'playing';
 		context.eventEmitter.broadcast({ type: 'resumeBet' });

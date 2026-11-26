@@ -18,6 +18,7 @@
 	import { RENDER_RESIZE } from '../game/constants';
 	import { installPixelDrop } from '../game/pixelDrop';
 	import { boot, reportPreload } from '../game/boot.svelte';
+	import { replayGameDrawn } from '../game/replayLoad.svelte';
 	import { releaseMusicSideTracks, sound, startSoundPreload } from '../game/sound';
 	import EnableSound from './EnableSound.svelte';
 	import EnableGameActor from './EnableGameActor.svelte';
@@ -204,8 +205,11 @@
 					void warmGpu('press');
 					// A REPLAY (src/app.html #am-splash.am-replay): the splash's backdrop has stood under the round card since the
 					// first paint; the game is drawn now (the fade through black's darkest moment), so it leaves with the
-					// splash's own exit
-					if (stateUrlDerived.replay()) window.__amSplash?.done();
+					// splash's own exit; a START pressed before this goes on the next task (game/replayLoad.svelte.ts)
+					if (stateUrlDerived.replay()) {
+						window.__amSplash?.done();
+						replayGameDrawn();
+					}
 				}}
 			/>
 		{:else}
