@@ -1302,9 +1302,10 @@ export const LINE_WIN = {
 		 *  pictures (its amount, its win and their shadows) are Pixi's own text pictures, drawn and sent to the GPU in the
 		 *  frames before each shows (budgetMs of that work a frame, at least one piece a frame), so no amount costs its frame;
 		 *  one still not ready when it shows is made on that frame. false: each is made on the frame it shows (the old
-		 *  timing, for the probes' comparison; the pictures are the same either way). screenPxPerCss: only with the staging
-		 *  switch `?labeldensity=screen` (2026-11-26, not the default): the labels' texture px per CSS px at their largest
-		 *  size on screen (winLabelText.ts screenLabelResolution) */
+		 *  timing, for the probes' comparison; the pictures are the same either way). screenPxPerCss: the labels' texture px per
+		 *  CSS px at their largest size on screen, never above the renderer's resolution (winLabelText.ts
+		 *  screenLabelResolution; the default since Corey's "LR2", 2026-11-26; staging `?labeldensity=full` goes back to the
+		 *  renderer's resolution for a side by side) */
 		ahead: { on: true, budgetMs: 3, screenPxPerCss: 3 },
 	},
 };

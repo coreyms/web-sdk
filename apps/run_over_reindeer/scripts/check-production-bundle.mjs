@@ -39,7 +39,7 @@ export const STAGING_MARKERS = [
 	'ROR_TUNE_PANEL', // staging/tune/mountTune.ts: the `?tune=1` tuning panel's host (dev and staging only since 2026-11-16)
 	'ror-tune-remembered-v1', // staging/tune/tuneStore.ts: the panel's remembered values (staging only, 2026-11-17)
 	'ror-tune-panel', // the same host's DOM id (a second trace, in case the marker string is ever renamed)
-	'labeldensity', // game/road/winLabelText.ts: the `?labeldensity=screen` switch's query parameter (staging only, 2026-11-26)
+	'labeldensity', // game/road/winLabelText.ts: the `?labeldensity=full` way back's query parameter (staging only; screen density the default since 2026-11-26)
 	'__rorLabelMemory', // components/Board.svelte: the line amounts' memory readout for a staging build (2026-11-26)
 	'ROR_MEMORY_READOUT', // game/pixelDrop.ts: the memory readout (__reindeer.memory, __rorMemory on staging; 2026-11-26)
 	'__rorMemory', // game/pixelDrop.ts: the same readout's staging name

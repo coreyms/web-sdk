@@ -11,7 +11,8 @@
 	//
 	// This game's own line: the column characters' sheets (game/road/columnClips.ts clipMemory): the density in use,
 	// the sheet px per CSS px it gives, the `?rescap=` that picked it and the MB loaded now. And the line amounts' pictures
-	// (game/road/winLabelText.ts aheadMemory, 2026-11-26): how many, their textures' MB, the canvases held, `?labeldensity=`.
+	// (game/road/winLabelText.ts aheadMemory, 2026-11-26): how many, their textures' MB, the canvases held,
+	// the density (screen by default, road with `?labeldensity=full`).
 	//
 	// Cost: the measuring is src/staging/perfMeter.ts (one rAF listener, no allocation). This component only
 	// reads it on a ONE SECOND timer and writes the DOM then. The box takes taps only on itself.
