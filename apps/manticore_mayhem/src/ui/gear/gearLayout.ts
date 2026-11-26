@@ -1202,24 +1202,31 @@ const uprightSolve = (vw: number, vh: number, safeBottom: number, T: UprightTabl
 // Corey's 783 x 783 and 640 x 783 (corey_placements_r2_2026-11-26.json): "controls in one row under the board: Armoury,
 // Menu, Auto, Spin gear, Turbo; Win just above the left of the row; Balance bottom left, Spin amount bottom right".
 // ONE RULE, for every desktop window under MID.rowUnder (1.12):
-//   ORDER  the upright phone's train exactly (UPRIGHT.chain's topology, Corey 2026-11-26: "What I don't want to do is
-//          move the order of the buttons"): the Play on the window's center line (the board's), Turbo meshed on its
-//          right, and on its left a chain each meshed only with the next: Auto, Menu, the Armoury. Every gear takes the
-//          board's own tooth for this window (UPRIGHT.tooth x this board's scale over his), as on the upright phone.
-//   ANGLES his 640 x 783: Turbo on the Play at 82 degrees, Auto, Menu and the Armoury each at 275 on the one before (a
-//          row rising a little to each side). Where Balance under the chain's left end or the amount's row under Turbo
-//          would meet a gear, that side's angles turn up (to 300 at most) by the least that clears.
+//   ORDER  the upright phone's train MIRRORED about the Play's center line (2026-11-26, Corey: "LP1", put to him as
+//          "flip the row to match the desktop. Turbo left of Spin; Auto, Menu, Armoury to the right. Nothing ever swaps
+//          when a desktop window is resized"; his first placing had the upright phone's sides, and Corey 2026-11-26:
+//          "What I don't want to do is move the order of the buttons"): the Play on the window's center line (the
+//          board's), Turbo meshed on its LEFT, and on its RIGHT a chain each meshed only with the next: Auto, Menu, the
+//          Armoury (Auto and the Armoury on the same sides of the Play and of Menu as on the desktop bar). Every gear
+//          takes the board's own tooth for this window (UPRIGHT.tooth x this board's scale over his), as on the upright
+//          phone.
+//   ANGLES his 640 x 783 mirrored: Turbo on the Play at 278 degrees, Auto, Menu and the Armoury each at 85 on the one
+//          before (a row rising a little to each side). Where a readout would meet a gear, that side's angles turn up
+//          (25 degrees at most, toward the top) by the least that clears.
 //   SIZES  the band's (layoutSpec MID.row: the Play 110 and the four small gears 64 at a 783 tall window, Corey: "should
 //          be about the same size on each"), a step smaller (3 percent, down to 0.7) only where a piece has no place.
 //   BAND   the Play's top 1 px under the spin amount plaque's sprite box, its bottom never under the window's edge less 4.
 //   READOUTS real text, the upright phone's kind (a word over a number), sized with the band (10 and 19 px at 783 tall,
 //          never under 9 and 15): Balance at the bottom left; the amount between < and > at the bottom right (their
-//          44 px press boxes, never within gapSpin of the Play's press region); Win left of the plaque over the chain's
-//          left end (his place), else over Balance.
+//          44 px press boxes, never within gapSpin of the Play's press region); Win left of the plaque over the row's
+//          left end, Turbo since LP1 (his place), else over Balance. LP1 moved no readout: each still clears every gear
+//          of the mirrored row by the rule's own 1 px (tools/gear_layout_test.mjs section 6 sweeps every row window).
 // The scene over it (the board, the logo at the top left, the Manticore on the floor or perched) is layoutSpec MID's.
 export const MID_ROW = {
-	chain: { turbo: 82, auto: 275, menu: 275, arm: 275 },
-	/** how far the chain's angles may turn up to clear a readout, degrees from the row's own */
+	/** degrees clockwise from straight up (LP1: Turbo on the left, the chain on the right; his were 82 and 275) */
+	chain: { turbo: 278, auto: 85, menu: 85, arm: 85 },
+	/** how far the chain's angles may turn up to clear a readout, degrees from the row's own (toward 0 on the right
+	 *  side, toward 360 on the left) */
 	tiltMax: 25,
 	clear: 0.6,
 	/** gears and readouts stay this far inside the window (CSS px); a readout's box this far over the bottom edge */
@@ -1284,37 +1291,41 @@ const midRowSolve = (vw: number, vh: number) => {
 		const down = tb({ x: up.x - amtW - MIN_PRESS / 2, y: rowY });
 		const amt: Box = { x: down.x + MIN_PRESS, y: vh - T.read.bottom - boxH, w: amtW, h: boxH };
 		const clearOf = (c: TrainCircle, b: Box, gap = 1) => circleToBox(c, b) >= gap;
-		// Turbo: his angle, turned up until the amount's row is clear of it
+		/** an angle turned up by `by` degrees: toward 0 on the right of the Play, toward 360 on its left */
+		const upBy = (a: number, by: number) => (a < 180 ? a - by : a + by);
+		// every readout box a gear must stand clear of, whichever side of the Play it is on
+		const reads = [bal, down, up, amt];
+		// Turbo: its angle, turned up until every readout is clear of it
 		let turbo: TrainCircle | null = null;
-		for (const a of toward(T.chain.turbo, T.chain.turbo - T.tiltMax, 1)) {
+		for (const a of toward(T.chain.turbo, upBy(T.chain.turbo, T.tiltMax), 1)) {
 			const c = on(play, 'play', a);
-			if (inWin(c) && [down, up, amt].every((b) => clearOf(c, b))) {
+			if (inWin(c) && reads.every((b) => clearOf(c, b))) {
 				turbo = c;
 				break;
 			}
 		}
-		// the chain: his angles, turned up together until Balance is clear of it
+		// the chain: its angles, turned up together until every readout is clear of it
 		let chain: { auto: TrainCircle; menu: TrainCircle; arm: TrainCircle } | null = null;
-		for (const a of toward(T.chain.auto, T.chain.auto + T.tiltMax, 1)) {
+		for (const a of toward(T.chain.auto, upBy(T.chain.auto, T.tiltMax), 1)) {
 			const auto = on(play, 'play', a);
 			const menu = on(auto, 'auto', a);
 			const arm = on(menu, 'menu', a);
 			const all = [auto, menu, arm];
-			if (all.every(inWin) && all.every((c) => clearOf(c, bal)) && Math.hypot(menu.cx - play.cx, menu.cy - play.cy) >= menu.R + play.R + 1) {
+			if (all.every(inWin) && all.every((c) => reads.every((b) => clearOf(c, b))) && Math.hypot(menu.cx - play.cx, menu.cy - play.cy) >= menu.R + play.R + 1) {
 				chain = { auto, menu, arm };
 				break;
 			}
 		}
 		const fallback = { auto: on(play, 'play', T.chain.auto), menu: on(on(play, 'play', T.chain.auto), 'auto', T.chain.menu), arm: on(on(on(play, 'play', T.chain.auto), 'auto', T.chain.menu), 'menu', T.chain.arm) };
 		const gears: Record<TrainGear, TrainCircle> = { play, turbo: turbo ?? on(play, 'play', T.chain.turbo), ...(chain ?? fallback) };
-		let bad = !turbo ? 'the amount\'s row meets Turbo' : !chain ? 'Balance meets the chain, or the chain leaves the window' : '';
+		let bad = !turbo ? 'a readout meets Turbo, or Turbo leaves the window' : !chain ? 'a readout meets the chain, or the chain leaves the window' : '';
 		if (!bad && (circleToBox(play, down) < T.gapSpin || circleToBox(play, up) < T.gapSpin)) bad = 'an arrow within 8 px of the Play';
 		if (!bad && (down.x < bal.x + bal.w + 2 || [down, up, amt].some((b) => !clearOf(play, b)))) bad = 'the amount\'s row meets Balance or the Play';
-		// Win: left of the plaque, standing on the chain's left end (his place); else over Balance at the left
+		// Win: left of the plaque, standing on the gears under it (his place: over Turbo since LP1); else over Balance at the left
 		const G = Object.values(gears);
 		const winRight = Math.min(V.plaque.x - 4, play.cx - play.R - 2);
 		let win: Box | null = null;
-		let winAt = 'left of the plaque, over the chain';
+		let winAt = 'left of the plaque, over the row';
 		const w = Math.min(readW, winRight - T.read.side);
 		if (w >= READ_MIN) {
 			const x = Math.max(T.read.side, (T.read.side + winRight - w) / 2);

@@ -40,7 +40,9 @@
 	import './gear.css';
 
 	// (THE MIDDLE WINDOWS' ROW, ui/gear/gearLayout.ts midRowLayout: the same train under the desktop board of a window
-	// under ratio 1.12, drawn by this same component from ui/ChromeLandscape.svelte)
+	// under ratio 1.12, drawn by this same component from ui/ChromeLandscape.svelte; its train is this one mirrored, Turbo
+	// on the Play's left and the chain on its right, Corey's "LP1" of 2026-11-26: every gear turns from the gear it
+	// meshes with by its own angle, so nothing here depends on the side)
 	type Props = { controls: Controls; hud: HudFrame; layout: UprightLayout | MidRowLayout };
 	const { controls, hud, layout: L }: Props = $props();
 	const context = getContext();

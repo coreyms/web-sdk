@@ -141,7 +141,8 @@ export const landscapeTallFrame = (extra: number) => {
 //                      the Manticore on the floor at the lower right in front of it. Over the first `ramp` of shape under
 //                      1.3 the board, the clock line and the logo slide from today's places to these, so nothing jumps.
 //   ROW   r < 1.12     his 783 x 783 (square) and 640 x 783 (tall): the gear train in a row under the board (the
-//                      upright phone's order: the Armoury, Menu, Auto, the Play, Turbo), Win just over its left end,
+//                      upright phone's order mirrored, Corey's "LP1": Turbo, the Play, Auto, Menu, the Armoury, so Auto
+//                      and the Armoury stand on the desktop bar's sides of the Play and of Menu), Win just over its left end,
 //                      Balance at the bottom left, the amount with < and > at the bottom right; the board grows with the
 //                      shape (his 0.79 of the width at 1.0, 0.87 at 0.817), its plaque on the row's band; the logo at the
 //                      top left over the board. Over `rowRamp` of shape above 1.12 the board rises to the row's band

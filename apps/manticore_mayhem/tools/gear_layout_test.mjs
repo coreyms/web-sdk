@@ -1211,7 +1211,9 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 					const R = L.midRowLayout(vw, vh);
 					const B = R.box;
 					if (L.midWhy.last) rowBad.push(`${tag} ${L.midWhy.last}`);
-					if (!(x(B.arm) < x(B.menu) && x(B.menu) < x(B.auto) && x(B.auto) < x(B.play) && x(B.play) < x(B.turbo))) order.push(`${tag} row`);
+					// (LP1, 2026-11-26: the row mirrored, Turbo left of the Play and Auto, Menu, the Armoury right of it)
+					if (!(x(B.turbo) < x(B.play) && x(B.play) < x(B.auto) && x(B.auto) < x(B.menu) && x(B.menu) < x(B.arm))) order.push(`${tag} row`);
+					if (!(R.gears.turbo.cx < R.gears.play.cx && R.gears.play.cx < R.gears.auto.cx && R.gears.auto.cx < R.gears.menu.cx && R.gears.menu.cx < R.gears.arm.cx)) order.push(`${tag} row gears`);
 					const g = R.gears;
 					for (const id of ['turbo', 'auto', 'menu', 'arm']) {
 						const c = g[id];
@@ -1245,7 +1247,9 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
 			}
 		}
 		check(`middle, THE NO DOCK RULE: ${n} desktop windows from 481 wide, ratio 0.45 to 3.6: every one draws the gear bar`, dock.length === 0 && n > 3000, dock.slice(0, 6).join('; '));
-		check('middle: the keys keep one order wherever each bar is drawn (the desktop bar: Menu, the Armoury, the Play, Auto, Turbo from the left; the row: the Armoury, Menu, Auto, the Play, Turbo, the upright phone\'s); Auto is left of Turbo in both', order.length === 0, order.slice(0, 6).join('; '));
+		// (LP1, Corey 2026-11-26: "flip the row to match the desktop": Auto right of the Play and the Armoury right of Menu
+		// on both bars; Turbo is right of the Play on the desktop bar, left of it in the row)
+		check('middle: the keys keep one order wherever each bar is drawn (the desktop bar: Menu, the Armoury, the Play, Auto, Turbo from the left; the row: Turbo, the Play, Auto, Menu, the Armoury, the upright phone\'s mirrored); Auto right of the Play and the Armoury right of Menu in both', order.length === 0, order.slice(0, 6).join('; '));
 		check('middle: the row on every window: meshed, on the window, 44 px press boxes, < and > 8 px clear of the Play, the readouts clear of every gear and of each other, Win in the bottom section, 9 px text', rowBad.length === 0, rowBad.slice(0, 6).join('; '));
 		check('middle: the desktop bar on every window it is drawn on: on the window, the bottom row in order, the small gears 48 px or more', deskBad.length === 0, deskBad.slice(0, 6).join('; '));
 	}
