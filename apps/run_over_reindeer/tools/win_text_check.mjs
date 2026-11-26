@@ -14,7 +14,8 @@
 //      draws the old Text's picture each time over a cleared canvas; its texture's size follows the rule (the next 64 px
 //      step, grown past it, made again smaller at half its width or less); 48 labels hold at most three canvases; each
 //      upload is a canvas of exactly the texture's size holding that label's words; a drawing drawn over is drawn again
-//      before it is sent; a new style lets the texture go; a lost context draws a shown label again; the switch's numbers
+//      before it is sent; a new style lets the texture go; a lost context draws a shown label again; the screen density's
+//      numbers (on by default)
 //   4. THE PIECES: a label needs its draw, then its upload, then nothing; new words need both again
 //   5. WHEN EACH SHOWS: a line with no multiplier shows its win as its wire is complete, a multiplier line its plain amount
 //      then and its win at the punch (labelDues; drawSlam's own thresholds)
@@ -274,12 +275,13 @@ check(bad2.length === 0, `2. the quad and the size: the texture frame, the repor
 	check(W.aheadMemory().labels === 0, `3. a destroyed label leaves the readout`);
 }
 
-// 3: the staging switch's resolution: 3 per CSS px of the largest size on screen, never above the renderer's
+// 3: the screen density's resolution (the default since Corey's "LR2", 2026-11-26): 3 per CSS px of the largest size on
+// screen, never above the renderer's; on with no staging tools (only a staging `?labeldensity=full` turns it off)
 {
 	const up = W.screenLabelResolution(0.255, 1.35, 3);
 	const side = W.screenLabelResolution(0.337, 1.35, 3);
 	const desk = W.screenLabelResolution(0.7, 1.35, 2);
-	check(Math.abs(up - 1.03) < 1e-9 && Math.abs(side - 1.36) < 1e-9 && desk === 2 && W.LABEL_SCREEN_DENSITY === false, `3. ?labeldensity=screen: ${up} upright, ${side} sideways (road scale 0.255, 0.337, peak 1.35), held to the renderer's ${desk}; off here (no staging tools)`);
+	check(Math.abs(up - 1.03) < 1e-9 && Math.abs(side - 1.36) < 1e-9 && desk === 2 && W.LABEL_SCREEN_DENSITY === true, `3. the screen density: ${up} upright, ${side} sideways (road scale 0.255, 0.337, peak 1.35), held to the renderer's ${desk}; on here by default (no staging tools)`);
 }
 
 // 4: the pieces of work

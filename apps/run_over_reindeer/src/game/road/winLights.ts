@@ -734,9 +734,11 @@ export class WinLights {
 		const res = this.labelRes();
 		return { on: X.ahead.on, budgetMs: X.ahead.budgetMs, res, density: LABEL_SCREEN_DENSITY ? 'screen' : 'road', left: this.ahead.filter((j) => !j.text.ready(res)).length, jobs: this.ahead.map((j) => ({ due: Math.round(j.due * 10) / 10, ...j.text.info(res) })), ...this.aheadStats };
 	}
-	/** THE LABELS' RESOLUTION (texture px per road px): the renderer's, as a PIXI.Text is drawn; with the staging switch
-	 *  `?labeldensity=screen` (winLabelText.ts header) screenPxPerCss per CSS px at the label's largest size on screen: the
-	 *  amount layer's scale on screen times the slam's peak swell, never above the renderer's */
+	/** THE LABELS' RESOLUTION (texture px per road px): by default (winLabelText.ts header, THE SCREEN DENSITY, Corey "LR2"
+	 *  2026-11-26) screenPxPerCss per CSS px at the label's largest size on screen: the amount layer's scale on screen times
+	 *  the slam's peak swell, never above the renderer's. Read every frame (aheadStep, showNow), so after a layout turn the
+	 *  labels are drawn again at the new road scale. With the staging way back `?labeldensity=full`: the renderer's, as a
+	 *  PIXI.Text is drawn */
 	private labelRes(): number {
 		const r = aheadResolution();
 		if (!LABEL_SCREEN_DENSITY) return r;

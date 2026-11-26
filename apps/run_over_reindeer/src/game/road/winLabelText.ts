@@ -39,11 +39,14 @@
 //      (the amounts never count up: each label's words are set once a win).
 // The pixels are the same: the GPU gets the same canvas size with the same drawing on it, cleared the same way.
 //
-// THE STAGING SWITCH `?labeldensity=screen` (2026-11-26; NOT the default, for a side by side still for Corey only; dev
-// server or a PUBLIC_STAGING=1 build, never in a production bundle: game/staging.ts, the bundle check's marker): the labels
+// THE SCREEN DENSITY (2026-11-26, the default everywhere since Corey's "LR2" on 2026-11-26: "yes, turn it on. 90 MB less on
+// upright phones, slightly softer number edges under zoom"; until then the staging switch `?labeldensity=screen`): the labels
 // are drawn at LINE_WIN.slam.ahead.screenPxPerCss texture px per CSS px of their largest size on screen (the road's scale
 // times the slam's peak swell, winLights labelRes), never more than the renderer's resolution, instead of the renderer's
-// resolution per road px. Only the texture's density changes: the quad, the size and the place are the same.
+// resolution per road px. Only the texture's density changes: the quad, the size and the place are the same. The way back,
+// for a side by side only: `?labeldensity=full` (the renderer's resolution per road px, as before 2026-11-26), on the dev
+// server or a PUBLIC_STAGING=1 build only, never in a production bundle (game/staging.ts, the bundle check's marker);
+// `?labeldensity=screen` is still accepted and changes nothing.
 import * as PIXI from 'pixi.js';
 
 import { LINE_WIN } from '../constants';
@@ -62,15 +65,16 @@ export const aheadResolution = () => {
 	return r && Number.isFinite(r) && r > 0 ? r : 1;
 };
 
-/** `?labeldensity=screen`: the dev server or a PUBLIC_STAGING=1 build only (false, and the word dropped, in production) */
-const screenDensityAsked = (): boolean => {
+/** `?labeldensity=full`, the way back to the renderer's resolution: the dev server or a PUBLIC_STAGING=1 build only (false,
+ *  and the word dropped, in production) */
+const fullDensityAsked = (): boolean => {
 	if (!STAGING_TOOLS) return false;
 	if (typeof window === 'undefined') return false;
-	return new URLSearchParams(window.location.search).get('labeldensity') === 'screen';
+	return new URLSearchParams(window.location.search).get('labeldensity') === 'full';
 };
-/** THE STAGING SWITCH (header): read once at load */
-export const LABEL_SCREEN_DENSITY: boolean = screenDensityAsked();
-/** the switch's resolution for the labels (texture px per road px): screenPxPerCss x the road's CSS px per road px x the
+/** THE SCREEN DENSITY (header): on unless a staging page asks `?labeldensity=full`; read once at load */
+export const LABEL_SCREEN_DENSITY: boolean = !fullDensityAsked();
+/** the screen density's resolution for the labels (texture px per road px): screenPxPerCss x the road's CSS px per road px x the
  *  slam's peak swell, held to two decimals (so a label is not drawn again for a float's last digit), never above `cap` (the
  *  renderer's resolution, today's density) and never under a quarter */
 export function screenLabelResolution(cssPerRoad: number, peak: number, cap: number): number {
@@ -270,7 +274,7 @@ export class AheadText extends PIXI.Sprite {
 			sc = takeScratch(fitW, h, this);
 			// (the Text's texture settings: premultiplied as it uploads, the default sampler, no mipmaps)
 			const src = new PIXI.CanvasSource({ resource: sc.cv as unknown as PIXI.ICanvas, resolution: res, alphaMode: 'premultiply-alpha-on-upload' });
-			// (whole px: a resolution such as the switch's 1.03 must not leave the texture a fraction of a px off the canvas)
+			// (whole px: a resolution such as the screen density's 1.03 must not leave the texture a fraction of a px off the canvas)
 			src.resize(fitW / res, h / res, res);
 			src.resource = blank() as unknown as PIXI.ICanvas;
 			src.on('unload', this.onUnload, this);
