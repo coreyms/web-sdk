@@ -90,7 +90,11 @@
 	// ---- THE TURN: every turning layer, from the haul's travel, each gear from the gear it meshes with ----
 	// (each gear after the one it meshes with: the upright phone's train, Turbo and Auto on the Play, Menu on Auto, the
 	// Armoury on Menu; the middle windows' row, lq1: Auto and the Armoury on the Play, Turbo on Auto, Menu on the Armoury)
-	const ORDER: TrainGear[] = $derived(L.table === 'mid' ? ['play', 'auto', 'turbo', 'arm', 'menu'] : ['play', 'turbo', 'auto', 'menu', 'arm']);
+	// (a plain read in apply, never a $derived: apply runs from the frame tick and onMount, outside any effect, and Svelte
+	// 5.20 then hooks an owned derived into the layout's own derived for good, which kept every old bar alive on each
+	// turn between phone sideways and upright, 2026-11-26)
+	const ROW_ORDER: TrainGear[] = ['play', 'auto', 'turbo', 'arm', 'menu'];
+	const UP_ORDER: TrainGear[] = ['play', 'turbo', 'auto', 'menu', 'arm'];
 	type Turn = { el: HTMLElement; gear: TrainGear; period: number };
 	let host: HTMLDivElement | undefined = $state();
 	let turns: Turn[] = [];
@@ -99,6 +103,7 @@
 	const slot: Record<TrainGear, number> = { play: 0, turbo: 0, auto: 0, menu: 0, arm: 0 };
 	const apply = (links: number) => {
 		const G = L.gears;
+		const ORDER = L.table === 'mid' ? ROW_ORDER : UP_ORDER;
 		angles.links = links;
 		// THE FULL TRAIN's angles first (every slot, drawn or not: ui/gear/gearLayout.ts seatBar), then each drawn key
 		// turns as the slot it sits in: with Auto gone Menu stands in Auto's slot and turns as Auto did, meshed with the
