@@ -2,7 +2,8 @@
 zooming in I can see there is some cropping on the bottom and right sides of it on the LED screens").
 
 tools/build_led_wilds.py packs the sleigh screen's Santa column and the car screen's Grandma Wild from the game's own render
-(Desktop/Run Over Reindeer/led_intro_wilds_built_2026-11-20: tools/capture.cjs, tools/prep_sources.py). Those sources were
+(art-src/led_intro_wilds_built_2026-11-20, made by that round's tools/capture.cjs and tools/prep_sources.py, which are
+not in the project). Those sources were
 cut to the frame's OUTER EDGE (the garland's parts().outer), but the game draws past it: the tinsel's lumpy ink outline 4 road
 px out (garland.ts Side.lay: -B.pad), the corner baubles over the corners (out a few road px at the sides and the foot,
 their caps over the top), and Santa's idle elbow over his right band and on past the column (roadFeatures.ts placeBody,
@@ -37,11 +38,12 @@ import os
 
 import numpy as np
 from PIL import Image
+from _paths import ART_SRC  # noqa: E402  (tools/_paths.py: the app's art-src/ folder)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
-CAP = os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_wilds_built_2026-11-20")
-OUT = os.environ.get("LED_WILD_SRC") or os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_lines_crop_2026-11-21/src")
+CAP = os.path.join(ART_SRC, "led_intro_wilds_built_2026-11-20")
+OUT = os.environ.get("LED_WILD_SRC") or os.path.join(ART_SRC, "led_intro_lines_crop_2026-11-21/src")
 SIZE = "src1920x1080"
 PAD_CSS = 14  # capture.cjs clipOf: CSS px round each clip
 PAD_SHARE = 0.03  # the transparent margin round the drawn pixels, of the outer box's width

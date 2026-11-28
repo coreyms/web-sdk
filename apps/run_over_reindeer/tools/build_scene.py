@@ -2,14 +2,14 @@
 logo, converted for the game. Pixel work only (crops, alpha masks, resampling); nothing is generated or repainted here.
 
 It only READS these sources (never changes them):
-  ~/Desktop/Run Over Reindeer/snow_scene_kit_r1_2026-11-16/pieces/   field_tile, band_top, band_bottom, end_left, end_right
-                                                                       (their road px places: pieces/placements.json)
-  ~/Desktop/Run Over Reindeer/treeline_r2_2026-11-16/forest_A.png     the evergreen forest, candidate A (1330 x 1024)
-  ~/Desktop/Run Over Reindeer/billboard_logo_r2_2026-11-15/           logo_billboard_clean.png (the LOCKED sign, haze
-                                                                       removed, every pixel of alpha 9 or more as locked)
-                                                                       and logo_billboard_lamps_off.png (the same picture
-                                                                       with the amber glass of both lamps darkened by a
-                                                                       plain multiply; checked here: nothing else differs)
+  art-src/snow_scene_kit_r1_2026-11-16/pieces/   field_tile, band_top, band_bottom, end_left, end_right
+                                                   (their road px places: pieces/placements.json)
+  art-src/treeline_r2_2026-11-16/forest_A.png     the evergreen forest, candidate A (1330 x 1024)
+  art-src/billboard_logo_r2_2026-11-15/           logo_billboard_clean.png (the LOCKED sign, haze
+                                                   removed, every pixel of alpha 9 or more as locked)
+                                                   and logo_billboard_lamps_off.png (the same picture
+                                                   with the amber glass of both lamps darkened by a
+                                                   plain multiply; checked here: nothing else differs)
 and writes inside this app:
   static/assets/scene/snow-day-*.webp   the kit's pieces and the forest (lossy WebP like road.webp; alpha kept exact)
   static/assets/scene/logo-sign.webp    one sheet: the sign with its lamps dark, each lamp's lit glass as a patch, one
@@ -19,8 +19,8 @@ and writes inside this app:
 The ends ship at their source density (1.41 px per road px, Corey's approval 2026-11-16), trimmed to their alpha box.
 
 THE NIGHT KITS (scene swap, 2026-11-17): the Free Spins and Super Free Spins night snow, built the same way, read only:
-  ~/Desktop/Run Over Reindeer/scene_kit_snow_bonus_S2_r2_2026-11-16/pieces/   (preset snowNight, files scene/snow-night-*)
-  ~/Desktop/Run Over Reindeer/scene_kit_snow_super_S1_r2_2026-11-16/pieces/   (preset snowSuper, files scene/snow-super-*)
+  art-src/scene_kit_snow_bonus_S2_r2_2026-11-16/pieces/   (preset snowNight, files scene/snow-night-*)
+  art-src/scene_kit_snow_super_S1_r2_2026-11-16/pieces/   (preset snowSuper, files scene/snow-super-*)
 Each has the day kit's pieces (field tile, bands, ends: same sizes, same alpha, same road px places, checked here) and three
 more: its own road picture (the day picture re-coloured: q92 like road/road.webp), its two portal strips (lossless with the
 day strips' exact alpha, like road/tunnel-*.webp) and its upright phone forest (q80 like the day forest). Nothing in them is
@@ -34,9 +34,9 @@ Same sizes, alpha and road px places as r1 / r2 (checked by this tool's asserts)
 
 THE GRASS KITS (dark mode, 2026-11-17): the player's "Dark" scene set, base game, Free Spins and Super, built the same way as
 the night kits, read only:
-  ~/Desktop/Run Over Reindeer/scene_kit_grass_base_G1_r2_2026-11-16/snow<A|B>/pieces/    (preset grassDay, files scene/grass-day-*)
-  ~/Desktop/Run Over Reindeer/scene_kit_grass_bonus_B2_r2_2026-11-16/snow<A|B>/pieces/   (preset grassNight, scene/grass-night-*)
-  ~/Desktop/Run Over Reindeer/scene_kit_grass_super_G2_r2_2026-11-16/snow<A|B>/pieces/   (preset grassSuper, scene/grass-super-*)
+  art-src/scene_kit_grass_base_G1_r2_2026-11-16/snow<A|B>/pieces/    (preset grassDay, files scene/grass-day-*)
+  art-src/scene_kit_grass_bonus_B2_r2_2026-11-16/snow<A|B>/pieces/   (preset grassNight, scene/grass-night-*)
+  art-src/scene_kit_grass_super_G2_r2_2026-11-16/snow<A|B>/pieces/   (preset grassSuper, scene/grass-super-*)
 Each kit has two leftover snow candidates (snowA: drawn outlined patches; snowB: edges only); the owner has not picked one,
 so it is one argument: --grass-snow A (the default) or --grass-snow B. Same checks as the night kits, except the ends: the
 grass ends' alpha differs from the day ends' by a few edge pixels (the kit's own repaint), so for them the alpha BOX must
@@ -52,12 +52,13 @@ import os
 
 import numpy as np
 from PIL import Image
+from _paths import ART_SRC  # noqa: E402  (tools/_paths.py: the app's art-src/ folder)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
 OUT = os.path.join(APP, "static", "assets", "scene")
 SPEC = os.path.join(APP, "src", "game", "sceneArtSpec.ts")
-DESK = os.path.expanduser("~/Desktop/Run Over Reindeer")
+DESK = ART_SRC
 KIT = os.path.join(DESK, "snow_scene_kit_r3_2026-11-17", "pieces")
 FOREST = os.path.join(DESK, "treeline_r2_2026-11-16", "forest_A.png")
 LOGO = os.path.join(DESK, "billboard_logo_r2_2026-11-15")

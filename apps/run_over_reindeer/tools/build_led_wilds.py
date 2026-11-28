@@ -16,10 +16,10 @@ as still pictures, packed into one small sheet per device tier:
 
 THE PICTURES' SOURCE: the game's own render of each Wild (no new art, no image generation): captured from the dev
 server at 1920 x 1080 with the renderer at 3 device px per CSS px (?rescap=3), the Wild's number, word and twinkles set
-not to render, cropped to its frame's outer edge (Desktop/Run Over Reindeer/led_intro_wilds_built_2026-11-20: tools/
-capture.cjs, tools/prep_sources.py write src/). The same capture with them drawn gives the places: the number and the
+not to render, cropped to its frame's outer edge (art-src/led_intro_wilds_built_2026-11-20/src, written by that round's
+tools/capture.cjs and tools/prep_sources.py). The same capture with them drawn gives the places: the number and the
 word are where the two captures differ, as shares of the picture's outer edge. Since 2026-11-21 the pictures themselves come
-WHOLE from tools/build_led_wild_sources.py (Desktop/Run Over Reindeer/led_intro_lines_crop_2026-11-21/src): the same
+WHOLE from tools/build_led_wild_sources.py (art-src/led_intro_lines_crop_2026-11-21/src): the same
 pixels inside the outer edge, plus what the game draws past it (the tinsel's fuzz, the baubles, Santa's elbow) on a
 transparent margin, and `santa_band`, the strip the column's grow shows over his right band while he is not yet standing
 clear (ledScreens.ts wildGrow). The spec gives each picture's outer edge, its drawn pixels and the strip's place as shares.
@@ -74,14 +74,15 @@ APP = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import build_wild_mult as bwm  # noqa: E402  (the multiplier's candy recipe, read only)
 import build_wild_word as bww  # noqa: E402  (the WILD word's, read only)
+from _paths import ART_SRC  # noqa: E402  (tools/_paths.py: the app's art-src/ folder)
 
 # THE PICTURES WHOLE (2026-11-21, Corey: "not cut off Santa's Elbow? same on the wild ... some cropping on the bottom and
 # right sides"): tools/build_led_wild_sources.py rebuilt the two captures with what the game draws past the frame's outer
 # edge (the tinsel's fuzz, the baubles, Santa's elbow) and a transparent margin round it; its src.json gives each picture's
 # outer edge inside it. The number's and the word's places are still read from the first captures (CAPTURE_SRC), as shares
 # of the outer edge.
-SRC = os.environ.get("LED_WILD_SRC") or os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_lines_crop_2026-11-21/src")
-CAPTURE_SRC = os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_wilds_built_2026-11-20/src")
+SRC = os.environ.get("LED_WILD_SRC") or os.path.join(ART_SRC, "led_intro_lines_crop_2026-11-21/src")
+CAPTURE_SRC = os.path.join(ART_SRC, "led_intro_wilds_built_2026-11-20/src")
 OUT = os.path.join(APP, "static", "assets", "landing")
 SPEC = os.path.join(APP, "src", "game", "ledWildsSpec.ts")
 CONSTANTS = os.path.join(APP, "src", "game", "constants.ts")
@@ -97,9 +98,9 @@ BOARDS = {
     "phone": [{"W": 243, "H": 126, "pitch": 1.56}, {"W": 259, "H": 189, "pitch": 1.297, "lay": 0.37}],
 }
 # THE FACE SCREEN's sources (see above)
-FACE_SRC = os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_reindeer_face_r4_2026-11-21/face_2_no_smoke.png")
-FACE_MOCK = os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_face_screen_r2_2026-11-21/layers")
-FACE_BUILT = os.environ.get("LED_FACE_LAYERS") or os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_face_built_2026-11-21/fix_2026-11-21/layers")
+FACE_SRC = os.path.join(ART_SRC, "led_intro_reindeer_face_r4_2026-11-21/face_2_no_smoke.png")
+FACE_MOCK = os.path.join(ART_SRC, "led_intro_face_screen_r2_2026-11-21/layers")
+FACE_BUILT = os.environ.get("LED_FACE_LAYERS") or os.path.join(ART_SRC, "led_intro_face_built_2026-11-21/fix_2026-11-21/layers")
 FACE_CROP = (77, 0, 1595, 941)  # the face's drawn width (alpha x 85 to 1587) with 8 px either side; full height
 FACE_TIER_W = {"full": 1518, "phone": 922}
 FACE_MID = 836  # the eye patches: the left eye's from x under it, the right eye's from x at or over it

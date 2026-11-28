@@ -5,7 +5,7 @@ Run at low priority with the math env's Python:
 Then `node scripts/stamp-assets.mjs` (pnpm dev and pnpm build run it for you).
     --out <dir>   write the sheets to <dir>/brawl and the spec to <dir>/brawlClipSpec.ts (nothing in the app touched)
 
-Sources (read only, never changed): ~/Desktop/Run Over Reindeer/animation/grandma_brawl/
+Sources (read only, never changed): art-src/animation/grandma_brawl/ (tools/_paths.py)
   loop_v1_keyed/     96 keyed frames, 1708 x 960 (2x the 854 x 480 clip), brawl_loop_draft_v1 (Corey: "Brawl draft 1
                      looks good"; frame 97 duplicated frame 1 and was dropped)
   landing_v3_keyed/  41 keyed frames of brawl_landing_draft_v3 (option C keeps 10 of them)
@@ -41,13 +41,14 @@ import sys
 
 import numpy as np
 from PIL import Image
+from _paths import ART_SRC  # noqa: E402  (tools/_paths.py: the app's art-src/ folder)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
 OUT_ROOT = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else None
 OUT = os.path.join(OUT_ROOT, "brawl") if OUT_ROOT else os.path.join(APP, "static", "assets", "brawl")
 SPEC_PATH = os.path.join(OUT_ROOT, "brawlClipSpec.ts") if OUT_ROOT else os.path.join(APP, "src", "game", "brawlClipSpec.ts")
-SRC = os.path.expanduser("~/Desktop/Run Over Reindeer/animation/grandma_brawl")
+SRC = os.path.join(ART_SRC, "animation/grandma_brawl")
 
 TIER_SCALE = {"full": 1.5, "phone": 0.76}
 SHEET_MAX, GAP = 2048, 2

@@ -37,12 +37,13 @@ import os
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from _paths import FONTS  # noqa: E402  (tools/_paths.py: art-src/_fonts)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
 OUT = os.path.join(APP, "static", "assets", "wild")
 SPEC = os.path.join(APP, "src", "game", "wildMultSpec.ts")
-FONT = os.path.join(os.path.expanduser("~/Library/Fonts"), "Sigmar-Regular.ttf")  # Sigmar (OFL), as the mock
+FONT = os.path.join(FONTS, "Sigmar-Regular.ttf")  # Sigmar (OFL), as the mock; FONTS is art-src/_fonts (tools/_paths.py)
 
 # the house density, atlas px per road px (tools/build_assets.py ATLAS_SCALE)
 DENSITY = {"full": 3.2, "phone": 1.2}

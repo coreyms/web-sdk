@@ -255,4 +255,5 @@ events (`game/bookEventHandlerMap.ts`). Every decision taken is one line in `doc
   --game reindeer` (parent repo) names the ones a change touches. Decimus runs them; builders never run a browser on
   the Mac.
 - Art builders: `tools/build_assets.py`, `tools/build_columns.py` and the other `tools/build_*.py` (math env Python, run
-  with `nice -n 19`); they only read the sources.
+  with `nice -n 19`); they only read the sources, in this app's `art-src/` (fonts in `art-src/_fonts`, roots in
+  `tools/_paths.py`), never the Desktop folder, which is Corey's drop and decision space only.

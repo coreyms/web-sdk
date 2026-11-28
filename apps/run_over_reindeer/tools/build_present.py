@@ -4,7 +4,7 @@ Run with the math env's Python (Pillow, numpy, scipy):
     math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_present.py
 Then `node scripts/stamp-assets.mjs` (pnpm dev and pnpm build run it for you).
 
-It only READS the delivered frames (~/Desktop/Run Over Reindeer/scatter_present_3d_r1_2026-11-15: frames/painted, the
+It only READS the delivered frames (art-src/scatter_present_3d_r1_2026-11-15: frames/painted, the
 part ID renders in work/raw, frames/meta.js) and writes inside this app:
   static/assets/present/present-<tier>-still.webp    the closed present (in the preload; the symbol atlas has no S)
   static/assets/present/present-<tier>-peek-<n>.webp the landing peek's pictures and the light's sprites (kept loaded)
@@ -28,7 +28,7 @@ tier's density and cut into pieces that put it back together exactly:
 THE RED PRESENT (the Super scatter, Corey 2026-11-17, design E: red box, gold ribbon, gold stars). The 4th and 5th
 present to land in a base spin are drawn red (game/road/roadBoard.ts). Every sheet and still above also gets a twin
 `...-red.webp`: the same sheet, same layout, same alpha, its frame pieces recoloured by the owner's red present tool
-(~/Desktop/Run Over Reindeer/scatter_present_red_r1_2026-11-17/tools/recolor.py, read only) BEFORE the one webp encode
+(tools/present_recolor.py, copied from that round's tools/recolor.py) BEFORE the one webp encode
 (so the red is one lossy generation, like the teal). The light's ray, star and glow sprites are copied as they are.
 Alpha is never written by the recolour and is checked equal to the teal's after the encode. presentSpec.ts lists each
 twin as `redFile` beside `file`, and `light.rimColourRed` (the inside's band, the teal rim colour put through the same
@@ -44,11 +44,12 @@ import sys
 import numpy as np
 from PIL import Image, ImageDraw
 from scipy import ndimage as ndi
+from _paths import ART_SRC  # noqa: E402  (tools/_paths.py: the app's art-src/ folder)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
 OUT = os.path.join(APP, "static", "assets", "present")
-SRC = os.path.expanduser("~/Desktop/Run Over Reindeer/scatter_present_3d_r1_2026-11-15")
+SRC = os.path.join(ART_SRC, "scatter_present_3d_r1_2026-11-15")
 PAINTED = os.path.join(SRC, "frames", "painted")
 RAW = os.path.join(SRC, "work", "raw")
 
@@ -73,7 +74,7 @@ WEBP = dict(quality=92, alpha_quality=100, method=6)
 
 # ---- the red present (the Super scatter) --------------------------------------------------------------------------------
 RED_DESIGN = "E"
-RECOLOR = os.path.expanduser("~/Desktop/Run Over Reindeer/scatter_present_red_r1_2026-11-17/tools/recolor.py")
+RECOLOR = os.path.join(HERE, "present_recolor.py")  # the owner's red present tool (scatter_present_red_r1_2026-11-17)
 SINGLE_S = os.path.join(APP, "static", "assets", "symbols", "single", "S.webp")
 LIGHT_SPRITES = ("ray", "star", "glow")
 

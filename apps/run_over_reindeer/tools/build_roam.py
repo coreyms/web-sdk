@@ -33,11 +33,12 @@ import sys
 
 import numpy as np
 from PIL import Image, ImageFilter
+from _paths import ART_SRC  # noqa: E402  (tools/_paths.py: the app's art-src/ folder)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
 OUT = os.path.join(APP, "static", "assets")
-SRC = os.path.expanduser("~/Desktop/Run Over Reindeer")
+SRC = ART_SRC
 SOURCE = os.path.join(SRC, "animation", "export_2026-11-11", "reindeer")
 
 CLIPS = {

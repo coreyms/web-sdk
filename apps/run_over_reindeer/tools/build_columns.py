@@ -10,8 +10,8 @@ Only some densities, added to what is there (the others' files and spec entries 
 Only the landing screen's stills (one small sheet per tier, added to the spec that is there; a whole build makes them too):
     nice -n 19 math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_columns.py --landing
 
-Sources (read only, never changed): ~/Desktop/Run Over Reindeer/animation/<clip>/<keyed folder>/, 97 keyed frames
-of 1920 x 3408 at 24 fps per clip: entrance (reveal), idle and win for the reindeer, Santa and Grandma columns.
+Sources (read only, never changed): art-src/animation/<clip>/<keyed folder>/ (tools/_paths.py), 97 keyed
+frames of 1920 x 3408 at 24 fps per clip: entrance (reveal), idle and win for the reindeer, Santa and Grandma columns.
 Some frames are iCloud placeholders: every frame is read whole once to fetch it, with retries. A frame that cannot be
 fetched STOPS the build with its name, so a sheet never ships with a gap.
 
@@ -65,6 +65,7 @@ import time
 
 import numpy as np
 from PIL import Image
+from _paths import ART_SRC  # noqa: E402  (tools/_paths.py: the app's art-src/ folder)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
@@ -74,7 +75,7 @@ OUT = os.path.join(APP, "static", "assets", "columns")
 OUT_ROOT = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else None
 if OUT_ROOT:
     OUT = os.path.join(OUT_ROOT, "columns")
-SRC = os.path.expanduser("~/Desktop/Run Over Reindeer/animation")
+SRC = os.path.join(ART_SRC, "animation")
 
 FRAME_W, FRAME_H = 1920, 3408
 # the column on the board, road px (tools/build_assets.py: pitch 250, lane lines 167 to 851)

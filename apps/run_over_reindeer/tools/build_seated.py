@@ -35,12 +35,13 @@ import sys
 import numpy as np
 from PIL import Image
 from scipy import ndimage
+from _paths import ART_SRC  # noqa: E402  (tools/_paths.py: the app's art-src/ folder)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
 SYM = os.path.join(APP, "static", "assets", "symbols")
 OUT = os.path.join(APP, "static", "assets", "riders")
-SRC = os.path.expanduser("~/Desktop/Run Over Reindeer")
+SRC = ART_SRC
 STILLS = {
     "grandma": os.path.join(SRC, "references", "mockups", "grandma_car_seated_v4.png"),
     "santa": os.path.join(SRC, "references", "mockups", "santa_sleigh_seated_v13.png"),

@@ -18,10 +18,11 @@ import os
 from PIL import Image
 
 from led_seated import compose
+from _paths import ART_SRC  # noqa: E402  (tools/_paths.py: the app's art-src/ folder)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
-SRC = os.path.expanduser("~/Desktop/Run Over Reindeer/led_billboard_r2_2026-11-16/work/art")
+SRC = os.path.join(ART_SRC, "led_billboard_r2_2026-11-16/work/art")
 OUT = os.path.join(APP, "static", "assets", "landing")
 SPEC = os.path.join(APP, "src", "game", "ledArtSpec.ts")
 NAMES = ["run_strip", "car", "sleigh", "reindeer_col", "santa_col", "grandma_col", "cloud"]

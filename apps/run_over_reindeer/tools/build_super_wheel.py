@@ -42,6 +42,7 @@ import os
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+from _paths import ART_SRC  # noqa: E402  (tools/_paths.py: the app's art-src/ folder)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
@@ -122,7 +123,7 @@ BUST = {t: {**b, "rf": R_HUB + (b["rf"] - R_HUB) * WEDGE_K + BUST_SHIFT_R[t], "u
 # tools/build_columns.py SOURCES idle, frame 1) is read instead, through the SAME crop (the clip's box, then the frame's
 # own ink across), so the placement above is unchanged; the d215 frame is only the check (load_bust)
 BUST_SRC = {"reindeer": "column_idle/v6_keyed_v2", "santa": "santa_idle/v1_keyed"}
-BUST_SRC_ROOT = os.path.expanduser("~/Desktop/Run Over Reindeer/animation")
+BUST_SRC_ROOT = os.path.join(ART_SRC, "animation")
 BUST_SRC_FRAME = (1920, 3408)
 BUST_CHECK_MAX = 4.0  # the keyed source brought down to the d215 frame may differ from it by at most this (mean, 0 to 255)
 # THE WEDGE'S NUMBER (2026-11-20: Corey's Wild multipliers, game/road/wildMult.ts, in place of the yellow): its centre's

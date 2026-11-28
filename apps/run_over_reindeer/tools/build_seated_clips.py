@@ -4,7 +4,7 @@
 Run with the math env's Python (Pillow, numpy, scipy):
     math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_seated_clips.py [--preview <dir>]
 
-It READS the keyed clips (~/Desktop/Run Over Reindeer/animation/seated/<character>_<clip>/keyed/f_###.png, 97 frames at 24
+It READS the keyed clips (art-src/animation/seated/<character>_<clip>/keyed/f_###.png, 97 frames at 24
 fps, 2560 px squares), the locked stills and tools/seated_split.json (through tools/build_seated.py's own functions, so the
 driver picture is the one the game draws). It WRITES static/assets/riders/clips/<character>-<clip>[-phone].webp + .json and
 src/game/seatedClipSpec.ts (generated).

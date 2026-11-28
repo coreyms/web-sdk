@@ -24,7 +24,7 @@ game/landing/ledScreens.ts screenFace). Plain image work on the approved face (n
 Writes full size face frames (1672 x 941, only the eyes changed) eyes_half_fur.png and eyes_closed_fur.png, the puff frames
 puff_n0.png to puff_n3.png with puffs_nostril.json (each frame's top left in the face picture's px and its size), and
 nose.json (the nostrils, the mirror axis, the nose's rim as boxes for the probes) into
-~/Desktop/Run Over Reindeer/led_intro_face_built_2026-11-21/fix_2026-11-21/layers/. tools/build_led_wilds.py packs them with the mock's
+art-src/led_intro_face_built_2026-11-21/fix_2026-11-21/layers/. tools/build_led_wilds.py packs them with the mock's
 other layers (the glances and the ears) into the press screen's Wild sheets.
 
 Run with the math env's Python (Pillow, numpy, scipy):
@@ -36,10 +36,11 @@ import os
 import numpy as np
 from PIL import Image, ImageFilter
 from scipy import ndimage
+from _paths import ART_SRC  # noqa: E402  (tools/_paths.py: the app's art-src/ folder)
 
-FACE_SRC = os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_reindeer_face_r4_2026-11-21/face_2_no_smoke.png")
+FACE_SRC = os.path.join(ART_SRC, "led_intro_reindeer_face_r4_2026-11-21/face_2_no_smoke.png")
 # (since 2026-11-21 the fix round's folder: frame 1 moved off the rim's boxes; the first build's layers/ stay as they were)
-OUT = os.environ.get("LED_FACE_LAYERS") or os.path.expanduser("~/Desktop/Run Over Reindeer/led_intro_face_built_2026-11-21/fix_2026-11-21/layers")
+OUT = os.environ.get("LED_FACE_LAYERS") or os.path.join(ART_SRC, "led_intro_face_built_2026-11-21/fix_2026-11-21/layers")
 
 # ---- the eyes' geometry (the mock's _build/art/eyegeom.py, unchanged) ---------------------------------------------------
 EYE_BOXES = [(500, 360, 770, 540), (900, 360, 1172, 540)]

@@ -78,7 +78,7 @@ To play against the mock RGS instead, start it for this game on a free port and 
 ## Art
 
 `tools/build_assets.py` (math env Python) builds everything under `static/assets/road`, `static/assets/symbols` and
-`static/assets/fonts/overpass` from the source images on the Desktop, and writes `src/game/roadArtSpec.ts` (the
+`static/assets/fonts/overpass` from the source images in `art-src/`, and writes `src/game/roadArtSpec.ts` (the
 measured lane lines, tunnel mouths and symbol sizes). It only reads the sources. Run it again when a source changes.
 
 `tools/build_columns.py` builds the nine column character clips (entrance, idle, win for the reindeer, Santa and
@@ -86,6 +86,11 @@ Grandma) into sheets under `static/assets/columns` at two sizes, and writes `src
 pick and the sizes are `PICK` and `TIER_SCALE` at its top; the memory each choice costs is printed when it runs and
 listed in `docs/SECOND_PASS_DECISIONS.md` section 3. It also builds the still cloud that stays behind a standing
 column (`cloud-backdrop.webp`; `--backdrop` builds that alone). Run both tools at low priority: `nice -n 19 <python> tools/...`.
+
+Every `tools/build_*.py` reads its sources from `art-src/` in this app (`tools/_paths.py`; set `ROR_ART_SRC` to use
+another copy) and its fonts from `art-src/_fonts`. `art-src/` keeps the layout of the Desktop working folder, is
+outside git for now (about 7.5 GB; a second copy is being arranged), and nothing a build uses lives only on the
+Desktop. The Desktop folder is for dropping new art and deciding on it.
 
 ## Workspace
 

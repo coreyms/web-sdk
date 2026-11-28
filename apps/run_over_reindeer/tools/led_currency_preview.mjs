@@ -11,12 +11,12 @@
 import { register, stripTypeScriptTypes, createRequire } from 'node:module';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { homedir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SDK = join(APP, '..', '..');
-const OUT = process.argv[2] || join(homedir(), 'Desktop', 'Run Over Reindeer', 'led_currency_2026-11-17');
+// default out dir: the app's git-ignored preview-out/ (never the Desktop folder)
+const OUT = process.argv[2] || join(APP, 'preview-out', 'led_currency');
 mkdirSync(OUT, { recursive: true });
 
 // ---- the HUD's own text for each amount (the real formatter; the Svelte state stood in, as the check script does) ----

@@ -5,11 +5,12 @@ Run with the math env's Python (Pillow, numpy, scipy):
     math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_fast_lane_art.py
 Then `node scripts/stamp-assets.mjs` (pnpm dev and pnpm build run it for you).
 
-It only READS (never writes) these sources under ~/Desktop/Run Over Reindeer:
+It only READS (never writes) these sources under art-src/ (tools/_paths.py):
   scatter_present_3d_r1_2026-11-15/frames/stills_1254/closed_painted.png   the teal present, the approved 3D build's
                                                                              closed still at 1254 px (Free Spins)
-  scatter_present_red_r1_2026-11-17/tools/recolor.py                         the red recolour, design E (Super Free
-                                                                             Spins), run on that same still
+  the app's tools/present_recolor.py (from scatter_present_red_r1_2026-11-17)  the red recolour, design E (Super Free
+                                                                             Spins), run on that same still by this
+                                                                             script's own Python
   references/mockups/speed_limit_10_v3.png                                   the 10 sign of the reels; its face is
                                                                              blanked white so the menu sets its own
                                                                              three lines on it (ANTE / PLAY / 2X)
@@ -33,15 +34,15 @@ import tempfile
 
 import numpy as np
 from PIL import Image
+from _paths import ART_SRC  # noqa: E402  (tools/_paths.py: the app's art-src/ folder)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
 OUT = os.path.join(APP, "static", "assets", "fastlane")
-SRC = os.path.expanduser("~/Desktop/Run Over Reindeer")
+SRC = ART_SRC
 
 TEAL_STILL = os.path.join(SRC, "scatter_present_3d_r1_2026-11-15", "frames", "stills_1254", "closed_painted.png")
-RECOLOR = os.path.join(SRC, "scatter_present_red_r1_2026-11-17", "tools", "recolor.py")
-RECOLOR_PY = os.path.join(SRC, "scatter_present_3d_r1_2026-11-15", "work", "venv", "bin", "python")
+RECOLOR = os.path.join(HERE, "present_recolor.py")  # the owner's red present tool (scatter_present_red_r1_2026-11-17)
 RED_DESIGN = "E"
 SIGN = os.path.join(SRC, "references", "mockups", "speed_limit_10_v3.png")
 
@@ -99,7 +100,7 @@ def main():
 
     with tempfile.TemporaryDirectory() as tmp:
         red_path = os.path.join(tmp, "present-red.png")
-        subprocess.run([RECOLOR_PY, "-I", RECOLOR, RED_DESIGN, TEAL_STILL, red_path], check=True)
+        subprocess.run([sys.executable, "-I", RECOLOR, RED_DESIGN, TEAL_STILL, red_path], check=True)
         red = Image.open(red_path).convert("RGBA")
         # the recolour never writes alpha: the red ink box is the teal one
         assert np.array_equal(np.asarray(red)[..., 3], np.asarray(teal)[..., 3]), "recolour changed the alpha"

@@ -4,7 +4,7 @@ Run with the math env's Python (Pillow, numpy, fontTools, brotli):
     math-sdk/env/bin/python web-sdk/apps/run_over_reindeer/tools/build_assets.py
 Then `node scripts/stamp-assets.mjs` (pnpm dev and pnpm build run it for you).
 
-It only READS the sources (the Desktop folder and ~/Library/Fonts) and writes inside this app:
+It only READS the sources (the app's art-src/ folder and its art-src/_fonts, tools/_paths.py) and writes inside this app:
   static/assets/road/road.webp            the locked board background, at source size (1536 x 1024)
   static/assets/road/tunnel-left.webp     the left portal (stone wall and rim) cut along the tunnel mouth, with alpha;
   static/assets/road/tunnel-right.webp    drawn OVER the symbols so traffic comes out from under it
@@ -38,13 +38,13 @@ from PIL import Image, ImageDraw, ImageFont
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import sign_layers  # noqa: E402  (THE SIGN RIG's layer cut, tools/sign_layers.py)
+from _paths import ART_SRC, FONTS  # noqa: E402  (art-src/ and art-src/_fonts)
 
 APP = os.path.dirname(HERE)
 OUT = os.path.join(APP, "static", "assets")
-SRC = os.path.expanduser("~/Desktop/Run Over Reindeer")
+SRC = ART_SRC
 MOCK = os.path.join(SRC, "references", "mockups")
 CARS = os.path.join(SRC, "models", "meshy_cars_v2")
-FONTS = os.path.expanduser("~/Library/Fonts")
 
 BACKGROUND = os.path.join(MOCK, "road_tunnels_phone_v12.png")
 

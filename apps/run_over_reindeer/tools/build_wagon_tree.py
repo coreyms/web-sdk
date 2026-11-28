@@ -1,5 +1,5 @@
 """THE CHRISTMAS TREE ON THE STATION WAGON (Corey 2026-11-16: "Yes this one looks good."; round 4 art,
-~/Desktop/Run Over Reindeer/wagon_tree_r4_2026-11-15/, NOTES.md there). Packs the approved layers and measures what the game
+art-src/wagon_tree_r4_2026-11-15/, NOTES.md on the Desktop). Packs the approved layers and measures what the game
 bends them by.
 
 Run with the math env's Python (Pillow, numpy):
@@ -32,12 +32,13 @@ import os
 
 import numpy as np
 from PIL import Image
+from _paths import ART_SRC  # noqa: E402  (tools/_paths.py: the app's art-src/ folder)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
 SYM = os.path.join(APP, "static", "assets", "symbols")
 OUT = os.path.join(APP, "static", "assets", "riders")
-ROUND = os.path.expanduser("~/Desktop/Run Over Reindeer/wagon_tree_r4_2026-11-15")
+ROUND = os.path.join(ART_SRC, "wagon_tree_r4_2026-11-15")
 DENSITY = {"full": 3.2, "phone": 1.2}
 LAYERS = ("tree", "rail", "ropes")
 # the bend's numbers (NOTES.md, Motion): wheelbase units

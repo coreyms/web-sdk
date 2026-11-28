@@ -1,1 +1,8 @@
 # build output and caches are ignored by the monorepo root (.gitignore: build, .svelte-kit, node_modules, .turbo)
+
+# Source art the build scripts read (moved in from the Desktop working folder 2026-11-28). About 7.5 GB, so it is
+# outside git until Corey decides where it is kept; a second copy must exist elsewhere before the Desktop copy goes.
+/art-src/
+
+# local preview pages the tools write (tools/led_currency_preview.mjs)
+/preview-out/

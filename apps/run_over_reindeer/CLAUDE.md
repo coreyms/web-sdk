@@ -58,9 +58,13 @@ From the app folder: `node scripts/stamp-assets.mjs`, `nice -n 19 pnpm build`,
 `PUBLIC_STAGING=1` build the other way). Type check baseline: 7 errors in infrastructure files.
 
 ## Art and sound
-- `tools/build_*.py` rebuild art from the source images in the Desktop game folder and write spec files
-  (`src/game/roadArtSpec.ts`, `src/game/columnClipSpec.ts`). Run them only when the brief says, as
+- `tools/build_*.py` rebuild art from the source images in `art-src/` (this app; roots in `tools/_paths.py`,
+  `ROR_ART_SRC` points them at another copy) and write spec files (`src/game/roadArtSpec.ts`,
+  `src/game/columnClipSpec.ts`). Run them only when the brief says, as
   `nice -n 19 /Users/corey/Projects/stake-engine/math-sdk/env/bin/python tools/<script>.py`.
+- `art-src/` keeps the Desktop folder's layout, is outside git for now (about 7.5 GB; a second copy is being
+  arranged) and holds the fonts in `art-src/_fonts`. The LED face and Wild chains write their intermediate files
+  there too. The Desktop folder `Run Over Reindeer` is Corey's drop and decision space only: no build reads it.
 - Audio: parent `tools/build_audiosprite.py --game run_over_reindeer --out-root <worktree>`; state file
   `tools/audiosprite.run_over_reindeer.state.json` (parent repo). Without `--out-root` it writes into the main tree.
 

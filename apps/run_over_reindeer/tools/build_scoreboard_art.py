@@ -30,10 +30,11 @@ import os
 from PIL import Image
 
 from led_seated import compose
+from _paths import ART_SRC  # noqa: E402  (tools/_paths.py: the app's art-src/ folder)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
-SRC = os.path.expanduser("~/Desktop/Run Over Reindeer/bigwin_led_r3_2026-11-16/work/art")
+SRC = os.path.join(ART_SRC, "bigwin_led_r3_2026-11-16/work/art")
 OUT = os.path.join(APP, "static", "assets", "scoreboard")
 SPEC = os.path.join(APP, "src", "game", "scoreboardArtSpec.ts")
 # row 1: the run strip; row 2 the cars and the sleigh; row 3 the column characters and the present

@@ -4,7 +4,7 @@ both"): the five flattened road sign pictures cut into the layers the game's sig
 A port of the mock's tools/separate.py, unchanged in method and numbers; tools/build_assets.py packs its output into the
 symbol atlases (both tiers) and writes src/game/signRigSpec.ts. No AI, plain array work.
 
-Reads   ~/Desktop/Run Over Reindeer/references/mockups/<sign>.png   (the approved art the atlas's flattened frames are
+Reads   art-src/references/mockups/<sign>.png   (tools/_paths.py; the approved art the atlas's flattened frames are
         built from; those frames stay: through traffic, shadows, the rules page and the probes still use them)
 
 Method
@@ -31,8 +31,9 @@ import os
 import numpy as np
 from PIL import Image
 from scipy import ndimage as ndi
+from _paths import ART_SRC  # noqa: E402  (tools/_paths.py: the app's art-src/ folder)
 
-MOCK = os.path.expanduser("~/Desktop/Run Over Reindeer/references/mockups")
+MOCK = os.path.join(ART_SRC, "references/mockups")
 
 # the sizes and sources are tools/build_assets.py's own (configure() takes them from it; these are the same values, for
 # a run of this file on its own)
